@@ -189,15 +189,26 @@ def launch_chrome(
 
 def _find_kindle_tab(browser: Browser) -> Page:
     """Kindle Cloud Reader が開かれているタブを探します。"""
+    all_urls = []
     kindle_pages = []
     for context in browser.contexts:
         for page in context.pages:
             url = page.url
+            all_urls.append(url)
             if 'read.amazon' in url:
                 kindle_pages.append(page)
-    
+
     if not kindle_pages:
-        raise RuntimeError("Kindle Cloud Reader のタブが見つかりません。")
+        url_list = '\n'.join(f'  - {u}' for u in all_urls) if all_urls else '  (タブなし)'
+        raise RuntimeError(
+            "Kindle Cloud Reader のタブが見つかりません。\n\n"
+            "接続中の Chrome で開いているタブ:\n"
+            f"{url_list}\n\n"
+            "対処法:\n"
+            "  1. --remote-debugging-port=9222 オプション付きで起動した Chrome で\n"
+            "     Kindle Cloud Reader (read.amazon.co.jp) を開いてください。\n"
+            "  2. 通常の Chrome とは別プロセスになります。"
+        )
 
     for p in kindle_pages:
         if 'asin=' in p.url or 'reading' in p.url:

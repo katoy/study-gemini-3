@@ -21,7 +21,7 @@ class DewarpStep(ProcessingStep):
         self.progress_cb = progress_cb
 
     def initialize(self):
-        if self.config.dewarp_mode == "dewarpnet":
+        if self.config.dewarp_mode != "none":
             self.dewarper.load_model(progress_cb=self.progress_cb)
 
     def finalize(self):

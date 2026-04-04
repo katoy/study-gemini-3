@@ -124,7 +124,7 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
     return rotated
 
 # ──────────────────────────────────────────────
-# 3. 黒縁除去
+# 3. 向き補正 (Orientation)
 # ──────────────────────────────────────────────
 
 def fix_orientation(image: np.ndarray) -> np.ndarray:

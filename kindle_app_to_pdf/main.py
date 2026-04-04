@@ -8,7 +8,6 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from kindle_capture import capture_kindle_pages, sanitize_filename
 from pdf_maker import make_pdf
@@ -90,13 +89,12 @@ def run(args: argparse.Namespace) -> None:
 
 def _prepare_screenshots(
     args: argparse.Namespace, output_dir: Path
-) -> Tuple[str, List[str], Optional[Path]]:
+) -> tuple[str, list[str], Path | None]:
     """キャプチャを実行するか、既存のスクリーンショットを準備します。"""
     if args.images_dir:
         shot_dir = Path(args.images_dir)
         if not shot_dir.exists():
-            logger.error(f"指定されたディレクトリが見つかりません: {shot_dir}")
-            sys.exit(1)
+            raise FileNotFoundError(f"指定されたディレクトリが見つかりません: {shot_dir}")
 
         screenshots = sorted([str(p) for p in shot_dir.glob('page_*.png')])
         book_title = shot_dir.name
@@ -104,23 +102,19 @@ def _prepare_screenshots(
         return book_title, screenshots, None
 
     logger.info("[1/2] Kindle ページをキャプチャ中...")
-    try:
-        book_title, screenshots = capture_kindle_pages(
-            output_dir=str(output_dir),
-            page_delay=args.page_delay,
-        )
-        logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
-        shot_dir = Path(screenshots[0]).parent if screenshots else None
-        return book_title, screenshots, shot_dir
-    except Exception as e:
-        logger.error(f"キャプチャ中にエラーが発生しました: {e}")
-        sys.exit(1)
+    book_title, screenshots = capture_kindle_pages(
+        output_dir=str(output_dir),
+        page_delay=args.page_delay,
+    )
+    logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
+    shot_dir = Path(screenshots[0]).parent if screenshots else None
+    return book_title, screenshots, shot_dir
 
 
 def _generate_pdf(
     output_dir: Path,
     book_title: str,
-    screenshots: List[str]
+    screenshots: list[str],
 ) -> Path:
     """PDF を生成します。"""
     base_name = sanitize_filename(book_title)
@@ -131,15 +125,11 @@ def _generate_pdf(
         counter += 1
 
     logger.info(f"[2/2] PDF を生成中: {pdf_path}")
-    try:
-        make_pdf(
-            screenshots=screenshots,
-            output_path=str(pdf_path),
-        )
-        return pdf_path
-    except Exception as e:
-        logger.error(f"PDF 生成中にエラーが発生しました: {e}")
-        sys.exit(1)
+    make_pdf(
+        screenshots=screenshots,
+        output_path=str(pdf_path),
+    )
+    return pdf_path
 
 
 def _delete_screenshots(shot_dir: Path) -> None:

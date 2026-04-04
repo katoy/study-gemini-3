@@ -36,7 +36,7 @@ def _run_applescript(script: str) -> str:
     return result.stdout.strip()
 
 
-def _find_and_activate_kindle() -> Tuple[str, str]:
+def _find_and_activate_kindle() -> tuple[str, str]:
     """
     Kindle アプリをアクティブにして (アプリ名, プロセス名) を返します。
 
@@ -44,16 +44,13 @@ def _find_and_activate_kindle() -> Tuple[str, str]:
         (app_name, process_name) のタプル
     """
     for app_name in KINDLE_APP_NAMES:
-        script = f'tell application "{app_name}" to activate'
-        result = subprocess.run(
-            ['osascript', '-e', script],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
+        try:
+            _run_applescript(f'tell application "{app_name}" to activate')
             time.sleep(1.0)  # アクティブ化の完了を待つ
             process_name = _find_kindle_process_name()
             return app_name, process_name
+        except RuntimeError:
+            continue
 
     raise RuntimeError(
         "Kindle アプリが見つかりません。\n"
@@ -94,7 +91,7 @@ end tell
         return "kindle_book"
 
 
-def _get_window_bounds(process_name: str) -> Tuple[int, int, int, int]:
+def _get_window_bounds(process_name: str) -> tuple[int, int, int, int]:
     """
     System Events 経由でウィンドウの表示領域を返します。
 
@@ -153,7 +150,7 @@ def _calculate_md5(path: Path) -> str:
 def capture_kindle_pages(
     output_dir: str,
     page_delay: float = 1.5,
-) -> Tuple[str, List[str]]:
+) -> tuple[str, list[str]]:
     """
     Mac Kindle デスクトップアプリの全ページをキャプチャします。
 
@@ -178,8 +175,8 @@ def capture_kindle_pages(
         counter += 1
     book_dir.mkdir(parents=True, exist_ok=True)
 
-    screenshots: List[str] = []
-    prev_hash: Optional[str] = None
+    screenshots: list[str] = []
+    prev_hash: str | None = None
     same_count = 0
 
     logger.info("キャプチャ開始 (終端を検出したら自動停止します)...")

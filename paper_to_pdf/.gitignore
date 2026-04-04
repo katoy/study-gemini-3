@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+ENV/
+
+# macOS
+.DS_Store
+
+# 出力ファイル
+*.pdf
+out_*.pdf
+
+# AI モデルキャッシュ
+~/.cache/paper_to_pdf/
+
+# 入力サンプル・作業画像 (samples/ は追跡しない)
+samples/
+
+# ログ
+*.log
+
+# 環境変数
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

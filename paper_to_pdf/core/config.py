@@ -16,10 +16,10 @@ OUTPUT_SIZES: dict[str, tuple[int, int]] = {
 }
 
 _VALID_BOOK_TYPES  = {"jp_vert", "jp_horiz", "en", "manga"}
-_VALID_DEWARP_MODES = {"dewarpnet", "polynomial", "none"}
-_VALID_SENSITIVITIES = {"low", "medium", "high"}
-_VALID_AI_BACKENDS  = {"realesrgan", "swin2sr"}
-_VALID_AI_SCALES    = {2, 4}
+_VALID_DEWARP_MODES = {"dewarpnet", "polynomial", "doctr", "none"}
+_VALID_SENSITIVITIES = {"low", "medium", "high", "ai"}
+_VALID_AI_BACKENDS  = {"realesrgan", "swin2sr", "docres"}
+_VALID_AI_SCALES    = {1, 2, 4}
 
 
 @dataclass
@@ -31,14 +31,14 @@ class ProcessingConfig:
     orient: bool = True
     border: bool = True
     output_size: str = "A4"
-    sensitivity: str = "medium"
+    sensitivity: str = "medium"      # "ai" を指定すると AI 検出を使用
     grayscale: bool = False
     shadow_strength: float = 1.0
     dpi: int = 300
     # AI 画像補正
     ai_enhance: bool = False
-    ai_backend: str = "realesrgan"   # "realesrgan" | "swin2sr"
-    ai_scale: int = 2                # 超解像の拡大倍率 (2 or 4)
+    ai_backend: str = "realesrgan"   # "realesrgan" | "swin2sr" | "docres"
+    ai_scale: int = 2                # 1 の場合は解像度変更なしで補正のみ
 
     def __post_init__(self) -> None:
         """フィールド値のバリデーション"""

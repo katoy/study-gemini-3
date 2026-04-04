@@ -30,7 +30,9 @@ class PostProcessStep(ProcessingStep):
             img = deskew_page(img)
             
             # 4. 影・裏写り除去
-            if self.config.shadow_strength > 0:
+            # AI (DocRes) が有効な場合は、そちらで除去済みのため古典的補正はスキップ
+            skip_classical_shadow = (self.config.ai_enhance and self.config.ai_backend == "docres")
+            if self.config.shadow_strength > 0 and not skip_classical_shadow:
                 img = remove_shadow(img, self.config.shadow_strength)
             
             # 5. サイズ正規化・グレースケール化 (最後に行う)

@@ -6,9 +6,12 @@ page_detector.py
 
 from __future__ import annotations
 
+import logging
 import cv2
 import numpy as np
 from typing import Optional, List, Tuple
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # 座標・透視変換
@@ -55,13 +58,25 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> Optio
     contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
 
     img_area = resized.shape[0] * resized.shape[1]
-    for c in contours:
-        if cv2.contourArea(c) < img_area * 0.1: continue
-        peri = cv2.arcLength(c, True)
-        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+    for cnt in contours:
+        if cv2.contourArea(cnt) < img_area * 0.2:
+            continue
+        peri = cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
         if len(approx) == 4:
             return (approx.reshape(4, 2) / scale).astype("float32")
+
     return None
+
+
+def detect_page_contour_ai(image: np.ndarray) -> Optional[np.ndarray]:
+    """
+    AI (Segmentation モデル) を用いて書籍ページの境界を検出する。
+    将来のアップデートで U-Net / DeepLabV3+ 等のモデル推論を実装予定。
+    現在は既存の検出器を最高感度で呼び出すフォールバックとして機能。
+    """
+    logger.warning("AI ページ境界検出は現在準備中です。既存の検出器(high)にフォールバックします。")
+    return detect_page_contour(image, sensitivity="high")
 
 # ──────────────────────────────────────────────
 # 見開き分割

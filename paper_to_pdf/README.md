@@ -13,21 +13,25 @@
 4. [使い方](#使い方)
     - [実行例](#実行例)
     - [オプション一覧](#オプション一覧)
-5. [補正アルゴリズムについて](#補正アルゴリズムについて)
-6. [より綺麗にスキャンするためのヒント](#より綺麗にスキャンするためのヒント)
-7. [対応画像フォーマット](#対応画像フォーマット)
+5. [AI 補正バックエンド](#ai-補正バックエンド)
+6. [パフォーマンス](#パフォーマンス)
+7. [補正アルゴリズムについて](#補正アルゴリズムについて)
+8. [より綺麗にスキャンするためのヒント](#より綺麗にスキャンするためのヒント)
+9. [対応画像フォーマット](#対応画像フォーマット)
 
 ---
 
 ## 主な機能
 
 - **インテリジェント自動判定:** スマホを縦に持って撮った「横向きの見開き」も自動で回転・分割。
-- **高度な湾曲補正 (DewarpNet / Polynomial):** 
+- **高度な湾曲補正 (DewarpNet / Polynomial / DocTR):**
     - `dewarpnet`: 深層学習を用いた強力な 3D 湾曲補正。
     - `polynomial`: 3次多項式を用いてページの非対称な膨らみを精密に平坦化。
-- **AI 超解像補正 (Upscaling):** Real-ESRGAN や Swin2SR を用いた、文字や図版の鮮明化。
+    - `doctr`: AI Transformer ベースの文書補正。
+- **AI 超解像 & 復元補正:** Real-ESRGAN / Swin2SR による鮮明化、DocRes による AI 影・裏写り除去。
 - **強力なドキュメント・クリーン:** 背景（紙の色）を純白にし、裏写り（ブリードスルー）や影を完全に排除。
 - **精密な傾き補正 (Deskew):** テキスト行を 0.1度単位で検出し、完全に水平な状態に回転補正。
+- **AI コーナー検出:** `--sensitivity ai` でコーナーを AI により精密に検出。
 - **メモリ効率重視:** ストリーミング方式により、数百枚の画像でも安定して PDF を生成。
 
 ## アーキテクチャ
@@ -36,11 +40,15 @@
 
 - **`core/`**: 設定管理 (`config.py`) とパイプライン制御 (`pipeline.py`)。
 - **`steps/`**: 各処理フェーズの独立した実装。
-    - `DetectionStep`: ページ境界検出と見開き分割。
-    - `DewarpStep`: 湾曲補正（AI または多項式）。
-    - `EnhancementStep`: AI による超解像補正。
-    - `PostProcessStep`: 影除去、傾き・向き補正、サイズ正規化。
-- **`utils/`**: デバイス選択 (`device.py`) や画像 I/O (`image.py`) の共通ユーティリティ。
+    - `DetectionStep` (`detection.py`): ページ境界検出と見開き分割。
+    - `DewarpStep` (`dewarp.py`): 湾曲補正（AI / 多項式 / DocTR）。
+    - `EnhancementStep` (`enhancement.py`): AI による超解像・復元補正。
+    - `PostProcessStep` (`postprocess.py`): 影除去、傾き・向き補正、サイズ正規化。
+- **`utils/`**: 共通ユーティリティ。
+    - `device.py`: デバイス（CPU / MPS / CUDA）選択。
+    - `image.py`: 画像 I/O ヘルパー。
+    - `paths.py`: モデルキャッシュパス管理。
+    - `dewarpnet_arch.py`: DewarpNet モデル定義。
 
 ## セットアップ
 
@@ -78,6 +86,12 @@ python main.py ./novel/ novel.pdf --book-type jp_vert --shadow-strength 1.0
 
 # AI 超解像を適用（Real-ESRGAN x2）
 python main.py ./input out.pdf --ai-enhance --ai-backend realesrgan --ai-scale 2
+
+# AI による影・裏写り除去（超解像なし）
+python main.py ./input out.pdf --ai-enhance --ai-backend docres --ai-scale 1
+
+# AI コーナー検出 + 詳細ログ
+python main.py ./input out.pdf --sensitivity ai --verbose
 ```
 
 ### オプション一覧
@@ -85,17 +99,103 @@ python main.py ./input out.pdf --ai-enhance --ai-backend realesrgan --ai-scale 2
 | オプション | 説明 | デフォルト |
 |------------|------|------------|
 | `--book-type` | `jp_vert` (縦書き), `jp_horiz` (横書き), `en` (英語), `manga` (漫画) | `jp_vert` |
-| `--dewarp-mode` | `dewarpnet` (AI 高精度), `polynomial` (幾何補正), `none` (なし) | `dewarpnet` |
-| `--ai-enhance` | AI モデルで超解像補正を行う | (行わない) |
-| `--ai-backend` | `realesrgan` または `swin2sr` | `realesrgan` |
-| `--ai-scale` | 超解像の拡大倍率 (`2` または `4`) | `2` |
+| `--dewarp-mode` | `dewarpnet` (AI 高精度), `polynomial` (幾何補正), `doctr` (AI Transformer), `none` (なし) | `dewarpnet` |
+| `--ai-enhance` | AI モデルで超解像・復元補正を行う | (行わない) |
+| `--ai-backend` | `realesrgan` (超解像), `swin2sr` (超解像), `docres` (AI 影・裏写り除去) | `realesrgan` |
+| `--ai-scale` | 超解像の拡大倍率 (`1`: 復元のみ, `2`, `4`) | `2` |
 | `--output-size` | `A4`, `A5`, `B5`, `Letter` | `A4` |
-| `--sensitivity` | `low`, `medium`, `high` (境界検出感度) | `medium` |
+| `--sensitivity` | `low`, `medium`, `high`, `ai` (AI によるコーナー検出) | `medium` |
 | `--grayscale` | 強制的にグレースケールで出力 | (書籍タイプに依存) |
 | `--shadow-strength`| 影・裏写り除去の強度 (0.0 - 1.0) | `1.0` |
 | `--no-split` | 見開き分割を行わない | (分割する) |
 | `--no-orient` | 向きの自動補正を行わない | (補正する) |
 | `--no-border` | 黒縁除去を行わない | (除去する) |
+| `--verbose`, `-v` | 詳細ログを出力 | (なし) |
+
+## AI 補正バックエンド
+
+### Real-ESRGAN（推奨）
+- ノイズ除去 + 超解像。書籍スキャンに最適化。
+- インストール: `pip install realesrgan basicsr`
+- モデルは初回実行時に自動ダウンロード (`~/.cache/paper_to_pdf/`)
+
+### Swin2SR（HuggingFace）
+- Swin Transformer V2 ベースの超解像。
+- インストール: `pip install transformers accelerate`
+- モデルは HuggingFace Hub から自動ダウンロード。
+
+> **Warning: You are sending unauthenticated requests to the HF Hub...** が表示される場合  
+> HuggingFace の認証トークンが未設定です。[https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) でトークンを取得し、以下のいずれかで設定してください。
+>
+> ```bash
+> # 方法 A: CLI でログイン（推奨・一度だけ実行）
+> huggingface-cli login
+>
+> # 方法 B: 環境変数で設定
+> export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxx"
+> ```
+>
+> 未認証でも動作しますが、ダウンロード速度が制限される場合があります。
+
+### DocRes（AI 影・裏写り除去）
+- AI による高精度な影・裏写り（ブリードスルー）除去。`--ai-scale 1` と組み合わせて復元のみの用途にも利用可能。
+- インストール: `pip install transformers`
+- `--ai-backend docres --ai-scale 1` で超解像なしの復元処理として動作。
+
+### DewarpNet（`--dewarp-mode dewarpnet` 使用時）
+- 湾曲補正に AI モデルを使用。PyTorch 必須。
+- モデルが未ダウンロードまたは PyTorch 未インストール時は polynomial に自動フォールバック。
+
+> **M1 Mac の場合:** PyTorch は MPS（Metal）で GPU 加速されます。
+
+---
+
+## パフォーマンス
+
+> 以下の数値は **A4 @ 300 DPI（約 2480×3508 px）の見開き 1 枚** を処理した場合のおおよその目安です。  
+> 実測値は画像サイズ・内容・ハードウェア環境によって大きく変わります。
+
+### 湾曲補正モードの速度比較
+
+| モード | CPU | M1 Mac (MPS) | 備考 |
+|--------|-----|--------------|------|
+| `none` | < 0.1 s | < 0.1 s | 補正なし |
+| `polynomial` | 0.1〜0.5 s | 0.1〜0.5 s | GPU 不要。軽量で安定 |
+| `dewarpnet` | 1〜3 s | 0.5〜1.5 s | AI による高精度補正。初回はモデルロードに数秒 |
+| `doctr` | *(placeholder)* | *(placeholder)* | 実装予定 |
+
+### AI 超解像・復元モデルの速度比較
+
+タイル推論（512 px または 128 px 単位）のため、処理時間は画像サイズに概ね比例します。
+
+| バックエンド | スケール | CPU | M1 Mac (MPS) | NVIDIA GPU (CUDA) | 特徴 |
+|--------------|----------|-----|--------------|-------------------|------|
+| `realesrgan` | ×2 | 15〜40 s | 3〜8 s | 1〜3 s | **推奨。** 品質・速度のバランスが最良 |
+| `realesrgan` | ×4 | 40〜120 s | 8〜25 s | 2〜8 s | 高解像度が必要な場合 |
+| `swin2sr` | ×2 | 数分 | 30〜90 s | 10〜30 s | タイル 128 px のため非常に遅い |
+| `swin2sr` | ×4 | 数分〜 | 60〜180 s | 20〜60 s | CPU での利用は非推奨 |
+| `docres` | ×1 | 8〜20 s | 2〜5 s | 1〜2 s | 復元のみ（超解像なし）。高速 |
+
+### 処理全体の目安（`--ai-enhance` なし）
+
+見開き 1 枚あたり、湾曲補正を含む全処理（AI 超解像除く）のおおよその合計時間：
+
+| 構成 | CPU |
+|------|-----|
+| `--dewarp-mode none` | < 1 s |
+| `--dewarp-mode polynomial` | 0.5〜2 s |
+| `--dewarp-mode dewarpnet` | 2〜5 s |
+
+### 推奨設定
+
+| 目的 | 推奨オプション |
+|------|---------------|
+| **速度重視**（プレビュー確認など） | `--dewarp-mode polynomial` |
+| **品質重視**（最終出力） | `--dewarp-mode dewarpnet --ai-enhance --ai-backend realesrgan --ai-scale 2` |
+| **影・裏写りが強い場合** | `--ai-enhance --ai-backend docres --ai-scale 1` |
+| **GPU なしで AI 超解像** | `--ai-enhance --ai-backend realesrgan --ai-scale 2`（CPU でも動作するが遅い） |
+
+---
 
 ## 補正アルゴリズムについて
 

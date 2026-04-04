@@ -32,22 +32,22 @@ def parse_args():
     # オプション
     parser.add_argument("--book-type", choices=["jp_vert", "jp_horiz", "en", "manga"], 
                         default="jp_vert", help="書籍タイプ (default: jp_vert)")
-    parser.add_argument("--dewarp-mode", choices=["dewarpnet", "polynomial", "none"], 
-                        default="dewarpnet", help="湾曲補正モード (default: dewarpnet)")
+    parser.add_argument("--dewarp-mode", choices=["dewarpnet", "polynomial", "doctr", "none"], 
+                        default="dewarpnet", help="湾曲補正モード (default: dewarpnet, doctr: AI Transformer)")
     parser.add_argument("--no-split", action="store_false", dest="split", help="見開き画像を分割しない")
     parser.add_argument("--no-orient", action="store_false", dest="orient", help="向きを自動補正しない")
     parser.add_argument("--no-border", action="store_false", dest="border", help="黒縁を除去しない")
     parser.add_argument("--output-size", default="A4", help="出力サイズ A4/A5/B5/Letter (default: A4)")
-    parser.add_argument("--sensitivity", choices=["low", "medium", "high"], default="medium", 
-                        help="境界検出感度 (default: medium)")
+    parser.add_argument("--sensitivity", choices=["low", "medium", "high", "ai"], default="medium", 
+                        help="境界検出感度 (ai: AI によるコーナー検出)")
     parser.add_argument("--grayscale", action="store_true", help="グレースケールで出力")
     parser.add_argument("--shadow-strength", type=float, default=1.0, help="影・裏写り除去強度 0-1.0 (default: 1.0)")
     parser.add_argument("--ai-enhance", action="store_true",
-                        help="オープンソース AI モデルで超解像補正を行う")
-    parser.add_argument("--ai-backend", choices=["realesrgan", "swin2sr"], default="realesrgan",
-                        help="AI 補正バックエンド (default: realesrgan)")
-    parser.add_argument("--ai-scale", type=int, choices=[2, 4], default=2,
-                        help="超解像の拡大倍率 (default: 2)")
+                        help="オープンソース AI モデルで超解像・復元補正を行う")
+    parser.add_argument("--ai-backend", choices=["realesrgan", "swin2sr", "docres"], default="realesrgan",
+                        help="AI 補正バックエンド (docres: AI による影・裏写り除去)")
+    parser.add_argument("--ai-scale", type=int, choices=[1, 2, 4], default=2,
+                        help="超解像の拡大倍率 (1: 復元のみ, default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログを出力")
     
     return parser.parse_args()

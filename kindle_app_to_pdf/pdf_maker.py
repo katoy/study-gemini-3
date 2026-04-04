@@ -5,7 +5,6 @@ img2pdf を使用して、画像を劣化させることなく PDF に結合し�
 
 import logging
 from pathlib import Path
-from typing import List
 
 import img2pdf
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def make_pdf(
-    screenshots: List[str],
+    screenshots: list[str],
     output_path: str,
 ) -> None:
     """

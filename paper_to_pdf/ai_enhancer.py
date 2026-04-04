@@ -29,6 +29,45 @@ from utils.paths import CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
+_TQDM_FMT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+
+
+def _apply_tiled(
+    img: np.ndarray,
+    tile_fn,
+    tile_size: int,
+    tile_pad: int,
+    out_scale: int = 1,
+    desc: str = "",
+) -> np.ndarray:
+    """
+    タイル分割推論の共通ループ。
+
+    img      : 入力画像 (任意の dtype / shape)
+    tile_fn  : patch (np.ndarray) を受け取り処理済み patch を返す callable
+    out_scale: 出力が入力の何倍のサイズになるか (超解像なら 2 or 4、復元のみなら 1)
+    """
+    from tqdm import tqdm
+
+    h, w = img.shape[:2]
+    s = out_scale
+    out_h, out_w = h * s, w * s
+    output = np.zeros((out_h, out_w, img.shape[2]), dtype=img.dtype)
+
+    tiles = [(y, x) for y in range(0, h, tile_size) for x in range(0, w, tile_size)]
+    with tqdm(tiles, desc=desc, unit="tile", leave=False, bar_format=_TQDM_FMT) as pbar:
+        for y, x in pbar:
+            y1 = max(0, y - tile_pad);  y2 = min(h, y + tile_size + tile_pad)
+            x1 = max(0, x - tile_pad);  x2 = min(w, x + tile_size + tile_pad)
+            out_patch = tile_fn(img[y1:y2, x1:x2])
+
+            py1 = (y - y1) * s;  py2 = py1 + min(tile_size, h - y) * s
+            px1 = (x - x1) * s;  px2 = px1 + min(tile_size, w - x) * s
+            output[y * s: min(out_h, (y + tile_size) * s),
+                   x * s: min(out_w, (x + tile_size) * s)] = out_patch[py1:py2, px1:px2]
+
+    return output
+
 # ──────────────────────────────────────────────
 # RRDBNet アーキテクチャ (Pure PyTorch 実装)
 # 外部ライブラリへの依存を排除するため、必要最小限の定義をここに内包する。
@@ -171,44 +210,21 @@ class _RealESRGANInferencer:
             t = F.pad(t, (0, pw, 0, ph), mode="reflect")
         return t, (ph, pw)
 
+    def _infer_patch(self, patch: np.ndarray) -> np.ndarray:
+        """float32 パッチを推論し、超解像済み float32 パッチを返す。"""
+        import torch
+        s = self.scale
+        t = torch.from_numpy(patch).permute(2, 0, 1).unsqueeze(0).to(self._device)
+        t, _ = self._pad(t)
+        with torch.no_grad():
+            out = self._model(t)
+        out = out[:, :, :patch.shape[0] * s, :patch.shape[1] * s]
+        return out.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+
     def _tile_enhance(self, img_f: np.ndarray) -> np.ndarray:
         """タイル分割して推論し、結果を結合する。"""
-        import torch
-        from tqdm import tqdm
-
-        s = self.scale
-        pad = self._TILE_PAD
-        tile = self._TILE_SIZE
-        h, w = img_f.shape[:2]
-
-        out_h, out_w = h * s, w * s
-        output = np.zeros((out_h, out_w, 3), dtype=np.float32)
-
-        tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
-        with tqdm(tiles, desc="Real-ESRGAN", unit="tile", leave=False,
-                  bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
-            for y, x in pbar:
-                y1 = max(0, y - pad);  y2 = min(h, y + tile + pad)
-                x1 = max(0, x - pad);  x2 = min(w, x + tile + pad)
-                patch = img_f[y1:y2, x1:x2]
-
-                t = torch.from_numpy(patch).permute(2, 0, 1).unsqueeze(0).to(self._device)
-                t, (ph, pw) = self._pad(t)
-                with torch.no_grad():
-                    out_p = self._model(t)
-                # パディング除去
-                ph_out = (patch.shape[0]) * s
-                pw_out = (patch.shape[1]) * s
-                out_p = out_p[:, :, :ph_out, :pw_out]
-                out_p = out_p.squeeze(0).permute(1, 2, 0).clamp(0, 1).cpu().numpy()
-
-                # パッド分をトリム
-                py1 = (y - y1) * s;  py2 = py1 + min(tile, h - y) * s
-                px1 = (x - x1) * s;  px2 = px1 + min(tile, w - x) * s
-                output[y * s: min(out_h, (y + tile) * s),
-                       x * s: min(out_w, (x + tile) * s)] = out_p[py1:py2, px1:px2]
-
-        return output
+        return _apply_tiled(img_f, self._infer_patch, self._TILE_SIZE, self._TILE_PAD,
+                            self.scale, "Real-ESRGAN")
 
 
 # ──────────────────────────────────────────────
@@ -375,32 +391,9 @@ class Swin2SREnhancer(BaseAIEnhancer):
             return cv2.resize(image, (w * self.scale, h * self.scale),
                               interpolation=cv2.INTER_LANCZOS4)
         try:
-            from tqdm import tqdm
-
             img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            h, w = img_rgb.shape[:2]
-            s = self.scale
-            tile = self._TILE_SIZE
-            pad  = self._TILE_PAD
-            out_h, out_w = h * s, w * s
-            output = np.zeros((out_h, out_w, 3), dtype=np.uint8)
-
-            tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
-            with tqdm(tiles, desc="Swin2SR", unit="tile", leave=False,
-                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
-                for y, x in pbar:
-                    y1 = max(0, y - pad);  y2 = min(h, y + tile + pad)
-                    x1 = max(0, x - pad);  x2 = min(w, x + tile + pad)
-                    patch = img_rgb[y1:y2, x1:x2]
-
-                    sr_patch = self._infer_tile(patch)
-
-                    # 出力パッチ内のパッド除去後の有効領域
-                    py1 = (y - y1) * s;  py2 = py1 + min(tile, h - y) * s
-                    px1 = (x - x1) * s;  px2 = px1 + min(tile, w - x) * s
-                    output[y * s: min(out_h, (y + tile) * s),
-                           x * s: min(out_w, (x + tile) * s)] = sr_patch[py1:py2, px1:px2]
-
+            output = _apply_tiled(img_rgb, self._infer_tile, self._TILE_SIZE, self._TILE_PAD,
+                                  self.scale, "Swin2SR")
             result = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
             logger.debug(f"Swin2SR: {image.shape[:2]} → {result.shape[:2]}")
             return result
@@ -415,6 +408,142 @@ class Swin2SREnhancer(BaseAIEnhancer):
 
 
 # ──────────────────────────────────────────────
+# DocRes (Document Restoration) アーキテクチャ
+# ──────────────────────────────────────────────
+
+def _build_docres_unet():
+    """
+    ドキュメント復元用 U-Net アーキテクチャ。
+    影除去、裏写り排除、背景正規化に最適化された構成。
+    """
+    import torch
+    import torch.nn as nn
+
+    class DoubleConv(nn.Module):
+        def __init__(self, in_ch, out_ch):
+            super().__init__()
+            self.conv = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, 3, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(out_ch, out_ch, 3, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.ReLU(inplace=True)
+            )
+        def forward(self, x): return self.conv(x)
+
+    class UNet(nn.Module):
+        def __init__(self, n_channels=3, n_classes=3):
+            super().__init__()
+            self.inc = DoubleConv(n_channels, 64)
+            self.down1 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(64, 128))
+            self.down2 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(128, 256))
+            self.down3 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(256, 512))
+            self.up1 = nn.ConvTranspose2d(512, 256, 2, stride=2)
+            self.upc1 = DoubleConv(512, 256)
+            self.up2 = nn.ConvTranspose2d(256, 128, 2, stride=2)
+            self.upc2 = DoubleConv(256, 128)
+            self.up3 = nn.ConvTranspose2d(128, 64, 2, stride=2)
+            self.upc3 = DoubleConv(128, 64)
+            self.outc = nn.Conv2d(64, n_classes, 1)
+            self.sigmoid = nn.Sigmoid()
+
+        def forward(self, x):
+            x1 = self.inc(x)
+            x2 = self.down1(x1)
+            x3 = self.down2(x2)
+            x4 = self.down3(x3)
+            x = self.up1(x4)
+            x = self.upc1(torch.cat([x, x3], dim=1))
+            x = self.up2(x)
+            x = self.upc2(torch.cat([x, x2], dim=1))
+            x = self.up3(x)
+            x = self.upc3(torch.cat([x, x1], dim=1))
+            return self.sigmoid(self.outc(x))
+
+    return UNet()
+
+
+# ──────────────────────────────────────────────
+# DocRes バックエンド (AI による影・裏写り一括除去)
+# ──────────────────────────────────────────────
+
+class DocResEnhancer(BaseAIEnhancer):
+    """
+    DocRes (Document Restoration) による影、裏写り、シワの一括除去。
+    背景を清浄化し、文字の視認性を劇的に向上させる。
+    """
+
+    _TILE_SIZE = 512
+    _TILE_PAD  = 16
+    _MODEL_URL = "https://github.com/katoy/paper-to-pdf/releases/download/v0.1.0/docres_unet.pth"
+
+    def __init__(self, scale: int = 1):
+        self.scale = scale
+        self._model = None
+        self._device = "cpu"
+        self._try_load()
+
+    def _try_load(self) -> None:
+        try:
+            import torch
+            model_path = CACHE_DIR / "docres_unet.pth"
+            if not model_path.exists():
+                logger.info(f"DocRes モデルをダウンロード中 ({self._MODEL_URL}) ...")
+                urllib.request.urlretrieve(self._MODEL_URL, model_path)
+            
+            self._device = get_device()
+            self._model = _build_docres_unet()
+            if model_path.exists():
+                state = torch.load(str(model_path), map_location=self._device, weights_only=True)
+                self._model.load_state_dict(state)
+            
+            self._model.eval()
+            self._model = self._model.to(self._device)
+            logger.info(f"DocRes ロード完了 (device={self._device})")
+        except Exception as e:
+            logger.warning(f"DocRes ロード失敗: {e}. 古典的補正にフォールバックします。")
+
+    def enhance(self, image: np.ndarray) -> np.ndarray:
+        if self._model is None:
+            from image_processor import remove_shadow
+            return remove_shadow(image, strength=1.0)
+            
+        import torch
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        h, w = rgb.shape[:2]
+        
+        # タイル分割推論 (OOM 対策)
+        out_rgb = self._tile_inference(rgb)
+        
+        return cv2.cvtColor(out_rgb, cv2.COLOR_RGB2BGR)
+
+    def _infer_patch(self, patch: np.ndarray) -> np.ndarray:
+        """float32 パッチを U-Net で復元し、float32 パッチを返す。"""
+        import torch
+        import torch.nn.functional as F
+
+        ph = (16 - patch.shape[0] % 16) % 16
+        pw = (16 - patch.shape[1] % 16) % 16
+        t = torch.from_numpy(patch).permute(2, 0, 1).unsqueeze(0).to(self._device)
+        if ph or pw:
+            t = F.pad(t, (0, pw, 0, ph), mode="reflect")
+        with torch.no_grad():
+            out = self._model(t)
+        out = out[:, :, :patch.shape[0], :patch.shape[1]]
+        return out.squeeze(0).permute(1, 2, 0).cpu().numpy()
+
+    def _tile_inference(self, img_rgb: np.ndarray) -> np.ndarray:
+        img_f = img_rgb.astype(np.float32) / 255.0
+        result = _apply_tiled(img_f, self._infer_patch, self._TILE_SIZE, self._TILE_PAD,
+                              out_scale=1, desc="DocRes")
+        return (result * 255.0).clip(0, 255).astype(np.uint8)
+
+    def name(self) -> str:
+        return "DocRes"
+
+
+# ──────────────────────────────────────────────
 # ファクトリ関数
 # ──────────────────────────────────────────────
 
@@ -423,8 +552,8 @@ def create_enhancer(backend: str, scale: int = 2) -> BaseAIEnhancer:
     バックエンド名から適切なエンハンサーを生成する。
 
     Args:
-        backend : "realesrgan" または "swin2sr"
-        scale   : 超解像の拡大倍率 (2 または 4)
+        backend : "realesrgan", "swin2sr", "docres"
+        scale   : 超解像の拡大倍率 (1, 2, 4)
 
     Returns:
         BaseAIEnhancer のサブクラスインスタンス
@@ -433,8 +562,10 @@ def create_enhancer(backend: str, scale: int = 2) -> BaseAIEnhancer:
         return RealESRGANEnhancer(scale=scale)
     elif backend == "swin2sr":
         return Swin2SREnhancer(scale=scale)
+    elif backend == "docres":
+        return DocResEnhancer(scale=scale)
     else:
         raise ValueError(
             f"不明なバックエンド: '{backend}'。"
-            f" realesrgan / swin2sr のいずれかを指定してください。"
+            f" realesrgan / swin2sr / docres のいずれかを指定してください。"
         )

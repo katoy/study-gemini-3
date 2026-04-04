@@ -32,7 +32,11 @@ class DetectionStep(ProcessingStep):
                 h, w = image.shape[:2]
 
             # ページ輪郭検出
-            contour = detect_page_contour(image, self.config.sensitivity)
+            if self.config.sensitivity == "ai":
+                from page_detector import detect_page_contour_ai
+                contour = detect_page_contour_ai(image)
+            else:
+                contour = detect_page_contour(image, self.config.sensitivity)
             
             # 切り出し
             if contour is not None:

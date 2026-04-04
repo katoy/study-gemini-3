@@ -7,7 +7,7 @@ PDF を指定サイズ以下に分割するスクリプト。
 """
 
 import argparse
-import os
+import io
 import sys
 from pathlib import Path
 
@@ -53,7 +53,6 @@ def split_pdf(input_path: str, max_mb: float, output_dir: str) -> list[str]:
             for i in range(start, end):
                 writer.add_page(reader.pages[i])
 
-            import io
             buf = io.BytesIO()
             writer.write(buf)
             size = buf.tell()
