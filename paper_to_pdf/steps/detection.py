@@ -17,6 +17,7 @@ from page_detector import (
     detect_writing_direction,
     four_point_transform,
     split_spread,
+    trim_page_border,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,12 +48,15 @@ class DetectionStep(ProcessingStep):
             else:
                 contour = detect_page_contour(image, self.config.sensitivity)
 
-            # 切り出し
+            # 切り出し・透視変換
             if contour is not None:
                 warped = four_point_transform(image, contour)
             else:
                 # 検出失敗時は周囲 5% をカット
                 warped = image[int(h*0.05):int(h*0.95), int(w*0.05):int(w*0.95)]
+
+            # 透視変換後に残った暗い外縁 (写真背景) を除去
+            warped = trim_page_border(warped)
 
             # 分割判定
             fh, fw = warped.shape[:2]

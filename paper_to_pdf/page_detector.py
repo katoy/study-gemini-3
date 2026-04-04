@@ -38,11 +38,13 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
     return cv2.warpPerspective(image, M, (width, height))
 
 # ──────────────────────────────────────────────
-# ページ輪郭検出
+# ページ輪郭検出 (内部実装)
 # ──────────────────────────────────────────────
 
-def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.ndarray | None:
-    """書籍ページの四角い輪郭を検出する。"""
+def _detect_by_edges(image: np.ndarray, sensitivity: str = "medium") -> np.ndarray | None:
+    """
+    Canny エッジ検出ベースのページ輪郭検出。
+    """
     params = {"low": (100, 250), "medium": (50, 200), "high": (20, 100)}
     low_t, high_t = params.get(sensitivity, (50, 200))
 
@@ -68,6 +70,62 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
     return None
 
 
+def _detect_by_brightness(image: np.ndarray) -> np.ndarray | None:
+    """
+    輝度ベースのページ輪郭検出。
+
+    OTSU 二値化で背景より明るいページ領域を分離し、最大連結領域を四角形に近似する。
+    背景がページと同程度の明るさ (OTSU 閾値が極端な値) の場合は None を返す。
+    """
+    h, w = image.shape[:2]
+    scale = 800 / h
+    small = cv2.resize(image, (int(w * scale), 800))
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+    otsu_thresh, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # 閾値が極端な場合はページと背景を区別できない (白背景・黒背景すぎる) → None
+    if otsu_thresh < 30 or otsu_thresh > 200:
+        logger.debug("輝度ベース検出: OTSU 閾値が極端 (%.0f) のためスキップ", otsu_thresh)
+        return None
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    largest = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest) < (800 * int(w * scale)) * 0.2:
+        return None
+
+    peri = cv2.arcLength(largest, True)
+    approx = cv2.approxPolyDP(largest, 0.02 * peri, True)
+    if len(approx) == 4:
+        return (approx.reshape(4, 2) / scale).astype("float32")
+
+    # 4点近似できない場合は最小外接矩形の頂点を使用
+    rect = cv2.minAreaRect(largest)
+    box = cv2.boxPoints(rect) / scale
+    return box.astype("float32")
+
+
+def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.ndarray | None:
+    """
+    書籍ページの四角い輪郭を検出する。
+
+    エッジ検出を優先し、失敗した場合は輝度ベース検出にフォールバックする。
+    """
+    contour = _detect_by_edges(image, sensitivity)
+    if contour is not None:
+        return contour
+
+    logger.debug("エッジ検出失敗。輝度ベース検出にフォールバックします。")
+    return _detect_by_brightness(image)
+
+
 def detect_page_contour_ai(image: np.ndarray) -> np.ndarray | None:
     """
     AI (Segmentation モデル) を用いて書籍ページの境界を検出する。
@@ -76,6 +134,52 @@ def detect_page_contour_ai(image: np.ndarray) -> np.ndarray | None:
     """
     logger.warning("AI ページ境界検出は現在準備中です。既存の検出器(high)にフォールバックします。")
     return detect_page_contour(image, sensitivity="high")
+
+# ──────────────────────────────────────────────
+# ページ外縁トリミング
+# ──────────────────────────────────────────────
+
+def trim_page_border(image: np.ndarray) -> np.ndarray:
+    """
+    透視変換後の画像から暗い外縁 (写真背景の残留部分) を除去する。
+
+    アルゴリズム:
+      1. 中心 60% 領域の輝度中央値を紙面の代表輝度として計算
+      2. その 40% 未満の輝度を持つ行・列を「背景」と判定して除外
+      3. 有効なページ領域のみを返す
+
+    トリム量が画像の 5% 未満の場合は処理をスキップする。
+    """
+    h, w = image.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    center_brightness = float(np.median(gray[h // 5: 4 * h // 5, w // 5: 4 * w // 5]))
+    threshold = max(20, int(center_brightness * 0.40))
+
+    bright = gray > threshold
+    rows = np.any(bright, axis=1)
+    cols = np.any(bright, axis=0)
+
+    if not rows.any() or not cols.any():
+        return image
+
+    r_min, r_max = int(np.where(rows)[0][0]),  int(np.where(rows)[0][-1])
+    c_min, c_max = int(np.where(cols)[0][0]),  int(np.where(cols)[0][-1])
+
+    # トリム量が各辺 5% 未満なら実質的にトリム不要 → 元画像を返す
+    if r_min < h * 0.05 and r_max > h * 0.95 and c_min < w * 0.05 and c_max > w * 0.95:
+        return image
+
+    pad = max(3, min(h, w) // 150)
+    trimmed = image[
+        max(0, r_min - pad): min(h, r_max + pad + 1),
+        max(0, c_min - pad): min(w, c_max + pad + 1),
+    ]
+    logger.debug(
+        "trim_page_border: (%d,%d) → (%d,%d)",
+        w, h, trimmed.shape[1], trimmed.shape[0],
+    )
+    return trimmed
 
 # ──────────────────────────────────────────────
 # 書字方向検出 (縦書き / 横書き)
