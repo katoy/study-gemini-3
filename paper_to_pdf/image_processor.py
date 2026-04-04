@@ -35,7 +35,12 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
     
     # 膨張処理で文字を消す
     bg_l = cv2.dilate(l_ch, kernel)
-    bg_l = cv2.medianBlur(bg_l, kernel_size) # ノイズ（裏写り）を平滑化
+    # medianBlur は ksize ≤ 31 (8bit SIMD 制約)。大きい場合は blur で代替
+    blur_k = min(kernel_size, 31) | 1
+    if kernel_size <= 31:
+        bg_l = cv2.medianBlur(bg_l, blur_k)
+    else:
+        bg_l = cv2.blur(bg_l, (kernel_size, kernel_size))
     
     # 3. 背景正規化 (Division normalization)
     # 影や色ムラをキャンセルする

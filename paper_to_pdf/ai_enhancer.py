@@ -174,6 +174,7 @@ class _RealESRGANInferencer:
     def _tile_enhance(self, img_f: np.ndarray) -> np.ndarray:
         """タイル分割して推論し、結果を結合する。"""
         import torch
+        from tqdm import tqdm
 
         s = self.scale
         pad = self._TILE_PAD
@@ -183,8 +184,10 @@ class _RealESRGANInferencer:
         out_h, out_w = h * s, w * s
         output = np.zeros((out_h, out_w, 3), dtype=np.float32)
 
-        for y in range(0, h, tile):
-            for x in range(0, w, tile):
+        tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
+        with tqdm(tiles, desc="Real-ESRGAN", unit="tile", leave=False,
+                  bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
+            for y, x in pbar:
                 y1 = max(0, y - pad);  y2 = min(h, y + tile + pad)
                 x1 = max(0, x - pad);  x2 = min(w, x + tile + pad)
                 patch = img_f[y1:y2, x1:x2]
@@ -372,6 +375,8 @@ class Swin2SREnhancer(BaseAIEnhancer):
             return cv2.resize(image, (w * self.scale, h * self.scale),
                               interpolation=cv2.INTER_LANCZOS4)
         try:
+            from tqdm import tqdm
+
             img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             h, w = img_rgb.shape[:2]
             s = self.scale
@@ -380,10 +385,10 @@ class Swin2SREnhancer(BaseAIEnhancer):
             out_h, out_w = h * s, w * s
             output = np.zeros((out_h, out_w, 3), dtype=np.uint8)
 
-            n_tiles = ((h + tile - 1) // tile) * ((w + tile - 1) // tile)
-            done = 0
-            for y in range(0, h, tile):
-                for x in range(0, w, tile):
+            tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
+            with tqdm(tiles, desc="Swin2SR", unit="tile", leave=False,
+                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
+                for y, x in pbar:
                     y1 = max(0, y - pad);  y2 = min(h, y + tile + pad)
                     x1 = max(0, x - pad);  x2 = min(w, x + tile + pad)
                     patch = img_rgb[y1:y2, x1:x2]
@@ -395,8 +400,6 @@ class Swin2SREnhancer(BaseAIEnhancer):
                     px1 = (x - x1) * s;  px2 = px1 + min(tile, w - x) * s
                     output[y * s: min(out_h, (y + tile) * s),
                            x * s: min(out_w, (x + tile) * s)] = sr_patch[py1:py2, px1:px2]
-                    done += 1
-                    logger.debug(f"Swin2SR tile {done}/{n_tiles}")
 
             result = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
             logger.debug(f"Swin2SR: {image.shape[:2]} → {result.shape[:2]}")
