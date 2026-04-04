@@ -305,7 +305,11 @@ class Swin2SREnhancer(BaseAIEnhancer):
     """
     Swin2SR (Swin Transformer V2 for Super Resolution) による超解像処理。
     HuggingFace Transformers 経由でモデルをロードする。
+    大きな画像はタイル分割して推論し、MPS/CUDA での OOM やハングを防ぐ。
     """
+
+    _TILE_SIZE = 128  # タイルサイズ (px)。CPU で ~2.5s/tile
+    _TILE_PAD  = 8    # タイル間のオーバーラップ (px)
 
     def __init__(self, scale: int = 2):
         if scale not in (2, 4):
@@ -314,6 +318,7 @@ class Swin2SREnhancer(BaseAIEnhancer):
         self._model = None
         self._processor = None
         self._device = "cpu"
+        self._proc_pad = 8  # Swin2SRImageProcessor が追加するパディング量 (px)
         self._try_load()
 
     def _try_load(self) -> None:
@@ -341,32 +346,66 @@ class Swin2SREnhancer(BaseAIEnhancer):
         except Exception as e:
             logger.warning(f"Swin2SR ロード失敗: {e}. Lanczos 補間にフォールバックします。")
 
+    def _infer_tile(self, tile_rgb: np.ndarray) -> np.ndarray:
+        """
+        RGB uint8 タイルを受け取り、超解像済み RGB uint8 タイルを返す。
+        processor のパディング分 (_proc_pad * scale) を右/下からトリムする。
+        """
+        import torch
+        from PIL import Image
+
+        th, tw = tile_rgb.shape[:2]
+        pil = Image.fromarray(tile_rgb)
+        inputs = self._processor(pil, return_tensors="pt").to(self._device)
+        with torch.no_grad():
+            out = self._model(**inputs)
+        sr = out.reconstruction.squeeze().clamp(0, 1)          # (C, H_pad, W_pad)
+        sr_np = (sr.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+        # processor が追加したパディング (右・下) を除去
+        expected_h = th * self.scale
+        expected_w = tw * self.scale
+        return sr_np[:expected_h, :expected_w]
+
     def enhance(self, image: np.ndarray) -> np.ndarray:
-        if self._model is not None and self._processor is not None:
-            try:
-                import torch
-                from PIL import Image
+        if self._model is None or self._processor is None:
+            h, w = image.shape[:2]
+            return cv2.resize(image, (w * self.scale, h * self.scale),
+                              interpolation=cv2.INTER_LANCZOS4)
+        try:
+            img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            h, w = img_rgb.shape[:2]
+            s = self.scale
+            tile = self._TILE_SIZE
+            pad  = self._TILE_PAD
+            out_h, out_w = h * s, w * s
+            output = np.zeros((out_h, out_w, 3), dtype=np.uint8)
 
-                # BGR → PIL RGB
-                pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                inputs = self._processor(pil_img, return_tensors="pt").to(self._device)
+            n_tiles = ((h + tile - 1) // tile) * ((w + tile - 1) // tile)
+            done = 0
+            for y in range(0, h, tile):
+                for x in range(0, w, tile):
+                    y1 = max(0, y - pad);  y2 = min(h, y + tile + pad)
+                    x1 = max(0, x - pad);  x2 = min(w, x + tile + pad)
+                    patch = img_rgb[y1:y2, x1:x2]
 
-                with torch.no_grad():
-                    outputs = self._model(**inputs)
+                    sr_patch = self._infer_tile(patch)
 
-                # (1, C, H, W) → (H, W, C) numpy
-                sr = outputs.reconstruction.squeeze().clamp(0, 1)
-                sr_np = (sr.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                result = cv2.cvtColor(sr_np, cv2.COLOR_RGB2BGR)
-                logger.debug(f"Swin2SR: {image.shape[:2]} → {result.shape[:2]}")
-                return result
-            except Exception as e:
-                logger.warning(f"Swin2SR 推論失敗: {e}. Lanczos にフォールバック。")
+                    # 出力パッチ内のパッド除去後の有効領域
+                    py1 = (y - y1) * s;  py2 = py1 + min(tile, h - y) * s
+                    px1 = (x - x1) * s;  px2 = px1 + min(tile, w - x) * s
+                    output[y * s: min(out_h, (y + tile) * s),
+                           x * s: min(out_w, (x + tile) * s)] = sr_patch[py1:py2, px1:px2]
+                    done += 1
+                    logger.debug(f"Swin2SR tile {done}/{n_tiles}")
 
-        # フォールバック
-        h, w = image.shape[:2]
-        return cv2.resize(image, (w * self.scale, h * self.scale),
-                          interpolation=cv2.INTER_LANCZOS4)
+            result = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
+            logger.debug(f"Swin2SR: {image.shape[:2]} → {result.shape[:2]}")
+            return result
+        except Exception as e:
+            logger.warning(f"Swin2SR 推論失敗: {e}. Lanczos にフォールバック。")
+            h, w = image.shape[:2]
+            return cv2.resize(image, (w * self.scale, h * self.scale),
+                              interpolation=cv2.INTER_LANCZOS4)
 
     def name(self) -> str:
         return f"Swin2SR_x{self.scale}"
