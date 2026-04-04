@@ -213,6 +213,7 @@ class _RealESRGANInferencer:
     def _infer_patch(self, patch: np.ndarray) -> np.ndarray:
         """float32 パッチを推論し、超解像済み float32 パッチを返す。"""
         import torch
+        import torch.nn.functional as F  # noqa: F401 – _pad 内でも使用
         s = self.scale
         t = torch.from_numpy(patch).permute(2, 0, 1).unsqueeze(0).to(self._device)
         t, _ = self._pad(t)
@@ -508,14 +509,9 @@ class DocResEnhancer(BaseAIEnhancer):
         if self._model is None:
             from image_processor import remove_shadow
             return remove_shadow(image, strength=1.0)
-            
-        import torch
+
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        h, w = rgb.shape[:2]
-        
-        # タイル分割推論 (OOM 対策)
         out_rgb = self._tile_inference(rgb)
-        
         return cv2.cvtColor(out_rgb, cv2.COLOR_RGB2BGR)
 
     def _infer_patch(self, patch: np.ndarray) -> np.ndarray:

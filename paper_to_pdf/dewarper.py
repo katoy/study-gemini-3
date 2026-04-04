@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import logging
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 import cv2
 import numpy as np
@@ -205,11 +205,14 @@ class Dewarper:
 
     def __init__(self, mode: str = "dewarpnet"):
         self.mode = mode
-        self._model = None
-        self._device = None
         self._effective_mode = mode
+        self._device = None
+        self._wc_model = None
+        self._bm_model = None
+        self._geo_model = None
+        self._ill_model = None
 
-    def load_model(self, progress_cb: Optional[Callable[[float, str], None]] = None) -> bool:
+    def load_model(self, progress_cb: Callable[[float, str], None] | None = None) -> bool:
         if self.mode == "none":
             return True
 
@@ -225,7 +228,7 @@ class Dewarper:
             self._effective_mode = "polynomial"
             return False
 
-    def _load_dewarpnet(self, progress_cb):
+    def _load_dewarpnet(self, progress_cb: Callable[[float, str], None] | None):
         import torch
         from utils.dewarpnet_arch import UnetGenerator, DnetCCNL, convert_state_dict
 
@@ -264,7 +267,7 @@ class Dewarper:
         logger.info(f"DewarpNet ロード完了 (device={self._device})")
         return True
 
-    def _load_doctr(self, progress_cb):
+    def _load_doctr(self, progress_cb: Callable[[float, str], None] | None):
         import torch
         # モデルファイルの存在確認とダウンロード
         if not _DOCTR_GEO_MODEL_PATH.exists():
@@ -291,10 +294,10 @@ class Dewarper:
             return image_bgr
 
         try:
-            if self._effective_mode == "dewarpnet" and hasattr(self, "_wc_model"):
+            if self._effective_mode == "dewarpnet" and self._wc_model is not None:
                 return _dewarpnet_inference(self._wc_model, self._bm_model,
                                             image_bgr, self._device)
-            elif self._effective_mode == "doctr" and hasattr(self, "_geo_model"):
+            elif self._effective_mode == "doctr" and self._geo_model is not None:
                 return _doctr_inference(self._geo_model, self._ill_model, image_bgr, self._device)
         except Exception as e:
             logger.warning(f"{self._effective_mode} 推論失敗: {e}. polynomial にフォールバック。")
@@ -303,6 +306,7 @@ class Dewarper:
 
     def unload_model(self):
         """モデルリソースを解放する。"""
-        for attr in ("_wc_model", "_bm_model", "_geo_model", "_ill_model"):
-            if hasattr(self, attr):
-                setattr(self, attr, None)
+        self._wc_model = None
+        self._bm_model = None
+        self._geo_model = None
+        self._ill_model = None

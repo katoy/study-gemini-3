@@ -5,10 +5,11 @@ steps/base.py
 """
 
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List
 
 import numpy as np
+
 from core.config import ProcessingConfig
 
 class ProcessingStep(ABC):
@@ -19,7 +20,7 @@ class ProcessingStep(ABC):
         self.config = config
 
     @abstractmethod
-    def process(self, images: List[np.ndarray]) -> List[np.ndarray]:
+    def process(self, images: list[np.ndarray]) -> list[np.ndarray]:
         """
         画像を処理する。
         入出力は画像（np.ndarray）のリストとする。

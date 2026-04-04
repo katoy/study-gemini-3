@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 import tempfile
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Callable, List
 
 import cv2
 import numpy as np
@@ -33,7 +33,7 @@ class BookProcessor:
     """
     def __init__(self, config: ProcessingConfig):
         self.config = config
-        self.tmp_dir: Optional[Path] = None
+        self.tmp_dir: Path | None = None
 
     def _init_workspace(self):
         self.tmp_dir = Path(tempfile.mkdtemp(prefix="paper_to_pdf_"))
@@ -44,8 +44,8 @@ class BookProcessor:
             shutil.rmtree(self.tmp_dir, ignore_errors=True)
             logger.debug("Temporary workspace cleaned up.")
 
-    def run(self, input_folder: Path, output_pdf: Path, 
-            progress_cb: Optional[Callable[[float, str], None]] = None):
+    def run(self, input_folder: Path, output_pdf: Path,
+            progress_cb: Callable[[float, str], None] | None = None):
         """
         処理パイプラインを実行する。
         """
@@ -61,7 +61,7 @@ class BookProcessor:
         try:
             # 2. ファイルの読み込みとソート
             input_paths = sort_by_filename([
-                p for p in input_folder.iterdir() 
+                p for p in input_folder.iterdir()
                 if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".bmp", ".tiff", ".tif"}
             ])
             

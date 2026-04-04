@@ -5,7 +5,7 @@ steps/postprocess.py
 """
 
 from __future__ import annotations
-from typing import List
+
 import numpy as np
 
 from steps.base import ProcessingStep
@@ -15,7 +15,7 @@ class PostProcessStep(ProcessingStep):
     """
     影除去、傾き補正、向き補正、サイズ正規化を行う。
     """
-    def process(self, images: List[np.ndarray]) -> List[np.ndarray]:
+    def process(self, images: list[np.ndarray]) -> list[np.ndarray]:
         processed = []
         for img in images:
             # 1. 黒縁除去

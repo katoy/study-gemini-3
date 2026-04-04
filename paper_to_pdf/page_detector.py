@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import cv2
 import numpy as np
-from typing import Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 # ページ輪郭検出
 # ──────────────────────────────────────────────
 
-def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> Optional[np.ndarray]:
+def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.ndarray | None:
     """書籍ページの四角い輪郭を検出する。"""
     params = {"low": (100, 250), "medium": (50, 200), "high": (20, 100)}
     low_t, high_t = params.get(sensitivity, (50, 200))
@@ -69,7 +68,7 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> Optio
     return None
 
 
-def detect_page_contour_ai(image: np.ndarray) -> Optional[np.ndarray]:
+def detect_page_contour_ai(image: np.ndarray) -> np.ndarray | None:
     """
     AI (Segmentation モデル) を用いて書籍ページの境界を検出する。
     将来のアップデートで U-Net / DeepLabV3+ 等のモデル推論を実装予定。
@@ -82,7 +81,7 @@ def detect_page_contour_ai(image: np.ndarray) -> Optional[np.ndarray]:
 # 見開き分割
 # ──────────────────────────────────────────────
 
-def split_spread(image: np.ndarray, page_order: str = "left_first") -> List[np.ndarray]:
+def split_spread(image: np.ndarray, page_order: str = "left_first") -> list[np.ndarray]:
     """見開き画像を左右に分割する。"""
     h, w = image.shape[:2]
     mid = w // 2

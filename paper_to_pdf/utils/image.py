@@ -5,10 +5,10 @@ utils/image.py
 """
 
 from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
@@ -36,7 +36,7 @@ def fix_exif_rotation(image_path: str | Path) -> np.ndarray:
         logger.warning(f"EXIF 回転補正失敗 ({image_path}): {e}. 通常の読み込みを試みます。")
         return cv2.imread(str(image_path))
 
-def sort_by_filename(paths: List[Path]) -> List[Path]:
+def sort_by_filename(paths: list[Path]) -> list[Path]:
     """
     ファイル名で自然順ソートする。
     """

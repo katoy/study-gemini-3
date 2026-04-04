@@ -129,14 +129,14 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
 
 def fix_orientation(image: np.ndarray) -> np.ndarray:
     h, w = image.shape[:2]
-    if h >= w: return image
+    if h >= w:
+        return image
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     edges_h = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     edges_v = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     if np.abs(edges_h).sum() >= np.abs(edges_v).sum():
         return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    else:
-        return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
 
 # ──────────────────────────────────────────────
 # 4. 黒縁除去
@@ -147,7 +147,8 @@ def remove_border(image: np.ndarray, threshold: int = 40, padding: int = 5) -> n
     _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
     rows = np.any(mask > 0, axis=1)
     cols = np.any(mask > 0, axis=0)
-    if not rows.any() or not cols.any(): return image
+    if not rows.any() or not cols.any():
+        return image
     r_min, r_max = np.where(rows)[0][[0, -1]]
     c_min, c_max = np.where(cols)[0][[0, -1]]
     h, w = image.shape[:2]
