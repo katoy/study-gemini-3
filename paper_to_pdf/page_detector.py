@@ -247,12 +247,39 @@ def detect_writing_direction(image: np.ndarray) -> str:
 # ──────────────────────────────────────────────
 
 def split_spread(image: np.ndarray, page_order: str = "left_first") -> list[np.ndarray]:
-    """見開き画像を左右に分割する。"""
+    """
+    見開き画像を左右のページに分割する。
+
+    アルゴリズム:
+      中央 40% (30%〜70%) の範囲で列ごとのテキスト密度 (黒画素数) を計算し、
+      最もテキストが少ない列 (ノド・マージン部) をページ境界として分割する。
+      スムージングで局所ノイズを除去し、安全チェックで各ページ最小 25% を保証する。
+    """
     h, w = image.shape[:2]
-    mid = w // 2
-    margin = max(1, int(w * 0.02))
-    strip = cv2.cvtColor(image[:, mid-margin:mid+margin], cv2.COLOR_BGR2GRAY)
-    best_col = mid - margin + int(np.argmin(np.var(strip, axis=0)))
+
+    # 検索範囲: 中央 40% (30%〜70%)
+    s = w * 3 // 10
+    e = w * 7 // 10
+
+    gray = cv2.cvtColor(image[:, s:e], cv2.COLOR_BGR2GRAY)
+
+    # OTSU 二値化でテキストを抽出し、列ごとの密度（黒画素数）を計算
+    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    col_density = bw.sum(axis=0).astype(np.float32)
+
+    # 広めのスムージング: ページ内の列間空白(20-40px)を平滑化しつつ
+    # マージン/ノド領域(80-150px)の谷を保持するためカーネルを大きめに設定
+    smooth_k = max(61, (e - s) // 4) | 1
+    col_smooth = cv2.GaussianBlur(
+        col_density.reshape(1, -1), (smooth_k, 1), 0
+    ).flatten()
+
+    best_col = s + int(np.argmin(col_smooth))
+
+    # 安全チェック: 各ページが最低 25% の幅を持つことを保証
+    best_col = max(w // 4, min(best_col, w * 3 // 4))
+
+    logger.debug("split_spread: 分割列 = %d / %d (%.0f%%)", best_col, w, best_col / w * 100)
 
     left, right = image[:, :best_col], image[:, best_col:]
     return [right, left] if page_order == "right_first" else [left, right]
