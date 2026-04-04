@@ -78,6 +78,67 @@ def detect_page_contour_ai(image: np.ndarray) -> np.ndarray | None:
     return detect_page_contour(image, sensitivity="high")
 
 # ──────────────────────────────────────────────
+# 書字方向検出 (縦書き / 横書き)
+# ──────────────────────────────────────────────
+
+def detect_writing_direction(image: np.ndarray) -> str:
+    """
+    見開き画像の書字方向を形態学的解析で推定する。
+
+    アルゴリズム:
+      1. 2値化でテキスト領域を抽出
+      2. 横長カーネルで水平方向にテキストを連結 → 横書き行の数を数える
+      3. 縦長カーネルで垂直方向にテキストを連結 → 縦書き列の数を数える
+      4. どちらの行/列が多いかで方向を判定
+
+    Returns:
+      "right_first" : 縦書き (右開き — 右ページが先)
+      "left_first"  : 横書き (左開き — 左ページが先)
+    """
+    h_img, w_img = image.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # テキスト密度が極端に低い場合はデフォルト (縦書き) を返す
+    text_density = np.count_nonzero(binary) / (h_img * w_img)
+    if text_density < 0.01:
+        logger.debug("テキスト密度が低いため、デフォルト (right_first) を使用します。")
+        return "right_first"
+
+    # 推定文字サイズ: 短辺の 1/40 (例: 1500px → 37px)
+    char_est = max(10, min(h_img, w_img) // 40)
+    min_span = char_est * 4  # 有効な行/列として認める最小スパン
+
+    # 横書き: 水平方向に文字を連結して行を検出
+    h_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (char_est * 2, max(3, char_est // 4))
+    )
+    h_closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, h_kernel)
+    h_cnts, _ = cv2.findContours(h_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    h_line_count = sum(
+        1 for c in h_cnts if cv2.boundingRect(c)[2] > min_span
+    )
+
+    # 縦書き: 垂直方向に文字を連結して列を検出
+    v_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (max(3, char_est // 4), char_est * 2)
+    )
+    v_closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, v_kernel)
+    v_cnts, _ = cv2.findContours(v_closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    v_line_count = sum(
+        1 for c in v_cnts if cv2.boundingRect(c)[3] > min_span
+    )
+
+    logger.debug(
+        "書字方向推定: horizontal_rows=%d, vertical_cols=%d → %s",
+        h_line_count, v_line_count,
+        "縦書き (right_first)" if v_line_count >= h_line_count else "横書き (left_first)",
+    )
+
+    return "right_first" if v_line_count >= h_line_count else "left_first"
+
+# ──────────────────────────────────────────────
 # 見開き分割
 # ──────────────────────────────────────────────
 

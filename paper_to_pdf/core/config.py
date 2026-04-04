@@ -15,7 +15,7 @@ OUTPUT_SIZES: dict[str, tuple[int, int]] = {
     "Letter": (2550, 3300),
 }
 
-_VALID_BOOK_TYPES  = {"jp_vert", "jp_horiz", "en", "manga"}
+_VALID_BOOK_TYPES  = {"jp_vert", "jp_horiz", "en", "manga", "auto"}
 _VALID_DEWARP_MODES = {"dewarpnet", "polynomial", "doctr", "none"}
 _VALID_SENSITIVITIES = {"low", "medium", "high", "ai"}
 _VALID_AI_BACKENDS  = {"realesrgan", "swin2sr", "docres"}
@@ -25,7 +25,7 @@ _VALID_AI_SCALES    = {1, 2, 4}
 @dataclass
 class ProcessingConfig:
     """処理設定を保持するデータクラス"""
-    book_type: str = "jp_vert"
+    book_type: str = "auto"
     dewarp_mode: str = "dewarpnet"
     split: bool = True
     orient: bool = True
@@ -59,8 +59,11 @@ class ProcessingConfig:
 
     @property
     def page_order(self) -> str:
-        """書籍タイプに基づくページ順序 (分割時)"""
-        # 縦書き書籍 (jp_vert, manga) は右開き（右→左）
+        """書籍タイプに基づくページ順序 (分割時)。
+        "auto" の場合は DetectionStep が画像から動的に判定する。
+        """
         if self.book_type in ("jp_vert", "manga"):
             return "right_first"
+        if self.book_type == "auto":
+            return "auto"
         return "left_first"

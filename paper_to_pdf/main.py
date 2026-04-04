@@ -30,8 +30,8 @@ def parse_args():
     parser.add_argument("output", type=Path, help="出力 PDF パス")
     
     # オプション
-    parser.add_argument("--book-type", choices=["jp_vert", "jp_horiz", "en", "manga"], 
-                        default="jp_vert", help="書籍タイプ (default: jp_vert)")
+    parser.add_argument("--book-type", choices=["auto", "jp_vert", "jp_horiz", "en", "manga"],
+                        default="auto", help="書籍タイプ (default: auto — 縦書き/横書きを自動検出)")
     parser.add_argument("--dewarp-mode", choices=["dewarpnet", "polynomial", "doctr", "none"], 
                         default="dewarpnet", help="湾曲補正モード (default: dewarpnet, doctr: AI Transformer)")
     parser.add_argument("--no-split", action="store_false", dest="split", help="見開き画像を分割しない")
