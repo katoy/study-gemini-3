@@ -73,8 +73,26 @@ def _dewarpnet_inference(wc_model, bm_model, image_bgr: np.ndarray, device) -> n
     import torch.nn.functional as F
 
     h_orig, w_orig = image_bgr.shape[:2]
+    
+    # AI が認識しやすいように輝度とコントラストを動的に調整
+    gray_tmp = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    mean_brightness = np.mean(gray_tmp)
+    
+    # 暗すぎる画像は明るく、明るすぎる画像は少し抑える
+    if mean_brightness < 100:
+        alpha = 1.3
+        beta = 30
+    elif mean_brightness > 200:
+        alpha = 0.9
+        beta = -10
+    else:
+        alpha = 1.0
+        beta = 0
+        
+    working_img = cv2.convertScaleAbs(image_bgr, alpha=alpha, beta=beta)
+    
     # BGR → RGB, [0,1] 正規化
-    img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    img_rgb = cv2.cvtColor(working_img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
 
     # --- Stage 1: WC 予測 ---
     wc_inp = cv2.resize(img_rgb, _WC_INPUT_SIZE)             # (256, 256, 3)

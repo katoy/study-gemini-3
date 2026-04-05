@@ -43,7 +43,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 
 def _detect_by_edges(image: np.ndarray, sensitivity: str = "medium") -> np.ndarray | None:
     """
-    Canny エッジ検出ベースのページ輪郭検出。
+    Canny エッジ検出ベースのページ輪郭検出（強化版）。
     """
     params = {"low": (100, 250), "medium": (50, 200), "high": (20, 100)}
     low_t, high_t = params.get(sensitivity, (50, 200))
@@ -52,45 +52,60 @@ def _detect_by_edges(image: np.ndarray, sensitivity: str = "medium") -> np.ndarr
     scale = 800 / h
     resized = cv2.resize(image, (int(w * scale), 800))
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    edged = cv2.Canny(cv2.GaussianBlur(gray, (7, 7), 0), low_t, high_t)
-    edged = cv2.dilate(edged, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+    
+    # ノイズ除去とエッジ抽出
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, low_t, high_t)
+    
+    # エッジを太く繋げる
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    edged = cv2.dilate(edged, kernel, iterations=1)
 
     contours, _ = cv2.findContours(edged, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
 
     img_area = resized.shape[0] * resized.shape[1]
     for cnt in contours:
-        if cv2.contourArea(cnt) < img_area * 0.2:
+        area = cv2.contourArea(cnt)
+        if area < img_area * 0.1: 
             continue
-        peri = cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-        if len(approx) == 4:
-            return (approx.reshape(4, 2) / scale).astype("float32")
+            
+        # 凸包を取得して形状を安定させる
+        hull = cv2.convexHull(cnt)
+        peri = cv2.arcLength(hull, True)
+        
+        # 近似精度を段階的に下げて 4点を探す
+        for eps in [0.01, 0.02, 0.03, 0.05, 0.08]:
+            approx = cv2.approxPolyDP(hull, eps * peri, True)
+            if len(approx) == 4:
+                return (approx.reshape(4, 2) / scale).astype("float32")
+            
+        # 4点にならない場合は最小外接矩形を採用
+        rect = cv2.minAreaRect(hull)
+        box = cv2.boxPoints(rect)
+        return (box / scale).astype("float32")
 
     return None
 
 
 def _detect_by_brightness(image: np.ndarray) -> np.ndarray | None:
     """
-    輝度ベースのページ輪郭検出。
-
-    OTSU 二値化で背景より明るいページ領域を分離し、最大連結領域を四角形に近似する。
-    背景がページと同程度の明るさ (OTSU 閾値が極端な値) の場合は None を返す。
+    輝度ベースのページ輪郭検出（強化版）。
     """
     h, w = image.shape[:2]
     scale = 800 / h
     small = cv2.resize(image, (int(w * scale), 800))
     gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
-    otsu_thresh, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Otsu 二値化でページ（明るい部分）を抽出
+    otsu_thresh, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # 閾値を少し下げて、ページ端を巻き込まないようにする
+    thresh_val = max(otsu_thresh * 0.8, 40)
+    _, mask = cv2.threshold(gray, thresh_val, 255, cv2.THRESH_BINARY)
 
-    # 閾値が極端な場合はページと背景を区別できない (白背景・黒背景すぎる) → None
-    if otsu_thresh < 30 or otsu_thresh > 200:
-        logger.debug("輝度ベース検出: OTSU 閾値が極端 (%.0f) のためスキップ", otsu_thresh)
-        return None
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    # 収縮処理を最小限に
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -98,16 +113,19 @@ def _detect_by_brightness(image: np.ndarray) -> np.ndarray | None:
         return None
 
     largest = max(contours, key=cv2.contourArea)
-    if cv2.contourArea(largest) < (800 * int(w * scale)) * 0.2:
+    if cv2.contourArea(largest) < (800 * int(w * scale)) * 0.15:
         return None
 
-    peri = cv2.arcLength(largest, True)
-    approx = cv2.approxPolyDP(largest, 0.02 * peri, True)
-    if len(approx) == 4:
-        return (approx.reshape(4, 2) / scale).astype("float32")
+    hull = cv2.convexHull(largest)
+    peri = cv2.arcLength(hull, True)
+    
+    # 近似精度を段階的に下げて 4点を探す
+    for eps in [0.01, 0.02, 0.03, 0.05, 0.08]:
+        approx = cv2.approxPolyDP(hull, eps * peri, True)
+        if len(approx) == 4:
+            return (approx.reshape(4, 2) / scale).astype("float32")
 
-    # 4点近似できない場合は最小外接矩形の頂点を使用
-    rect = cv2.minAreaRect(largest)
+    rect = cv2.minAreaRect(hull)
     box = cv2.boxPoints(rect) / scale
     return box.astype("float32")
 
@@ -142,23 +160,18 @@ def detect_page_contour_ai(image: np.ndarray) -> np.ndarray | None:
 def trim_page_border(image: np.ndarray) -> np.ndarray:
     """
     透視変換後の画像から暗い外縁 (写真背景の残留部分) を除去する。
-
-    アルゴリズム:
-      1. 中心 60% 領域の輝度中央値を紙面の代表輝度として計算
-      2. その 40% 未満の輝度を持つ行・列を「背景」と判定して除外
-      3. 有効なページ領域のみを返す
-
-    トリム量が画像の 5% 未満の場合は処理をスキップする。
     """
     h, w = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    center_brightness = float(np.median(gray[h // 5: 4 * h // 5, w // 5: 4 * w // 5]))
-    threshold = max(20, int(center_brightness * 0.40))
-
+    # 輝度が極端に低い (20未満) ピクセルを背景候補とする
+    threshold = 20
     bright = gray > threshold
-    rows = np.any(bright, axis=1)
-    cols = np.any(bright, axis=0)
+    
+    # 1行または1列の「ほとんど」が明るい（ページ）部分を探す
+    # ページなら 80% 程度は明るいはず
+    rows = np.mean(bright, axis=1) > 0.8
+    cols = np.mean(bright, axis=0) > 0.8
 
     if not rows.any() or not cols.any():
         return image
@@ -166,19 +179,12 @@ def trim_page_border(image: np.ndarray) -> np.ndarray:
     r_min, r_max = int(np.where(rows)[0][0]),  int(np.where(rows)[0][-1])
     c_min, c_max = int(np.where(cols)[0][0]),  int(np.where(cols)[0][-1])
 
-    # トリム量が各辺 5% 未満なら実質的にトリム不要 → 元画像を返す
-    if r_min < h * 0.05 and r_max > h * 0.95 and c_min < w * 0.05 and c_max > w * 0.95:
+    # ほとんど削る必要がない場合はそのまま返す
+    if r_min < h * 0.01 and r_max > h * 0.99 and c_min < w * 0.01 and c_max > w * 0.99:
         return image
 
-    pad = max(3, min(h, w) // 150)
-    trimmed = image[
-        max(0, r_min - pad): min(h, r_max + pad + 1),
-        max(0, c_min - pad): min(w, c_max + pad + 1),
-    ]
-    logger.debug(
-        "trim_page_border: (%d,%d) → (%d,%d)",
-        w, h, trimmed.shape[1], trimmed.shape[0],
-    )
+    trimmed = image[r_min:r_max+1, c_min:c_max+1]
+    logger.debug("trim_page_border: (%d,%d) -> (%d,%d)", w, h, trimmed.shape[1], trimmed.shape[0])
     return trimmed
 
 # ──────────────────────────────────────────────
@@ -246,40 +252,57 @@ def detect_writing_direction(image: np.ndarray) -> str:
 # 見開き分割
 # ──────────────────────────────────────────────
 
-def split_spread(image: np.ndarray, page_order: str = "left_first") -> list[np.ndarray]:
+def find_center_seam(image: np.ndarray) -> int:
     """
-    見開き画像を左右のページに分割する。
-
+    見開き画像の中央にある「綴じ目（影の線）」を検出する。
+    
     アルゴリズム:
-      中央 40% (30%〜70%) の範囲で列ごとのテキスト密度 (黒画素数) を計算し、
-      最もテキストが少ない列 (ノド・マージン部) をページ境界として分割する。
-      スムージングで局所ノイズを除去し、安全チェックで各ページ最小 25% を保証する。
+      1. 中央付近の輝度勾配（水平方向の微分）と輝度値を計算。
+      2. 垂直方向に連続する「暗い線」に高いスコアを与える。
     """
     h, w = image.shape[:2]
+    s, e = w // 3, 2 * w // 3
+    roi = cv2.cvtColor(image[:, s:e], cv2.COLOR_BGR2GRAY)
+    
+    # 垂直方向の影を強調するために、縦方向に平滑化
+    # (本の綴じ目は縦に長い影になる)
+    v_blur = cv2.blur(roi, (1, h // 10))
+    
+    # 列ごとの平均輝度 (暗いほど綴じ目の可能性)
+    col_intensity = v_blur.mean(axis=0)
+    
+    # 輝度の変化（エッジ）も考慮
+    # 綴じ目の両脇は少し明るくなることが多い
+    grad_x = cv2.Sobel(v_blur, cv2.CV_32F, 1, 0, ksize=3)
+    col_grad = np.abs(grad_x).mean(axis=0)
+    
+    # スコア計算: 低輝度かつエッジが集中している場所
+    # (255 - intensity) で暗いほど高スコア
+    score = (255 - col_intensity) * 1.5 + col_grad
+    
+    # ガウシアンでノイズ除去
+    smooth_k = max(11, (e - s) // 20) | 1
+    score = cv2.GaussianBlur(score.reshape(1, -1), (smooth_k, 1), 0).flatten()
+    
+    best_rel = np.argmax(score)
+    return s + best_rel
 
-    # 検索範囲: 中央 40% (30%〜70%)
-    s = w * 3 // 10
-    e = w * 7 // 10
-
-    gray = cv2.cvtColor(image[:, s:e], cv2.COLOR_BGR2GRAY)
-
-    # OTSU 二値化でテキストを抽出し、列ごとの密度（黒画素数）を計算
-    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    col_density = bw.sum(axis=0).astype(np.float32)
-
-    # 広めのスムージング: ページ内の列間空白(20-40px)を平滑化しつつ
-    # マージン/ノド領域(80-150px)の谷を保持するためカーネルを大きめに設定
-    smooth_k = max(61, (e - s) // 4) | 1
-    col_smooth = cv2.GaussianBlur(
-        col_density.reshape(1, -1), (smooth_k, 1), 0
-    ).flatten()
-
-    best_col = s + int(np.argmin(col_smooth))
-
-    # 安全チェック: 各ページが最低 25% の幅を持つことを保証
-    best_col = max(w // 4, min(best_col, w * 3 // 4))
-
-    logger.debug("split_spread: 分割列 = %d / %d (%.0f%%)", best_col, w, best_col / w * 100)
-
-    left, right = image[:, :best_col], image[:, best_col:]
-    return [right, left] if page_order == "right_first" else [left, right]
+def split_spread(image: np.ndarray, page_order: str = "left_first") -> list[np.ndarray]:
+    """
+    見開き画像を左右のページに分割する（物理的分離）。
+    """
+    h, w = image.shape[:2]
+    
+    # 中心線を特定
+    seam_x = find_center_seam(image)
+    logger.info(f"Detected center seam at x={seam_x} ({seam_x/w*100:.1f}%)")
+    
+    # 物理的に分割
+    left_img = image[:, :seam_x]
+    right_img = image[:, seam_x:]
+    
+    pages = [left_img, right_img]
+    if page_order == "right_first":
+        pages.reverse()
+        
+    return pages

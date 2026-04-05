@@ -80,48 +80,50 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 
 def deskew_page(image: np.ndarray) -> np.ndarray:
     """
-    画像内のテキスト行の傾きを検出し、水平に回転補正する。
+    画像内のテキストの傾きを検出し、水平に回転補正する（強化版）。
+    
+    アルゴリズム:
+      -10度〜+10度の範囲で画像を回転させ、水平方向の射影分布の「分散」が
+      最大になる角度（＝文字行が最も水平に重なる角度）を特定する。
     """
     h, w = image.shape[:2]
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # 処理高速化のために縮小
+    scale = 600 / h
+    small = cv2.resize(image, (int(w * scale), 600))
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
     
-    # エッジ抽出
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    # ノイズ除去とコントラスト強調
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     
-    # ハフ変換で直線（行）を検出
-    # 解像度 1度単位で -10度 〜 +10度の範囲を探す
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, 
-                            minLineLength=w // 5, maxLineGap=20)
+    best_score = -1
+    best_angle = 0
     
-    if lines is None:
-        return image
+    # -5度から+5度の範囲を 0.5度刻みで探索
+    for angle in np.arange(-5, 5.1, 0.5):
+        # 中心で回転
+        M = cv2.getRotationMatrix2D((small.shape[1] // 2, 300), angle, 1.0)
+        rotated = cv2.warpAffine(thresh, M, (small.shape[1], 600), flags=cv2.INTER_NEAREST)
         
-    angles = []
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-        # 極端な傾き（縦書きの縦線など）を除外、±15度以内を対象
-        if abs(angle) < 15:
-            angles.append(angle)
+        # 水平方向の投影（行ごとのピクセル和）
+        hist = np.sum(rotated, axis=1)
+        
+        # 文字が水平なら、hist の「差」が激しくなる（分散が大きくなる）
+        score = np.var(hist)
+        
+        if score > best_score:
+            best_score = score
+            best_angle = angle
             
-    if not angles:
+    if abs(best_angle) < 0.1:
         return image
         
-    # 最頻値（中央値）の角度を採用
-    median_angle = np.median(angles)
+    logger.debug(f"Deskew: Optimized angle = {best_angle:.2f} degrees")
     
-    if abs(median_angle) < 0.1: # 傾きが微小なら何もしない
-        return image
-        
-    # 回転行列の作成
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
-    
-    # 回転（余白は白で埋める）
-    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_LANCZOS4, 
-                             borderMode=cv2.BORDER_REPLICATE)
-    
-    return rotated
+    # 元の画像に最適な回転を適用
+    M = cv2.getRotationMatrix2D((w // 2, h // 2), best_angle, 1.0)
+    return cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_LANCZOS4, 
+                         borderMode=cv2.BORDER_REPLICATE)
 
 # ──────────────────────────────────────────────
 # 3. 向き補正 (Orientation)
@@ -142,34 +144,91 @@ def fix_orientation(image: np.ndarray) -> np.ndarray:
 # 4. 黒縁除去
 # ──────────────────────────────────────────────
 
-def remove_border(image: np.ndarray, threshold: int = 40, padding: int = 5) -> np.ndarray:
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    rows = np.any(mask > 0, axis=1)
-    cols = np.any(mask > 0, axis=0)
-    if not rows.any() or not cols.any():
-        return image
-    r_min, r_max = np.where(rows)[0][[0, -1]]
-    c_min, c_max = np.where(cols)[0][[0, -1]]
+def remove_border(image: np.ndarray, threshold: int = 30, padding: int = 2) -> np.ndarray:
+    """
+    画像の外周にある暗い「黒縁」(撮影時の背景) を除去する。
+    
+    改良点:
+      - ページ全体をクロップするのではなく、外周から中心に向かって
+        連続する暗いピクセルのみを削る。
+    """
     h, w = image.shape[:2]
-    return image[max(0, r_min-padding):min(h, r_max+padding), max(0, c_min-padding):min(w, c_max+padding)]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # マスク作成 (暗い部分を True)
+    dark = gray < threshold
+    
+    # 各辺からどこまで暗いピクセルが続いているかを探す
+    top, bottom, left, right = 0, h - 1, 0, w - 1
+    
+    # 上から
+    while top < h // 4 and np.mean(dark[top, :]) > 0.5:
+        top += 1
+    # 下から
+    while bottom > 3 * h // 4 and np.mean(dark[bottom, :]) > 0.5:
+        bottom -= 1
+    # 左から
+    while left < w // 4 and np.mean(dark[:, left]) > 0.5:
+        left += 1
+    # 右から
+    while right > 3 * w // 4 and np.mean(dark[:, right]) > 0.5:
+        right -= 1
+        
+    # 安全のためパディング（戻し）
+    top = max(0, top - padding)
+    bottom = min(h - 1, bottom + padding)
+    left = max(0, left - padding)
+    right = min(w - 1, right + padding)
+    
+    return image[top:bottom+1, left:right+1]
 
 # ──────────────────────────────────────────────
 # 5. サイズ正規化
 # ──────────────────────────────────────────────
 
 def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool = False) -> np.ndarray:
+    """
+    画像をターゲットサイズ (A4, B5 等) に合わせ、ページいっぱいに表示されるよう拡大・配置する。
+    """
     size = OUTPUT_SIZES.get(target_size, OUTPUT_SIZES["A4"])
     target_w, target_h = size
+    
+    # 向きを縦長に統一 (必要なら)
     if image.shape[1] > image.shape[0]:
         image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        
     h, w = image.shape[:2]
-    scale = min(target_w / w, target_h / h)
+    
+    # マージンを最小限（0.5%）にする
+    margin_x = int(target_w * 0.005)
+    margin_y = int(target_h * 0.005)
+    inner_w = target_w - (margin_x * 2)
+    inner_h = target_h - (margin_y * 2)
+    
+    # アスペクト比を維持して最大限にリサイズ
+    scale = min(inner_w / w, inner_h / h)
     new_w, new_h = int(w * scale), int(h * scale)
+    
     resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-    canvas = np.full((target_h, target_w, 3), 255, dtype=np.uint8)
-    y_off, x_off = (target_h - new_h) // 2, (target_w - new_w) // 2
-    canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+    
+    # --- 背景の純白化 (Normalization) ---
+    # 端の影を飛ばして PDF の白に溶け込ませる
     if grayscale:
-        canvas = cv2.cvtColor(cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+        gray_res = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        gray_res[gray_res > 248] = 255
+        resized = cv2.cvtColor(gray_res, cv2.COLOR_GRAY2BGR)
+    else:
+        lab = cv2.cvtColor(resized, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l[l > 248] = 255
+        resized = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+    
+    # 白背景のキャンバス作成
+    canvas = np.full((target_h, target_w, 3), 255, dtype=np.uint8)
+    
+    # 中央配置 (マージンが最小なので、ほぼページいっぱいになる)
+    y_off = (target_h - new_h) // 2
+    x_off = (target_w - new_w) // 2
+    canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+    
     return canvas

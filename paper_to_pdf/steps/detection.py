@@ -7,6 +7,7 @@ steps/detection.py
 from __future__ import annotations
 
 import logging
+import cv2
 
 import numpy as np
 
@@ -36,35 +37,44 @@ class DetectionStep(ProcessingStep):
 
         for image in images:
             h, w = image.shape[:2]
+            aspect_ratio = w / h
+            
+            # 見開き判定 (アスペクト比 1.1 以上をスプレッドとみなす)
+            # ※透視変換前に行う。Portrait なら回転してから判定
+            working_img = image
+            if h > w:
+                working_img = np.ascontiguousarray(np.rot90(image, k=-1))
+                h, w = working_img.shape[:2]
+                aspect_ratio = w / h
 
-            # 分割が指定されているのに縦長なのは、向きが不適切なため強制回転
-            if self.config.split and h > w:
-                image = np.ascontiguousarray(np.rot90(image, k=-1)) # 90 deg clockwise
-                h, w = image.shape[:2]
-
-            # ページ輪郭検出
-            if self.config.sensitivity == "ai":
-                contour = detect_page_contour_ai(image)
+            if self.config.split and aspect_ratio > 1.1:
+                logger.info("Fundamental review: Splitting spread BEFORE perspective transform.")
+                # 先に綴じ目（Seam）で分割
+                from page_detector import split_spread
+                page_order = self._resolve_page_order(working_img)
+                split_pages = split_spread(working_img, page_order)
             else:
-                contour = detect_page_contour(image, self.config.sensitivity)
+                split_pages = [working_img]
 
-            # 切り出し・透視変換
-            if contour is not None:
-                warped = four_point_transform(image, contour)
-            else:
-                # 検出失敗時は周囲 5% をカット
-                warped = image[int(h*0.05):int(h*0.95), int(w*0.05):int(w*0.95)]
+            # 分割された（あるいは単一の）各ページに対して独立して境界検出を行う
+            for i, p_img in enumerate(split_pages):
+                ph, pw = p_img.shape[:2]
+                
+                # 個別にページ輪郭検出
+                if self.config.sensitivity == "ai":
+                    contour = detect_page_contour_ai(p_img)
+                else:
+                    contour = detect_page_contour(p_img, self.config.sensitivity)
 
-            # 透視変換後に残った暗い外縁 (写真背景) を除去
-            warped = trim_page_border(warped)
+                if contour is not None:
+                    # 個別に透視変換（これにより左右それぞれの歪みを補正）
+                    warped = four_point_transform(p_img, contour)
+                else:
+                    logger.warning(f"Page {i+1} contour not found. Using conservative crop.")
+                    warped = p_img[int(ph*0.03):int(ph*0.97), int(pw*0.03):int(pw*0.97)]
 
-            # 分割判定
-            fh, fw = warped.shape[:2]
-            if self.config.split and (fw > fh * _SPREAD_ASPECT_RATIO):
-                page_order = self._resolve_page_order(warped)
-                pages = split_spread(warped, page_order)
-                output_pages.extend(pages)
-            else:
+                # 外縁トリム
+                warped = trim_page_border(warped)
                 output_pages.append(warped)
 
         return output_pages
