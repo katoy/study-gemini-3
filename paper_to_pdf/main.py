@@ -49,7 +49,9 @@ def parse_args():
     parser.add_argument("--ai-scale", type=int, choices=[1, 2, 4], default=2,
                         help="超解像の拡大倍率 (1: 復元のみ, default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログを出力")
-    
+    parser.add_argument("--detect-only", action="store_true",
+                        help="ページ検出・分割のみ行い、後処理なしでそのまま PDF に出力する（検出品質の確認用）")
+
     return parser.parse_args()
 
 def main():
@@ -73,8 +75,9 @@ def main():
         ai_enhance=args.ai_enhance,
         ai_backend=args.ai_backend,
         ai_scale=args.ai_scale,
+        detect_only=args.detect_only,
     )
-    
+
     # プロセッサの実行
     processor = BookProcessor(config)
     

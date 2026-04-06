@@ -21,6 +21,7 @@ from steps.detection import DetectionStep
 from steps.dewarp import DewarpStep
 from steps.enhancement import EnhancementStep
 from steps.postprocess import PostProcessStep
+from steps.quality_check import QualityCheckStep
 from utils.image import fix_exif_rotation, sort_by_filename
 from pdf_builder import build_pdf_streaming
 
@@ -54,9 +55,11 @@ class BookProcessor:
         # 1. パイプラインの構築
         pipeline = Pipeline(self.config)
         pipeline.add_step(DetectionStep(self.config))
-        pipeline.add_step(DewarpStep(self.config, progress_cb=progress_cb))
-        pipeline.add_step(EnhancementStep(self.config))
-        pipeline.add_step(PostProcessStep(self.config))
+        if not self.config.detect_only:
+            pipeline.add_step(DewarpStep(self.config, progress_cb=progress_cb))
+            pipeline.add_step(EnhancementStep(self.config))
+            pipeline.add_step(PostProcessStep(self.config))
+            pipeline.add_step(QualityCheckStep(self.config))
         
         try:
             # 2. ファイルの読み込みとソート

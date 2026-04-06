@@ -39,6 +39,8 @@ class ProcessingConfig:
     ai_enhance: bool = False
     ai_backend: str = "realesrgan"   # "realesrgan" | "swin2sr" | "docres"
     ai_scale: int = 2                # 1 の場合は解像度変更なしで補正のみ
+    # デバッグ用: 検出・分割のみ実施し後処理なしで PDF 出力
+    detect_only: bool = False
 
     def __post_init__(self) -> None:
         """フィールド値のバリデーション"""

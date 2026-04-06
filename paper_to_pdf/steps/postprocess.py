@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from steps.base import ProcessingStep
-from image_processor import remove_border, fix_orientation, deskew_page, remove_shadow, normalize_size
+from image_processor import remove_border, remove_textured_border, deskew_page, remove_shadow, normalize_size
 
 class PostProcessStep(ProcessingStep):
     """
@@ -21,12 +21,14 @@ class PostProcessStep(ProcessingStep):
             # 1. 黒縁除去
             if self.config.border:
                 img = remove_border(img)
-            
-            # 2. 向き補正 (90度単位)
-            if self.config.orient:
-                img = fix_orientation(img)
-            
-            # 3. 傾き補正 (Deskew)
+
+            # 1b. テクスチャ背景除去 (籐・机など)
+            img = remove_textured_border(img)
+
+            # 2. 傾き補正 (Deskew)
+            # 注: 向き補正 (fix_orientation) は削除。
+            # EXIF補正 (fix_exif_rotation) と透視変換 (four_point_transform) で
+            # 既に向きは確定済みのため、ここでの再補正は誤回転の原因になる。
             img = deskew_page(img)
             
             # 4. 影・裏写り除去
