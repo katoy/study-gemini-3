@@ -142,21 +142,60 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int]:
     return image, 0
 
 def find_center_seam(warped_image: np.ndarray) -> int:
+    """
+    見開き画像から綴じ目(binding)の x 座標を返す。
+
+    2 戦略の優先順位:
+      1. 明るいギャップ検出: 中央 47-53% の範囲に幅 2-8% のゼロ密度ブロックがあれば
+         そのブロックの中心を綴じ目とする。
+         (影のない製本ギャップや白スパインに対応)
+      2. 輝度最小値: 縦ブラー後の輝度プロファイルを重いGaussianでスムージングし
+         最小点を綴じ目とする。
+         (典型的な暗い製本影に対応)
+    """
     h, w = warped_image.shape[:2]
     gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-    # 縦方向のブラーで水平テキスト行の影響を均す
+    s, e = int(w * 0.30), int(w * 0.70)
+
+    # ── 戦略1: 明るいギャップ (ゼロ密度ブロック) ──────────────
+    text = (gray < 128).astype(np.float32)
+    col_density = np.mean(text, axis=0)
+
+    center_s  = int(w * 0.47)
+    center_e  = int(w * 0.53)
+    min_gap   = int(w * 0.02)   # 最小ギャップ幅 (2%)
+    max_gap   = int(w * 0.08)   # 最大ギャップ幅 (8%)
+
+    zero_mask = col_density < 0.002
+    run_start, run_len = 0, 0
+    for i in range(s, e):
+        if zero_mask[i]:
+            if run_len == 0:
+                run_start = i
+            run_len += 1
+        else:
+            if min_gap <= run_len <= max_gap:
+                cx = run_start + run_len // 2
+                if center_s <= cx <= center_e:
+                    logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
+                    return cx
+            run_len = 0
+    # ループ末尾のランをチェック
+    if min_gap <= run_len <= max_gap:
+        cx = run_start + run_len // 2
+        if center_s <= cx <= center_e:
+            logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
+            return cx
+
+    # ── 戦略2: 輝度最小値 (暗い製本影) ───────────────────────
     v_blur = cv2.blur(gray, (1, h // 4))
     brightness_profile = np.mean(v_blur, axis=0).astype(np.float32)
-    # 横方向に重いGaussianスムージングでテキスト列間の細い隙間(高周波)を除去し
-    # 綴り目の広い影(低周波)のみを残す
     sigma = max(20, w // 80)
     k = sigma * 6 + 1
     smoothed = cv2.GaussianBlur(brightness_profile.reshape(1, -1), (k, 1), sigma)[0]
-    # 中心から遠いほどペナルティを加算
     x = np.arange(w)
     center_penalty = ((x - w / 2) / (w / 4)) ** 2 * 30
     score = smoothed + center_penalty
-    s, e = int(w * 0.3), int(w * 0.7)
     return s + int(np.argmin(score[s:e]))
 
 def detect_writing_direction(image: np.ndarray) -> str:

@@ -68,6 +68,11 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
     content = gray[y0:y1 + 1, x0:x1 + 1]
     ch, cw = content.shape
 
+    # 白紙・扉ページ等、全体テキスト密度が極めて低い場合は見切れ判定をスキップ
+    overall_density = float(np.mean(content < 80))
+    if overall_density < 0.005:
+        return False, {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
+
     margin_h = max(10, int(ch * 0.02))
     margin_w = max(10, int(cw * 0.02))
     text = content < 80
