@@ -27,6 +27,12 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
     if strength <= 0:
         return image
 
+    # 白紙ページガード: 暗ピクセル(輝度<150)が2%未満なら文字がないため処理をスキップ。
+    # Division Normalization + NORM_MINMAX が白紙の微細な色むらを増幅して破壊するのを防ぐ。
+    _gray_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if np.mean(_gray_check < 150) < 0.02:
+        return image
+
     # 1. 輝度チャンネル (L) の抽出
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
@@ -100,6 +106,11 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
+    def _proj_score(t: np.ndarray) -> float:
+        return max(float(np.var(np.sum(t, axis=1))), float(np.var(np.sum(t, axis=0))))
+
+    score_at_zero = _proj_score(thresh)
+
     best_score = -1
     best_angle = 0
 
@@ -120,6 +131,11 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
             best_angle = angle
 
     if abs(best_angle) < 0.3:
+        return image
+
+    # 改善比ガード: 0° スコアに対して 30% 以上の改善がない場合はテキスト方向の
+    # 検出が信頼できないためスキップ（イラスト・白紙・疎なページでの誤補正を防ぐ）
+    if score_at_zero > 0 and best_score / score_at_zero < 1.3:
         return image
 
     logger.debug("Deskew: angle = %.2f degrees", best_angle)
