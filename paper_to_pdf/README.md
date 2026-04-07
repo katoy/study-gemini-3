@@ -47,6 +47,44 @@
 | `utils/` | デバイス選択、画像 I/O、モデルパス管理、座標変換 |
 | `pdf_builder.py` | ストリーミング方式による PDF 生成 |
 
+## 処理パイプラインの流れ
+
+```mermaid
+graph TD
+    A[入力画像] --> B[DetectionStep]
+    subgraph "Detection (page_detector.py)"
+        B --> B1[書籍境界検出]
+        B1 --> B2[透視変換 / 歪み補正]
+        B2 --> B3[向き自動補正 / 天地補正]
+        B3 --> B4[見開き分割 / 綴じ目検出]
+    end
+    B4 --> C[DewarpStep]
+    subgraph "Dewarp (dewarper.py)"
+        C --> C1{モード判定}
+        C1 -- AI --> C2[DewarpNet / DocTr]
+        C1 -- Fallback --> C3[Cubic Polynomial]
+    end
+    C2 --> D[EnhancementStep]
+    C3 --> D
+    subgraph "Enhancement (ai_enhancer.py)"
+        D --> D1[Real-ESRGAN / Swin2SR]
+        D1 --> D2[AI 影・裏写り除去 DocRes]
+    end
+    D2 --> E[PostProcessStep]
+    subgraph "PostProcess (image_processor.py)"
+        E --> E1[適応型白色化 / クリーニング]
+        E1 --> E2[傾き補正 Deskew]
+        E2 --> E3[サイズ正規化 A4/B5等]
+    end
+    E3 --> F[QualityCheckStep]
+    subgraph "Quality Check"
+        F --> F1[文字見切れ / 余分領域判定]
+        F1 --> F2[品質レポート生成]
+    end
+    F2 --> G[PDF Builder]
+    G --> H((出力 PDF))
+```
+
 ---
 
 ## 補正アルゴリズムの詳細
