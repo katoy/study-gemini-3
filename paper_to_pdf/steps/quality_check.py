@@ -30,45 +30,65 @@ def _red(s: str) -> str:
     return s
 
 
+def _content_bbox(gray: np.ndarray) -> tuple[int, int, int, int]:
+    """
+    normalize_size が作る白キャンバス上の実コンテンツ領域を返す。
+    非白ピクセル（< 250）が存在する行・列の範囲を求める。
+    全白の場合は画像全体を返す。
+    """
+    non_white = gray < 250
+    rows = np.any(non_white, axis=1)
+    cols = np.any(non_white, axis=0)
+    if not rows.any() or not cols.any():
+        return 0, 0, gray.shape[1] - 1, gray.shape[0] - 1
+    r_min = int(np.argmax(rows))
+    r_max = int(len(rows) - 1 - np.argmax(rows[::-1]))
+    c_min = int(np.argmax(cols))
+    c_max = int(len(cols) - 1 - np.argmax(cols[::-1]))
+    return c_min, r_min, c_max, r_max
+
+
 # ──────────────────────────────────────────────
 # 個別評価関数
 # ──────────────────────────────────────────────
 
 def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
     """
-    外縁にテキストが端まで達しているかで見切れを検出する。
+    コンテンツ領域の外縁にテキストが端まで達しているかで見切れを検出する。
+
+    normalize_size は実コンテンツを白キャンバスに中央配置するため、
+    キャンバス端ではなくコンテンツ境界で判定する。
 
     2段階判定:
-      1. 外縁マージン全体 (2%) のテキスト密度が threshold 以上 → 候補
-      2. 端から edge_safe_px (短辺の 0.8%) 以内にテキストが存在する → 真に見切れ
-
-    edge_safe_px を 0.5% → 0.8% に拡大し、trim_page_border 後も残る自然な
-    ページ余白を誤検出しにくくした。
+      1. コンテンツ外縁マージン (2%) のテキスト密度が margin_threshold 以上 → 候補
+      2. コンテンツ境界から edge_safe_px (短辺の 0.8%) 以内にテキストが存在する → 真に見切れ
     """
-    h, w = gray.shape
-    margin_h = max(10, int(h * 0.02))
-    margin_w = max(10, int(w * 0.02))
-    text = gray < 80
+    x0, y0, x1, y1 = _content_bbox(gray)
+    # コンテンツ領域を切り出して判定
+    content = gray[y0:y1 + 1, x0:x1 + 1]
+    ch, cw = content.shape
+
+    margin_h = max(10, int(ch * 0.02))
+    margin_w = max(10, int(cw * 0.02))
+    text = content < 80
     densities = {
         "top":    float(np.mean(text[:margin_h, :])),
         "bottom": float(np.mean(text[-margin_h:, :])),
         "left":   float(np.mean(text[:, :margin_w])),
         "right":  float(np.mean(text[:, -margin_w:])),
     }
-    # マージン全体の密度閾値（これ以下なら確実にテキストなし）
-    margin_threshold = 0.015
-    # 端ピクセルに直接テキストがある場合の閾値（2% = 確実に見切れ）
-    edge_threshold = 0.020
-    # 端から何px以内にテキストがあれば「見切れ」とみなすか
-    # 短辺の 0.8% または最低 6px
-    edge_safe_px = max(6, int(min(h, w) * 0.008))
+    # マージン全体の密度閾値（これ以下ならテキストなし）
+    margin_threshold = 0.009
+    # コンテンツ端そのものにテキストがある場合の閾値
+    edge_threshold = 0.010
+    # コンテンツ端から何px以内にテキストがあれば「見切れ」とみなすか
+    edge_safe_px = max(6, int(min(ch, cw) * 0.008))
 
     flags: dict[str, bool] = {}
     for k, density in densities.items():
         if density <= margin_threshold:
             flags[k] = False
             continue
-        # マージン内にテキストはあるが、端そのものにテキストがあるか確認
         if k == "top":
             edge_d = float(np.mean(text[:edge_safe_px, :]))
         elif k == "bottom":
