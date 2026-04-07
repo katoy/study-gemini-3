@@ -86,8 +86,12 @@ def _run_diagnosis(pdf_path: Path) -> None:
         img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
         if pix.n == 4:
             img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        elif pix.n == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         elif pix.n == 1:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        else:
+            raise ValueError(f"Unsupported channel count: {pix.n}")
         results.append(evaluate_page(img, i + 1))
     doc.close()
     _print_quality_summary(results)
