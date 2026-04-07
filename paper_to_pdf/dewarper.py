@@ -179,6 +179,16 @@ def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
     z = np.polyfit(xs, ys, 3)
     poly = np.poly1d(z)
 
+    # R² チェック: フィット精度が低い場合は補正しない
+    # テキスト行以外のノイズ（ページ枠・飾り罫など）が混入すると R² が低くなる
+    y_pred = poly(xs)
+    ss_res = float(np.sum((ys - y_pred) ** 2))
+    ss_tot = float(np.sum((ys - float(np.mean(ys))) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    if r_squared < 0.5:
+        logger.debug("polynomial: R²=%.3f < 0.5 → フィット不良のためスキップ", r_squared)
+        return image
+
     col_grid = np.arange(w)
     target_curve = poly(col_grid)
     baseline = np.median(target_curve)

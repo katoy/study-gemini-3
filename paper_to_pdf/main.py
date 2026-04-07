@@ -43,7 +43,6 @@ def parse_args():
                         default="auto", help="書籍タイプ (default: auto — 縦書き/横書きを自動検出)")
     parser.add_argument("--dewarp-mode", choices=["dewarpnet", "polynomial", "doctr", "none"], 
                         default="dewarpnet", help="湾曲補正モード (default: dewarpnet, doctr: AI Transformer)")
-    parser.add_argument("--no-split", action="store_false", dest="split", help="見開き画像を分割しない")
     parser.add_argument("--no-orient", action="store_false", dest="orient", help="向きを自動補正しない")
     parser.add_argument("--no-border", action="store_false", dest="border", help="黒縁を除去しない")
     parser.add_argument("--output-size", default="A4", help="出力サイズ A4/A5/B5/Letter (default: A4)")
@@ -63,10 +62,10 @@ def parse_args():
                         help="超解像の拡大倍率 (1: 復元のみ, default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログを出力")
     parser.add_argument("--quiet", "-q", action="store_true", help="WARNING 以上のみ出力（INFO を抑制）")
-    parser.add_argument("--detect-only", action="store_true",
-                        help="ページ検出・分割のみ行い、後処理なし（サイズ正規化は行う）でそのまま PDF に出力する（検出品質の確認用）")
-    parser.add_argument("--show-clip-area", action="store_true",
-                        help="元画像に検出領域を赤枠で描画したデバッグ画像を debug_detect/ に保存する")
+    parser.add_argument("--show-book-area", action="store_true",
+                        help="書籍領域を赤枠描画した PDF を出力する（分割なし・後処理スキップ）")
+    parser.add_argument("--show-page-area", action="store_true",
+                        help="ページ領域を赤枠描画した PDF を出力する（見開き分割あり・後処理スキップ）")
     parser.add_argument("--diagnose", action="store_true",
                         help="品質チェック結果を標準出力にサマリー表示する（処理後に判定結果を表示）")
 
@@ -99,7 +98,9 @@ def _print_quality_summary(results: list) -> None:
     print("\n" + "=" * 70)
     print("品質診断サマリー")
     print("=" * 70)
-    sym = lambda b: "✗ NG" if b else "○ OK"
+    RED = "\033[31m"
+    RST = "\033[0m"
+    sym = lambda b: f"{RED}✗ NG{RST}" if b else "○ OK"
     header = f"  {'Page':>4}  {'白比率':>5}  {'文字見切':8}  {'余分領域':8}  {'歪み':8}  {'半欠け':8}  {'下部欠け':8}  傾き°"
     print(header)
     print("  " + "-" * 78)
@@ -138,7 +139,6 @@ def main():
     config = ProcessingConfig(
         book_type=args.book_type,
         dewarp_mode=args.dewarp_mode,
-        split=args.split,
         orient=args.orient,
         border=args.border,
         output_size=args.output_size,
@@ -150,8 +150,8 @@ def main():
         ai_enhance=args.ai_enhance,
         ai_backend=args.ai_backend,
         ai_scale=args.ai_scale,
-        detect_only=args.detect_only,
-        show_clip_area=args.show_clip_area,
+        show_book_area=args.show_book_area,
+        show_page_area=args.show_page_area,
     )
 
     # 入力フォルダの存在チェック

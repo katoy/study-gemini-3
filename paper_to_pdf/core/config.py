@@ -44,9 +44,9 @@ class ProcessingConfig:
     ai_enhance: bool = False
     ai_backend: str = "realesrgan"   # "realesrgan" | "swin2sr" | "docres"
     ai_scale: int = 2                # 1 の場合は解像度変更なしで補正のみ
-    # デバッグ用
-    detect_only: bool = False
-    show_clip_area: bool = False     # 元画像に検出領域を赤枠で描画した画像を保存
+    # 検出確認モード
+    show_book_area: bool = False   # 分割なしで書籍領域を赤枠描画して PDF 出力 (後処理スキップ)
+    show_page_area: bool = False   # 分割あり でページ領域を赤枠描画して PDF 出力 (後処理スキップ)
 
     def __post_init__(self) -> None:
         """フィールド値のバリデーション"""

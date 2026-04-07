@@ -269,6 +269,13 @@ def remove_textured_border(image: np.ndarray) -> np.ndarray:
         logger.debug("remove_textured_border: 有効なページ領域が見つからない")
         return image
 
+    # 画像全体の白比率が高い (>60%) 場合は既にクリーンな書籍ページ。
+    # 高密度テキスト行を誤ってテクスチャ背景と判定するのを防ぐ。
+    overall_white = float(np.mean(gray >= white_thresh))
+    if overall_white > 0.60:
+        logger.debug("remove_textured_border: overall_white=%.2f > 0.60 → スキップ", overall_white)
+        return image
+
     r_min = int(np.where(page_rows)[0][0])
     r_max = int(np.where(page_rows)[0][-1])
     c_min = int(np.where(page_cols)[0][0])

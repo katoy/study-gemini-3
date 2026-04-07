@@ -55,9 +55,9 @@ class BookProcessor:
         
         # 1. パイプラインの構築
         pipeline = Pipeline(self.config)
-        # show_clip_area は検出結果の確認用デバッグフラグ。
-        # detect_only と同様に後続の補正ステップをスキップして結果を一致させる。
-        run_full = not self.config.detect_only and not self.config.show_clip_area
+        # show_book_area / show_page_area は検出確認モード。
+        # 後続の補正ステップをスキップして検出結果をそのまま PDF に出力する。
+        run_full = not self.config.show_book_area and not self.config.show_page_area
 
         # 補正戦略:
         #   dewarpnet / doctr : DetectionStep で見開き全体に AI 湾曲補正を適用（split 前）。
@@ -77,8 +77,8 @@ class BookProcessor:
             pipeline.add_step(DewarpStep(self.config, mode=page_dewarp_mode))
             pipeline.add_step(EnhancementStep(self.config))
 
-        # PostProcessStep は detect_only の場合でも追加
-        # (サイズ正規化と PDF 出力のため。内部で detect_only フラグを見て処理を分岐する)
+        # PostProcessStep は検出確認モードでも追加
+        # (サイズ正規化と PDF 出力のため。内部でフラグを見て処理を分岐する)
         pipeline.add_step(PostProcessStep(self.config))
 
         if run_full:

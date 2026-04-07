@@ -98,11 +98,11 @@ python main.py ./samples out.pdf --ai-enhance --ai-backend realesrgan --ai-scale
 # 漫画（右開き・グレースケール）
 python main.py ./manga out.pdf --book-type manga
 
-# 検出・分割結果のみを PDF に出力（品質確認用）
-python main.py ./samples out.pdf --detect-only
+# 書籍領域の確認（分割なし・赤枠描画）
+python main.py ./samples out.pdf --show-book-area
 
-# ページ境界検出のみ確認（分割なし）
-python main.py ./samples out.pdf --detect-only --no-split
+# ページ領域の確認（見開き分割・赤枠描画）
+python main.py ./samples out.pdf --show-page-area
 
 # 詳細ログ出力
 python main.py ./samples out.pdf --verbose
@@ -116,19 +116,22 @@ python main.py ./samples out.pdf --verbose
 |------------|------|------------|
 | `--book-type` | `auto` / `jp_vert` / `jp_horiz` / `en` / `manga` | `auto` |
 | `--dewarp-mode` | `dewarpnet` / `polynomial` / `doctr` / `none` | `dewarpnet` |
-| `--sensitivity` | 境界検出感度 `low` / `medium` / `high` / `ai` | `medium` |
+| `--sensitivity` | 境界検出感度 `low` / `medium` / `high` | `medium` |
 | `--ai-enhance` | AI 超解像・復元補正を有効化 | 無効 |
 | `--ai-backend` | `realesrgan` / `swin2sr` / `docres` | `realesrgan` |
 | `--ai-scale` | 超解像倍率 `1`（復元のみ）/ `2` / `4` | `2` |
 | `--output-size` | `A4` / `A5` / `B5` / `Letter` | `A4` |
 | `--grayscale` | グレースケール出力 | 無効 |
 | `--shadow-strength` | 影・裏写り除去強度 `0.0`〜`1.0` | `1.0` |
-| `--no-split` | 見開き分割を行わない | — |
+| `--rotate-angle` | 手動回転 `0` / `90` / `180` / `270` | `0` |
+| `--writing-mode` | 書字方向 `auto` / `horizontal` / `vertical` | `auto` |
 | `--no-orient` | 向き自動補正を行わない | — |
 | `--no-border` | 黒縁除去を行わない | — |
-| `--detect-only` | 検出・分割のみ行い後処理なしで PDF 出力（確認用） | — |
-| `--show-clip-area` | `--detect-only` と併用。分割線と各ページ領域ラベル（RIGHT/LEFT）を元画像上に描画して確認用 PDF を出力 | — |
+| `--show-book-area` | 書籍領域を赤枠描画した PDF を出力（分割なし・後処理スキップ） | — |
+| `--show-page-area` | ページ領域を赤枠描画した PDF を出力（見開き分割あり・後処理スキップ） | — |
+| `--diagnose` | 処理後に品質診断サマリーを標準出力へ表示 | — |
 | `--verbose`, `-v` | 詳細ログ出力 | — |
+| `--quiet`, `-q` | WARNING 以上のみ出力 | — |
 
 ### 推奨設定
 
@@ -137,7 +140,8 @@ python main.py ./samples out.pdf --verbose
 | 速度重視（プレビュー） | `--dewarp-mode polynomial` |
 | 品質重視（最終出力） | `--dewarp-mode dewarpnet --ai-enhance --ai-backend realesrgan --ai-scale 2` |
 | 影・裏写りが強い | `--ai-enhance --ai-backend docres --ai-scale 1` |
-| 検出品質の確認 | `--detect-only` または `--detect-only --no-split` |
+| 書籍境界の確認（分割なし） | `--show-book-area` |
+| ページ分割位置の確認 | `--show-page-area` |
 
 ---
 
@@ -220,9 +224,11 @@ pip install transformers
 
 ### 綴じ目検出（`find_center_seam`）
 
-見開き画像から左右ページの分割位置を求めます。
+見開き画像から左右ページの分割位置を求めます。3 段階の戦略を優先順位順に試行します。
 
-縦方向のブラー後、列ごとの平均輝度プロファイルに対して**横方向の重い Gaussian スムージング**（sigma ≈ 画像幅 / 80）を適用することで、テキスト列間の細い隙間（高周波成分）を除去し、製本部の広い影（低周波成分）だけを抽出します。これにより、テキスト列の間隔を誤って綴じ目と判定するケースを防ぎます。中心から離れるほど小さなペナルティを加え、極端に端に寄った位置を抑制します。
+1. **片側空白検出（戦略 0）:** 画像の 5-35%（左）と 65-95%（右）の列ごとテキスト密度を比較し、一方がほぼゼロであれば白紙ページとみなしてコンテンツ端に綴じ目を設定します。表紙+白紙、奥付+白紙などに対応。
+2. **明るいギャップ検出（戦略 1）:** 中央 47-53% の範囲に幅 2-8% のゼロ密度ブロックがあれば、その中心を綴じ目とします。製本ギャップや白スパインに対応。
+3. **輝度最小値（戦略 2）:** 縦ブラー後の輝度プロファイルを重い Gaussian（sigma ≈ 画像幅 / 80）でスムージングし、中央 ±7%（43-57%）の範囲で最小点を探索します。テキスト列の暗さに引っ張られないよう中心引力ペナルティを適用しています。
 
 ### Portrait 見開き検出
 
