@@ -58,14 +58,19 @@ class BookProcessor:
         if not self.config.detect_only:
             pipeline.add_step(DewarpStep(self.config, progress_cb=progress_cb))
             pipeline.add_step(EnhancementStep(self.config))
-            pipeline.add_step(PostProcessStep(self.config))
+        
+        # PostProcessStep は detect_only の場合でも追加
+        # (サイズ正規化と PDF 出力のため。内部で detect_only フラグを見て処理を分岐する)
+        pipeline.add_step(PostProcessStep(self.config))
+
+        if not self.config.detect_only:
             pipeline.add_step(QualityCheckStep(self.config))
         
         try:
             # 2. ファイルの読み込みとソート
             input_paths = sort_by_filename([
                 p for p in input_folder.iterdir()
-                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".bmp", ".tiff", ".tif"}
+                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".bmp", ".tiff", ".tif"}
             ])
             
             if not input_paths:
@@ -92,6 +97,7 @@ class BookProcessor:
                     continue
 
                 # パイプライン実行
+                logger.debug(f"Running pipeline for {img_path.name}")
                 pages = pipeline.run(image_bgr)
 
                 # 結果の保存

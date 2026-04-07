@@ -49,6 +49,7 @@ class Pipeline:
 
         for step in self.steps:
             try:
+                logger.debug(f"Running step: {step.name}")
                 current_images = step.process(current_images)
             except Exception as e:
                 logger.error(f"Error in step {step.name}: {e}", exc_info=True)

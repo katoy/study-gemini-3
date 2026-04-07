@@ -180,6 +180,15 @@ def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
     target_curve = poly(col_grid)
     baseline = np.median(target_curve)
     offsets = target_curve - baseline
+
+    # 補正量チェック:
+    #   < 2% of h  → ほぼ平坦なページ、補正不要
+    #   > 15% of h → 多項式フィット不良（背景ノイズ等でエッジ誤検出）、スキップ
+    max_offset = float(np.max(np.abs(offsets)))
+    if max_offset < h * 0.02 or max_offset > h * 0.15:
+        logger.debug("polynomial: max_offset=%.1fpx (h=%d) → スキップ", max_offset, h)
+        return image
+
     slope = np.gradient(target_curve)
     stretch_factor = np.sqrt(1 + slope**2)
 

@@ -48,7 +48,7 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
         "left":   float(np.mean(text[:, :margin_w])),
         "right":  float(np.mean(text[:, -margin_w:])),
     }
-    threshold = 0.02
+    threshold = 0.01
     # 端から何px以内にテキストがあれば「見切れ」とみなすか
     # 0.5% or 最低 5px
     edge_safe_px = max(5, int(min(h, w) * 0.005))
@@ -74,24 +74,44 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
 
 def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bool, dict]:
     """
-    外周 border_frac 割合の白ピクセル比率で余分な背景を検出する。
+    外周 border_frac 割合の背景残留を2指標で検出する。
 
-    根拠: ページ内容（白地＋テキスト）は白ピクセル≥ 45% を持つ。
-    籐・机テクスチャは中程度輝度が多く白比率 < 45% になる。
+    指標1 — 白比率: ページ内容は白ピクセル(≥200) ≥ 45% を持つ。
+             テクスチャ背景は白比率 < 45%。
+
+    指標2 — 中間グレー密度: normalize_size の白色化後も残る grayish 背景を検出。
+             輝度 100〜220 のピクセルが 50% 超 → 薄い背景テクスチャあり。
+             ただし中央テキスト密度が 3% 超の場合は除外（テキスト豊富ページの誤検出防止）。
     """
     h, w = gray.shape
     bh = max(4, int(h * border_frac))
     bw = max(4, int(w * border_frac))
-    white = gray >= 200
+    white   = gray >= 200
+    midgray = (gray >= 100) & (gray < 220)
 
-    ratios = {
-        "top":    float(np.mean(white[:bh, :])),
-        "bottom": float(np.mean(white[-bh:, :])),
-        "left":   float(np.mean(white[:, :bw])),
-        "right":  float(np.mean(white[:, -bw:])),
+    # ページ中央のテキスト密度（テキストが多いページはグレー判定から除外）
+    center = gray[bh:h - bh, bw:w - bw]
+    center_text_density = float(np.mean(center < 80)) if center.size > 0 else 0.0
+
+    regions = {
+        "top":    (white[:bh, :],   midgray[:bh, :]),
+        "bottom": (white[-bh:, :],  midgray[-bh:, :]),
+        "left":   (white[:, :bw],   midgray[:, :bw]),
+        "right":  (white[:, -bw:],  midgray[:, -bw:]),
     }
-    threshold = 0.45
-    flags = {k: v < threshold for k, v in ratios.items()}
+    white_threshold   = 0.45
+    midgray_threshold = 0.50
+
+    ratios: dict[str, float] = {}
+    flags:  dict[str, bool]  = {}
+    for k, (wr, mr) in regions.items():
+        w_ratio = float(np.mean(wr))
+        m_ratio = float(np.mean(mr))
+        ratios[k] = w_ratio
+        low_white  = w_ratio < white_threshold
+        grayish    = m_ratio > midgray_threshold and center_text_density < 0.03
+        flags[k]   = low_white or grayish
+
     return any(flags.values()), ratios
 
 
@@ -159,12 +179,9 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
 
 def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[bool, float]:
     """
-    2段階で傾き・90°回転を検出する。
+    微小傾きを検出する（deskew_page の補正範囲 ±10° に合わせた探索）。
 
-    Stage 1 (粗探索 ±90°, 5°刻み): 90°近辺の大きな回転を検出。
-      旧実装は ±15° しか探索せず、90°回転を「縦書き正常」と誤判定していた。
-    Stage 2 (精細探索 ±15°, 0.5°刻み): 微小傾きを精密検出。
-
+    縦書きページを ±90° 回転と誤判定しないよう、探索範囲を ±10° に限定する。
     angle_threshold を超えた場合に歪みありと判断する。
     """
     scale = 400.0 / gray.shape[0]
@@ -183,26 +200,15 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[b
             float(np.var(np.sum(rot, axis=0))),
         )
 
-    # Stage 1: 粗探索 ±90° (5° 刻み)
-    # 角度ペナルティ (0.1%/degree) を加えて 0° 付近を優先する。
-    # 同スコアのとき ±90° でなく 0° が選ばれるようにする。
-    _ANGLE_PENALTY = 0.001  # per degree
-    coarse_best_score, coarse_best = -1.0, 0.0
-    for a in np.arange(-90.0, 90.1, 5.0):
-        s = _score_at(a) * (1.0 - abs(a) * _ANGLE_PENALTY)
-        if s > coarse_best_score:
-            coarse_best_score = s
-            coarse_best = a
-
-    # Stage 2: Stage1 中心の ±15° を精細探索
-    fine_best_score, fine_best = -1.0, coarse_best
-    for a in np.arange(coarse_best - 15.0, coarse_best + 15.1, 0.5):
+    # ±10° を 0.5° 刻みで探索（deskew_page の補正範囲に合わせる）
+    best_score, best_angle = -1.0, 0.0
+    for a in np.arange(-10.0, 10.1, 0.5):
         s = _score_at(a)
-        if s > fine_best_score:
-            fine_best_score = s
-            fine_best = a
+        if s > best_score:
+            best_score = s
+            best_angle = a
 
-    return abs(fine_best) > angle_threshold, fine_best
+    return abs(best_angle) > angle_threshold, best_angle
 
 
 # ──────────────────────────────────────────────
@@ -212,20 +218,11 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[b
 def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
     """
     1枚のページ画像に対して4基準の品質評価を実施し、結果辞書を返す。
-
-    Returns:
-      page              : int   ページ番号
-      ok                : bool  全基準クリアなら True
-      text_clipped      : bool  文字が見切れている疑いがある (端部 3% にテキスト)
-      extra_region      : bool  余分な領域が残っている
-      distorted         : bool  傾き/回転あり (±90° 粗探索 + ±15° 精細)
-      half_content      : bool  コンテンツが片側のみ (欠けまたは90°回転の疑い)
-      skew_angle        : float 推定傾き角度 (度)
-      clip_detail       : dict  各辺のテキスト密度
-      extra_detail      : dict  各辺の白ピクセル比率
-      coverage_detail   : dict  上下左右のテキスト密度
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # ページ全体の白比率 (背景除去の成否の指標)
+    overall_white = float(np.mean(gray >= 200))
 
     clipped,      clip_detail     = _check_text_clipping(gray)
     has_extra,    extra_detail    = _check_extra_region(gray)
@@ -237,6 +234,7 @@ def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
     return {
         "page":            page_num,
         "ok":              ok,
+        "white_ratio":     overall_white,  # 追加
         "text_clipped":    clipped,
         "extra_region":    has_extra,
         "distorted":       distorted,

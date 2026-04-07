@@ -339,15 +339,18 @@ def remove_border(image: np.ndarray, threshold: int = 30, padding: int = 2) -> n
 def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool = False) -> np.ndarray:
     """
     画像をターゲットサイズ (A4, B5 等) に合わせ、背景を浄化してページいっぱいに収める。
+    画像の縦横比に応じて portrait / landscape を自動判別する。
     """
     size = OUTPUT_SIZES.get(target_size, OUTPUT_SIZES["A4"])
-    target_w, target_h = size
-    
-    # 向きを縦長に統一
-    if image.shape[1] > image.shape[0]:
-        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        
+    portrait_w, portrait_h = size  # OUTPUT_SIZES は常に portrait (幅 < 高さ) で定義
+
     h, w = image.shape[:2]
+
+    # 画像が横長なら landscape A4 を使用
+    if w > h:
+        target_w, target_h = portrait_h, portrait_w  # 幅と高さを入れ替え
+    else:
+        target_w, target_h = portrait_w, portrait_h
     
     # 1. 適応的背景浄化 (Document Cleaning)
     # 画像の明るい部分（上位 10%）の中央値をホワイトポイントとする
@@ -362,11 +365,11 @@ def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool =
         image = np.clip(image_f, 0, 255).astype(np.uint8)
 
     # 2. サイズ調整と配置
-    # マージン 0.5%
-    margin_x = int(target_w * 0.005)
-    margin_y = int(target_h * 0.005)
-    inner_w = target_w - (margin_x * 2)
-    inner_h = target_h - (margin_y * 2)
+    # マージン 0% (ページいっぱいに配置)
+    margin_x = 0
+    margin_y = 0
+    inner_w = target_w
+    inner_h = target_h
     
     scale = min(inner_w / w, inner_h / h)
     new_w, new_h = int(w * scale), int(h * scale)

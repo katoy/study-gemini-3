@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Bash(pdftoppm -r 72 out.pdf /tmp/pdf2_page)",
+      "Bash(pdftoppm -r 72 out.pdf /tmp/pdf3_page)",
+      "Bash(pdftoppm -r 72 out.pdf /tmp/pdf4_page)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
+    ]
+  }
+}

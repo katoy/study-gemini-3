@@ -36,7 +36,7 @@ from page_detector import (
     trim_page_border,
 )
 
-logging.basicConfig(level=logging.WARNING, format="%(message)s")
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 METHODS = [

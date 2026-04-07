@@ -9,8 +9,12 @@ import sys
 import logging
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 from processor import BookProcessor
 from core.config import ProcessingConfig
+from steps.quality_check import evaluate_page
 
 def setup_logging(verbose: bool = False):
     """ロギングの設定を行う"""
@@ -38,10 +42,14 @@ def parse_args():
     parser.add_argument("--no-orient", action="store_false", dest="orient", help="向きを自動補正しない")
     parser.add_argument("--no-border", action="store_false", dest="border", help="黒縁を除去しない")
     parser.add_argument("--output-size", default="A4", help="出力サイズ A4/A5/B5/Letter (default: A4)")
-    parser.add_argument("--sensitivity", choices=["low", "medium", "high", "ai"], default="medium", 
-                        help="境界検出感度 (ai: AI によるコーナー検出)")
+    parser.add_argument("--sensitivity", choices=["low", "medium", "high"], default="medium", 
+                        help="境界検出感度")
     parser.add_argument("--grayscale", action="store_true", help="グレースケールで出力")
     parser.add_argument("--shadow-strength", type=float, default=1.0, help="影・裏写り除去強度 0-1.0 (default: 1.0)")
+    parser.add_argument("--rotate-angle", type=int, choices=[0, 90, 180, 270], default=0,
+                        help="手動回転指定 (0, 90, 180, 270)")
+    parser.add_argument("--writing-mode", choices=["auto", "horizontal", "vertical"], default="auto",
+                        help="書字方向 (horizontal: 横書き/左開き, vertical: 縦書き/右開き)")
     parser.add_argument("--ai-enhance", action="store_true",
                         help="オープンソース AI モデルで超解像・復元補正を行う")
     parser.add_argument("--ai-backend", choices=["realesrgan", "swin2sr", "docres"], default="realesrgan",
@@ -50,9 +58,68 @@ def parse_args():
                         help="超解像の拡大倍率 (1: 復元のみ, default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログを出力")
     parser.add_argument("--detect-only", action="store_true",
-                        help="ページ検出・分割のみ行い、後処理なしでそのまま PDF に出力する（検出品質の確認用）")
+                        help="ページ検出・分割のみ行い、後処理なし（サイズ正規化は行う）でそのまま PDF に出力する（検出品質の確認用）")
+    parser.add_argument("--show-clip-area", action="store_true",
+                        help="元画像に検出領域を赤枠で描画したデバッグ画像を debug_detect/ に保存する")
+    parser.add_argument("--diagnose", action="store_true",
+                        help="品質チェック結果を標準出力にサマリー表示する（処理後に判定結果を表示）")
 
     return parser.parse_args()
+
+def _run_diagnosis(pdf_path: Path) -> None:
+    """出力 PDF を読み込んで品質評価を実施し、標準出力に表示する。"""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        print("[diagnose] PyMuPDF (fitz) が必要です: pip install pymupdf", file=sys.stderr)
+        return
+
+    doc = fitz.open(str(pdf_path))
+    results = []
+    for i, page in enumerate(doc):
+        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+        if pix.n == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        elif pix.n == 1:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        results.append(evaluate_page(img, i + 1))
+    doc.close()
+    _print_quality_summary(results)
+
+
+def _print_quality_summary(results: list) -> None:
+    """品質チェック結果を標準出力に表示する。"""
+    print("\n" + "=" * 70)
+    print("品質診断サマリー")
+    print("=" * 70)
+    sym = lambda b: "✗ NG" if b else "○ OK"
+    header = f"  {'Page':>4}  {'白比率':>5}  {'文字見切':8}  {'余分領域':8}  {'歪み':8}  {'半欠け':8}  {'下部欠け':8}  傾き°"
+    print(header)
+    print("  " + "-" * 78)
+    ng_pages = []
+    for r in results:
+        line = (
+            f"  {r['page']:>4}  {r['white_ratio']*100:>5.1f}%  {sym(r['text_clipped']):8}  {sym(r['extra_region']):8}  "
+            f"{sym(r['distorted']):8}  {sym(r['half_content']):8}  {sym(r['bottom_cut']):8}  "
+            f"{r['skew_angle']:+.1f}"
+        )
+        print(line)
+        if r["extra_region"]:
+            # 背景が残っている場合、上下左右の詳細を表示
+            d = r["extra_detail"]
+            detail = f"    └ 余分領域詳細 (白比率): Top:{d['top']:.2f}, Bot:{d['bottom']:.2f}, Left:{d['left']:.2f}, Right:{d['right']:.2f}"
+            print(detail)
+        
+        if not r["ok"]:
+            ng_pages.append(r["page"])
+    print()
+    if ng_pages:
+        print(f"[WARNING] 要確認ページ: {ng_pages}")
+    else:
+        print("[OK] 全ページ品質基準クリア")
+    print("=" * 70)
+
 
 def main():
     args = parse_args()
@@ -72,15 +139,26 @@ def main():
         sensitivity=args.sensitivity,
         grayscale=grayscale,
         shadow_strength=args.shadow_strength,
+        rotate_angle=args.rotate_angle,
+        writing_mode=args.writing_mode,
         ai_enhance=args.ai_enhance,
         ai_backend=args.ai_backend,
         ai_scale=args.ai_scale,
         detect_only=args.detect_only,
+        show_clip_area=args.show_clip_area,
     )
+
+    # 入力フォルダの存在チェック
+    if not args.input.exists():
+        print(f"エラー: 入力フォルダが見つかりません: {args.input}", file=sys.stderr)
+        sys.exit(1)
+    if not args.input.is_dir():
+        print(f"エラー: 入力パスはフォルダを指定してください: {args.input}", file=sys.stderr)
+        sys.exit(1)
 
     # プロセッサの実行
     processor = BookProcessor(config)
-    
+
     try:
         def progress_cb(pct, msg):
             sys.stdout.write(f"\r[{pct*100:3.0f}%] {msg[:60]:<60}")
@@ -88,7 +166,10 @@ def main():
 
         processor.run(args.input, args.output, progress_cb=progress_cb)
         print("\n\n処理が正常に完了しました！")
-        
+
+        if getattr(args, 'diagnose', False):
+            _run_diagnosis(args.output)
+
     except Exception as e:
         logging.exception("Fatal error during processing")
         sys.exit(1)
