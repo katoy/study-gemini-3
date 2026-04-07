@@ -59,6 +59,11 @@ class DetectionStep(ProcessingStep):
                 logger.warning("書籍領域が見つかりませんでした。")
                 contour = np.array([[0,0], [w,0], [w,h], [0,h]], dtype="float32")
 
+            # --show-book-area: 元画像に検出した book area の輪郭を重ねて返す
+            if self.config.show_book_area:
+                output_pages.append(self._draw_book_area_on_original(image, contour))
+                continue
+
             # 2. 透視変換
             M, Minv, bw, bh = get_perspective_matrices(contour)
             warped_book = cv2.warpPerspective(image, M, (bw, bh))
@@ -70,7 +75,8 @@ class DetectionStep(ProcessingStep):
                 warped_book = cv2.rotate(warped_book, cv2.ROTATE_90_CLOCKWISE)
                 bw, bh = bh, bw
             
-            # 4. 手動回転または自動天地補正
+            # 4. 手動回転または自動天地補正（排他的）
+            # --rotate-angle が指定された場合は手動回転のみ適用し、自動補正は行わない
             rotation_code = None
             if self.config.rotate_angle != 0:
                 logger.info(f"Applying manual rotation: {self.config.rotate_angle}deg")
@@ -78,9 +84,9 @@ class DetectionStep(ProcessingStep):
                 elif self.config.rotate_angle == 90: rotation_code = cv2.ROTATE_90_CLOCKWISE
                 elif self.config.rotate_angle == 270: rotation_code = cv2.ROTATE_90_COUNTERCLOCKWISE
             else:
-                # 頑健な天地判定
+                # 頑健な天地判定（auto_code は cv2 回転コード or None）
                 _, rotation_code = correct_orientation_robust(warped_book)
-            
+
             if rotation_code is not None:
                 warped_book = cv2.rotate(warped_book, rotation_code)
                 if rotation_code != cv2.ROTATE_180: bw, bh = bh, bw
@@ -89,34 +95,44 @@ class DetectionStep(ProcessingStep):
             if self._dewarper is not None:
                 warped_book = self._dewarper.dewarp(warped_book)
 
-            # 6. 分割判定 (横長の状態であれば分割を実行)
+            # 6. 分割判定
             do_split = self.config.split and (bw > bh * 1.05)
-            
+
             if do_split:
                 # 谷底吸着型の綴じ目検出
                 seam_x = find_center_seam(warped_book)
                 # 開き方向の判定 (--writing-mode 指定があればそちらを優先)
                 page_order = self._resolve_page_order(warped_book)
                 logger.info(f"Split Result -> Order: {page_order}, Seam: {seam_x}/{bw}")
-                
-                if self.config.show_clip_area:
-                    # PDF の順序に従って追加
+
+                if self.config.show_page_area:
                     sides = ["right", "left"] if page_order == "right_first" else ["left", "right"]
                     for side in sides:
                         output_pages.append(self._draw_page_debug(warped_book, seam_x, bw, bh, side))
                 else:
-                    pages = split_spread(warped_book, page_order)
+                    pages = split_spread(warped_book, page_order, seam_x=seam_x)
                     for p in pages:
-                        p = trim_page_border(p) if not self.config.detect_only else p
-                        output_pages.append(p)
+                        output_pages.append(trim_page_border(p))
             else:
-                if self.config.show_clip_area:
+                if self.config.show_page_area:
                     output_pages.append(self._draw_page_debug(warped_book, None, bw, bh, "full"))
                 else:
-                    warped = trim_page_border(warped_book) if not self.config.detect_only else warped_book
-                    output_pages.append(warped)
+                    output_pages.append(trim_page_border(warped_book))
 
         return output_pages
+
+    def _draw_book_area_on_original(self, image: np.ndarray, contour: np.ndarray) -> np.ndarray:
+        """元画像に検出した book area の輪郭を重ねて描画する"""
+        out = image.copy()
+        pts = contour.astype(np.int32).reshape((-1, 1, 2))
+        cv2.polylines(out, [pts], isClosed=True, color=(0, 0, 255), thickness=max(4, out.shape[0] // 200))
+        # 四隅に番号を表示
+        for i, (x, y) in enumerate(contour.astype(np.int32)):
+            cv2.circle(out, (x, y), max(8, out.shape[0] // 150), (0, 255, 0), -1)
+            cv2.putText(out, str(i + 1), (x + 10, y + 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(1.0, out.shape[0] / 1000),
+                        (0, 255, 0), max(2, out.shape[0] // 500))
+        return out
 
     def _draw_page_debug(self, warped_book: np.ndarray, seam_x: int | None, bw: int, bh: int, side: str) -> np.ndarray:
         """透視変換・回転・天地補正が完了した画像にページ領域を描画する"""

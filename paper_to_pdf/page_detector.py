@@ -115,10 +115,10 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
     
     pts = np.array([tl, tr, br, bl], dtype="float32")
     
-    # 7. セーフティ・インセット (さらに 1% 追い込む)
+    # 7. セーフティ・インセット (0.2% だけ追い込む — 大きすぎると文字見切れ)
     center = np.mean(pts, axis=0)
     for i in range(4):
-        pts[i] = center + (pts[i] - center) * 0.99
+        pts[i] = center + (pts[i] - center) * 0.998
     
     return (pts / scale).astype("float32")
 
@@ -126,7 +126,7 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
 # 向き・綴じ目・順序
 # ──────────────────────────────────────────────
 
-def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int]:
+def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int | None]:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     def get_max_var(img):
@@ -138,14 +138,18 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int]:
         scores.append(get_max_var(curr))
         if i < 3: curr = cv2.rotate(curr, cv2.ROTATE_90_CLOCKWISE)
     best_idx = np.argmax(scores)
-    if best_idx != 0: return cv2.rotate(image, codes[best_idx]), best_idx
-    return image, 0
+    code = codes[best_idx]
+    if code is not None:
+        return cv2.rotate(image, code), code
+    return image, None
 
 def find_center_seam(warped_image: np.ndarray) -> int:
     """
     見開き画像から綴じ目(binding)の x 座標を返す。
 
-    2 戦略の優先順位:
+    3 戦略の優先順位:
+      0. 片側空白検出: 一方のページが完全に白紙の場合、テキスト密度の遷移点を綴じ目とする。
+         (表紙+白紙、奥付+白紙などに対応)
       1. 明るいギャップ検出: 中央 47-53% の範囲に幅 2-8% のゼロ密度ブロックがあれば
          そのブロックの中心を綴じ目とする。
          (影のない製本ギャップや白スパインに対応)
@@ -155,19 +159,52 @@ def find_center_seam(warped_image: np.ndarray) -> int:
     """
     h, w = warped_image.shape[:2]
     gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-    s, e = int(w * 0.30), int(w * 0.70)
+    # 綴じ目の探索範囲: 40%〜60% に限定（端への誤検出を防ぐ）
+    SEAM_MIN = int(w * 0.40)
+    SEAM_MAX = int(w * 0.60)
+    center = w // 2
+    s, e = SEAM_MIN, SEAM_MAX
 
-    # ── 戦略1: 明るいギャップ (ゼロ密度ブロック) ──────────────
+    # ── 戦略0: 片側空白 (一方のページが白紙) ─────────────────
     text = (gray < 128).astype(np.float32)
     col_density = np.mean(text, axis=0)
 
-    center_s  = int(w * 0.47)
-    center_e  = int(w * 0.53)
-    min_gap   = int(w * 0.02)   # 最小ギャップ幅 (2%)
-    max_gap   = int(w * 0.08)   # 最大ギャップ幅 (8%)
+    # センター付近を避けた外側領域で密度計測。
+    far_left_density  = float(np.mean(col_density[int(w * 0.05) : int(w * 0.35)]))
+    far_right_density = float(np.mean(col_density[int(w * 0.65) : int(w * 0.95)]))
+    logger.debug(
+        "find_center_seam: far_left=%.4f far_right=%.4f",
+        far_left_density, far_right_density,
+    )
+
+    # スムージングして個別列ノイズを除去 (ウィンドウ = 画像幅の約 0.5%)
+    win = max(5, w // 200)
+    smoothed = np.convolve(col_density, np.ones(win) / win, mode="same")
+
+    blank_thresh = 0.008
+    # テキスト密度が薄いページ（目次・扉等）にも対応するため、コンテンツ側の最小閾値を低めに設定
+    content_thresh = 0.003
+
+    # 右ページが空白で左ページにコンテンツがある場合
+    if far_right_density < blank_thresh and far_left_density > far_right_density * 5 and far_left_density > content_thresh:
+        # 片側空白の場合は物理的な綴じ目は見開き中央（50%）にあるので center を返す
+        logger.debug("find_center_seam: blank-right x=%d (%.1f%%)", center, center / w * 100)
+        return center
+
+    # 左ページが空白で右ページにコンテンツがある場合
+    if far_left_density < blank_thresh and far_right_density > far_left_density * 5 and far_right_density > content_thresh:
+        # 片側空白の場合は物理的な綴じ目は見開き中央（50%）にあるので center を返す
+        logger.debug("find_center_seam: blank-left x=%d (%.1f%%)", center, center / w * 100)
+        return center
+
+    # ── 戦略1: 明るいギャップ (ゼロ密度ブロック) ──────────────
+    # 40-60% の範囲内で候補を全収集し、50% に最も近いものを選ぶ
+    min_gap = int(w * 0.02)
+    max_gap = int(w * 0.08)
 
     zero_mask = col_density < 0.002
     run_start, run_len = 0, 0
+    gap_candidates = []
     for i in range(s, e):
         if zero_mask[i]:
             if run_len == 0:
@@ -175,28 +212,29 @@ def find_center_seam(warped_image: np.ndarray) -> int:
             run_len += 1
         else:
             if min_gap <= run_len <= max_gap:
-                cx = run_start + run_len // 2
-                if center_s <= cx <= center_e:
-                    logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
-                    return cx
+                gap_candidates.append(run_start + run_len // 2)
             run_len = 0
-    # ループ末尾のランをチェック
     if min_gap <= run_len <= max_gap:
-        cx = run_start + run_len // 2
-        if center_s <= cx <= center_e:
-            logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
-            return cx
+        gap_candidates.append(run_start + run_len // 2)
+
+    if gap_candidates:
+        cx = min(gap_candidates, key=lambda x: abs(x - center))
+        logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
+        return cx
 
     # ── 戦略2: 輝度最小値 (暗い製本影) ───────────────────────
+    # 40-60% の範囲で輝度スコアを計算し、50% に最も近い極小点を選ぶ
     v_blur = cv2.blur(gray, (1, h // 4))
     brightness_profile = np.mean(v_blur, axis=0).astype(np.float32)
     sigma = max(20, w // 80)
     k = sigma * 6 + 1
-    smoothed = cv2.GaussianBlur(brightness_profile.reshape(1, -1), (k, 1), sigma)[0]
+    smoothed_b = cv2.GaussianBlur(brightness_profile.reshape(1, -1), (k, 1), sigma)[0]
     x = np.arange(w)
-    center_penalty = ((x - w / 2) / (w / 4)) ** 2 * 30
-    score = smoothed + center_penalty
-    return s + int(np.argmin(score[s:e]))
+    center_penalty = ((x - w / 2) / (w / 4)) ** 2 * 1000
+    score = smoothed_b + center_penalty
+    seam_x = SEAM_MIN + int(np.argmin(score[SEAM_MIN:SEAM_MAX]))
+    logger.debug("find_center_seam: brightness-min x=%d (%.1f%%)", seam_x, seam_x / w * 100)
+    return seam_x
 
 def detect_writing_direction(image: np.ndarray) -> str:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -209,10 +247,12 @@ def detect_writing_direction(image: np.ndarray) -> str:
     if v_score > h_score * 1.2: return "right_first"
     return "right_first" if np.count_nonzero(th[:, int(th.shape[1]*0.6):]) > np.count_nonzero(th[:, :int(th.shape[1]*0.4)]) * 1.2 else "left_first"
 
-def split_spread(image: np.ndarray, order: str = "left_first") -> list[np.ndarray]:
-    seam_x = find_center_seam(image)
+def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | None = None) -> list[np.ndarray]:
+    if seam_x is None:
+        seam_x = find_center_seam(image)
+    logger.debug("split_spread: seam_x=%d (%.1f%%) order=%s", seam_x, seam_x / image.shape[1] * 100, order)
     l, r = image[:, :seam_x].copy(), image[:, seam_x:].copy()
-    m = max(4, int(image.shape[1] * 0.015))
+    m = 2  # seam 際の製本影を 2px だけ白塗り
     l[:, -m:] = 255; r[:, :m] = 255
     pages = [l, r]
     if order == "right_first": pages.reverse()
