@@ -145,17 +145,29 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int | Non
 
 def find_center_seam(warped_image: np.ndarray) -> int:
     """
-    見開き画像から綴じ目(binding)の x 座標を返す。
+    見開き画像から綴じ目 (Binding/Gutter) の水平位置を推定する。
 
-    3 戦略の優先順位:
-      0. 片側空白検出: 一方のページが完全に白紙の場合、テキスト密度の遷移点を綴じ目とする。
-         (表紙+白紙、奥付+白紙などに対応)
-      1. 明るいギャップ検出: 中央 47-53% の範囲に幅 2-8% のゼロ密度ブロックがあれば
-         そのブロックの中心を綴じ目とする。
-         (影のない製本ギャップや白スパインに対応)
-      2. 輝度最小値: 縦ブラー後の輝度プロファイルを重いGaussianでスムージングし
-         最小点を綴じ目とする。
-         (典型的な暗い製本影に対応)
+    以下の 3 つの独立した戦略を優先順位順に試行する (多層防御):
+
+    戦略 0 (片側空白検出):
+    - 左右のページ（中央 30% ずつ）のテキスト密度（輝度 < 128 の比率）を比較する。
+    - 一方の密度が閾値 (0.008) 未満で、かつもう一方が 5 倍以上の密度を持つ場合、
+      白紙ページとみなす。この場合、物理的な綴じ目は中央 (50%) にあると仮定する。
+
+    戦略 1 (明るいギャップ検出):
+    - 中央付近 (40-60%) の列ごとのテキスト密度を走査し、密度がほぼゼロ (0.002 未満) の
+      垂直な「隙間」を探す。
+    - 製本時の白いマージンやスパインが露出しているケースに有効。
+    - 複数の候補がある場合、画像中央 (50%) に最も近いものを選択する。
+
+    戦略 2 (輝度最小値/影検出):
+    - 垂直方向に強いブラーをかけ、行方向の平均輝度プロファイルを生成する。
+    - 綴じ目付近には物理的な「谷」による影（暗部）が生じるため、輝度の最小点を探索する。
+    - 中心引力ペナルティ (Gaussian-like penalty) を付与することで、
+      ページ端の影や大きな図版による暗部への誤吸着を防ぎ、中央付近の最小値を優先する。
+
+    Returns:
+        綴じ目の x 座標 (ピクセル)
     """
     h, w = warped_image.shape[:2]
     gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
@@ -253,6 +265,21 @@ def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | Non
     logger.debug("split_spread: seam_x=%d (%.1f%%) order=%s", seam_x, seam_x / image.shape[1] * 100, order)
     l, r = image[:, :seam_x].copy(), image[:, seam_x:].copy()
     m = 2  # seam 際の製本影を 2px だけ白塗り
+    l[:, -m:] = 255; r[:, :m] = 255
+    pages = [l, r]
+    if order == "right_first": pages.reverse()
+    return pages
+
+def trim_page_border(image: np.ndarray) -> np.ndarray:
+    h, w = image.shape[:2]; gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    nb = (gray < 50); ir, ic = np.mean(nb, axis=1) > 0.90, np.mean(nb, axis=0) > 0.90
+    t, b, l, r = 0, h-1, 0, w-1
+    while t < h//4 and ir[t]: t += 1
+    while b > 3*h//4 and ir[b]: b -= 1
+    while l < w//4 and ic[l]: l += 1
+    while r > 3*w//4 and ic[r]: r -= 1
+    return image[t:b+1, l:r+1]
+��
     l[:, -m:] = 255; r[:, :m] = 255
     pages = [l, r]
     if order == "right_first": pages.reverse()
