@@ -118,10 +118,10 @@ def _dewarpnet_inference(wc_model, bm_model, image_bgr: np.ndarray, device) -> n
     bm_y_range = bm_np_check[1].max() - bm_np_check[1].min()
     if min(bm_x_range, bm_y_range) < 1.0:
         logger.debug(
-            "DewarpNet BM 縮退 (x_range=%.3f, y_range=%.3f) → 元画像をそのまま返す",
+            "DewarpNet BM 縮退 (x_range=%.3f, y_range=%.3f) → polynomial にフォールバック",
             bm_x_range, bm_y_range,
         )
-        return image_bgr
+        return _advanced_polynomial_dewarp(image_bgr)
 
     # --- Stage 3: 元解像度にリマップ (cv2.remap) ---
     # BM 値域 [-1,1] を [0,1] に変換し、ピクセル座標にスケール
@@ -170,71 +170,77 @@ def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
     h, w = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    small = cv2.resize(gray, (w // 2, h // 2))
-    grad = cv2.Sobel(small, cv2.CV_64F, 0, 1, ksize=5)
-    grad = np.abs(grad).astype(np.uint8)
-    _, mask = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # 1. コントラスト強調 (CLAHE)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    gray_cl = clahe.apply(gray)
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (w // 10, 3))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    # 2. テキスト行（水平エッジ）の抽出を強化
+    # 高解像度のままエッジを抽出してからダウンサンプリングを検討するが、
+    # 処理速度のため 1/2 サイズで十分なはず。
+    small = cv2.resize(gray_cl, (w // 2, h // 2))
 
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # 方向別のフィッティング関数
+    def fit_side(gray_img, dx, dy):
+        grad = cv2.Sobel(gray_img, cv2.CV_64F, dx, dy, ksize=3)
+        grad = np.clip(grad, 0, None)
+        grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        _, m = cv2.threshold(grad, 50, 255, cv2.THRESH_BINARY)
+        # 接続
+        k_size = (max(10, w // 20), 1) if dy == 1 else (1, max(10, h // 20))
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, k_size))
+        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        pts = []
+        for c in cnts:
+            rect = cv2.boundingRect(c)
+            if (dy == 1 and rect[2] < w * 0.15) or (dx == 1 and rect[3] < h * 0.15): continue
+            cp = c.reshape(-1, 2) * (2 if gray_img.shape[1] < w else 1)
+            for ux in np.unique(cp[:, 0] if dy == 1 else cp[:, 1]):
+                relevant = cp[cp[:, 0 if dy == 1 else 1] == ux]
+                pts.append((ux, relevant[:, 1 if dy == 1 else 0].mean()))
+        if len(pts) < 15: return None, 0
+        p_np = np.array(pts); xs, ys = p_np[:, 0], p_np[:, 1]
+        z = np.polyfit(xs, ys, 2) # 2次に下げて安定化
+        poly = np.poly1d(z); y_p = poly(xs)
+        ss_res = np.sum((ys - y_p) ** 2); ss_tot = np.sum((ys - ys.mean()) ** 2)
+        return poly, (1.0 - ss_res / ss_tot if ss_tot > 0 else 0)
 
-    points = []
-    for cnt in contours:
-        cw = cv2.boundingRect(cnt)[2]
-        if cw < w * 0.2:
-            continue
-        pts = cnt.reshape(-1, 2) * 2
-        for x in np.unique(pts[:, 0]):
-            if x < w * 0.05 or x > w * 0.95:
-                continue
-            y_mean = pts[pts[:, 0] == x][:, 1].mean()
-            # 上下 10% はページ境界アーティファクト（製本影・背景エッジ）が多いため除外
-            if y_mean < h * 0.10 or y_mean > h * 0.90:
-                continue
-            points.append((x, y_mean))
-
-    if len(points) < 20:
+    # 水平・垂直両方を試す
+    small = cv2.resize(gray_cl, (w // 2, h // 2))
+    poly_h, r2_h = fit_side(small, 0, 1) # 水平エッジ (垂直湾曲)
+    poly_v, r2_v = fit_side(small, 1, 0) # 垂直エッジ (水平湾曲)
+    
+    logger.debug("polynomial: R²_h=%.3f, R²_v=%.3f", r2_h, r2_v)
+    
+    if max(r2_h, r2_v) < 0.30:
         return image
 
-    pts_np = np.array(points)
-    xs, ys = pts_np[:, 0], pts_np[:, 1]
-    z = np.polyfit(xs, ys, 3)
-    poly = np.poly1d(z)
+    if r2_h >= r2_v:
+        # 垂直方向の歪みを補正
+        poly, r_sq = poly_h, r2_h
+        target_curve = poly(np.arange(w))
+        offsets = target_curve - np.median(target_curve)
+        max_off = np.max(np.abs(offsets))
+        if max_off < h * 0.01 or max_off > h * 0.25: return image
+        slope = np.gradient(target_curve)
+        stretch = np.sqrt(1 + slope**2)
+        my, mx = np.indices((h, w), dtype=np.float32)
+        for c in range(w):
+            my[:, c] = (my[:, c] - h/2) * stretch[c] + h/2 + offsets[c]
+    else:
+        # 水平方向の歪みを補正
+        poly, r_sq = poly_v, r2_v
+        target_curve = poly(np.arange(h))
+        offsets = target_curve - np.median(target_curve)
+        max_off = np.max(np.abs(offsets))
+        if max_off < w * 0.01 or max_off > w * 0.25: return image
+        slope = np.gradient(target_curve)
+        stretch = np.sqrt(1 + slope**2)
+        my, mx = np.indices((h, w), dtype=np.float32)
+        for r in range(h):
+            mx[r, :] = (mx[r, :] - w/2) * stretch[r] + w/2 + offsets[r]
 
-    # R² チェック: フィット精度が低い場合は補正しない
-    # テキスト行以外のノイズ（ページ枠・飾り罫など）が混入すると R² が低くなる
-    y_pred = poly(xs)
-    ss_res = float(np.sum((ys - y_pred) ** 2))
-    ss_tot = float(np.sum((ys - float(np.mean(ys))) ** 2))
-    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
-    if r_squared < 0.5:
-        logger.debug("polynomial: R²=%.3f < 0.5 → フィット不良のためスキップ", r_squared)
-        return image
-
-    col_grid = np.arange(w)
-    target_curve = poly(col_grid)
-    baseline = np.median(target_curve)
-    offsets = target_curve - baseline
-
-    # 補正量チェック:
-    #   < 2% of h  → ほぼ平坦なページ、補正不要
-    #   > 15% of h → 多項式フィット不良（背景ノイズ等でエッジ誤検出）、スキップ
-    max_offset = float(np.max(np.abs(offsets)))
-    if max_offset < h * 0.02 or max_offset > h * 0.15:
-        logger.debug("polynomial: max_offset=%.1fpx (h=%d) → スキップ", max_offset, h)
-        return image
-
-    slope = np.gradient(target_curve)
-    stretch_factor = np.sqrt(1 + slope**2)
-
-    map_y, map_x = np.indices((h, w), dtype=np.float32)
-    for col in range(w):
-        map_y[:, col] = (map_y[:, col] - h / 2) * stretch_factor[col] + h / 2 + offsets[col]
-
-    return cv2.remap(image, map_x, map_y, cv2.INTER_LANCZOS4,
-                     borderMode=cv2.BORDER_REPLICATE)
+    logger.debug("polynomial: 補正適用 (R²=%.3f, max_off=%.1f)", max(r2_h, r2_v), max_off)
+    return cv2.remap(image, mx, my, cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
 
 
 # ──────────────────────────────────────────────

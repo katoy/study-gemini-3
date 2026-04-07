@@ -279,18 +279,4 @@ def trim_page_border(image: np.ndarray) -> np.ndarray:
     while l < w//4 and ic[l]: l += 1
     while r > 3*w//4 and ic[r]: r -= 1
     return image[t:b+1, l:r+1]
-‚Š
-    l[:, -m:] = 255; r[:, :m] = 255
-    pages = [l, r]
-    if order == "right_first": pages.reverse()
-    return pages
 
-def trim_page_border(image: np.ndarray) -> np.ndarray:
-    h, w = image.shape[:2]; gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    nb = (gray < 50); ir, ic = np.mean(nb, axis=1) > 0.90, np.mean(nb, axis=0) > 0.90
-    t, b, l, r = 0, h-1, 0, w-1
-    while t < h//4 and ir[t]: t += 1
-    while b > 3*h//4 and ir[b]: b -= 1
-    while l < w//4 and ic[l]: l += 1
-    while r > 3*w//4 and ic[r]: r -= 1
-    return image[t:b+1, l:r+1]

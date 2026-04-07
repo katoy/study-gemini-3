@@ -69,7 +69,8 @@ class BookProcessor:
         if run_full and self.config.dewarp_mode != "none":
             if self.config.dewarp_mode in ("dewarpnet", "doctr"):
                 spread_dewarper = Dewarper(mode=self.config.dewarp_mode)
-            page_dewarp_mode = "polynomial"
+            # 各ページ単位でも指定されたモード（dewarpnet 等）を適用する
+            page_dewarp_mode = self.config.dewarp_mode
 
         pipeline.add_step(DetectionStep(self.config, dewarper=spread_dewarper,
                                         progress_cb=progress_cb))
