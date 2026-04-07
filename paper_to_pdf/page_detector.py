@@ -144,15 +144,18 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int]:
 def find_center_seam(warped_image: np.ndarray) -> int:
     h, w = warped_image.shape[:2]
     gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-    text_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 10)
-    text_mask = cv2.dilate(text_mask, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 1)))
-    text_penalty = np.mean(text_mask, axis=0).astype(np.float32)
+    # 縦方向のブラーで水平テキスト行の影響を均す
     v_blur = cv2.blur(gray, (1, h // 4))
     brightness_profile = np.mean(v_blur, axis=0).astype(np.float32)
+    # 横方向に重いGaussianスムージングでテキスト列間の細い隙間(高周波)を除去し
+    # 綴り目の広い影(低周波)のみを残す
+    sigma = max(20, w // 80)
+    k = sigma * 6 + 1
+    smoothed = cv2.GaussianBlur(brightness_profile.reshape(1, -1), (k, 1), sigma)[0]
+    # 中心から遠いほどペナルティを加算
     x = np.arange(w)
-    center_penalty = ((x - w/2) / (w/4))**2 * 100
-    text_weight = np.where(text_penalty > 5, 1000, 0).astype(np.float32)
-    score = brightness_profile + text_weight + center_penalty
+    center_penalty = ((x - w / 2) / (w / 4)) ** 2 * 30
+    score = smoothed + center_penalty
     s, e = int(w * 0.3), int(w * 0.7)
     return s + int(np.argmin(score[s:e]))
 

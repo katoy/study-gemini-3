@@ -115,7 +115,17 @@ class DetectionStep(ProcessingStep):
             pts = np.array([[0, 0], [bw, 0], [bw, bh], [0, bh]], dtype=np.int32)
             
         cv2.polylines(out, [pts], True, (0, 0, 255), 25) # 枠 (赤)
-        cv2.putText(out, side.upper(), (bw//2 - 250, bh//2), cv2.FONT_HERSHEY_SIMPLEX, 8.0, (0, 0, 255), 20)
+        # ラベルをそのページ領域の中央に配置
+        label = side.upper()
+        font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 8.0, 20
+        (tw, th), baseline = cv2.getTextSize(label, font, scale, thickness)
+        if seam_x is not None:
+            region_cx = seam_x // 2 if side == "left" else (seam_x + bw) // 2
+        else:
+            region_cx = bw // 2
+        tx = region_cx - tw // 2
+        ty = bh // 2 + th // 2
+        cv2.putText(out, label, (tx, ty), font, scale, (0, 0, 255), thickness)
         return out
 
     def _resolve_page_order(self, spread: np.ndarray) -> str:
