@@ -121,7 +121,10 @@ class BookProcessor:
                 # 結果の保存
                 for page_bgr in pages:
                     tmp_path = self.tmp_dir / f"page_{len(processed_paths):05d}.jpg"
-                    cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                    success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                    if not success:
+                        logger.error(f"Failed to write page image: {tmp_path}")
+                        raise IOError(f"Cannot write image file: {tmp_path}")
                     processed_paths.append(tmp_path)
 
             # 5. PDF 生成
