@@ -48,11 +48,13 @@ class Pipeline:
         current_images = [image]
 
         for step in self.steps:
+            prev_images = current_images
             try:
                 logger.debug(f"Running step: {step.name}")
                 current_images = step.process(current_images)
             except Exception as e:
                 logger.error(f"Error in step {step.name}: {e}", exc_info=True)
                 # エラーが発生したステップの出力は使わず、入力をそのまま次ステップへ渡す
+                current_images = prev_images
 
         return current_images
