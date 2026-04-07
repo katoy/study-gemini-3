@@ -55,15 +55,18 @@ class BookProcessor:
         # 1. パイプラインの構築
         pipeline = Pipeline(self.config)
         pipeline.add_step(DetectionStep(self.config))
-        if not self.config.detect_only:
+        # show_clip_area は検出結果の確認用デバッグフラグ。
+        # detect_only と同様に後続の補正ステップをスキップして結果を一致させる。
+        run_full = not self.config.detect_only and not self.config.show_clip_area
+        if run_full:
             pipeline.add_step(DewarpStep(self.config, progress_cb=progress_cb))
             pipeline.add_step(EnhancementStep(self.config))
-        
+
         # PostProcessStep は detect_only の場合でも追加
         # (サイズ正規化と PDF 出力のため。内部で detect_only フラグを見て処理を分岐する)
         pipeline.add_step(PostProcessStep(self.config))
 
-        if not self.config.detect_only:
+        if run_full:
             pipeline.add_step(QualityCheckStep(self.config))
         
         try:

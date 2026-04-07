@@ -78,8 +78,8 @@ class DetectionStep(ProcessingStep):
             if do_split:
                 # 谷底吸着型の綴じ目検出
                 seam_x = find_center_seam(warped_book)
-                # 開き方向の判定
-                page_order = detect_writing_direction(warped_book)
+                # 開き方向の判定 (--writing-mode 指定があればそちらを優先)
+                page_order = self._resolve_page_order(warped_book)
                 logger.info(f"Split Result -> Order: {page_order}, Seam: {seam_x}/{bw}")
                 
                 if self.config.show_clip_area:
@@ -129,6 +129,8 @@ class DetectionStep(ProcessingStep):
         return out
 
     def _resolve_page_order(self, spread: np.ndarray) -> str:
-        if self.config.page_order != "auto":
+        # writing_mode が明示指定されていれば config の値を使う。
+        # "auto" の場合のみ画像から自動判定する。
+        if self.config.writing_mode != "auto":
             return self.config.page_order
         return detect_writing_direction(spread)
