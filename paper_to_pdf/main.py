@@ -83,15 +83,16 @@ def _run_diagnosis(pdf_path: Path) -> None:
     results = []
     for i, page in enumerate(doc):
         pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
-        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-        if pix.n == 4:
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n).copy()
+        pix = None  # Pixmapを明示的に解放してメモリを節約
+        if img.shape[2] == 4:
             img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
-        elif pix.n == 3:
+        elif img.shape[2] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        elif pix.n == 1:
+        elif img.shape[2] == 1:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         else:
-            raise ValueError(f"Unsupported channel count: {pix.n}")
+            raise ValueError(f"Unsupported channel count: {img.shape[2]}")
         results.append(evaluate_page(img, i + 1))
     doc.close()
     _print_quality_summary(results)
