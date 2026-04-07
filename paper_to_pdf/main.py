@@ -79,7 +79,11 @@ def _run_diagnosis(pdf_path: Path) -> None:
         print("[diagnose] PyMuPDF (fitz) が必要です: pip install pymupdf", file=sys.stderr)
         return
 
-    doc = fitz.open(str(pdf_path))
+    try:
+        doc = fitz.open(str(pdf_path))
+    except Exception as e:
+        print(f"[diagnose] PDF の読み込みに失敗しました: {e}", file=sys.stderr)
+        return
     results = []
     for i, page in enumerate(doc):
         pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
