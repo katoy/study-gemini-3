@@ -18,9 +18,14 @@ import logging
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, TYPE_CHECKING
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    import torch
+    import torch.nn as nn
 
 from utils.device import get_device
 from utils.paths import CACHE_DIR
@@ -217,7 +222,7 @@ def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
 # DocTr 推論 (Document Transformer)
 # ──────────────────────────────────────────────
 
-def _doctr_inference(geo_model, ill_model, image_bgr: np.ndarray, device) -> np.ndarray:
+def _doctr_inference(geo_model: Any, ill_model: Any, image_bgr: np.ndarray, device: torch.device) -> np.ndarray:
     """
     DocTr による Transformer ベースの湾曲・照明補正。
     """

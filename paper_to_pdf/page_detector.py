@@ -27,7 +27,7 @@ def order_points(pts: np.ndarray) -> np.ndarray:
     bl = pts[np.argmax(diff)]
     return np.array([tl, tr, br, bl], dtype="float32")
 
-def get_perspective_matrices(pts: np.ndarray):
+def get_perspective_matrices(pts: np.ndarray) -> tuple[np.ndarray, np.ndarray, int, int]:
     """透視変換行列 M と逆変換行列 Minv を取得する。"""
     rect = order_points(pts)
     tl, tr, br, bl = rect
@@ -127,18 +127,18 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
 # ──────────────────────────────────────────────
 
 def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int | None]:
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray: np.ndarray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     _, th = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    def get_max_var(img):
-        return max(np.var(np.mean(img, axis=1)), np.var(np.mean(img, axis=0)))
-    scores = []
-    codes = [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE]
-    curr = th
+    def get_max_var(img: np.ndarray) -> float:
+        return float(max(np.var(np.mean(img, axis=1)), np.var(np.mean(img, axis=0))))
+    scores: list[float] = []
+    codes: list[int | None] = [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE]
+    curr: np.ndarray = th
     for i in range(4):
         scores.append(get_max_var(curr))
         if i < 3: curr = cv2.rotate(curr, cv2.ROTATE_90_CLOCKWISE)
-    best_idx = np.argmax(scores)
-    code = codes[best_idx]
+    best_idx: int = int(np.argmax(scores))
+    code: int | None = codes[best_idx]
     if code is not None:
         return cv2.rotate(image, code), code
     return image, None
