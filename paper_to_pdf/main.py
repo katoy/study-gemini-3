@@ -16,9 +16,14 @@ from processor import BookProcessor
 from core.config import ProcessingConfig
 from steps.quality_check import evaluate_page
 
-def setup_logging(verbose: bool = False):
+def setup_logging(verbose: bool = False, quiet: bool = False):
     """ロギングの設定を行う"""
-    level = logging.DEBUG if verbose else logging.INFO
+    if verbose:
+        level = logging.DEBUG
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
     logging.basicConfig(
         level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -57,6 +62,7 @@ def parse_args():
     parser.add_argument("--ai-scale", type=int, choices=[1, 2, 4], default=2,
                         help="超解像の拡大倍率 (1: 復元のみ, default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログを出力")
+    parser.add_argument("--quiet", "-q", action="store_true", help="WARNING 以上のみ出力（INFO を抑制）")
     parser.add_argument("--detect-only", action="store_true",
                         help="ページ検出・分割のみ行い、後処理なし（サイズ正規化は行う）でそのまま PDF に出力する（検出品質の確認用）")
     parser.add_argument("--show-clip-area", action="store_true",
@@ -123,7 +129,7 @@ def _print_quality_summary(results: list) -> None:
 
 def main():
     args = parse_args()
-    setup_logging(args.verbose)
+    setup_logging(args.verbose, args.quiet)
     
     # 設定の構築
     # 書籍タイプごとのデフォルト値を適用
@@ -160,12 +166,16 @@ def main():
     processor = BookProcessor(config)
 
     try:
-        def progress_cb(pct, msg):
-            sys.stdout.write(f"\r[{pct*100:3.0f}%] {msg[:60]:<60}")
-            sys.stdout.flush()
+        if args.quiet:
+            _progress_cb = None
+        else:
+            def _progress_cb(pct, msg):
+                sys.stdout.write(f"\r[{pct*100:3.0f}%] {msg[:60]:<60}")
+                sys.stdout.flush()
 
-        processor.run(args.input, args.output, progress_cb=progress_cb)
-        print("\n\n処理が正常に完了しました！")
+        processor.run(args.input, args.output, progress_cb=_progress_cb)
+        if not args.quiet:
+            print("\n\n処理が正常に完了しました！")
 
         if getattr(args, 'diagnose', False):
             _run_diagnosis(args.output)

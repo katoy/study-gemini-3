@@ -17,6 +17,7 @@ import numpy as np
 
 from core.config import ProcessingConfig
 from core.pipeline import Pipeline
+from dewarper import Dewarper
 from steps.detection import DetectionStep
 from steps.dewarp import DewarpStep
 from steps.enhancement import EnhancementStep
@@ -54,12 +55,26 @@ class BookProcessor:
         
         # 1. パイプラインの構築
         pipeline = Pipeline(self.config)
-        pipeline.add_step(DetectionStep(self.config))
         # show_clip_area は検出結果の確認用デバッグフラグ。
         # detect_only と同様に後続の補正ステップをスキップして結果を一致させる。
         run_full = not self.config.detect_only and not self.config.show_clip_area
+
+        # 補正戦略:
+        #   dewarpnet / doctr : DetectionStep で見開き全体に AI 湾曲補正を適用（split 前）。
+        #                       BM 縮退時はスキップ。その後 DewarpStep で polynomial を各ページに適用。
+        #   polynomial        : DetectionStep では補正なし。DewarpStep で各ページに polynomial 適用。
+        #   none              : 補正なし。
+        spread_dewarper = None
+        page_dewarp_mode = "none"
+        if run_full and self.config.dewarp_mode != "none":
+            if self.config.dewarp_mode in ("dewarpnet", "doctr"):
+                spread_dewarper = Dewarper(mode=self.config.dewarp_mode)
+            page_dewarp_mode = "polynomial"
+
+        pipeline.add_step(DetectionStep(self.config, dewarper=spread_dewarper,
+                                        progress_cb=progress_cb))
         if run_full:
-            pipeline.add_step(DewarpStep(self.config, progress_cb=progress_cb))
+            pipeline.add_step(DewarpStep(self.config, mode=page_dewarp_mode))
             pipeline.add_step(EnhancementStep(self.config))
 
         # PostProcessStep は detect_only の場合でも追加

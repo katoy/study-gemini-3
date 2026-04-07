@@ -13,6 +13,7 @@ PDF結合前に各ページ画像の品質を自動評価するステップ。
 from __future__ import annotations
 
 import logging
+import sys
 
 import cv2
 import numpy as np
@@ -22,25 +23,31 @@ from steps.base import ProcessingStep
 logger = logging.getLogger(__name__)
 
 
+def _red(s: str) -> str:
+    """stderr が TTY の場合のみ赤色 ANSI コードを付ける。"""
+    if sys.stderr.isatty():
+        return f"\033[31m{s}\033[0m"
+    return s
+
+
 # ──────────────────────────────────────────────
 # 個別評価関数
 # ──────────────────────────────────────────────
 
 def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
     """
-    外縁 (画像短辺の 3%) にテキストピクセルが存在するかで見切れを検出する。
+    外縁にテキストが端まで達しているかで見切れを検出する。
 
     2段階判定:
-      1. 外縁マージン全体 (3%) のテキスト密度が threshold 以上 → 候補
-      2. 端から edge_safe_px 以内にテキストが存在する → 真に見切れ
-         (余白が端から edge_safe_px 以上あればページ内容がマージンに来ていても見切れでない)
+      1. 外縁マージン全体 (2%) のテキスト密度が threshold 以上 → 候補
+      2. 端から edge_safe_px (短辺の 0.8%) 以内にテキストが存在する → 真に見切れ
 
-    この方式により「ページ余白が狭くてテキストが3%マージン内に入る」ケースの
-    false positive を抑制しつつ、実際に端まで文字が達しているケースを検出できる。
+    edge_safe_px を 0.5% → 0.8% に拡大し、trim_page_border 後も残る自然な
+    ページ余白を誤検出しにくくした。
     """
     h, w = gray.shape
-    margin_h = max(15, int(h * 0.03))
-    margin_w = max(15, int(w * 0.03))
+    margin_h = max(10, int(h * 0.02))
+    margin_w = max(10, int(w * 0.02))
     text = gray < 80
     densities = {
         "top":    float(np.mean(text[:margin_h, :])),
@@ -48,14 +55,17 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
         "left":   float(np.mean(text[:, :margin_w])),
         "right":  float(np.mean(text[:, -margin_w:])),
     }
-    threshold = 0.01
+    # マージン全体の密度閾値（これ以下なら確実にテキストなし）
+    margin_threshold = 0.015
+    # 端ピクセルに直接テキストがある場合の閾値（2% = 確実に見切れ）
+    edge_threshold = 0.020
     # 端から何px以内にテキストがあれば「見切れ」とみなすか
-    # 0.5% or 最低 5px
-    edge_safe_px = max(5, int(min(h, w) * 0.005))
+    # 短辺の 0.8% または最低 6px
+    edge_safe_px = max(6, int(min(h, w) * 0.008))
 
     flags: dict[str, bool] = {}
     for k, density in densities.items():
-        if density <= threshold:
+        if density <= margin_threshold:
             flags[k] = False
             continue
         # マージン内にテキストはあるが、端そのものにテキストがあるか確認
@@ -67,7 +77,7 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
             edge_d = float(np.mean(text[:, :edge_safe_px]))
         else:  # right
             edge_d = float(np.mean(text[:, -edge_safe_px:]))
-        flags[k] = edge_d > threshold
+        flags[k] = edge_d > edge_threshold
 
     return any(flags.values()), densities
 
@@ -109,7 +119,10 @@ def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bo
         m_ratio = float(np.mean(mr))
         ratios[k] = w_ratio
         low_white  = w_ratio < white_threshold
-        grayish    = m_ratio > midgray_threshold and center_text_density < 0.03
+        # 白比率が高い（w_ratio >= 0.90）場合は綺麗なページ余白なので midgray チェックをスキップ
+        # （white の定義は >=200、midgray は 100-220 で重複範囲あり。全体的に白いページで
+        #   200-219 の近白ピクセルが多くなっても背景テクスチャではない）
+        grayish    = (w_ratio < 0.90) and m_ratio > midgray_threshold and center_text_density < 0.03
         flags[k]   = low_white or grayish
 
     return any(flags.values()), ratios
@@ -126,7 +139,10 @@ def _check_bottom_cut(gray: np.ndarray) -> tuple[bool, dict]:
     text = (gray < 80)
     row_has_text = np.mean(text, axis=1) > 0.01
 
-    region_60_80 = bool(np.any(row_has_text[int(h * 0.60): int(h * 0.80)]))
+    # 60-80% 領域でテキスト行が「連続的に存在する」かを確認（単一の疎な行は除外）
+    # 10% 以上の行にテキストがある場合のみ「コンテンツ継続」と判断する
+    rows_60_80   = row_has_text[int(h * 0.60): int(h * 0.80)]
+    region_60_80 = float(np.mean(rows_60_80)) > 0.10  # 10% 以上の行にテキスト
     bottom_20    = bool(np.any(row_has_text[int(h * 0.80):]))
 
     cut = region_60_80 and not bottom_20
@@ -145,7 +161,8 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
       - 90°回転でページ内容が半分 (一方向のみに集中)
       - 下部が大きく欠けてほぼ空白になっている
 
-    判定: 一方の密度が他方の 15% 以下なら「片側欠け」とする。
+    判定: 密な側のテキスト密度が 0.5% 以上で、かつ疎な側が密な側の 15% 以下なら「片側欠け」とする。
+    テキスト密度が全体的に低いページ（表紙・扉・図版等）は除外する。
     """
     h, w = gray.shape
     text = (gray < 80).astype(np.float32)
@@ -160,7 +177,9 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
         "left": left_d, "right": right_d,
     }
 
-    ratio_thresh = 0.15  # 一方が他方の 15% 以下なら欠けと判断
+    ratio_thresh   = 0.15   # 一方が他方の 15% 以下なら欠けと判断
+    min_dense_side = 0.005  # 密な側が 0.5% 未満なら疎すぎてチェック不能（図版ページ等）
+
     issues: dict[str, bool] = {}
     _pair_check = [
         ("top",    "bottom", top_d,    bottom_d),
@@ -168,11 +187,12 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     ]
     for a_name, b_name, a_val, b_val in _pair_check:
         ref = max(a_val, b_val)
-        if ref > 0.001:
-            if a_val < ref * ratio_thresh:
-                issues[f"{a_name}_empty"] = True
-            if b_val < ref * ratio_thresh:
-                issues[f"{b_name}_empty"] = True
+        if ref < min_dense_side:
+            continue  # 両方とも疎 → 図版ページ等なのでスキップ
+        if a_val < ref * ratio_thresh:
+            issues[f"{a_name}_empty"] = True
+        if b_val < ref * ratio_thresh:
+            issues[f"{b_name}_empty"] = True
 
     return bool(issues), details
 
@@ -181,8 +201,10 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[b
     """
     微小傾きを検出する（deskew_page の補正範囲 ±10° に合わせた探索）。
 
-    縦書きページを ±90° 回転と誤判定しないよう、探索範囲を ±10° に限定する。
-    angle_threshold を超えた場合に歪みありと判断する。
+    縦書きページ対応:
+      - 水平方向の射影分散のみを使用（縦書きカラムの列分散との混同を防ぐ）
+      - 探索境界 (|angle| >= 9.5°) に最良値が貼り付いた場合は判定不能と見なし
+        False を返す（縦書きテキストが干渉しているケースへの偽陽性防止）
     """
     scale = 400.0 / gray.shape[0]
     small = cv2.resize(gray, (int(gray.shape[1] * scale), 400))
@@ -195,18 +217,21 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[b
     def _score_at(angle: float) -> float:
         M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
         rot = cv2.warpAffine(thresh, M, (sw, sh), flags=cv2.INTER_NEAREST)
-        return max(
-            float(np.var(np.sum(rot, axis=1))),
-            float(np.var(np.sum(rot, axis=0))),
-        )
+        # 水平射影分散のみ使用（行ごとの黒ピクセル数の分散 = テキスト行の整列度）
+        # max() で縦書き列分散も混ぜると縦書きページで常に ±10° 境界に貼り付く
+        return float(np.var(np.sum(rot, axis=1)))
 
-    # ±10° を 0.5° 刻みで探索（deskew_page の補正範囲に合わせる）
+    # ±10° を 0.5° 刻みで探索
     best_score, best_angle = -1.0, 0.0
     for a in np.arange(-10.0, 10.1, 0.5):
         s = _score_at(a)
         if s > best_score:
             best_score = s
             best_angle = a
+
+    # 探索境界に最良値が貼り付いた場合 → 判定不能（縦書き干渉または極端な傾き）
+    if abs(best_angle) >= 9.5:
+        return False, 0.0
 
     return abs(best_angle) > angle_threshold, best_angle
 
@@ -249,11 +274,12 @@ def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
 
 
 def _log_page_result(r: dict) -> None:
-    sym = lambda b: "✗" if b else "○"
-    level = logging.WARNING if not r["ok"] else logging.INFO
-    logger.log(
-        level,
-        "品質評価 Page %2d: 文字見切れ=%s  余分領域=%s  歪み=%s(%.1f°)  半欠け=%s  下部欠け=%s%s",
+    """問題があるページのみログ出力する（OK ページはサイレント）。"""
+    if r["ok"]:
+        return  # 全基準クリアのページは個別ログを省略
+    sym = lambda b: _red("✗") if b else "○"
+    logger.warning(
+        "品質評価 Page %2d: 文字見切れ=%s  余分領域=%s  歪み=%s(%.1f°)  半欠け=%s  下部欠け=%s  ← 要確認",
         r["page"],
         sym(r["text_clipped"]),
         sym(r["extra_region"]),
@@ -261,7 +287,6 @@ def _log_page_result(r: dict) -> None:
         r["skew_angle"],
         sym(r["half_content"]),
         sym(r["bottom_cut"]),
-        "  ← 要確認" if not r["ok"] else "",
     )
     if r["text_clipped"]:
         logger.warning(
@@ -293,33 +318,44 @@ class QualityCheckStep(ProcessingStep):
     """
     各ページ画像の品質を自動評価し、結果をログに出力する。
     画像リストは変更せずそのまま返す（非破壊ステップ）。
+    ページ番号は全入力画像を通した通し番号で管理する。
     """
 
+    def __init__(self, config):
+        super().__init__(config)
+        self._page_offset = 0  # 全入力画像を通した累積ページ数
+
     def process(self, images: list[np.ndarray]) -> list[np.ndarray]:
-        results = [evaluate_page(img, i + 1) for i, img in enumerate(images)]
+        results = [evaluate_page(img, self._page_offset + i + 1)
+                   for i, img in enumerate(images)]
+        self._page_offset += len(images)
 
-        # ── サマリーテーブルをログ出力 ──
         n_ok = sum(1 for r in results if r["ok"])
-        logger.info("━━━ 品質評価サマリー: %d / %d ページ 全基準クリア ━━━", n_ok, len(results))
-        logger.info("  %4s  %-8s  %-8s  %-8s  %-8s  %-8s  %s",
-                    "Page", "文字見切", "余分領域", "歪み", "半欠け", "下部欠け", "傾き°")
-        logger.info("  %s", "─" * 64)
+        total = len(results)
 
-        for r in results:
-            sym = lambda b: "✗ NG" if b else "○ OK"
-            logger.info(
-                "  %4d  %-8s  %-8s  %-8s  %-8s  %-8s  %+.1f",
-                r["page"],
-                sym(r["text_clipped"]),
-                sym(r["extra_region"]),
-                sym(r["distorted"]),
-                sym(r["half_content"]),
-                sym(r["bottom_cut"]),
-                r["skew_angle"],
-            )
-            _log_page_result(r)
-
-        if n_ok < len(results):
+        if n_ok == total:
+            # 全ページOK → 簡潔に1行で通知
+            logger.info("品質評価: 全 %d ページ OK", total)
+        else:
+            # 問題ページがある場合のみサマリーテーブルを表示
+            logger.info("━━━ 品質評価: %d / %d ページ OK ━━━", n_ok, total)
+            logger.info("  %4s  %-8s  %-8s  %-8s  %-8s  %-8s  %s",
+                        "Page", "文字見切", "余分領域", "歪み", "半欠け", "下部欠け", "傾き°")
+            logger.info("  %s", "─" * 64)
+            sym = lambda b: _red("✗ NG") if b else "○ OK"
+            for r in results:
+                logger.info(
+                    "  %4d  %-8s  %-8s  %-8s  %-8s  %-8s  %+.1f",
+                    r["page"],
+                    sym(r["text_clipped"]),
+                    sym(r["extra_region"]),
+                    sym(r["distorted"]),
+                    sym(r["half_content"]),
+                    sym(r["bottom_cut"]),
+                    r["skew_angle"],
+                )
+            for r in results:
+                _log_page_result(r)
             logger.warning("品質基準を満たさないページがあります。上記の詳細を確認してください。")
 
         return images  # 画像は変更しない

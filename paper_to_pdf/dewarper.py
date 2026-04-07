@@ -112,12 +112,11 @@ def _dewarpnet_inference(wc_model, bm_model, image_bgr: np.ndarray, device) -> n
     bm_x_range = bm_np_check[0].max() - bm_np_check[0].min()
     bm_y_range = bm_np_check[1].max() - bm_np_check[1].min()
     if min(bm_x_range, bm_y_range) < 1.0:
-        logger.warning(
-            f"DewarpNet BM 出力が縮退しています "
-            f"(x_range={bm_x_range:.3f}, y_range={bm_y_range:.3f})。"
-            " polynomial にフォールバックします。"
+        logger.debug(
+            "DewarpNet BM 縮退 (x_range=%.3f, y_range=%.3f) → 元画像をそのまま返す",
+            bm_x_range, bm_y_range,
         )
-        return _advanced_polynomial_dewarp(image_bgr)
+        return image_bgr
 
     # --- Stage 3: 元解像度にリマップ (cv2.remap) ---
     # BM 値域 [-1,1] を [0,1] に変換し、ピクセル座標にスケール
@@ -166,9 +165,13 @@ def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
         for x in np.unique(pts[:, 0]):
             if x < w * 0.05 or x > w * 0.95:
                 continue
-            points.append((x, pts[pts[:, 0] == x][:, 1].mean()))
+            y_mean = pts[pts[:, 0] == x][:, 1].mean()
+            # 上下 10% はページ境界アーティファクト（製本影・背景エッジ）が多いため除外
+            if y_mean < h * 0.10 or y_mean > h * 0.90:
+                continue
+            points.append((x, y_mean))
 
-    if len(points) < 50:
+    if len(points) < 20:
         return image
 
     pts_np = np.array(points)

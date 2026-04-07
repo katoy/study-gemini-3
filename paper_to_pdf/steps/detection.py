@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import cv2
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -30,9 +31,21 @@ logger = logging.getLogger(__name__)
 class DetectionStep(ProcessingStep):
     """
     画像を読み込み、ページを検出して切り出し、必要に応じて分割する。
+    透視変換・向き補正後に湾曲補正（Dewarper）を適用してから分割する。
     """
-    def __init__(self, config):
+    def __init__(self, config, dewarper=None,
+                 progress_cb: Callable[[float, str], None] | None = None):
         super().__init__(config)
+        self._dewarper = dewarper
+        self._progress_cb = progress_cb
+
+    def initialize(self):
+        if self._dewarper is not None:
+            self._dewarper.load_model(progress_cb=self._progress_cb)
+
+    def finalize(self):
+        if self._dewarper is not None:
+            self._dewarper.unload_model()
 
     def process(self, images: list[np.ndarray]) -> list[np.ndarray]:
         output_pages = []
@@ -72,7 +85,11 @@ class DetectionStep(ProcessingStep):
                 warped_book = cv2.rotate(warped_book, rotation_code)
                 if rotation_code != cv2.ROTATE_180: bw, bh = bh, bw
 
-            # 5. 分割判定 (横長の状態であれば分割を実行)
+            # 5. 湾曲補正（分割前に見開き全体へ適用）
+            if self._dewarper is not None:
+                warped_book = self._dewarper.dewarp(warped_book)
+
+            # 6. 分割判定 (横長の状態であれば分割を実行)
             do_split = self.config.split and (bw > bh * 1.05)
             
             if do_split:
