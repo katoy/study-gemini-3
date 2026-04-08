@@ -23,13 +23,13 @@
 - **高精度ページ境界検出:** 白比率プロファイル + Canny エッジ密度急落で、背景テクスチャを確実に除去。台形に傾いた書籍も正確に検出。
 - **Portrait 見開き対応:** カメラを 90° 回転して撮影した見開き（上下配置）を自動検出し、水平分割。
 - **ページ順序自動判定:** 縦書き/横書きの形態解析により、右開き/左開きを自動推定。
-- **湾曲補正 (DewarpNet / Polynomial / DocTR):**
-  - `dewarpnet`: 深層学習による 3D 湾曲補正。
-  - `polynomial`: 3 次多項式で非対称な膨らみを平坦化。
-  - `doctr`: Transformer ベースの文書補正。
+- **高度な湾曲補正 (Dewarping):**
+  - **反復的高精度補正:** 3段階のパスにより、文字列をほぼ完璧な水平に整列。
+  - **WLS フィッティング:** 重み付き最小二乗法により、長い本文行を優先的に平坦化。
+  - **AI 幾何補正 (DewarpNet):** 深層学習による 3D 湾曲補正（見開き全体に対応）。
 - **AI 超解像 & 復元補正:** Real-ESRGAN / Swin2SR による鮮明化、DocRes による AI 影・裏写り除去。
 - **ドキュメント・クリーニング:** 適応型白色化で紙面を純白に。照明ムラを解消。
-- **品質診断 (Quality Check):** 文字の見切れ、余分な背景、歪みを自動検出し、処理後にレポート。
+- **品質診断 (Quality Check):** 本文エリア（中央 70%）に特化した歪み検出。文字の見切れ、余分な背景を自動検出し、レポート。
 
 ---
 
@@ -43,68 +43,66 @@
 | `core/config.py` | 処理設定データクラス (`ProcessingConfig`) |
 | `page_detector.py` | ページ境界検出・綴じ目検出・分割のコアロジック |
 | `dewarper.py` | 湾曲補正 (AI / 多項式) のエントリポイント |
-| `steps/` | パイプラインの各処理ステップ (Detection, Dewarp, Enhancement, etc.) |
-| `utils/` | デバイス選択、画像 I/O、モデルパス管理、座標変換 |
+| `steps/` | パイプラインの各処理ステップ |
+| `utils/` | デバイス選択、画像 I/O、共通行プロファイル抽出 |
 | `pdf_builder.py` | ストリーミング方式による PDF 生成 |
-
+ 
+---
+ 
 ## 処理パイプラインの流れ
-
+ 
 ```mermaid
 graph TD
     A[入力画像] --> B[DetectionStep]
-    subgraph "Detection (page_detector.py)"
-        B --> B1[書籍境界検出]
-        B1 --> B2[透視変換 / 歪み補正]
-        B2 --> B3[向き自動補正 / 天地補正]
-        B3 --> B4[見開き分割 / 綴じ目検出]
+    subgraph "1. Detection & Split (page_detector.py)"
+        B --> B1[書籍領域の境界検出]
+        B1 --> B2[透視変換による正投影]
+        B2 --> B3[AI 幾何補正: DewarpNet/DocTr ※任意]
+        B3 --> B4[向き・天地の自動補正]
+        B4 --> B5[綴じ目検出 & 左右ページ分割]
     end
-    B4 --> C[DewarpStep]
-    subgraph "Dewarp (dewarper.py)"
-        C --> C1{モード判定}
-        C1 -- AI --> C2[DewarpNet / DocTr]
-        C1 -- Fallback --> C3[Cubic Polynomial]
+    B5 --> C[DewarpStep]
+    subgraph "2. Refined Dewarp (dewarper.py)"
+        C --> C1[共通行プロファイルの抽出]
+        C1 --> C2[WLS重み付き 3次多項式フィッティング]
+        C2 --> C3[3段階の反復的平坦化 (Straightening)]
+        C3 --> C4[安全ガード: 補正量制限 & 破綻検知]
     end
-    C2 --> D[EnhancementStep]
-    C3 --> D
-    subgraph "Enhancement (ai_enhancer.py)"
-        D --> D1[Real-ESRGAN / Swin2SR]
-        D1 --> D2[AI 影・裏写り除去 DocRes]
+    C4 --> D[EnhancementStep]
+    subgraph "3. Enhancement (ai_enhancer.py)"
+        D --> D1[AI 超解像: Real-ESRGAN / Swin2SR]
+        D1 --> D2[AI 影・裏写り除去: DocRes]
     end
     D2 --> E[PostProcessStep]
-    subgraph "PostProcess (image_processor.py)"
-        E --> E1[適応型白色化 / クリーニング]
-        E1 --> E2[傾き補正 Deskew]
-        E2 --> E3[サイズ正規化 A4/B5等]
+    subgraph "4. Finalizing (image_processor.py)"
+        E --> E1[適応型白色化 & コントラスト調整]
+        E1 --> E2[出力サイズ正規化: A4/B5 等]
     end
-    E3 --> F[QualityCheckStep]
-    subgraph "Quality Check"
-        F --> F1[文字見切れ / 余分領域判定]
-        F1 --> F2[品質レポート生成]
+    E2 --> F[QualityCheckStep]
+    subgraph "5. Quality Evaluation"
+        F --> F1[本文エリア特化の湾曲・傾き評価]
+        F1 --> F2[文字見切れ & 背景残留の判定]
+        F2 --> F3[品質診断レポート生成]
     end
-    F2 --> G[PDF Builder]
+    F3 --> G[PDF Builder]
     G --> H((出力 PDF))
 ```
-
+ 
 ---
-
+ 
 ## 補正アルゴリズムの詳細
 
 ### 1. ページ境界検出 (Detection)
 複数のアルゴリズムを多層防御的に組み合わせ、最もスコアの高い結果を採用します。
 - **Edge & Profile:** ページの内部領域（白比率）と、背景との物理境界（エッジ密度）を統合評価。
-- **Safety Inset:** 検出された境界を 0.2% 内側に追い込むことで、微細な背景の写り込みを物理的に除去。
+- **Safety Inset:** 検出された境界を 0.2% 内側に追い込むことで、背景の写り込みを完全に除去。
 
-### 2. 綴じ目検出 (Center Seam)
-見開きの「谷」を特定するための 3 段階戦略：
-1. **戦略 0 (片側空白):** 片方のページが白紙（扉ページ等）の場合を検出し、中央 50% を境界とする。
-2. **戦略 1 (明るいギャップ):** 製本時のスパインや白いマージンによる垂直な「隙間」を優先。
-3. **戦略 2 (輝度最小値):** 物理的な「谷」による影を探索。中心引力ペナルティにより、端の影への誤検出を防止。
-
-### 3. 湾曲補正 (Dewarping)
-- **Cubic Polynomial Fitting:**
-  $$y = ax^3 + bx^2 + cx + d$$
-  3 次式を用いることで、見開き特有の複雑な曲線をモデル化。フィッティングの決定係数 $R^2$ が低い場合は、誤補正を防ぐため自動的にスキップされます。
-- **Gradient-based Stretching:** 曲線の傾きに基づいて垂直方向に画像を補間し、歪んで圧縮された文字を元の比率に復元します。
+### 2. 反復的湾曲補正 (Polynomial Dewarping)
+従来の 1 パス補正とは異なり、以下の高度なプロセスを踏みます。
+1. **共通プロファイル抽出:** `utils/image.py` の共通ロジックにより、画像全体のテキスト行のうねりを正確に抽出。
+2. **重み付き最小二乗法 (WLS):** 行の長さに応じた重み付けを行い、3次多項式で高精度にフィッティング。
+3. **3段階反復:** 補正を 3 回繰り返すことで、残存する微細な歪みを段階的に排除し、文字列を真っ直ぐにします。
+4. **安全装置:** 補正量リミッター (高さの 35% 以内) と白紙化検知により、画像の完全性を保護。
 
 ---
 
@@ -129,7 +127,7 @@ python main.py <入力フォルダ> <出力PDF> [オプション]
 
 ### 実行例
 
-- **基本（AI 補正あり）:**
+- **基本（AI + 高精度補正）:**
   ```bash
   python main.py ./samples out.pdf --dewarp-mode dewarpnet
   ```
@@ -149,21 +147,11 @@ python main.py <入力フォルダ> <出力PDF> [オプション]
 | オプション | 説明 | デフォルト |
 |------------|------|------------|
 | `--book-type` | 書籍タイプ (`auto`, `jp_vert`, `jp_horiz`, `manga`) | `auto` |
-| `--dewarp-mode` | 湾曲補正 (`dewarpnet`, `polynomial`, `doctr`, `none`) | `dewarpnet` |
+| `--dewarp-mode` | 湾曲補正 (`dewarpnet`, `polynomial`, `none`) | `dewarpnet` |
+| `--writing-mode` | 書字方向 (`horizontal`, `vertical`, `auto`) | `auto` |
 | `--ai-enhance` | AI 超解像・復元補正を有効化 | 無効 |
-| `--ai-backend` | 補正エンジン (`realesrgan`, `swin2sr`, `docres`) | `realesrgan` |
 | `--diagnose` | 処理後に品質診断サマリーを表示 | 無効 |
-| `--show-book-area` | 検出した書籍領域を赤枠で可視化して出力 | 無効 |
-
----
-
-## AI 補正バックエンド
-
-### Real-ESRGAN
-ノイズ除去と超解像を同時に行います。書籍の小さな文字をクッキリさせるのに最適です。
-
-### DocRes
-AI による高精度な影・裏写り除去。`--ai-scale 1` で超解像なしの復元のみとしても動作します。
+| `--show-page-area` | 分割・抽出範囲を赤枠描画した確認用 PDF を出力 | 無効 |
 
 ---
 
@@ -171,8 +159,8 @@ AI による高精度な影・裏写り除去。`--ai-scale 1` で超解像な�
 
 | モード | 環境 | 速度 |
 |--------|------|------|
-| Polynomial | CPU | ~0.5s |
-| DewarpNet | M1 Mac (MPS) | ~1.0s |
+| Polynomial (3-iter) | CPU | ~0.8s |
+| DewarpNet | M1 Mac (MPS) | ~1.2s |
 | Real-ESRGAN x2 | M1 Mac (MPS) | ~5.0s |
 
 ---
@@ -180,4 +168,3 @@ AI による高精度な影・裏写り除去。`--ai-scale 1` で超解像な�
 ## ライセンス・引用
 - **DewarpNet:** Stony Brook University (MIT License)
 - **Real-ESRGAN:** Tencent ARC (BSD 3-Clause)
-- **DocTr:** Document Transformer (Apache 2.0)

@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from steps.base import ProcessingStep
+from utils.image import extract_line_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -244,33 +245,14 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
                 best_score = s
                 best_angle = a
 
-    # 2. 湾曲検出 (中央 70% エリアに限定)
-    grad = cv2.Sobel(small, cv2.CV_64F, 0, 1, ksize=3)
-    grad = np.abs(grad)
-    grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    _, mask = cv2.threshold(grad, 50, 255, cv2.THRESH_BINARY)
-    
-    # ページ端を評価から除外 (上下 15%, 左右 10%)
-    mask[:int(sh * 0.15), :] = 0
-    mask[int(sh * 0.85):, :] = 0
-    mask[:, :int(sw * 0.10)] = 0
-    mask[:, int(sw * 0.90):] = 0
-    
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sw // 10, 1))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # 2. 湾曲検出 (共通ロジックを使用)
+    pts_np, weights_np, inv_scale = extract_line_profiles(gray, target_h=400, margin_v=0.15, margin_h=0.10)
     
     max_curve_off_pct = 0.0
-    pts = []
-    for c in cnts:
-        # 本文行と思われる十分な長さの輪郭のみ
-        if cv2.boundingRect(c)[2] < sw * 0.25: continue
-        pts.extend(c.reshape(-1, 2))
-    
-    if len(pts) > 50:
-        p_np = np.array(pts)
-        xs, ys = p_np[:, 0], p_np[:, 1]
-        z = np.polyfit(xs, ys, 2)
+    if len(pts_np) > 50:
+        # スケールを small (400px) 基準に戻してフィッティング
+        xs, ys = pts_np[:, 0] / inv_scale, pts_np[:, 1] / inv_scale
+        z = np.polyfit(xs, ys, 2, w=weights_np)
         poly = np.poly1d(z)
         target = poly(np.arange(sw))
         offset = np.max(target) - np.min(target)
