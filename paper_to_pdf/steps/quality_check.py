@@ -69,23 +69,24 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
     ch, cw = content.shape
 
     # 白紙・扉ページ等、全体テキスト密度が極めて低い場合は見切れ判定をスキップ
-    overall_density = float(np.mean(content < 80))
+    # 判定用の文字閾値を 80 -> 60 に厳格化（薄い影を無視）
+    overall_density = float(np.mean(content < 60))
     if overall_density < 0.005:
         return False, {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
 
     margin_h = max(10, int(ch * 0.02))
     margin_w = max(10, int(cw * 0.02))
-    text = content < 80
+    text = content < 60
     densities = {
         "top":    float(np.mean(text[:margin_h, :])),
         "bottom": float(np.mean(text[-margin_h:, :])),
         "left":   float(np.mean(text[:, :margin_w])),
         "right":  float(np.mean(text[:, -margin_w:])),
     }
-    # マージン全体の密度閾値（これ以下ならテキストなし）
-    margin_threshold = 0.015
+    # マージン全体の密度閾値（10% 以上で見切れの可能性）
+    margin_threshold = 0.10
     # コンテンツ端そのものにテキストがある場合の閾値
-    edge_threshold = 0.015
+    edge_threshold = 0.08
     # コンテンツ端から何px以内にテキストがあれば「見切れ」とみなすか
     edge_safe_px = max(6, int(min(ch, cw) * 0.008))
 
@@ -108,23 +109,14 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
 
 
 def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bool, dict]:
-    """
-    外周 border_frac 割合の背景残留を2指標で検出する。
-
-    指標1 — 白比率: ページ内容は白ピクセル(≥200) ≥ 45% を持つ。
-             テクスチャ背景は白比率 < 45%。
-
-    指標2 — 中間グレー密度: normalize_size の白色化後も残る grayish 背景を検出。
-             輝度 100〜220 のピクセルが 50% 超 → 薄い背景テクスチャあり。
-             ただし中央テキスト密度が 3% 超の場合は除外（テキスト豊富ページの誤検出防止）。
-    """
     h, w = gray.shape
     bh = max(4, int(h * border_frac))
     bw = max(4, int(w * border_frac))
-    white   = gray >= 200
+    # 「白」の定義を 200 -> 180 へ緩和（少し暗い紙でもOK）
+    white   = gray >= 180
     midgray = (gray >= 100) & (gray < 220)
 
-    # ページ中央のテキスト密度（テキストが多いページはグレー判定から除外）
+    # ページ中央のテキスト密度（文字数が多いページは判定をスキップ）
     center = gray[bh:h - bh, bw:w - bw]
     center_text_density = float(np.mean(center < 80)) if center.size > 0 else 0.0
 
@@ -134,10 +126,10 @@ def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bo
         "left":   (white[:, :bw],   midgray[:, :bw]),
         "right":  (white[:, -bw:],  midgray[:, -bw:]),
     }
-    # 白比率 35% 未満を背景残留と判定（旧 45%）
-    white_threshold   = 0.35
-    # 中間グレー密度 65% 超を背景残留と判定（旧 50%）
-    midgray_threshold = 0.65
+    # 白比率 30% 未満を背景残留と判定（旧 35%）
+    white_threshold   = 0.30
+    # 中間グレー密度 80% 超を背景残留と判定（旧 65%）
+    midgray_threshold = 0.80
 
     ratios: dict[str, float] = {}
     flags:  dict[str, bool]  = {}
@@ -146,8 +138,8 @@ def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bo
         m_ratio = float(np.mean(mr))
         ratios[k] = w_ratio
         low_white  = w_ratio < white_threshold
-        # 白比率が高い（w_ratio >= 0.85）場合はチェックをスキップ（旧 0.90）
-        grayish    = (w_ratio < 0.85) and m_ratio > midgray_threshold and center_text_density < 0.03
+        # 白比率が高い（w_ratio >= 0.80）場合はチェックをスキップ（旧 0.85）
+        grayish    = (w_ratio < 0.80) and m_ratio > midgray_threshold and center_text_density < 0.03
         flags[k]   = low_white or grayish
 
     return any(flags.values()), ratios
@@ -223,43 +215,66 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     return bool(issues), details
 
 
-def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0) -> tuple[bool, float]:
+def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 1.0) -> tuple[bool, float, float]:
     """
-    微小傾きを検出する（deskew_page の補正範囲 ±10° に合わせた探索）。
-
-    縦書きページ対応:
-      - 水平方向の射影分散のみを使用（縦書きカラムの列分散との混同を防ぐ）
-      - 探索境界 (|angle| >= 9.5°) に最良値が貼り付いた場合は判定不能と見なし
-        False を返す（縦書きテキストが干渉しているケースへの偽陽性防止）
+    傾き（Skew）と湾曲（Curvature）の両方を検出する。
+    
+    Returns:
+        (is_distorted, angle, curve_offset_pct)
     """
-    scale = 400.0 / gray.shape[0]
-    small = cv2.resize(gray, (int(gray.shape[1] * scale), 400))
+    h, w = gray.shape
+    scale = 400.0 / h
+    small = cv2.resize(gray, (int(w * scale), 400))
+    
+    # 1. 傾き検出 (既存の射影分散方式)
     blur = cv2.GaussianBlur(small, (5, 5), 0)
     _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
     sh, sw = thresh.shape
     cx, cy = sw // 2, sh // 2
 
     def _score_at(angle: float) -> float:
         M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
         rot = cv2.warpAffine(thresh, M, (sw, sh), flags=cv2.INTER_NEAREST)
-        # 水平射影分散のみ使用（行ごとの黒ピクセル数の分散 = テキスト行の整列度）
-        # max() で縦書き列分散も混ぜると縦書きページで常に ±10° 境界に貼り付く
         return float(np.var(np.sum(rot, axis=1)))
 
-    # ±10° を 0.5° 刻みで探索
-    best_score, best_angle = -1.0, 0.0
-    for a in np.arange(-10.0, 10.1, 0.5):
-        s = _score_at(a)
-        if s > best_score:
-            best_score = s
-            best_angle = a
+    best_angle = 0.0
+    if np.mean(thresh) > 0.001:  # 白紙でなければ傾きチェック
+        best_score = -1.0
+        for a in np.arange(-5.0, 5.1, 0.5):
+            s = _score_at(a)
+            if s > best_score:
+                best_score = s
+                best_angle = a
 
-    # 探索境界に最良値が貼り付いた場合 → 判定不能（縦書き干渉または極端な傾き）
-    if abs(best_angle) >= 9.5:
-        return False, 0.0
+    # 2. 湾曲検出 (簡易多項式フィッティング)
+    # 垂直方向の勾配から水平エッジ（行）を抽出
+    grad = cv2.Sobel(small, cv2.CV_64F, 0, 1, ksize=3)
+    grad = np.abs(grad)
+    grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    _, mask = cv2.threshold(grad, 50, 255, cv2.THRESH_BINARY)
+    
+    # 行を繋げる
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sw // 10, 1))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    max_curve_off_pct = 0.0
+    pts = []
+    for c in cnts:
+        if cv2.boundingRect(c)[2] < sw * 0.2: continue
+        pts.extend(c.reshape(-1, 2))
+    
+    if len(pts) > 50:
+        p_np = np.array(pts)
+        xs, ys = p_np[:, 0], p_np[:, 1]
+        z = np.polyfit(xs, ys, 2)
+        poly = np.poly1d(z)
+        target = poly(np.arange(sw))
+        offset = np.max(target) - np.min(target)
+        max_curve_off_pct = (offset / sh) * 100.0
 
-    return abs(best_angle) > angle_threshold, best_angle
+    is_distorted = abs(best_angle) > angle_threshold or max_curve_off_pct > curve_threshold_pct
+    return is_distorted, best_angle, max_curve_off_pct
 
 
 # ──────────────────────────────────────────────
@@ -277,21 +292,22 @@ def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
 
     clipped,      clip_detail     = _check_text_clipping(gray)
     has_extra,    extra_detail    = _check_extra_region(gray)
-    distorted,    skew_angle      = _check_distortion(gray)
+    is_distorted, skew_angle, curve_pct = _check_distortion(gray)
     half_content, coverage_detail = _check_content_coverage(gray)
     bottom_cut,   bottom_detail   = _check_bottom_cut(gray)
 
-    ok = not clipped and not has_extra and not distorted and not half_content and not bottom_cut
+    ok = not clipped and not has_extra and not is_distorted and not half_content and not bottom_cut
     return {
         "page":            page_num,
         "ok":              ok,
-        "white_ratio":     overall_white,  # 追加
+        "white_ratio":     overall_white,
         "text_clipped":    clipped,
         "extra_region":    has_extra,
-        "distorted":       distorted,
+        "distorted":       is_distorted,
         "half_content":    half_content,
         "bottom_cut":      bottom_cut,
         "skew_angle":      skew_angle,
+        "curve_pct":       curve_pct,
         "clip_detail":     clip_detail,
         "extra_detail":    extra_detail,
         "coverage_detail": coverage_detail,
@@ -305,12 +321,13 @@ def _log_page_result(r: dict) -> None:
         return  # 全基準クリアのページは個別ログを省略
     sym = lambda b: _red("✗") if b else "○"
     logger.warning(
-        "品質評価 Page %2d: 文字見切れ=%s  余分領域=%s  歪み=%s(%.1f°)  半欠け=%s  下部欠け=%s  ← 要確認",
+        "品質評価 Page %2d: 文字見切れ=%s  余分領域=%s  歪み=%s(傾き%.1f°,湾曲%.1f%%)  半欠け=%s  下部欠け=%s  ← 要確認",
         r["page"],
         sym(r["text_clipped"]),
         sym(r["extra_region"]),
         sym(r["distorted"]),
         r["skew_angle"],
+        r["curve_pct"],
         sym(r["half_content"]),
         sym(r["bottom_cut"]),
     )
@@ -366,19 +383,20 @@ class QualityCheckStep(ProcessingStep):
             # 問題ページがある場合のみサマリーテーブルを表示
             logger.info("━━━ 品質評価: %d / %d ページ OK ━━━", n_ok, total)
             logger.info("  %4s  %-8s  %-8s  %-8s  %-8s  %-8s  %s",
-                        "Page", "文字見切", "余分領域", "歪み", "半欠け", "下部欠け", "傾き°")
-            logger.info("  %s", "─" * 64)
+                        "Page", "文字見切", "余分領域", "歪み", "半欠け", "下部欠け", "傾き/湾曲")
+            logger.info("  %s", "─" * 72)
             sym = lambda b: _red("✗ NG") if b else "○ OK"
             for r in results:
+                dist_str = f"{r['skew_angle']:+.1f}°/{r['curve_pct']:.1f}%"
                 logger.info(
-                    "  %4d  %-8s  %-8s  %-8s  %-8s  %-8s  %+.1f",
+                    "  %4d  %-8s  %-8s  %-8s  %-8s  %-8s  %s",
                     r["page"],
                     sym(r["text_clipped"]),
                     sym(r["extra_region"]),
                     sym(r["distorted"]),
                     sym(r["half_content"]),
                     sym(r["bottom_cut"]),
-                    r["skew_angle"],
+                    dist_str,
                 )
             for r in results:
                 _log_page_result(r)
