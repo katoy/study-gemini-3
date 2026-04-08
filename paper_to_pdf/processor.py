@@ -61,7 +61,6 @@ class BookProcessor:
 
         # 補正戦略:
         #   dewarpnet / doctr : DetectionStep で見開き全体に AI 湾曲補正を適用（split 前）。
-        #                       BM 縮退時はスキップ。その後 DewarpStep で polynomial を各ページに適用。
         #   polynomial        : DetectionStep では補正なし。DewarpStep で各ページに polynomial 適用。
         #   none              : 補正なし。
         spread_dewarper = None

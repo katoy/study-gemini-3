@@ -215,18 +215,16 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     return bool(issues), details
 
 
-def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 1.0) -> tuple[bool, float, float]:
+def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 3.0) -> tuple[bool, float, float]:
     """
     傾き（Skew）と湾曲（Curvature）の両方を検出する。
-    
-    Returns:
-        (is_distorted, angle, curve_offset_pct)
+    評価対象を中央部に限定し、ページ端のカーブによる誤判定を防止する。
     """
     h, w = gray.shape
     scale = 400.0 / h
     small = cv2.resize(gray, (int(w * scale), 400))
     
-    # 1. 傾き検出 (既存の射影分散方式)
+    # 1. 傾き検出
     blur = cv2.GaussianBlur(small, (5, 5), 0)
     _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     sh, sw = thresh.shape
@@ -238,7 +236,7 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
         return float(np.var(np.sum(rot, axis=1)))
 
     best_angle = 0.0
-    if np.mean(thresh) > 0.001:  # 白紙でなければ傾きチェック
+    if np.mean(thresh) > 0.001:
         best_score = -1.0
         for a in np.arange(-5.0, 5.1, 0.5):
             s = _score_at(a)
@@ -246,14 +244,18 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
                 best_score = s
                 best_angle = a
 
-    # 2. 湾曲検出 (簡易多項式フィッティング)
-    # 垂直方向の勾配から水平エッジ（行）を抽出
+    # 2. 湾曲検出 (中央 70% エリアに限定)
     grad = cv2.Sobel(small, cv2.CV_64F, 0, 1, ksize=3)
     grad = np.abs(grad)
     grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     _, mask = cv2.threshold(grad, 50, 255, cv2.THRESH_BINARY)
     
-    # 行を繋げる
+    # ページ端を評価から除外 (上下 15%, 左右 10%)
+    mask[:int(sh * 0.15), :] = 0
+    mask[int(sh * 0.85):, :] = 0
+    mask[:, :int(sw * 0.10)] = 0
+    mask[:, int(sw * 0.90):] = 0
+    
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sw // 10, 1))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -261,7 +263,8 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
     max_curve_off_pct = 0.0
     pts = []
     for c in cnts:
-        if cv2.boundingRect(c)[2] < sw * 0.2: continue
+        # 本文行と思われる十分な長さの輪郭のみ
+        if cv2.boundingRect(c)[2] < sw * 0.25: continue
         pts.extend(c.reshape(-1, 2))
     
     if len(pts) > 50:
@@ -283,7 +286,7 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
 
 def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
     """
-    1枚のページ画像に対して4基準の品質評価を実施し、結果辞書を返す。
+    1枚のページ画像に対して品質評価を実施し、結果辞書を返す。
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     

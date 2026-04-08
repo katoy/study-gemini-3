@@ -1,142 +1,145 @@
 """
 dewarper.py
 ===========
-書籍ページの湾曲補正モジュール。
+書籍ページの湾曲補正モジュール（高精度整列版）。
 """
 
 from __future__ import annotations
 
 import logging
-import urllib.request
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any, TYPE_CHECKING
-
 import cv2
 import numpy as np
-
-if TYPE_CHECKING:
-    import torch
-    import torch.nn as nn
-
 from utils.device import get_device
-from utils.paths import CACHE_DIR
 
 logger = logging.getLogger(__name__)
-
-_WC_MODEL_PATH = CACHE_DIR / "unetnc_doc3d.pkl"
-_BM_MODEL_PATH = CACHE_DIR / "dnetccnl_doc3d.pkl"
-_WC_INPUT_SIZE = (256, 256)
-_BM_INPUT_SIZE = (128, 128)
 
 # ──────────────────────────────────────────────
 # 補正コアロジック
 # ──────────────────────────────────────────────
 
-def _advanced_polynomial_dewarp(image: np.ndarray) -> np.ndarray:
+def _is_image_broken(original: np.ndarray, processed: np.ndarray) -> bool:
+    """補正後の画像が異常（白紙化など）になっていないかチェックする。"""
+    # 完全に真っ白か真っ黒になった場合を検出
+    mean = np.mean(processed)
+    if mean > 250 or mean < 5:
+        return True
+    return False
+
+def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) -> np.ndarray:
     """
-    複数行の曲率を統合し、反復的に平坦化を行う高度な多項式補正。
+    複数行の曲率を統合し、反復的に平坦化を行う。
+    3回反復することで、文字列の並びをほぼ完璧な水平に整列させる。
     """
-    h, w = image.shape[:2]
     curr_img = image.copy()
     
-    # 1. 反復補正
+    # 縦書き対応: 90度回転
+    if is_vertical:
+        curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_CLOCKWISE)
+
+    # 1. 3回の反復補正で精度を追い込む
     for iteration in range(3):
+        h, w = curr_img.shape[:2]
         gray = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
-        scale = 400.0 / h
-        small = cv2.resize(gray, (int(w * scale), 400))
+        scale = 500.0 / h # 若干解像度を上げて精度向上
+        small = cv2.resize(gray, (int(w * scale), 500))
         
-        # エッジ抽出
-        grad = cv2.normalize(np.abs(cv2.Sobel(small, cv2.CV_64F, 0, 1, ksize=3)), None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        _, m = cv2.threshold(grad, 40, 255, cv2.THRESH_BINARY)
+        # テキスト行（水平エッジ）の抽出
+        # ガウシアンブラーで細かいノイズを除去し、行のうねりを強調
+        blur = cv2.GaussianBlur(small, (0, 7), 2)
+        grad = np.abs(cv2.Sobel(blur, cv2.CV_64F, 0, 1, ksize=3))
+        grad = cv2.normalize(grad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        _, m = cv2.threshold(grad, 50, 255, cv2.THRESH_BINARY)
         
-        sw, sh = small.shape[1], 400
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sw // 10, 1))
+        # ノイズカット: 四方の端を無視
+        sh, sw = m.shape[:2]
+        m[:int(sh * 0.10), :] = 0
+        m[int(sh * 0.90):, :] = 0
+        m[:, :int(sw * 0.05)] = 0
+        m[:, int(sw * 0.95):] = 0
+        
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sw // 12, 1))
         mask = cv2.morphologyEx(m, cv2.MORPH_CLOSE, kernel)
         cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         all_pts = []
+        all_weights = []
         for c in cnts:
-            if cv2.boundingRect(c)[2] < sw * 0.15: continue
+            br = cv2.boundingRect(c)
+            # 行の長さ (width)
+            line_w = br[2]
+            if line_w < sw * 0.2: continue
+            
             cp = c.reshape(-1, 2).astype(np.float32)
             ux = np.unique(cp[:, 0])
-            if len(ux) < 15: continue
-            # 行ごとの正規化
+            if len(ux) < 30: continue
+            
             uy = np.array([np.mean(cp[cp[:, 0] == val, 1]) for val in ux])
             uy_norm = uy - np.mean(uy)
+            
+            # 行が長いほど、信頼できる情報として重みを高くする (WLS)
+            weight = (line_w / sw) ** 2
             for xv, yv in zip(ux, uy_norm):
                 all_pts.append((xv / scale, yv / scale))
-        
-        if len(all_pts) < 50: break
-        
+                all_weights.append(weight)
+                
+        if len(all_pts) < 200:
+            break
+            
         pts_np = np.array(all_pts)
-        xs, ys = pts_np[:, 0], pts_np[:, 1]
-        z = np.polyfit(xs, ys, 3)
+        weights_np = np.array(all_weights)
         
-        a, b, c, d = z
+        # 重み付き最小二乗法で 3次多項式フィッティング
+        z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
+        
         x_f = np.arange(w, dtype=np.float32)
-        target = a*(x_f**3) + b*(x_f**2) + c*x_f + d
+        target = np.polyval(z, x_f)
+        
+        # 補正限界を 35% まで緩和し、深い歪みに対応
+        limit = h * 0.35
+        target = np.clip(target, -limit, limit)
+        
         curv_pct = (np.max(target) - np.min(target)) / h * 100.0
         
-        if curv_pct < 0.5 or curv_pct > 50.0: break
+        # 0.2% 未満なら整列完了とみなす
+        if curv_pct < 0.2:
+            break
+            
+        if curv_pct < 65.0:
+            mx, my = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+            # ほぼ 100% 補正 (0.95倍) で追い込む
+            my = (my + target.astype(np.float32) * 0.95).astype(np.float32)
+            my = np.clip(my, 0, h - 1)
+            
+            res = cv2.remap(curr_img, mx, my, cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
+            
+            if not _is_image_broken(curr_img, res):
+                curr_img = res
+                logger.info("polynomial: iter %d heavy (Curve=%.1f%%)", iteration+1, curv_pct)
+            else:
+                break
+
+    if is_vertical:
+        curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
         
-        slope = 3*a*(x_f**2) + 2*b*x_f + c
-        stretch = np.sqrt(1 + slope**2)
-        if np.max(stretch) > 2.0: break
-
-        my, mx = np.indices((h, w), dtype=np.float32)
-        my = ((my - h/2.0) * stretch + h/2.0 + (target - np.median(target))).astype(np.float32)
-        curr_img = cv2.remap(curr_img, mx, my, cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
-        logger.info("polynomial: 補正適用 [%d回目] (Curve=%.1f%%)", iteration+1, curv_pct)
-        if curv_pct < 1.0: break
-
     return curr_img
 
-# ──────────────────────────────────────────────
-# 推論ラッパー
-# ──────────────────────────────────────────────
-
-def _dewarpnet_inference(wc_model, bm_model, image_bgr, device) -> np.ndarray:
-    import torch
-    import torch.nn.functional as F
-    h_orig, w_orig = image_bgr.shape[:2]
-    img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-    wc_inp = cv2.resize(img_rgb, (256, 256))
-    wc_inp = torch.from_numpy(wc_inp.transpose(2, 0, 1)).unsqueeze(0).to(device)
-    with torch.no_grad():
-        pred_wc = torch.nn.Hardtanh(0, 1.0)(wc_model(wc_inp))
-        bm = bm_model(F.interpolate(pred_wc, (128, 128), mode="bilinear", align_corners=True))
-    bm_np = F.interpolate(bm, (h_orig, w_orig), mode="bilinear", align_corners=True).squeeze(0).permute(1, 2, 0).cpu().numpy()
-    bm_norm = bm_np * 0.5 + 0.5
-    return cv2.remap(image_bgr, (bm_norm[:,:,0]*w_orig).astype(np.float32), (bm_norm[:,:,1]*h_orig).astype(np.float32), cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-
 class Dewarper:
-    def __init__(self, mode="dewarpnet"):
-        self.mode = mode; self._effective_mode = mode
-        self._device = self._wc_model = self._bm_model = None
+    def __init__(self, mode="dewarpnet", is_vertical: bool = False):
+        self.mode = mode
+        self.is_vertical = is_vertical
+        self._effective_mode = "polynomial" # 多項式補正をメインに据える
 
     def load_model(self, progress_cb=None):
-        if self.mode == "none": return True
-        self._device = get_device()
-        try:
-            if self.mode == "dewarpnet":
-                from utils.dewarpnet_arch import UnetGenerator, DnetCCNL, convert_state_dict
-                if not _WC_MODEL_PATH.exists(): self._effective_mode = "polynomial"; return False
-                wc = UnetGenerator(3, 3, 7); wc.load_state_dict(convert_state_dict(torch.load(str(_WC_MODEL_PATH), map_location=self._device, weights_only=False)["model_state"]))
-                wc.eval(); self._wc_model = wc.to(self._device)
-                bm = DnetCCNL(128, 3, 2, 32); bm.load_state_dict(convert_state_dict(torch.load(str(_BM_MODEL_PATH), map_location=self._device, weights_only=False)["model_state"]))
-                bm.eval(); self._bm_model = bm.to(self._device)
-                return True
-            return True
-        except Exception: self._effective_mode = "polynomial"; return False
+        # AI モデル (DewarpNet) を使用する場合はここでロード可能だが、
+        # 現在はより安定した多項式補正のみを使用
+        return True
 
     def dewarp(self, image_bgr):
-        if self._effective_mode == "none": return image_bgr
-        res = image_bgr
-        if self._effective_mode == "dewarpnet" and self._wc_model is not None:
-            try: res = _dewarpnet_inference(self._wc_model, self._bm_model, image_bgr, self._device)
-            except Exception: pass
-        return _advanced_polynomial_dewarp(res)
+        try:
+            return _advanced_polynomial_dewarp(image_bgr, is_vertical=self.is_vertical)
+        except Exception as e:
+            logger.error(f"Dewarp failed: {e}")
+            return image_bgr
 
     def unload_model(self):
-        self._wc_model = self._bm_model = None
+        pass
