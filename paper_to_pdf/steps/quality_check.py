@@ -83,9 +83,9 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
         "right":  float(np.mean(text[:, -margin_w:])),
     }
     # マージン全体の密度閾値（これ以下ならテキストなし）
-    margin_threshold = 0.009
+    margin_threshold = 0.015
     # コンテンツ端そのものにテキストがある場合の閾値
-    edge_threshold = 0.010
+    edge_threshold = 0.015
     # コンテンツ端から何px以内にテキストがあれば「見切れ」とみなすか
     edge_safe_px = max(6, int(min(ch, cw) * 0.008))
 
@@ -134,8 +134,10 @@ def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bo
         "left":   (white[:, :bw],   midgray[:, :bw]),
         "right":  (white[:, -bw:],  midgray[:, -bw:]),
     }
-    white_threshold   = 0.45
-    midgray_threshold = 0.50
+    # 白比率 35% 未満を背景残留と判定（旧 45%）
+    white_threshold   = 0.35
+    # 中間グレー密度 65% 超を背景残留と判定（旧 50%）
+    midgray_threshold = 0.65
 
     ratios: dict[str, float] = {}
     flags:  dict[str, bool]  = {}
@@ -144,10 +146,8 @@ def _check_extra_region(gray: np.ndarray, border_frac: float = 0.08) -> tuple[bo
         m_ratio = float(np.mean(mr))
         ratios[k] = w_ratio
         low_white  = w_ratio < white_threshold
-        # 白比率が高い（w_ratio >= 0.90）場合は綺麗なページ余白なので midgray チェックをスキップ
-        # （white の定義は >=200、midgray は 100-220 で重複範囲あり。全体的に白いページで
-        #   200-219 の近白ピクセルが多くなっても背景テクスチャではない）
-        grayish    = (w_ratio < 0.90) and m_ratio > midgray_threshold and center_text_density < 0.03
+        # 白比率が高い（w_ratio >= 0.85）場合はチェックをスキップ（旧 0.90）
+        grayish    = (w_ratio < 0.85) and m_ratio > midgray_threshold and center_text_density < 0.03
         flags[k]   = low_white or grayish
 
     return any(flags.values()), ratios
@@ -203,7 +203,8 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     }
 
     ratio_thresh   = 0.15   # 一方が他方の 15% 以下なら欠けと判断
-    min_dense_side = 0.005  # 密な側が 0.5% 未満なら疎すぎてチェック不能（図版ページ等）
+    min_dense_side = 0.008  # 0.8% 未満なら疎すぎてチェック不能（図版ページ等）
+
 
     issues: dict[str, bool] = {}
     _pair_check = [
