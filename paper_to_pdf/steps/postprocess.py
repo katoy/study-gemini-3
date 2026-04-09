@@ -31,7 +31,10 @@ class PostProcessStep(ProcessingStep):
             img = remove_textured_border(img)
 
             # 2. 傾き補正 (Deskew)
-            img = deskew_page(img)
+            # 縦書きページは射影分散法が誤動作するためスキップ。
+            # 透視変換 (DetectionStep) がメインの傾き補正を担っている。
+            if self.config.writing_mode != "vertical":
+                img = deskew_page(img, writing_mode=self.config.writing_mode)
 
             # 4. 影・裏写り除去
             # AI (DocRes) が有効な場合は、そちらで除去済みのため古典的補正はスキップ

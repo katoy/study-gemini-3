@@ -87,16 +87,22 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 # 2. 傾き補正 (Deskew)
 # ──────────────────────────────────────────────
 
-def deskew_page(image: np.ndarray) -> np.ndarray:
+def deskew_page(image: np.ndarray, writing_mode: str = "auto") -> np.ndarray:
     """
     画像内のテキストの傾きを検出し、水平に回転補正する。
 
     改良点:
       - ±10° に探索範囲を拡大
-      - 横書き・縦書き両方に対応: 水平射影分散と垂直射影分散の大きい方を採用
+      - writing_mode に応じて射影分散の軸を切り替え:
+          縦書き (vertical): 垂直射影分散 (axis=0) で評価
+          横書き / auto    : 水平射影分散 (axis=1) で評価
+        縦書きページで max(h, v) を使うと、誤った角度の h_score が
+        v_score を上回り誤補正が起きるため軸を固定する。
       - 回転前にキャンバスをパディングして四隅のテキストが欠けないようにする
     """
     h, w = image.shape[:2]
+    is_vertical = (writing_mode == "vertical")
+
     # 処理高速化のために縮小
     scale = 600 / h
     small = cv2.resize(image, (int(w * scale), 600))
@@ -107,7 +113,9 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     def _proj_score(t: np.ndarray) -> float:
-        return max(float(np.var(np.sum(t, axis=1))), float(np.var(np.sum(t, axis=0))))
+        if is_vertical:
+            return float(np.var(np.sum(t, axis=0)))
+        return float(np.var(np.sum(t, axis=1)))
 
     score_at_zero = _proj_score(thresh)
 
@@ -119,12 +127,7 @@ def deskew_page(image: np.ndarray) -> np.ndarray:
         M = cv2.getRotationMatrix2D((sw // 2, sh // 2), angle, 1.0)
         rotated = cv2.warpAffine(thresh, M, (sw, sh), flags=cv2.INTER_NEAREST)
 
-        # 横書き: 水平射影分散（行ごとのピクセル和の分散）
-        h_score = float(np.var(np.sum(rotated, axis=1)))
-        # 縦書き: 垂直射影分散（列ごとのピクセル和の分散）
-        v_score = float(np.var(np.sum(rotated, axis=0)))
-        # どちらか大きい方を採用（横書き/縦書き両対応）
-        score = max(h_score, v_score)
+        score = _proj_score(rotated)
 
         if score > best_score:
             best_score = score

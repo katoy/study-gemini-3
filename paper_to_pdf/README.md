@@ -10,11 +10,12 @@
 2. [ディレクトリ構成](#ディレクトリ構成)
 3. [補正アルゴリズムの詳細](#補正アルゴリズムの詳細)
 4. [セットアップ](#セットアップ)
-5. [使い方](#使い方)
-6. [オプション一覧](#オプション一覧)
-7. [AI 補正バックエンド](#ai-補正バックエンド)
-8. [パフォーマンス目安](#パフォーマンス目安)
-9. [ライセンス・引用](#ライセンス引用)
+5. [テスト](#テスト)
+6. [使い方](#使い方)
+7. [オプション一覧](#オプション一覧)
+8. [AI 補正バックエンド](#ai-補正バックエンド)
+9. [パフォーマンス目安](#パフォーマンス目安)
+10. [ライセンス・引用](#ライセンス引用)
 
 ---
 
@@ -27,6 +28,7 @@
   - **反復的高精度補正:** 3段階のパスにより、文字列をほぼ完璧な水平に整列。
   - **WLS フィッティング:** 重み付き最小二乗法により、長い本文行を優先的に平坦化。
   - **AI 幾何補正 (DewarpNet):** 深層学習による 3D 湾曲補正（見開き全体に対応）。
+  - **縦書き書籍の安全処理:** `--writing-mode vertical` 指定時は湾曲補正を自動的に無効化。縦書き列長の差を「湾曲」と誤検出して文字が消える問題を防止。
 - **AI 超解像 & 復元補正:** Real-ESRGAN / Swin2SR による鮮明化、DocRes による AI 影・裏写り除去。
 - **ドキュメント・クリーニング:** 適応型白色化で紙面を純白に。照明ムラを解消。
 - **品質診断 (Quality Check):** 本文エリア（中央 70%）に特化した歪み検出。文字の見切れ、余分な背景を自動検出し、レポート。
@@ -119,6 +121,41 @@ pip install -r requirements.txt
 
 ---
 
+## テスト
+
+```bash
+# テスト実行
+pytest -q
+
+# カバレッジ計測（コアモジュール 100% を維持）
+pytest --cov=. --cov-report=term-missing -q
+```
+
+カバレッジ計測対象: `core/`, `image_processor.py`, `page_detector.py`, `pdf_builder.py`, `processor.py`, `steps/`, `utils/`
+
+| モジュール | カバレッジ |
+|------------|-----------|
+| `core/config.py` | 100% |
+| `core/pipeline.py` | 100% |
+| `image_processor.py` | 100% |
+| `page_detector.py` | 100% |
+| `pdf_builder.py` | 100% |
+| `processor.py` | 100% |
+| `steps/base.py` | 100% |
+| `steps/detection.py` | 100% |
+| `steps/dewarp.py` | 100% |
+| `steps/enhancement.py` | 100% |
+| `steps/postprocess.py` | 100% |
+| `steps/quality_check.py` | 100% |
+| `utils/device.py` | 100% |
+| `utils/image.py` | 100% |
+| `utils/paths.py` | 100% |
+| **TOTAL** | **100%** |
+
+> **pre-commit フック:** `git commit` 実行時に自動でテストとカバレッジ計測を実行します。カバレッジ 100% 未満の場合はコミットが中止されます。
+
+---
+
 ## 使い方
 
 ```bash
@@ -130,6 +167,10 @@ python main.py <入力フォルダ> <出力PDF> [オプション]
 - **基本（AI + 高精度補正）:**
   ```bash
   python main.py ./samples out.pdf --dewarp-mode dewarpnet
+  ```
+- **縦書き書籍（逆さまに撮影した場合）:**
+  ```bash
+  python main.py ./samples_v out.pdf --rotate-angle 180 --writing-mode vertical
   ```
 - **最高画質（超解像 x2）:**
   ```bash
@@ -144,14 +185,48 @@ python main.py <入力フォルダ> <出力PDF> [オプション]
 
 ## オプション一覧
 
+### 基本設定
+
 | オプション | 説明 | デフォルト |
 |------------|------|------------|
-| `--book-type` | 書籍タイプ (`auto`, `jp_vert`, `jp_horiz`, `manga`) | `auto` |
-| `--dewarp-mode` | 湾曲補正 (`dewarpnet`, `polynomial`, `none`) | `dewarpnet` |
-| `--writing-mode` | 書字方向 (`horizontal`, `vertical`, `auto`) | `auto` |
-| `--ai-enhance` | AI 超解像・復元補正を有効化 | 無効 |
-| `--diagnose` | 処理後に品質診断サマリーを表示 | 無効 |
-| `--show-page-area` | 分割・抽出範囲を赤枠描画した確認用 PDF を出力 | 無効 |
+| `--book-type` | 書籍タイプ (`auto`, `jp_vert`, `jp_horiz`, `en`, `manga`) | `auto` |
+| `--dewarp-mode` | 湾曲補正モード (`dewarpnet`, `polynomial`, `doctr`, `none`) | `dewarpnet` |
+| `--writing-mode` | 書字方向 (`auto`, `horizontal`, `vertical`)。`vertical` 指定時は湾曲補正を自動無効化 | `auto` |
+| `--output-size` | 出力用紙サイズ (`A4`, `A5`, `B5`, `Letter`) | `A4` |
+| `--sensitivity` | ページ境界検出感度 (`low`, `medium`, `high`) | `medium` |
+| `--rotate-angle` | 手動回転角度 (`0`, `90`, `180`, `270`) | `0` |
+
+### 後処理
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--shadow-strength` | 影・裏写り除去強度 (0.0〜1.0) | `1.0` |
+| `--grayscale` | グレースケールで出力する | 無効 |
+| `--no-orient` | 向きの自動補正を無効化する | 有効 |
+| `--no-border` | 黒縁の自動除去を無効化する | 有効 |
+
+### AI 補正
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--ai-enhance` | AI 超解像・復元補正を有効化する | 無効 |
+| `--ai-backend` | AI 補正バックエンド (`realesrgan`, `swin2sr`, `docres`) | `realesrgan` |
+| `--ai-scale` | 超解像の拡大倍率 (`1`, `2`, `4`) | `2` |
+
+### 診断・確認
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--diagnose` | 処理後に品質診断サマリーを表示する | 無効 |
+| `--show-book-area` | 書籍領域を赤枠描画した確認用 PDF を出力（後処理スキップ） | 無効 |
+| `--show-page-area` | ページ領域を赤枠描画した確認用 PDF を出力（後処理スキップ） | 無効 |
+
+### ログ
+
+| オプション | 説明 |
+|------------|------|
+| `--verbose`, `-v` | DEBUG レベルの詳細ログを出力する |
+| `--quiet`, `-q` | WARNING 以上のみ出力する（INFO を抑制） |
 
 ---
 

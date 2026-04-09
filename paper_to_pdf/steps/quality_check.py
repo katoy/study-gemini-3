@@ -216,15 +216,20 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     return bool(issues), details
 
 
-def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 3.0) -> tuple[bool, float, float]:
+def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 3.0,
+                      is_vertical: bool = False) -> tuple[bool, float, float]:
     """
     傾き（Skew）と湾曲（Curvature）の両方を検出する。
     評価対象を中央部に限定し、ページ端のカーブによる誤判定を防止する。
+
+    is_vertical=True の場合（縦書きページ）は垂直射影分散を使って評価する。
+    縦書きページに水平射影分散を適用すると探索範囲端（±5°）が
+    常に最大スコアになる誤検出が起きるため。
     """
     h, w = gray.shape
     scale = 400.0 / h
     small = cv2.resize(gray, (int(w * scale), 400))
-    
+
     # 1. 傾き検出
     blur = cv2.GaussianBlur(small, (5, 5), 0)
     _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -234,6 +239,9 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
     def _score_at(angle: float) -> float:
         M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
         rot = cv2.warpAffine(thresh, M, (sw, sh), flags=cv2.INTER_NEAREST)
+        if is_vertical:
+            # 縦書き: 垂直射影分散（列ごとのピクセル和の分散）を使う
+            return float(np.var(np.sum(rot, axis=0)))
         return float(np.var(np.sum(rot, axis=1)))
 
     best_angle = 0.0
@@ -266,18 +274,22 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
 # ページ評価エントリポイント
 # ──────────────────────────────────────────────
 
-def evaluate_page(image: np.ndarray, page_num: int = 1) -> dict:
+def evaluate_page(image: np.ndarray, page_num: int = 1, writing_mode: str = "auto") -> dict:
     """
     1枚のページ画像に対して品質評価を実施し、結果辞書を返す。
+
+    writing_mode: "vertical" の場合は縦書き用の歪み検出を使う。
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
+
     # ページ全体の白比率 (背景除去の成否の指標)
     overall_white = float(np.mean(gray >= 200))
 
+    is_vertical = (writing_mode == "vertical")
+
     clipped,      clip_detail     = _check_text_clipping(gray)
     has_extra,    extra_detail    = _check_extra_region(gray)
-    is_distorted, skew_angle, curve_pct = _check_distortion(gray)
+    is_distorted, skew_angle, curve_pct = _check_distortion(gray, is_vertical=is_vertical)
     half_content, coverage_detail = _check_content_coverage(gray)
     bottom_cut,   bottom_detail   = _check_bottom_cut(gray)
 
@@ -354,7 +366,8 @@ class QualityCheckStep(ProcessingStep):
         self._page_offset = 0  # 全入力画像を通した累積ページ数
 
     def process(self, images: list[np.ndarray]) -> list[np.ndarray]:
-        results = [evaluate_page(img, self._page_offset + i + 1)
+        results = [evaluate_page(img, self._page_offset + i + 1,
+                                writing_mode=self.config.writing_mode)
                    for i, img in enumerate(images)]
         self._page_offset += len(images)
 

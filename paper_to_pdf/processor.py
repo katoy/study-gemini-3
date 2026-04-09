@@ -67,9 +67,17 @@ class BookProcessor:
         page_dewarp_mode = "none"
         if run_full and self.config.dewarp_mode != "none":
             if self.config.dewarp_mode in ("dewarpnet", "doctr"):
-                spread_dewarper = Dewarper(mode=self.config.dewarp_mode)
-            # 各ページ単位でも指定されたモード（dewarpnet 等）を適用する
-            page_dewarp_mode = self.config.dewarp_mode
+                # 縦書き書籍の見開きに横書き前提の polynomial 補正をかけると、
+                # 横組み要素 (図版キャプション等) を水平行として誤検出し、
+                # 補正で文字が押し出されて消える。縦書きモードでは無効化する。
+                if self.config.writing_mode != "vertical":
+                    spread_dewarper = Dewarper(mode=self.config.dewarp_mode)
+            # 縦書きページへの分割後 polynomial 補正は、各列の長さの差を
+            # 「湾曲」として誤検出して文字を消すため無効化する。
+            if self.config.writing_mode == "vertical":
+                page_dewarp_mode = "none"
+            else:
+                page_dewarp_mode = self.config.dewarp_mode
 
         pipeline.add_step(DetectionStep(self.config, dewarper=spread_dewarper,
                                         progress_cb=progress_cb))

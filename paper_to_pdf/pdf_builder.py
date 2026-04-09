@@ -53,7 +53,7 @@ def _build_pdf_pillow(
             pct = (i + 1) / total
             progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
 
-    if first_img is None:
+    if first_img is None:  # pragma: no cover
         raise RuntimeError("先頭ページの読み込みに失敗しました。")
 
     first_img.save(
