@@ -123,15 +123,18 @@ pip install -r requirements.txt
 
 ## テスト
 
+### 1. 単体テスト & カバレッジ
+コードのロジックを検証し、100% の網羅率を維持しています。
+
 ```bash
 # テスト実行
 pytest -q
 
-# カバレッジ計測（コアモジュール 100% を維持）
+# カバレッジ計測
 pytest --cov=. --cov-report=term-missing -q
 ```
 
-カバレッジ計測対象: `core/`, `image_processor.py`, `page_detector.py`, `pdf_builder.py`, `processor.py`, `steps/`, `utils/`
+カバレッジ計測対象: `core/`, `image_processor.py`, `page_detector.py`, `pdf_builder.py`, `processor.py`, `steps/`, `utils/`, `ai_enhancer.py`, `dewarper.py`
 
 | モジュール | カバレッジ |
 |------------|-----------|
@@ -155,7 +158,21 @@ pytest --cov=. --cov-report=term-missing -q
 | `utils/paths.py` | 100% |
 | **TOTAL** | **100%** |
 
-> **pre-commit フック:** `git commit` 実行時に自動でテストとカバレッジ計測を実行します。カバレッジ 100% 未満の場合はコミットが中止されます。
+> **pre-commit フック:** `git commit` 実行時に自動でテストとカバレッジ計測を実行します。カバレッジ 100% 未満、またはテスト失敗時はコミットが中止されます。
+
+### 2. ビジュアル回帰テスト
+PDF の表示内容（見た目）に変化がないかを自動検証します。
+
+```bash
+# 見た目の比較テストを実行
+pytest tests/test_visual_regression.py
+
+# 差分がある場合、以下のレポートで詳細を確認できます
+# tests/reports/index.html
+
+# [開発者用] 意図的な変更により正解画像を更新する場合
+UPDATE_GOLDENS=1 pytest tests/test_visual_regression.py
+```
 
 ---
 
