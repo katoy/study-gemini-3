@@ -3,8 +3,6 @@ source = .
 omit =
     tests/*
     main.py
-    ai_enhancer.py
-    dewarper.py
     analyze_img.py
     check_book_detection.py
     check_seam_detection.py

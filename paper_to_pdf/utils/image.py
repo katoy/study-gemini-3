@@ -51,7 +51,7 @@ def bgr_to_pil(image: np.ndarray) -> Image.Image:
 
 
 def extract_line_profiles(gray: np.ndarray, target_h: int = 400,
-                          margin_v: float = 0.15, margin_h: float = 0.10) -> tuple[np.ndarray, np.ndarray, float]:
+                          margin_v: float = 0.15, margin_h: float = 0.12) -> tuple[np.ndarray, np.ndarray, float]:
     """
     画像からテキスト行のうねり（プロファイル）を抽出し、座標セット (x, y) と正規化スケールを返す。
     

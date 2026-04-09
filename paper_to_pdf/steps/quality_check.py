@@ -216,7 +216,7 @@ def _check_content_coverage(gray: np.ndarray) -> tuple[bool, dict]:
     return bool(issues), details
 
 
-def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_threshold_pct: float = 3.0,
+def _check_distortion(gray: np.ndarray, angle_threshold: float = 5.0, curve_threshold_pct: float = 5.0,
                       is_vertical: bool = False) -> tuple[bool, float, float]:
     """
     傾き（Skew）と湾曲（Curvature）の両方を検出する。
@@ -254,7 +254,7 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 2.0, curve_thre
                 best_angle = a
 
     # 2. 湾曲検出 (共通ロジックを使用)
-    pts_np, weights_np, inv_scale = extract_line_profiles(gray, target_h=400, margin_v=0.15, margin_h=0.10)
+    pts_np, weights_np, inv_scale = extract_line_profiles(gray, target_h=400, margin_v=0.20, margin_h=0.15)
     
     max_curve_off_pct = 0.0
     if len(pts_np) > 50:

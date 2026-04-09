@@ -272,7 +272,7 @@ def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | Non
 
 def trim_page_border(image: np.ndarray) -> np.ndarray:
     h, w = image.shape[:2]; gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    nb = (gray < 50); ir, ic = np.mean(nb, axis=1) > 0.90, np.mean(nb, axis=0) > 0.90
+    nb = (gray < 50); ir, ic = np.mean(nb, axis=1) > 0.80, np.mean(nb, axis=0) > 0.80
     t, b, l, r = 0, h-1, 0, w-1
     while t < h//4 and ir[t]: t += 1
     while b > 3*h//4 and ir[b]: b -= 1

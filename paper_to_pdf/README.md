@@ -135,8 +135,10 @@ pytest --cov=. --cov-report=term-missing -q
 
 | モジュール | カバレッジ |
 |------------|-----------|
+| `ai_enhancer.py` | 100% |
 | `core/config.py` | 100% |
 | `core/pipeline.py` | 100% |
+| `dewarper.py` | 100% |
 | `image_processor.py` | 100% |
 | `page_detector.py` | 100% |
 | `pdf_builder.py` | 100% |
@@ -148,6 +150,7 @@ pytest --cov=. --cov-report=term-missing -q
 | `steps/postprocess.py` | 100% |
 | `steps/quality_check.py` | 100% |
 | `utils/device.py` | 100% |
+| `utils/dewarpnet_arch.py` | 100% |
 | `utils/image.py` | 100% |
 | `utils/paths.py` | 100% |
 | **TOTAL** | **100%** |
