@@ -24,6 +24,17 @@ samples/
 # ログ
 *.log
 
+# カバレッジ計測
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+.coverage
+.coverage.*
+.hypothesis/
+.pytest_cache/
+
 # 環境変数
 .env
 
