@@ -32,3 +32,4 @@ samples/
 .idea/
 *.swp
 *.swo
+tests/reports/
