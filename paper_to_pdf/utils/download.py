@@ -7,6 +7,7 @@ utils/download.py
 from __future__ import annotations
 
 import hashlib
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -44,10 +45,17 @@ def download_file(
         raise TimeoutError(
             f"ダウンロードが {timeout} 秒でタイムアウトしました: {url}"
         ) from e
-    dest.write_bytes(data)
+    except urllib.error.URLError as e:
+        raise IOError(f"ダウンロードに失敗しました: {url}") from e
+
+    try:
+        dest.write_bytes(data)
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise
 
     if expected_sha256 is not None:
-        sha256 = hashlib.sha256(dest.read_bytes()).hexdigest()
+        sha256 = hashlib.sha256(data).hexdigest()
         if sha256 != expected_sha256:
             dest.unlink(missing_ok=True)
             raise ValueError(

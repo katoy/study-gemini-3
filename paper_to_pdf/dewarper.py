@@ -51,6 +51,8 @@ class _DewarpNetInferencer:
             state = torch.load(str(path), map_location="cpu", weights_only=True)
             if "model_state_dict" in state:
                 state = state["model_state_dict"]
+            elif "model_state" in state:
+                state = state["model_state"]
             model.load_state_dict(convert_state_dict(state))
             model.to(self.device).eval()
 
@@ -66,7 +68,11 @@ class _DewarpNetInferencer:
             bm = bm[0].permute(1, 2, 0).cpu().numpy()
         mx = (bm[:, :, 0] + 1.0) * (w - 1) / 2.0
         my = (bm[:, :, 1] + 1.0) * (h - 1) / 2.0
-        return cv2.remap(image_bgr, mx.astype(np.float32), my.astype(np.float32), cv2.INTER_LANCZOS4)
+        result = cv2.remap(image_bgr, mx.astype(np.float32), my.astype(np.float32), cv2.INTER_LANCZOS4)
+        if _is_result_invalid(image_bgr, result):
+            logger.warning("DewarpNet の出力が異常なため元画像を返します。")
+            return image_bgr
+        return result
 
 # ──────────────────────────────────────────────
 # 多項式補正 (Polynomial)

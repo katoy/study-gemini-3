@@ -16,7 +16,7 @@ from PIL import Image, ExifTags
 
 logger = logging.getLogger(__name__)
 
-def fix_exif_rotation(image_path: str | Path) -> np.ndarray:
+def fix_exif_rotation(image_path: str | Path) -> np.ndarray | None:
     """
     EXIF情報を参照して画像を正しい向きに回転させ、BGR形式で返す。
     """

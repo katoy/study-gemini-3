@@ -95,6 +95,8 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
             continue
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
+        if not (0 <= cx < w_s and 0 <= cy < h_s):  # pragma: no cover
+            continue
         
         # スコア = 面積 / 中心からの距離 (中心に近い大きな島を優先)
         dist = np.linalg.norm(np.array([cx, cy]) - img_center)
@@ -270,7 +272,7 @@ def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | Non
         seam_x = find_center_seam(image)
     logger.debug("split_spread: seam_x=%d (%.1f%%) order=%s", seam_x, seam_x / image.shape[1] * 100, order)
     left_page, r = image[:, :seam_x].copy(), image[:, seam_x:].copy()
-    m = 2  # seam 際の製本影を 2px だけ白塗り
+    m = max(2, int(image.shape[1] * 0.0005))  # 画像幅の 0.05%（最低 2px）
     left_page[:, -m:] = 255
     r[:, :m] = 255
     pages = [left_page, r]

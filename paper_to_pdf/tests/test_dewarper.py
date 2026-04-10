@@ -63,9 +63,24 @@ class TestDewarpNetInferencer:
         inf.wc_model = MagicMock()
         inf.bm_model = MagicMock()
         inf.bm_model.return_value = torch.zeros((1, 2, 128, 128))
-        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        # グレー画像を使用：remap後もグレーのため _is_result_invalid=False → return result を通過
+        img = np.full((100, 100, 3), 128, dtype=np.uint8)
         res = inf.dewarp(img)
         assert res.shape == (100, 100, 3)
+
+    @patch("torch.load", return_value={})
+    @patch("dewarper.get_device", return_value="cpu")
+    @patch("torch.nn.Module.load_state_dict")
+    def test_dewarp_invalid_result_returns_original(self, mock_load_sd, mock_dev, mock_load):
+        """DewarpNet の出力が白飛び/黒潰れの場合は元画像を返す。"""
+        inf = _DewarpNetInferencer()
+        inf.wc_model = MagicMock()
+        inf.bm_model = MagicMock()
+        inf.bm_model.return_value = torch.zeros((1, 2, 128, 128))
+        img = np.zeros((100, 100, 3), dtype=np.uint8)  # 全黒 → remap後も黒 → invalid
+        res = inf.dewarp(img)
+        assert res.shape == (100, 100, 3)
+        np.testing.assert_array_equal(res, img)  # 元画像が返される
 
 class TestDewarperClass:
     def test_load_model_variants(self):

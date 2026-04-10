@@ -67,3 +67,26 @@ class TestDownloadFile:
                    side_effect=TimeoutError("timed out")):
             with pytest.raises(TimeoutError, match="タイムアウト"):
                 download_file("https://example.com/model.pth", dest, timeout=30)
+
+    def test_url_error_raises_ioerror(self, tmp_path):
+        """URLError は IOError に変換される。"""
+        import urllib.error
+        dest = tmp_path / "model.pth"
+        with patch("utils.download.urllib.request.urlopen",
+                   side_effect=urllib.error.URLError("connection refused")):
+            with pytest.raises(IOError, match="ダウンロードに失敗"):
+                download_file("https://example.com/model.pth", dest)
+
+    def test_write_failure_cleans_up(self, tmp_path):
+        """ファイル書き込み失敗時は部分ファイルを削除して例外を再送出する。"""
+        dest = tmp_path / "model.pth"
+        mock_response = MagicMock()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.read.return_value = b"hello"
+
+        with patch("utils.download.urllib.request.urlopen", return_value=mock_response), \
+             patch.object(dest.__class__, "write_bytes", side_effect=OSError("disk full")):
+            with pytest.raises(OSError):
+                download_file("https://example.com/model.pth", dest)
+        assert not dest.exists()
