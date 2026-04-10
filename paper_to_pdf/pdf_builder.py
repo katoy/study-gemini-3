@@ -55,7 +55,7 @@ def _build_pdf_pillow(
 
     for i, path in enumerate(image_paths):
         with Image.open(path) as img_file:
-            img = img_file.convert("RGB")
+            img = img_file.convert("RGB").copy()
 
         if i == 0:
             first_img = img
