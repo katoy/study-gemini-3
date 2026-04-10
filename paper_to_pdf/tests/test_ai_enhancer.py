@@ -85,7 +85,7 @@ class TestSwin2SREnhancer:
 class TestDocResEnhancer:
     @patch("torch.load")
     @patch("ai_enhancer._build_docres_unet")
-    @patch("ai_enhancer.urllib.request.urlretrieve")
+    @patch("ai_enhancer.download_file")
     def test_try_load(self, m_ret, m_build, m_load):
         # 1. _MODEL_URL が空の場合はダウンロードせず model が None のまま
         with patch.object(Path, "exists", return_value=False):
@@ -128,7 +128,7 @@ class TestRealESRGANEnhancer:
         assert enh.enhance(img).shape == (20, 20, 3)
         enh._upsampler.enhance.side_effect = Exception(); assert enh.enhance(img).shape == (20, 20, 3)
 
-    @patch("ai_enhancer.urllib.request.urlretrieve")
+    @patch("ai_enhancer.download_file")
     @patch("ai_enhancer._RealESRGANInferencer")
     def test_download(self, m_inf, m_ret):
         with patch.object(Path, "exists", return_value=False):

@@ -7,13 +7,13 @@ dewarper.py
 from __future__ import annotations
 
 import logging
-import urllib.request
 import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from utils.device import get_device
+from utils.download import download_file
 from utils.image import extract_line_profiles
 from utils.paths import CACHE_DIR
 from utils.dewarpnet_arch import UnetGenerator, DnetCCNL, convert_state_dict
@@ -42,7 +42,7 @@ class _DewarpNetInferencer:
     def _load_models(self):  # pragma: no cover
         for key, model in [("wc", self.wc_model), ("bm", self.bm_model)]:
             path = CACHE_DIR / f"dewarpnet_{key}.pkl"
-            if not path.exists(): urllib.request.urlretrieve(self._URLS[key], path)
+            if not path.exists(): download_file(self._URLS[key], path)
             state = torch.load(str(path), map_location="cpu", weights_only=True)
             if "model_state_dict" in state: state = state["model_state_dict"]
             model.load_state_dict(convert_state_dict(state))

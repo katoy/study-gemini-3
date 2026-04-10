@@ -49,7 +49,7 @@ class TestDewarperFunctions:
 
 class TestDewarpNetInferencer:
     @patch("torch.load")
-    @patch("dewarper.urllib.request.urlretrieve")
+    @patch("dewarper.download_file")
     @patch("torch.nn.Module.load_state_dict")
     def test_init_and_load(self, mock_load_sd, mock_ret, mock_load):
         mock_load.return_value = {"model_state_dict": {}}

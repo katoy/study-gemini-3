@@ -7,7 +7,6 @@ ai_enhancer.py
 from __future__ import annotations
 
 import logging
-import urllib.request
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -15,6 +14,7 @@ import cv2
 import numpy as np
 
 from utils.device import get_device
+from utils.download import download_file
 from utils.paths import CACHE_DIR
 
 logger = logging.getLogger(__name__)
@@ -160,7 +160,7 @@ class RealESRGANEnhancer(BaseAIEnhancer):
             model_path = CACHE_DIR / f"RealESRGAN_x{self.scale}plus.pth"
             if not model_path.exists():
                 logger.info("RealESRGAN x%d モデルをダウンロード中...", self.scale)
-                urllib.request.urlretrieve(self._URLS[self.scale], model_path)
+                download_file(self._URLS[self.scale], model_path)
             self._upsampler = _RealESRGANInferencer(scale=self.scale, model_path=str(model_path))
         except Exception as e:
             logger.warning("RealESRGAN の読み込みに失敗しました（Lanczos にフォールバック）: %s", e)
@@ -229,7 +229,7 @@ class DocResEnhancer(BaseAIEnhancer):
                     logger.warning("DocResEnhancer: モデルファイルが見つかりません (%s)。remove_shadow にフォールバックします。", model_path)
                     return
                 logger.info("DocRes モデルをダウンロード中...")
-                urllib.request.urlretrieve(self._MODEL_URL, model_path)
+                download_file(self._MODEL_URL, model_path)
             self._device = get_device(); self._model = _build_docres_unet()
             if model_path.exists(): self._model.load_state_dict(torch.load(str(model_path), map_location=self._device, weights_only=True))
             self._model.eval(); self._model = self._model.to(self._device)
