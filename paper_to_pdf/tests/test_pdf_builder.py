@@ -98,9 +98,12 @@ class TestBuildPdfStreaming:
         # fitz をフル mock して _build_pdf_fitz が呼ばれることを確認
         mock_fitz = MagicMock()
         mock_doc = MagicMock()
+        mock_doc.__enter__ = MagicMock(return_value=mock_doc)
         mock_img_doc = MagicMock()
+        mock_img_doc.__enter__ = MagicMock(return_value=mock_img_doc)
         mock_img_doc.convert_to_pdf.return_value = b"%PDF-1.4"
         mock_img_pdf = MagicMock()
+        mock_img_pdf.__enter__ = MagicMock(return_value=mock_img_pdf)
         # fitz.open(): 最初は pdf_doc, 次は img_doc, 3 番目は img_pdf
         call_count = [0]
         def _open_side_effect(*args, **kwargs):
@@ -133,9 +136,12 @@ class TestBuildPdfStreaming:
         calls = []
         mock_fitz = MagicMock()
         mock_doc = MagicMock()
+        mock_doc.__enter__ = MagicMock(return_value=mock_doc)
         mock_img_doc = MagicMock()
+        mock_img_doc.__enter__ = MagicMock(return_value=mock_img_doc)
         mock_img_doc.convert_to_pdf.return_value = b"%PDF-1.4"
         mock_img_pdf = MagicMock()
+        mock_img_pdf.__enter__ = MagicMock(return_value=mock_img_pdf)
         call_count = [0]
         def _open_side_effect(*args, **kwargs):
             call_count[0] += 1

@@ -100,24 +100,21 @@ def _build_pdf_fitz(
 
     output_path = Path(output_path)
     total = len(image_paths)
-    pdf_doc = fitz.open()
 
-    for i, path in enumerate(image_paths):
-        img_doc = fitz.open(str(path))
-        pdfbytes = img_doc.convert_to_pdf()
-        img_doc.close()
+    with fitz.open() as pdf_doc:
+        for i, path in enumerate(image_paths):
+            with fitz.open(str(path)) as img_doc:
+                pdfbytes = img_doc.convert_to_pdf()
 
-        img_pdf = fitz.open("pdf", pdfbytes)
-        pdf_doc.insert_pdf(img_pdf)
-        img_pdf.close()
+            with fitz.open("pdf", pdfbytes) as img_pdf:
+                pdf_doc.insert_pdf(img_pdf)
 
-        if progress_cb:
-            pct = (i + 1) / total
-            progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
+            if progress_cb:
+                pct = (i + 1) / total
+                progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
 
-    pdf_doc.set_metadata({"producer": "paper_to_pdf", "creator": "paper_to_pdf"})
-    pdf_doc.save(str(output_path), garbage=4, deflate=True)
-    pdf_doc.close()
+        pdf_doc.set_metadata({"producer": "paper_to_pdf", "creator": "paper_to_pdf"})
+        pdf_doc.save(str(output_path), garbage=4, deflate=True)
 
     if progress_cb:
         progress_cb(1.0, f"PDF 保存完了: {output_path.name}")
