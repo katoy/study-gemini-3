@@ -154,13 +154,18 @@ class RealESRGANEnhancer(BaseAIEnhancer):
         2: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth",
         4: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x4plus.pth",
     }
+    _SHA256 = {
+        2: "49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb",
+        4: "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
+    }
     def _try_load(self) -> None:  # pragma: no cover
         try:
             import torch
             model_path = CACHE_DIR / f"RealESRGAN_x{self.scale}plus.pth"
             if not model_path.exists():
                 logger.info("RealESRGAN x%d モデルをダウンロード中...", self.scale)
-                download_file(self._URLS[self.scale], model_path)
+                download_file(self._URLS[self.scale], model_path,
+                              expected_sha256=self._SHA256[self.scale])
             self._upsampler = _RealESRGANInferencer(scale=self.scale, model_path=str(model_path))
         except Exception as e:
             logger.warning("RealESRGAN の読み込みに失敗しました（Lanczos にフォールバック）: %s", e)
