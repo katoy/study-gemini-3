@@ -11,11 +11,13 @@ pdf_builder.py
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Callable, Optional
 
 from PIL import Image
 
+logger = logging.getLogger(__name__)
 
 def _build_pdf_pillow(
     image_paths: list[str | Path],
@@ -37,6 +39,13 @@ def _build_pdf_pillow(
     total = len(image_paths)
     if total == 0:
         raise ValueError("ページ画像が1枚もありません。")
+
+    if total > 100:
+        logger.warning(
+            "Pillowフォールバックで %d ページを処理します。"
+            " メモリ使用量が増加する場合は PyMuPDF をインストールしてください: pip install pymupdf",
+            total,
+        )
 
     if progress_cb:
         progress_cb(0.0, f"PDF 生成開始: {total} ページ")

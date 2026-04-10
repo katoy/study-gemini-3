@@ -59,6 +59,15 @@ class TestBuildPdfPillow:
         _build_pdf_pillow([img_path], out)
         assert out.exists()
 
+    def test_large_page_count_logs_warning(self, tmp_path, caplog):
+        """101ページ以上の場合はwarningをログ出力する。"""
+        import logging
+        imgs = [_make_temp_image(tmp_path, f"p{i}.jpg") for i in range(101)]
+        out = tmp_path / "out.pdf"
+        with caplog.at_level(logging.WARNING, logger="pdf_builder"):
+            _build_pdf_pillow(imgs, out)
+        assert any("101" in m for m in caplog.messages)
+
 
 # ── build_pdf_streaming ───────────────────────────────────────────────
 

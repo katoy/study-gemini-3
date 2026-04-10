@@ -173,5 +173,8 @@ class BookProcessor:
             )
 
         finally:
-            pipeline.finalize()
+            try:
+                pipeline.finalize()
+            except Exception as e:
+                logger.warning("pipeline.finalize() failed: %s", e)
             self._cleanup_workspace()

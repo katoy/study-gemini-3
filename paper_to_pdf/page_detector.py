@@ -175,6 +175,9 @@ def find_center_seam(warped_image: np.ndarray) -> int:
         綴じ目の x 座標 (ピクセル)
     """
     h, w = warped_image.shape[:2]
+    if w < 100 or h < 50:  # 極端に小さい画像はセンターを返す
+        logger.debug("find_center_seam: image too small (%dx%d), using center", w, h)
+        return w // 2
     gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
     # 綴じ目の探索範囲: 40%〜60% に限定（端への誤検出を防ぐ）
     SEAM_MIN = int(w * 0.40)

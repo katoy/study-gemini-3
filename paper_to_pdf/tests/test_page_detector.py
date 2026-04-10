@@ -160,6 +160,12 @@ class TestFindCenterSeam:
         w = img.shape[1]
         assert w * 0.35 <= seam <= w * 0.65
 
+    def test_small_image_returns_center(self):
+        """極端に小さい画像 (w<100) はセンターを返す。"""
+        img = np.full((40, 80, 3), 200, dtype=np.uint8)
+        seam = find_center_seam(img)
+        assert seam == 40  # w // 2
+
     def test_blank_right_page(self):
         """右ページが白紙の場合は中央 (50%) を返す。"""
         img = np.full((400, 800, 3), 255, dtype=np.uint8)

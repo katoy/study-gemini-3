@@ -61,6 +61,24 @@ class TestBookProcessor:
         with patch("shutil.rmtree", side_effect=OSError("permission denied")):
             proc._cleanup_workspace()  # 例外を飲み込んでwarningをログ出力
 
+    def test_pipeline_finalize_exception_still_cleans_up(self, tmp_path):
+        """pipeline.finalize()が例外を投げても一時ディレクトリを削除する。"""
+        from processor import BookProcessor
+        img_dir = self._make_input_dir(tmp_path, n_images=1)
+        out_pdf = tmp_path / "out.pdf"
+        cfg = ProcessingConfig(dewarp_mode="none", split=False)
+        proc = BookProcessor(cfg)
+        dummy_image = np.zeros((10, 10, 3), dtype=np.uint8)
+        with patch("processor.Pipeline") as MockPipeline, \
+             patch("processor.build_pdf_streaming"), \
+             patch("processor.fix_exif_rotation", return_value=dummy_image):
+            mock_inst = MagicMock()
+            mock_inst.run.return_value = [dummy_image]
+            mock_inst.finalize.side_effect = RuntimeError("finalize failed")
+            MockPipeline.return_value = mock_inst
+            proc.run(img_dir, out_pdf)  # finalizeが例外でもクラッシュしない
+        assert proc.tmp_dir is None or not proc.tmp_dir.exists()
+
     def test_run_basic(self, tmp_path):
         """基本的な処理フローがクラッシュなく終了する。"""
         from processor import BookProcessor

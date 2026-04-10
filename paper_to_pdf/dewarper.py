@@ -118,7 +118,8 @@ class Dewarper:
         if self.mode == "dewarpnet":
             try:
                 self._ai_inferencer = _DewarpNetInferencer()
-            except Exception:
+            except Exception as e:
+                logger.warning("DewarpNet のロードに失敗しました: %s。polynomial にフォールバックします。", e)
                 self.mode = "polynomial"
         return True
 
