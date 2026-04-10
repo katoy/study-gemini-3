@@ -91,7 +91,7 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
         
         # 中心のモーメントを計算
         M = cv2.moments(cnt)
-        if M['m00'] == 0:  # pragma: no cover
+        if M['m00'] == 0:  # pragma: no cover  # area > 0 なら発生しないが防御的チェック
             continue
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])

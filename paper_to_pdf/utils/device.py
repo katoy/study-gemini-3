@@ -14,7 +14,9 @@ def get_device():
     """
     利用可能な最適なデバイスを取得する。
     優先順位: MPS (Apple Silicon) > CUDA (NVIDIA GPU) > CPU
-    常に torch.device を返す。PyTorch 未インストール時は torch.device("cpu")。
+    torch がインストール済みの場合は torch.device を返す。
+    PyTorch 未インストール時は文字列 "cpu" を返す。
+    戻り値の型: torch.device | str
     """
     try:
         import torch

@@ -28,10 +28,46 @@ from page_detector import (
     detect_page_contour,
     four_point_transform,
     trim_page_border,
-    find_horizontal_seam,
-    center_seam_confidence,
     split_spread,
 )
+
+
+# ──────────────────────────────────────────────
+# 横綴じ目ローカルユーティリティ
+# (page_detector から削除済みのため、ここで再実装)
+# ──────────────────────────────────────────────
+
+_WHITE_THRESH = 200   # 白ピクセル判定閾値
+_WHITE_ROW_MIN = 0.20  # コンテンツ行とみなす白比率下限
+
+
+def _to_gray(image: np.ndarray) -> np.ndarray:
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+
+
+def _content_rows(gray: np.ndarray) -> np.ndarray:
+    """白比率 20% 以上の行インデックスを返す（コンテンツ行の検出）。"""
+    row_white_ratio = np.mean(gray >= _WHITE_THRESH, axis=1)
+    return np.where(row_white_ratio >= _WHITE_ROW_MIN)[0]
+
+
+def _find_horizontal_seam(image: np.ndarray) -> int:
+    """コンテンツ領域の面積均等 Y 座標（横の綴じ目位置）を返す。"""
+    gray = _to_gray(image)
+    rows = _content_rows(gray)
+    if len(rows) < gray.shape[0] * 0.10:
+        return gray.shape[0] // 2
+    return (int(rows[0]) + int(rows[-1])) // 2
+
+
+def _center_seam_confidence(image: np.ndarray) -> float:
+    """縦長画像での横綴じ目信頼度スコアを返す（0〜255 スケール）。"""
+    gray = _to_gray(image)
+    rows = _content_rows(gray)
+    if len(rows) < gray.shape[0] * 0.10:
+        return 0.0
+    span = int(rows[-1]) - int(rows[0])
+    return float(min(255, span / gray.shape[0] * 255))
 
 
 # ──────────────────────────────────────────────
@@ -51,7 +87,7 @@ def classify_spread(image: np.ndarray) -> str:
     if ar >= _LANDSCAPE_AR:
         return "landscape_spread"
     if h > w:
-        conf = center_seam_confidence(image)
+        conf = _center_seam_confidence(image)
         if conf > _SEAM_CONF_THR:
             return "portrait_spread"
     return "single"
@@ -86,10 +122,9 @@ def _portrait_seam_score_profile(image: np.ndarray) -> tuple[np.ndarray, float]:
     コンテンツ領域の上端〜下端を検出し、中点が seam。
     各行のスコア = 中点からの距離が近いほど高い。
     """
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+    gray = _to_gray(image)
     h = gray.shape[0]
-    row_white_ratio = np.mean(gray >= 200, axis=1)
-    content_rows = np.where(row_white_ratio >= 0.20)[0]
+    content_rows = _content_rows(gray)
     if len(content_rows) < h * 0.10:
         return np.zeros(h), 0.0
     top    = int(content_rows[0])
@@ -321,7 +356,7 @@ def evaluate_image(image: np.ndarray, img_name: str, out_dir: Path | None) -> di
 
     elif spread_type == "portrait_spread":
         # 横の綴じ目 (Y 座標) — 面積均等分割
-        seam_pos = find_horizontal_seam(book)
+        seam_pos = _find_horizontal_seam(book)
         offset_pct = seam_center_offset(seam_pos, bh)
 
         # 可視化用スコアプロファイル（累積白面積の 0.5 クロス）

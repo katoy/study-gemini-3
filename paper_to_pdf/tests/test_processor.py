@@ -163,7 +163,7 @@ class TestBookProcessor:
              patch("processor.build_pdf_streaming"), \
              patch("processor.fix_exif_rotation", return_value=None):
             MockPipeline.return_value = MagicMock()
-            with pytest.raises(RuntimeError, match="No pages"):
+            with pytest.raises(RuntimeError, match="No pages|失敗率"):
                 proc.run(img_dir, out_pdf)
 
     def test_run_pipeline_error_continues(self, tmp_path):
@@ -185,10 +185,28 @@ class TestBookProcessor:
             mock_inst = MagicMock()
             mock_inst.run.side_effect = RuntimeError("pipeline error")
             MockPipeline.return_value = mock_inst
+            with pytest.raises(RuntimeError, match="No pages|失敗率"):
+                proc.run(img_dir, out_pdf)
+
+    def test_run_pipeline_returns_empty_raises(self, tmp_path):
+        """pipeline.run() が空リストを返した場合は RuntimeError（No pages）。"""
+        from processor import BookProcessor
+        img_dir = self._make_input_dir(tmp_path, n_images=1)
+        out_pdf = tmp_path / "out.pdf"
+        cfg = ProcessingConfig(dewarp_mode="none", split=False)
+        proc = BookProcessor(cfg)
+        dummy_image = np.zeros((10, 10, 3), dtype=np.uint8)
+        with patch("processor.Pipeline") as MockPipeline, \
+             patch("processor.build_pdf_streaming"), \
+             patch("processor.fix_exif_rotation", return_value=dummy_image):
+            mock_inst = MagicMock()
+            mock_inst.run.return_value = []  # 空リストを返す
+            MockPipeline.return_value = mock_inst
             with pytest.raises(RuntimeError, match="No pages"):
                 proc.run(img_dir, out_pdf)
 
 
+    def test_run_dewarpnet_mode(self, tmp_path):
         """dewarpnet モードでは spread_dewarper が作られる。"""
         from processor import BookProcessor
         img_dir = self._make_input_dir(tmp_path, n_images=1)

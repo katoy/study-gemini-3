@@ -151,6 +151,12 @@ class BookProcessor:
                     "処理結果: %d/%d 成功, %d 件失敗: %s",
                     succeeded, total, len(failed_images), ", ".join(failed_images)
                 )
+                failure_rate = len(failed_images) / total
+                if failure_rate > 0.5:
+                    raise RuntimeError(
+                        f"失敗率が50%を超えました ({len(failed_images)}/{total} 件失敗)。"
+                        " 処理を中断します。"
+                    )
             else:
                 logger.info("処理結果: %d/%d 成功", succeeded, total)
 
