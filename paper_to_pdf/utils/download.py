@@ -10,7 +10,7 @@ import hashlib
 import urllib.request
 from pathlib import Path
 
-_DEFAULT_TIMEOUT = 300  # 秒
+_DEFAULT_TIMEOUT = 60  # 秒（長時間ハングを防ぐため短めに設定）
 
 
 def verify_hash(path: Path, expected_sha256: str) -> bool:
@@ -33,7 +33,7 @@ def download_file(
     Args:
         url: ダウンロード元 URL。
         dest: 保存先パス。
-        timeout: 接続・読み取りタイムアウト（秒）。デフォルト 300 秒。
+        timeout: 接続・読み取りタイムアウト（秒）。デフォルト 60 秒。
         expected_sha256: 期待する SHA256 ハッシュ値。指定時はダウンロード後に検証し、
             不一致の場合はファイルを削除して ValueError を送出する。
     """

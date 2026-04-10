@@ -21,16 +21,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# page_detector の内部関数を直接インポート
+# page_detector の公開関数をインポート
 from page_detector import (
-    _detect_by_edge_and_profile,
-    _detect_by_book_region,
-    _detect_by_adaptive_thresh,
-    _detect_by_brightness,
-    _detect_by_canny,
-    _detect_by_white_profile,
-    _detect_by_saturation,
-    _is_valid_quad,
+    detect_page_contour,
     order_points,
     four_point_transform,
     trim_page_border,
@@ -39,25 +32,26 @@ from page_detector import (
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+def _is_valid_quad(pts: np.ndarray | None, img_shape: tuple) -> bool:
+    """検出クォッドが有効かどうかを簡易検証する。"""
+    if pts is None or pts.shape != (4, 2):
+        return False
+    area_ratio = _quad_area_ratio(pts, img_shape)
+    rect = _quad_rectangularity(pts)
+    return 0.10 <= area_ratio <= 0.998 and rect >= 0.7
+
+
 METHODS = [
-    ("edge_and_profile", _detect_by_edge_and_profile),
-    ("book_region",      _detect_by_book_region),
-    ("adaptive_thresh",  _detect_by_adaptive_thresh),
-    ("brightness",       _detect_by_brightness),
-    ("canny",            _detect_by_canny),
-    ("white_profile",    _detect_by_white_profile),
-    ("saturation",       _detect_by_saturation),
+    ("low",    lambda img: detect_page_contour(img, sensitivity="low")),
+    ("medium", lambda img: detect_page_contour(img, sensitivity="medium")),
+    ("high",   lambda img: detect_page_contour(img, sensitivity="high")),
 ]
 
 # 各手法の表示色 (BGR)
 METHOD_COLORS = {
-    "edge_and_profile": (0,   255, 128),   # 黄緑
-    "book_region":      (0,   255, 255),   # シアン
-    "adaptive_thresh":  (0,   200,   0),   # 緑
-    "brightness":       (255, 150,   0),   # 水色
-    "canny":            (0,   100, 255),   # オレンジ
-    "white_profile":    (200,   0, 200),   # 紫
-    "saturation":       (0,   200, 200),   # 黄
+    "low":    (0,   255, 128),   # 黄緑
+    "medium": (0,   255, 255),   # シアン
+    "high":   (0,   200,   0),   # 緑
 }
 
 
@@ -203,13 +197,9 @@ def make_detection_sheet(
 # ──────────────────────────────────────────────
 
 def evaluate_image(image: np.ndarray, img_name: str) -> list[dict]:
-    h, w = image.shape[:2]
-    scale = 600 / h
-    small = cv2.resize(image, (int(w * scale), 600))
-
     results = []
     for method_name, detector in METHODS:
-        pts = detector(small, scale)
+        pts = detector(image)
         valid = _is_valid_quad(pts, image.shape)
 
         entry: dict = {

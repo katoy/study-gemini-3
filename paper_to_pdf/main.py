@@ -85,7 +85,7 @@ def _run_diagnosis(pdf_path: Path) -> None:
             for i, page in enumerate(doc):
                 pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                 img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n).copy()
-                pix = None  # Pixmapを明示的に解放してメモリを節約
+                del pix  # C++ リソースを即時解放
                 if img.shape[2] == 4:
                     img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
                 elif img.shape[2] == 3:

@@ -195,8 +195,8 @@ class RealESRGANEnhancer(BaseAIEnhancer):
         if self._upsampler is not None:
             try:
                 return cv2.cvtColor(self._upsampler.enhance(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), cv2.COLOR_RGB2BGR)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("RealESRGAN 推論に失敗しました（Lanczos にフォールバック）: %s", e)
         h, w = image.shape[:2]
         return cv2.resize(image, (w * self.scale, h * self.scale), interpolation=cv2.INTER_LANCZOS4)
 

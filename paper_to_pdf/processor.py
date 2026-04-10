@@ -42,7 +42,10 @@ class BookProcessor:
 
     def _cleanup_workspace(self):
         if self.tmp_dir and self.tmp_dir.exists():
-            shutil.rmtree(self.tmp_dir, ignore_errors=True)
+            try:
+                shutil.rmtree(self.tmp_dir)
+            except Exception as e:
+                logger.warning("一時ディレクトリの削除に失敗しました %s: %s", self.tmp_dir, e)
             logger.debug("Temporary workspace cleaned up.")
 
     def run(self, input_folder: Path, output_pdf: Path,

@@ -52,6 +52,15 @@ class TestBookProcessor:
         proc = BookProcessor(cfg)
         proc._cleanup_workspace()  # tmp_dir=None でもクラッシュしない
 
+    def test_cleanup_logs_warning_on_rmtree_failure(self, tmp_path):
+        from unittest.mock import patch
+        from processor import BookProcessor
+        cfg = ProcessingConfig()
+        proc = BookProcessor(cfg)
+        proc._init_workspace()
+        with patch("shutil.rmtree", side_effect=OSError("permission denied")):
+            proc._cleanup_workspace()  # 例外を飲み込んでwarningをログ出力
+
     def test_run_basic(self, tmp_path):
         """基本的な処理フローがクラッシュなく終了する。"""
         from processor import BookProcessor
