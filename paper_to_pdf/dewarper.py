@@ -127,11 +127,13 @@ class Dewarper:
         if self.mode == "dewarpnet" and self._ai_inferencer:
             try:
                 return self._ai_inferencer.dewarp(image_bgr)
-            except Exception:
+            except Exception as e:
+                logger.warning("DewarpNet 推論失敗: %s。polynomial にフォールバックします。", e)
                 return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
         try:
             return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
-        except Exception:
+        except Exception as e:
+            logger.warning("polynomial dewarp 失敗: %s。元画像を返します。", e)
             return image_bgr
 
     def unload_model(self):

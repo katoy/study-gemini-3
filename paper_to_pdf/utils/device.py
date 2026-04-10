@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_device():
+def get_device() -> "torch.device | str":
     """
     利用可能な最適なデバイスを取得する。
     優先順位: MPS (Apple Silicon) > CUDA (NVIDIA GPU) > CPU
