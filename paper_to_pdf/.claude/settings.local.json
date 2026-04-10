@@ -13,7 +13,8 @@
       "Bash(python -m pytest tests/ --cov=. --cov-report=term-missing -q)",
       "Bash(python -m pytest tests/ -v --tb=short)",
       "Bash(python -m pytest --co -q)",
-      "Bash(python -m pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc -q)"
+      "Bash(python -m pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc -q)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

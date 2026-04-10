@@ -45,7 +45,8 @@ def _build_pdf_pillow(
     append_imgs = []
 
     for i, path in enumerate(image_paths):
-        img = Image.open(path).convert("RGB")
+        with Image.open(path) as img_file:
+            img = img_file.convert("RGB")
 
         if i == 0:
             first_img = img
@@ -124,7 +125,8 @@ def _build_pdf_fitz(
 
 def make_thumbnail(image_path: str | Path, size: tuple[int, int] = (150, 212)) -> Image.Image:
     """プレビュー用サムネイルを生成して返す（PIL Image）。"""
-    img = Image.open(image_path).convert("RGB")
+    with Image.open(image_path) as img_file:
+        img = img_file.convert("RGB")
     img.thumbnail(size, Image.LANCZOS)
 
     # 白背景に中央配置
