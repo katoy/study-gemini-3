@@ -43,7 +43,7 @@ class _DewarpNetInferencer:
         for key, model in [("wc", self.wc_model), ("bm", self.bm_model)]:
             path = CACHE_DIR / f"dewarpnet_{key}.pkl"
             if not path.exists(): urllib.request.urlretrieve(self._URLS[key], path)
-            state = torch.load(str(path), map_location="cpu", weights_only=False)
+            state = torch.load(str(path), map_location="cpu", weights_only=True)
             if "model_state_dict" in state: state = state["model_state_dict"]
             model.load_state_dict(convert_state_dict(state))
             model.to(self.device).eval()

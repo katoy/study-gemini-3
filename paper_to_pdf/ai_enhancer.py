@@ -113,7 +113,7 @@ class _RealESRGANInferencer:  # pragma: no cover
     def __init__(self, scale: int, model_path: str):
         import torch
         self.scale = scale; self._device = get_device(); self._model = _build_rrdbnet(scale)
-        state = torch.load(model_path, map_location=self._device, weights_only=False)
+        state = torch.load(model_path, map_location=self._device, weights_only=True)
         params = state.get("params_ema") or state.get("params") or state
         self._model.load_state_dict(params, strict=True); self._model.eval(); self._model = self._model.to(self._device)
     def enhance(self, img_rgb: np.ndarray) -> np.ndarray:
