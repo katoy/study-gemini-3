@@ -27,9 +27,13 @@ class UnetSkipConnectionBlock(nn.Module):
         super().__init__()
         self.outermost = outermost
         use_bias = (norm_layer == nn.InstanceNorm2d or (isinstance(norm_layer, functools.partial) and norm_layer.func == nn.InstanceNorm2d))
-        if input_nc is None: input_nc = outer_nc
+        if input_nc is None:
+            input_nc = outer_nc
         downconv = nn.Conv2d(input_nc, inner_nc, 4, 2, 1, bias=use_bias)
-        downrelu = nn.LeakyReLU(0.2, True); downnorm = norm_layer(inner_nc); uprelu = nn.ReLU(True); upnorm = norm_layer(outer_nc)
+        downrelu = nn.LeakyReLU(0.2, True)
+        downnorm = norm_layer(inner_nc)
+        uprelu = nn.ReLU(True)
+        upnorm = norm_layer(outer_nc)
         if outermost:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc, 4, 2, 1)
             model  = [downconv] + [submodule] + [uprelu, upconv, nn.Tanh()]
@@ -39,10 +43,12 @@ class UnetSkipConnectionBlock(nn.Module):
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc, 4, 2, 1, bias=use_bias)
             model  = [downrelu, downconv, downnorm, submodule, uprelu, upconv, upnorm]
-            if use_dropout: model += [nn.Dropout(0.5)]
+            if use_dropout:
+                model += [nn.Dropout(0.5)]
         self.model = nn.Sequential(*model)
     def forward(self, x):
-        if self.outermost: return self.model(x)
+        if self.outermost:
+            return self.model(x)
         return torch.cat([x, self.model(x)], 1)
 
 

@@ -193,7 +193,6 @@ def make_seam_sheet(
     # スコアプロファイルバー
     bar_w = book_ann.shape[1]
     if spread_type == "landscape_spread":
-        h_dim = book.shape[1]
         score_bar = _score_bar(score_profile, bar_w, 60, peak_x=seam_pos - book.shape[1] // 3)
     elif spread_type == "portrait_spread":
         score_bar = _score_bar(score_profile, bar_w, 60, peak_x=seam_pos - book.shape[0] // 3)

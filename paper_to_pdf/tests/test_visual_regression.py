@@ -23,8 +23,10 @@ def pdf_to_images(pdf_path: Path, dpi: int = 72) -> list[np.ndarray]:
     for page in doc:
         pix = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72))
         img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
-        if pix.n == 3: img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        elif pix.n == 4: img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        if pix.n == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        elif pix.n == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
         images.append(img)
     doc.close()
     return images
@@ -53,7 +55,8 @@ def generate_html_report(results: list[dict]):
     for r in results:
         test_base = r["name"].split("_p")[0]
         if test_base != current_test:
-            if current_test != "": html.append("</table>")
+            if current_test != "":
+                html.append("</table>")
             html.append(f"<h2>Test: {test_base}</h2><table>")
             html.append("<tr><th>Page</th><th>Golden</th><th>Actual</th><th>Diff</th><th>Status</th></tr>")
             current_test = test_base
@@ -92,7 +95,8 @@ class TestVisualRegression:
         update_mode = os.environ.get("UPDATE_GOLDENS") == "1"
         test_golden_dir = self.GOLDEN_DIR / test_name
         if update_mode:
-            if test_golden_dir.exists(): shutil.rmtree(test_golden_dir)
+            if test_golden_dir.exists():
+                shutil.rmtree(test_golden_dir)
             test_golden_dir.mkdir(parents=True, exist_ok=True)
 
         local_results = []
@@ -110,7 +114,8 @@ class TestVisualRegression:
             
             if golden_path.exists():
                 ref = cv2.imread(str(golden_path))
-                if page.shape != ref.shape: ref = cv2.resize(ref, (page.shape[1], page.shape[0]))
+            if page.shape != ref.shape:
+                ref = cv2.resize(ref, (page.shape[1], page.shape[0]))
                 diff = cv2.absdiff(page, ref)
                 score = 1.0 - (np.count_nonzero(diff) / diff.size)
                 if score < 0.99:
@@ -124,7 +129,8 @@ class TestVisualRegression:
 
             REPORTS_DIR.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(REPORTS_DIR / f"actual_{report_name}.png"), page)
-            if golden_path.exists(): shutil.copy(golden_path, REPORTS_DIR / f"golden_{report_name}.png")
+            if golden_path.exists():
+                shutil.copy(golden_path, REPORTS_DIR / f"golden_{report_name}.png")
             else: # ダミーの空画像を作成
                 cv2.imwrite(str(REPORTS_DIR / f"golden_{report_name}.png"), np.full_like(page, 240))
             cv2.imwrite(str(REPORTS_DIR / f"diff_{report_name}.png"), diff_img)
@@ -142,7 +148,8 @@ class TestVisualRegression:
             assert all(r["status"] in ("PASS", "NEW") for r in local_results)
 
     def test_synthetic_consistency(self, workspace):
-        img_dir = workspace / "inputs"; img_dir.mkdir()
+        img_dir = workspace / "inputs"
+        img_dir.mkdir()
         canvas = np.zeros((600, 800, 3), dtype=np.uint8)
         cv2.rectangle(canvas, (50, 50), (380, 550), (255, 255, 255), -1)
         cv2.putText(canvas, "Synthetic", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2)
@@ -152,8 +159,10 @@ class TestVisualRegression:
 
     def test_samples_h_integration(self, workspace):
         sample_src = Path("samples_h")
-        if not sample_src.exists(): pytest.skip("samples_h not found")
-        img_dir = workspace / "inputs"; img_dir.mkdir()
+        if not sample_src.exists():
+            pytest.skip("samples_h not found")
+        img_dir = workspace / "inputs"
+        img_dir.mkdir()
         # すべての画像をコピー
         for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
             shutil.copy(f, img_dir / f.name)
@@ -162,8 +171,10 @@ class TestVisualRegression:
 
     def test_samples_v_integration(self, workspace):
         sample_src = Path("samples_v")
-        if not sample_src.exists(): pytest.skip("samples_v not found")
-        img_dir = workspace / "inputs"; img_dir.mkdir()
+        if not sample_src.exists():
+            pytest.skip("samples_v not found")
+        img_dir = workspace / "inputs"
+        img_dir.mkdir()
         # すべての画像をコピー
         for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
             shutil.copy(f, img_dir / f.name)

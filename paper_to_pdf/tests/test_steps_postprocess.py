@@ -60,7 +60,7 @@ class TestPostProcessStep:
         result = step.process([text_image])
         assert len(result) == 1
         # グレースケール変換後は R==G==B のはず
-        r, g, b = result[0][:, :, 2], result[0][:, :, 1], result[0][:, :, 0]
+        r, g, _ = result[0][:, :, 2], result[0][:, :, 1], result[0][:, :, 0]
         np.testing.assert_array_equal(r, g)
 
     def test_vertical_writing_mode_skips_deskew(self, text_image):

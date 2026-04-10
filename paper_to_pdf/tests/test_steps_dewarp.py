@@ -49,7 +49,7 @@ class TestDewarpStep:
 
     def test_writing_mode_horizontal_uses_horiz_dewarper(self, text_image):
         step = self._make_step(dewarp_mode="polynomial", writing_mode="horizontal")
-        result = step.process([text_image])
+        step.process([text_image])
         step._dewarpers[False].dewarp.assert_called_once_with(text_image)
 
     def test_writing_mode_auto_detects_direction(self, spread_image):

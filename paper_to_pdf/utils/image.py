@@ -91,11 +91,13 @@ def extract_line_profiles(gray: np.ndarray, target_h: int = 400,
     for c in cnts:
         br = cv2.boundingRect(c)
         line_w = br[2]
-        if line_w < sw * 0.25: continue # 短すぎる行は無視
+        if line_w < sw * 0.25:
+            continue # 短すぎる行は無視
         
         cp = c.reshape(-1, 2).astype(np.float32)
         ux = np.unique(cp[:, 0])
-        if len(ux) < 30: continue
+        if len(ux) < 30:
+            continue
         
         uy = np.array([np.mean(cp[cp[:, 0] == val, 1]) for val in ux])
         uy_norm = uy - np.mean(uy)

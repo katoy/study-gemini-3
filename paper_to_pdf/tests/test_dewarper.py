@@ -52,7 +52,7 @@ class TestDewarpNetInferencer:
     def test_init_and_load(self, mock_load_sd, mock_ret, mock_load):
         mock_load.return_value = {"model_state_dict": {}}
         with patch.object(Path, "exists", return_value=False):
-            inf = _DewarpNetInferencer()
+            _DewarpNetInferencer()
             assert mock_ret.called
 
     @patch("torch.load", return_value={})
@@ -60,7 +60,8 @@ class TestDewarpNetInferencer:
     @patch("torch.nn.Module.load_state_dict")
     def test_dewarp_inference(self, mock_load_sd, mock_dev, mock_load):
         inf = _DewarpNetInferencer()
-        inf.wc_model = MagicMock(); inf.bm_model = MagicMock()
+        inf.wc_model = MagicMock()
+        inf.bm_model = MagicMock()
         inf.bm_model.return_value = torch.zeros((1, 2, 128, 128))
         img = np.zeros((100, 100, 3), dtype=np.uint8)
         res = inf.dewarp(img)
@@ -85,10 +86,14 @@ class TestDewarperClass:
         d._ai_inferencer = mock_inf
         img = np.zeros((10,10,3), dtype=np.uint8)
         assert d.dewarp(img).shape == (10,10,3)
-        mock_inf.dewarp.side_effect = Exception(); d.dewarp(img)
+        mock_inf.dewarp.side_effect = Exception()
+        d.dewarp(img)
         d.mode = "polynomial"
         with patch("dewarper._advanced_polynomial_dewarp", side_effect=Exception()):
             d.dewarp(img)
 
     def test_unload(self):
-        d = Dewarper(); d._ai_inferencer = MagicMock(); d.unload_model(); assert d._ai_inferencer is None
+        d = Dewarper()
+        d._ai_inferencer = MagicMock()
+        d.unload_model()
+        assert d._ai_inferencer is None

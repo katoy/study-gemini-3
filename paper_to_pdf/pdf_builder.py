@@ -85,7 +85,6 @@ def build_pdf_streaming(
     ページ数が多い場合でもメモリ使用量を一定に保つ。
     """
     try:
-        import fitz  # PyMuPDF
         _build_pdf_fitz(image_paths, output_path, dpi, progress_cb)
     except ImportError:
         # PyMuPDF がなければ Pillow で処理

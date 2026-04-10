@@ -316,7 +316,9 @@ def _log_page_result(r: dict) -> None:
     """問題があるページのみログ出力する（OK ページはサイレント）。"""
     if r["ok"]:
         return  # 全基準クリアのページは個別ログを省略
-    sym = lambda b: _red("✗") if b else "○"
+
+    def sym(b):
+        return _red("✗") if b else "○"
     logger.warning(
         "品質評価 Page %2d: 文字見切れ=%s  余分領域=%s  歪み=%s(傾き%.1f°,湾曲%.1f%%)  半欠け=%s  下部欠け=%s  ← 要確認",
         r["page"],
@@ -383,7 +385,9 @@ class QualityCheckStep(ProcessingStep):
             logger.info("  %4s  %-8s  %-8s  %-8s  %-8s  %-8s  %s",
                         "Page", "文字見切", "余分領域", "歪み", "半欠け", "下部欠け", "傾き/湾曲")
             logger.info("  %s", "─" * 72)
-            sym = lambda b: _red("✗ NG") if b else "○ OK"
+
+            def sym(b):
+                return _red("✗ NG") if b else "○ OK"
             for r in results:
                 dist_str = f"{r['skew_angle']:+.1f}°/{r['curve_pct']:.1f}%"
                 logger.info(

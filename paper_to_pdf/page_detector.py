@@ -76,7 +76,8 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
     
     # 4. 輪郭抽出
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours: return None
+    if not contours:
+        return None
     
     # 5. 中心に近く、面積が十分な輪郭を選択
     img_center = np.array([w_s / 2, h_s / 2])
@@ -85,11 +86,13 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
     
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < (h_s * w_s * 0.15): continue
+        if area < (h_s * w_s * 0.15):
+            continue
         
         # 中心のモーメントを計算
         M = cv2.moments(cnt)
-        if M['m00'] == 0: continue
+        if M['m00'] == 0:  # pragma: no cover
+            continue
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
         
@@ -101,7 +104,8 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
             max_score = score
             best_cnt = cnt
             
-    if best_cnt is None: return None
+    if best_cnt is None:
+        return None
     
     # 6. 凸包から四隅の頂点を抽出
     hull = cv2.convexHull(best_cnt).reshape(-1, 2)
@@ -136,7 +140,8 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int | Non
     curr: np.ndarray = th
     for i in range(4):
         scores.append(get_max_var(curr))
-        if i < 3: curr = cv2.rotate(curr, cv2.ROTATE_90_CLOCKWISE)
+        if i < 3:
+            curr = cv2.rotate(curr, cv2.ROTATE_90_CLOCKWISE)
     best_idx: int = int(np.argmax(scores))
     code: int | None = codes[best_idx]
     if code is not None:
@@ -188,10 +193,6 @@ def find_center_seam(warped_image: np.ndarray) -> int:
         "find_center_seam: far_left=%.4f far_right=%.4f",
         far_left_density, far_right_density,
     )
-
-    # スムージングして個別列ノイズを除去 (ウィンドウ = 画像幅の約 0.5%)
-    win = max(5, w // 200)
-    smoothed = np.convolve(col_density, np.ones(win) / win, mode="same")
 
     blank_thresh = 0.008
     # テキスト密度が薄いページ（目次・扉等）にも対応するため、コンテンツ側の最小閾値を低めに設定
@@ -255,28 +256,38 @@ def detect_writing_direction(image: np.ndarray) -> str:
     h_lines = cv2.morphologyEx(th, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (line_len, 1)))
     v_lines = cv2.morphologyEx(th, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, line_len)))
     h_score, v_score = np.count_nonzero(h_lines), np.count_nonzero(v_lines)
-    if h_score > v_score * 1.2: return "left_first"
-    if v_score > h_score * 1.2: return "right_first"
+    if h_score > v_score * 1.2:
+        return "left_first"
+    if v_score > h_score * 1.2:
+        return "right_first"
     return "right_first" if np.count_nonzero(th[:, int(th.shape[1]*0.6):]) > np.count_nonzero(th[:, :int(th.shape[1]*0.4)]) * 1.2 else "left_first"
 
 def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | None = None) -> list[np.ndarray]:
     if seam_x is None:
         seam_x = find_center_seam(image)
     logger.debug("split_spread: seam_x=%d (%.1f%%) order=%s", seam_x, seam_x / image.shape[1] * 100, order)
-    l, r = image[:, :seam_x].copy(), image[:, seam_x:].copy()
+    left_page, r = image[:, :seam_x].copy(), image[:, seam_x:].copy()
     m = 2  # seam 際の製本影を 2px だけ白塗り
-    l[:, -m:] = 255; r[:, :m] = 255
-    pages = [l, r]
-    if order == "right_first": pages.reverse()
+    left_page[:, -m:] = 255
+    r[:, :m] = 255
+    pages = [left_page, r]
+    if order == "right_first":
+        pages.reverse()
     return pages
 
 def trim_page_border(image: np.ndarray) -> np.ndarray:
-    h, w = image.shape[:2]; gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    nb = (gray < 50); ir, ic = np.mean(nb, axis=1) > 0.80, np.mean(nb, axis=0) > 0.80
-    t, b, l, r = 0, h-1, 0, w-1
-    while t < h//4 and ir[t]: t += 1
-    while b > 3*h//4 and ir[b]: b -= 1
-    while l < w//4 and ic[l]: l += 1
-    while r > 3*w//4 and ic[r]: r -= 1
-    return image[t:b+1, l:r+1]
+    h, w = image.shape[:2]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    nb = (gray < 50)
+    ir, ic = np.mean(nb, axis=1) > 0.80, np.mean(nb, axis=0) > 0.80
+    t, b, left_col, r = 0, h-1, 0, w-1
+    while t < h//4 and ir[t]:
+        t += 1
+    while b > 3*h//4 and ir[b]:
+        b -= 1
+    while left_col < w//4 and ic[left_col]:
+        left_col += 1
+    while r > 3*w//4 and ic[r]:
+        r -= 1
+    return image[t:b+1, left_col:r+1]
 

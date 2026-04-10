@@ -84,6 +84,14 @@ class TestDetectPageContour:
         result = detect_page_contour(img)
         assert result is None
 
+    def test_returns_none_when_contours_too_small(self):
+        # 小さい輪郭のみの画像：最大輪郭の面積が閾値未満になるよう設定
+        img = np.zeros((400, 600, 3), dtype=np.uint8)
+        # 中央に小さな白い矩形（画像面積の15%未満）
+        cv2.rectangle(img, (280, 185), (320, 215), (220, 220, 210), -1)
+        result = detect_page_contour(img)
+        assert result is None
+
     def test_sensitivity_options(self):
         img = self._make_book_on_black()
         for sens in ("low", "medium", "high"):
@@ -246,7 +254,7 @@ class TestSplitSpread:
         assert right.shape[1] <= spread_image.shape[1]
 
     def test_split_right_first_reverses_order(self, spread_image):
-        pages_lf = split_spread(spread_image, order="left_first")
+        split_spread(spread_image, order="left_first")
         pages_rf = split_spread(spread_image, order="right_first", seam_x=spread_image.shape[1] // 2)
         # right_first の 0番目は right ページ
         assert len(pages_rf) == 2
@@ -280,5 +288,17 @@ class TestTrimPageBorder:
     def test_removes_black_left_border(self):
         img = np.full((300, 200, 3), 255, dtype=np.uint8)
         img[:, :20] = 0  # 左20列を黒
+        result = trim_page_border(img)
+        assert result.shape[1] <= img.shape[1]
+
+    def test_removes_black_bottom_border(self):
+        img = np.full((300, 200, 3), 255, dtype=np.uint8)
+        img[270:, :] = 0  # 下30行を黒
+        result = trim_page_border(img)
+        assert result.shape[0] <= img.shape[0]
+
+    def test_removes_black_right_border(self):
+        img = np.full((300, 200, 3), 255, dtype=np.uint8)
+        img[:, 180:] = 0  # 右20列を黒
         result = trim_page_border(img)
         assert result.shape[1] <= img.shape[1]

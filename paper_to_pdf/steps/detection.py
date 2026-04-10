@@ -77,16 +77,20 @@ class DetectionStep(ProcessingStep):
             rotation_code = None
             if self.config.rotate_angle != 0:
                 logger.info(f"Applying manual rotation: {self.config.rotate_angle}deg")
-                if self.config.rotate_angle == 180: rotation_code = cv2.ROTATE_180
-                elif self.config.rotate_angle == 90: rotation_code = cv2.ROTATE_90_CLOCKWISE
-                elif self.config.rotate_angle == 270: rotation_code = cv2.ROTATE_90_COUNTERCLOCKWISE
+                if self.config.rotate_angle == 180:
+                    rotation_code = cv2.ROTATE_180
+                elif self.config.rotate_angle == 90:
+                    rotation_code = cv2.ROTATE_90_CLOCKWISE
+                elif self.config.rotate_angle == 270:
+                    rotation_code = cv2.ROTATE_90_COUNTERCLOCKWISE
             else:
                 # 頑健な天地判定（auto_code は cv2 回転コード or None）
                 _, rotation_code = correct_orientation_robust(warped_book)
 
             if rotation_code is not None:
                 warped_book = cv2.rotate(warped_book, rotation_code)
-                if rotation_code != cv2.ROTATE_180: bw, bh = bh, bw
+                if rotation_code != cv2.ROTATE_180:
+                    bw, bh = bh, bw
 
             # 5. 湾曲補正（分割前に見開き全体へ適用）
             if self._dewarper is not None:

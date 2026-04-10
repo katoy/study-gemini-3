@@ -392,8 +392,6 @@ def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool =
 
     # 2. サイズ調整と配置
     # マージン 0% (ページいっぱいに配置)
-    margin_x = 0
-    margin_y = 0
     inner_w = target_w
     inner_h = target_h
     

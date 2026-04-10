@@ -27,7 +27,6 @@ def analyze_spread(path):
         print(f"Section {i} ({(i*10)}%-{(i+1)*10}%): {density:.4f}")
 
     # Vertical projection (sum of rows) to find if it's rotated correctly
-    row_density = bw.sum(axis=1)
     # Horizontal projection (sum of columns) to find the valley
     col_density = bw.sum(axis=0)
     

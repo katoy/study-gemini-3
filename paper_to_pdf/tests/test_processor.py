@@ -151,7 +151,7 @@ class TestBookProcessor:
         proc = BookProcessor(cfg)
 
         with patch("processor.Pipeline") as MockPipeline, \
-             patch("processor.build_pdf_streaming") as mock_pdf, \
+             patch("processor.build_pdf_streaming"), \
              patch("processor.fix_exif_rotation", return_value=None):
             MockPipeline.return_value = MagicMock()
             with pytest.raises(RuntimeError, match="No pages"):

@@ -108,7 +108,9 @@ def _print_quality_summary(results: list) -> None:
     print("=" * 70)
     RED = "\033[31m"
     RST = "\033[0m"
-    sym = lambda b: f"{RED}✗ NG{RST}" if b else "○ OK"
+
+    def sym(b):
+        return f"{RED}✗ NG{RST}" if b else "○ OK"
     header = f"  {'Page':>4}  {'白比率':>5}  {'文字見切':8}  {'余分領域':8}  {'歪み':8}  {'半欠け':8}  {'下部欠け':8}  傾き°"
     print(header)
     print("  " + "-" * 78)

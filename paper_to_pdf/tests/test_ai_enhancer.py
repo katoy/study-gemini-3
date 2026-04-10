@@ -35,14 +35,17 @@ class TestRealESRGANInferencer:
         for key in ["params_ema", "params", "other"]:
             mock_load.return_value = {key: {}} if key != "other" else {}
             with patch("ai_enhancer._build_rrdbnet") as mock_build:
-                m = MagicMock(spec=torch.nn.Module); m.to.return_value = m; mock_build.return_value = m
+                m = MagicMock(spec=torch.nn.Module)
+                m.to.return_value = m
+                mock_build.return_value = m
                 _RealESRGANInferencer(scale=2, model_path="f.pth")
 
     @patch("torch.load", return_value={"params": {}})
     @patch("ai_enhancer.get_device", return_value="cpu")
     def test_enhance_with_padding(self, mock_device, mock_load):
         with patch("ai_enhancer._build_rrdbnet") as mock_build:
-            m = MagicMock(spec=torch.nn.Module); m.to.return_value = m
+            m = MagicMock(spec=torch.nn.Module)
+            m.to.return_value = m
             m.side_effect = lambda x: torch.zeros((1, 3, x.shape[2]*2, x.shape[3]*2))
             mock_build.return_value = m
             inf = _RealESRGANInferencer(scale=2, model_path="f.pth")
@@ -52,7 +55,8 @@ class TestRealESRGANInferencer:
     @patch("ai_enhancer.get_device", return_value="cpu")
     def test_tile_enhance(self, mock_device, mock_load):
         with patch("ai_enhancer._build_rrdbnet") as mock_build:
-            m = MagicMock(spec=torch.nn.Module); m.to.return_value = m
+            m = MagicMock(spec=torch.nn.Module)
+            m.to.return_value = m
             m.side_effect = lambda x: torch.zeros((1, 3, x.shape[2]*2, x.shape[3]*2))
             mock_build.return_value = m
             inf = _RealESRGANInferencer(scale=2, model_path="f.pth")
@@ -62,7 +66,9 @@ class TestSwin2SREnhancer:
     @patch("transformers.Swin2SRImageProcessor.from_pretrained")
     @patch("transformers.Swin2SRForImageSuperResolution.from_pretrained")
     def test_try_load_success(self, m_model, m_proc):
-        m = MagicMock(); m.to.return_value = m; m_model.return_value = m
+        m = MagicMock()
+        m.to.return_value = m
+        m_model.return_value = m
         assert Swin2SREnhancer(scale=2)._model is not None
 
     def test_try_load_fail(self):
@@ -73,13 +79,28 @@ class TestSwin2SREnhancer:
             assert Swin2SREnhancer()._model is None
 
     def test_enhance(self):
-        enh = Swin2SREnhancer(scale=2); enh._model = MagicMock(); enh._processor = MagicMock()
-        o = MagicMock(); o.reconstruction = torch.zeros((1, 3, 40, 40)); enh._model.return_value = o
+        enh = Swin2SREnhancer(scale=2)
+        enh._model = MagicMock()
+        enh._processor = MagicMock()
+        o = MagicMock()
+        o.reconstruction = torch.zeros((1, 3, 40, 40))
+        enh._model.return_value = o
         img = np.zeros((10, 10, 3), dtype=np.uint8)
         assert enh.enhance(img).shape == (20, 20, 3)
-        enh._model.side_effect = Exception(); assert enh.enhance(img).shape == (20, 20, 3)
+        enh._model.side_effect = Exception()
+        assert enh.enhance(img).shape == (20, 20, 3)
 
     def test_name(self): assert Swin2SREnhancer(scale=4).name() == "Swin2SR_x4"
+
+    def test_invalid_scale_normalizes(self):
+        enh = Swin2SREnhancer(scale=3)
+        assert enh.scale == 2
+
+    def test_enhance_model_none(self):
+        enh = Swin2SREnhancer(scale=2)
+        enh._model = None
+        img = np.zeros((10, 10, 3), dtype=np.uint8)
+        assert enh.enhance(img).shape == (20, 20, 3)
 
 class TestDocResEnhancer:
     @patch("torch.load")
@@ -94,7 +115,9 @@ class TestDocResEnhancer:
         # 2. _MODEL_URL が設定されている場合はダウンロードを試みる
         with patch.object(DocResEnhancer, "_MODEL_URL", "https://example.com/docres.pth"):
             with patch.object(Path, "exists", side_effect=[False, True, True]):
-                m = MagicMock(); m.to.return_value = m; m_build.return_value = m
+                m = MagicMock()
+                m.to.return_value = m
+                m_build.return_value = m
                 e = DocResEnhancer()
                 assert m_ret.called
         # 3. Load error
@@ -103,7 +126,9 @@ class TestDocResEnhancer:
 
     @patch("ai_enhancer._build_docres_unet")
     def test_enhance(self, m_build):
-        m = MagicMock(); m.to.return_value = m; m.return_value = torch.zeros((1, 3, 16, 16))
+        m = MagicMock()
+        m.to.return_value = m
+        m.return_value = torch.zeros((1, 3, 16, 16))
         m_build.return_value = m
         enh = DocResEnhancer()
         assert enh.enhance(np.zeros((10, 10, 3), dtype=np.uint8)).shape == (10, 10, 3)
@@ -113,6 +138,13 @@ class TestDocResEnhancer:
             assert enh.enhance(np.zeros((10,10,3))).shape == (10,10,3)
 
 class TestRealESRGANEnhancer:
+    def test_invalid_scale_raises(self):
+        with pytest.raises(ValueError):
+            RealESRGANEnhancer(scale=3)
+
+    def test_name(self):
+        assert RealESRGANEnhancer(scale=2).name() == "RealESRGAN_x2"
+
     def test_try_load_fail(self):
         with patch("builtins.__import__", side_effect=lambda n, *a, **k: 
                    (MagicMock() if n != "torch" else exec("raise ImportError()"))):
@@ -121,22 +153,28 @@ class TestRealESRGANEnhancer:
             assert RealESRGANEnhancer()._upsampler is None
 
     def test_enhance(self):
-        enh = RealESRGANEnhancer(scale=2); enh._upsampler = MagicMock()
+        enh = RealESRGANEnhancer(scale=2)
+        enh._upsampler = MagicMock()
         enh._upsampler.enhance.return_value = np.zeros((20, 20, 3), dtype=np.uint8)
         img = np.zeros((10, 10, 3), dtype=np.uint8)
         assert enh.enhance(img).shape == (20, 20, 3)
-        enh._upsampler.enhance.side_effect = Exception(); assert enh.enhance(img).shape == (20, 20, 3)
+        enh._upsampler.enhance.side_effect = Exception()
+        assert enh.enhance(img).shape == (20, 20, 3)
 
     @patch("ai_enhancer.download_file")
     @patch("ai_enhancer._RealESRGANInferencer")
     def test_download(self, m_inf, m_ret):
         with patch.object(Path, "exists", return_value=False):
             with patch("ai_enhancer.CACHE_DIR", Path("/tmp")):
-                RealESRGANEnhancer(); assert m_ret.called
+                RealESRGANEnhancer()
+                assert m_ret.called
 
 def test_create_enhancer():
-    create_enhancer("realesrgan"); create_enhancer("swin2sr"); create_enhancer("docres")
-    with pytest.raises(ValueError): create_enhancer("unknown")
+    create_enhancer("realesrgan")
+    create_enhancer("swin2sr")
+    create_enhancer("docres")
+    with pytest.raises(ValueError):
+        create_enhancer("unknown")
 
 def test_base_name():
     class M(BaseAIEnhancer):

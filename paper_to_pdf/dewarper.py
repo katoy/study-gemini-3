@@ -49,7 +49,8 @@ class _DewarpNetInferencer:
             if not path.exists():
                 download_file(self._URLS[key], path, expected_sha256=self._SHA256[key])
             state = torch.load(str(path), map_location="cpu", weights_only=True)
-            if "model_state_dict" in state: state = state["model_state_dict"]
+            if "model_state_dict" in state:
+                state = state["model_state_dict"]
             model.load_state_dict(convert_state_dict(state))
             model.to(self.device).eval()
 
@@ -77,16 +78,19 @@ def _is_image_broken(original: np.ndarray, processed: np.ndarray) -> bool:
 
 def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) -> np.ndarray:
     curr_img = image.copy()
-    if is_vertical: curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_CLOCKWISE)
+    if is_vertical:
+        curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_CLOCKWISE)
     for iteration in range(3):
         h, w = curr_img.shape[:2]
         pts_np, weights_np, _ = extract_line_profiles(cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15)
-        if len(pts_np) < 200: break
+        if len(pts_np) < 200:
+            break
         z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
         target = np.polyval(z, np.arange(w, dtype=np.float32))
         target = np.clip(target, -h*0.35, h*0.35)
         curv_pct = (np.max(target) - np.min(target)) / h * 100.0
-        if curv_pct < 0.2: break
+        if curv_pct < 0.2:
+            break
         if curv_pct < 35.0:
             mx, my = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
             my = np.clip(my + target.astype(np.float32) * 0.95, 0, h - 1).astype(np.float32)
@@ -94,8 +98,10 @@ def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) ->
             if not _is_image_broken(curr_img, res):
                 curr_img = res
                 logger.debug("poly iter %d", iteration)
-            else: break
-    if is_vertical: curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            else:
+                break
+    if is_vertical:
+        curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return curr_img
 
 # ──────────────────────────────────────────────
@@ -104,16 +110,28 @@ def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) ->
 
 class Dewarper:
     def __init__(self, mode="dewarpnet", is_vertical: bool = False):
-        self.mode, self.is_vertical, self._ai_inferencer = mode, is_vertical, None
+        self.mode = mode
+        self.is_vertical = is_vertical
+        self._ai_inferencer = None
+
     def load_model(self, progress_cb=None):
         if self.mode == "dewarpnet":
-            try: self._ai_inferencer = _DewarpNetInferencer()
-            except Exception: self.mode = "polynomial"
+            try:
+                self._ai_inferencer = _DewarpNetInferencer()
+            except Exception:
+                self.mode = "polynomial"
         return True
+
     def dewarp(self, image_bgr: np.ndarray) -> np.ndarray:
         if self.mode == "dewarpnet" and self._ai_inferencer:
-            try: return self._ai_inferencer.dewarp(image_bgr)
-            except Exception: return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
-        try: return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
-        except Exception: return image_bgr
-    def unload_model(self): self._ai_inferencer = None
+            try:
+                return self._ai_inferencer.dewarp(image_bgr)
+            except Exception:
+                return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
+        try:
+            return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
+        except Exception:
+            return image_bgr
+
+    def unload_model(self):
+        self._ai_inferencer = None
