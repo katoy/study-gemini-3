@@ -9,9 +9,20 @@ from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_result_invalid, 
 
 class TestDewarperFunctions:
     def test_is_result_invalid(self):
-        assert bool(_is_result_invalid(None, np.full((10,10,3), 255, dtype=np.uint8))) is True
-        assert bool(_is_result_invalid(None, np.full((10,10,3), 0, dtype=np.uint8))) is True
-        assert bool(_is_result_invalid(None, np.full((10,10,3), 128, dtype=np.uint8))) is False
+        gray_orig = np.full((10, 10, 3), 128, dtype=np.uint8)
+        # 全白・全黒 → 無効
+        assert bool(_is_result_invalid(gray_orig, np.full((10, 10, 3), 255, dtype=np.uint8))) is True
+        assert bool(_is_result_invalid(gray_orig, np.full((10, 10, 3), 0,   dtype=np.uint8))) is True
+        # 中間グレー → 有効
+        assert bool(_is_result_invalid(gray_orig, np.full((10, 10, 3), 128, dtype=np.uint8))) is False
+        # コンテンツ消失チェック: 元画像に暗ピクセルが 1% 超あるのに処理後に 90% 以上消えた → 無効
+        orig_with_text = np.full((100, 100, 3), 200, dtype=np.uint8)
+        orig_with_text[10:50, 10:50] = 50  # 約 16% の暗ピクセル (< 100)
+        proc_blank = np.full((100, 100, 3), 200, dtype=np.uint8)  # 暗ピクセルなし
+        assert bool(_is_result_invalid(orig_with_text, proc_blank)) is True
+        # 暗ピクセルが保持されている場合は有効
+        proc_keep = orig_with_text.copy()
+        assert bool(_is_result_invalid(orig_with_text, proc_keep)) is False
 
     def test_advanced_polynomial_dewarp_branches(self):
         img = np.zeros((500, 800, 3), dtype=np.uint8)

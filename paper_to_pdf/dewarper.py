@@ -79,8 +79,28 @@ class _DewarpNetInferencer:
 # ──────────────────────────────────────────────
 
 def _is_result_invalid(original: np.ndarray, processed: np.ndarray) -> bool:
+    """
+    補正結果が無効かどうかを判定する。
+
+    判定基準:
+      1. 平均輝度が極端 (> 250 or < 5): 全白・全黒
+      2. コンテンツ消失: 元画像に暗ピクセル(< 100)が十分あるにもかかわらず
+         処理後に 90% 以上が消えた場合 → テキスト破壊とみなす
+    """
     mean = np.mean(processed)
-    return mean > 250 or mean < 5
+    if mean > 250 or mean < 5:
+        return True
+
+    # コンテンツ保持チェック: 元画像に有意なテキストがある場合のみ評価
+    orig_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
+    proc_gray = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
+    orig_dark = float(np.mean(orig_gray < 100))
+    proc_dark = float(np.mean(proc_gray < 100))
+    # 元画像の暗ピクセルが 1% 以上あるのに、処理後に 90% 以上消えた → 無効
+    if orig_dark > 0.01 and proc_dark < orig_dark * 0.1:
+        return True
+
+    return False
 
 def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) -> np.ndarray:
     curr_img = image.copy()
