@@ -387,7 +387,7 @@ def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool =
     # 200〜240程度のグレー背景を白く飛ばす
     if white_point > 150:
         image_f = image.astype(np.float32)
-        image_f = (image_f * (255.0 / white_point))
+        image_f = (image_f * (255.0 / max(white_point, 1.0)))
         image = np.clip(image_f, 0, 255).astype(np.uint8)
 
     # 2. サイズ調整と配置
