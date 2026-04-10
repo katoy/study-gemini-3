@@ -1,7 +1,6 @@
 """
 steps/base.py のテスト。
 """
-import numpy as np
 import pytest
 
 from core.config import ProcessingConfig

@@ -2,8 +2,7 @@
 steps/postprocess.py のテスト。
 """
 import numpy as np
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from core.config import ProcessingConfig
 from steps.postprocess import PostProcessStep

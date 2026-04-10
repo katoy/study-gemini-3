@@ -28,7 +28,6 @@ from page_detector import (
     detect_page_contour,
     four_point_transform,
     trim_page_border,
-    find_center_seam,
     find_horizontal_seam,
     center_seam_confidence,
     split_spread,
@@ -285,7 +284,7 @@ def evaluate_image(image: np.ndarray, img_name: str, out_dir: Path | None) -> di
         print(f"  書籍エリア: 検出成功 → {book.shape[1]}x{book.shape[0]}px")
     else:
         book = image.copy()
-        print(f"  書籍エリア: 検出失敗 → 元画像をそのまま使用")
+        print("  書籍エリア: 検出失敗 → 元画像をそのまま使用")
 
     bh, bw = book.shape[:2]
 
@@ -345,7 +344,7 @@ def evaluate_image(image: np.ndarray, img_name: str, out_dir: Path | None) -> di
     else:
         # 単一ページ: 綴じ目なし
         pages = [book]
-        print(f"  単一ページ: 綴じ目検出不要")
+        print("  単一ページ: 綴じ目検出不要")
 
     # 4. 分割後ページ評価
     page_evals = evaluate_split_pages(pages)

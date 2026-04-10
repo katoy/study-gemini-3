@@ -13,7 +13,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 from core.config import ProcessingConfig
 from core.pipeline import Pipeline

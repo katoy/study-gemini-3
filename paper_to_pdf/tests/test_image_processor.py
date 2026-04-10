@@ -3,7 +3,6 @@ image_processor.py のテスト。
 """
 import cv2
 import numpy as np
-import pytest
 
 from image_processor import (
     remove_shadow,

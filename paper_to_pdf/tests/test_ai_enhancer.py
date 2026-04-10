@@ -1,11 +1,10 @@
 """
 ai_enhancer.py のテスト。
 """
-import cv2
 import numpy as np
 import pytest
 import torch
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from ai_enhancer import (

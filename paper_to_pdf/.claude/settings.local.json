@@ -7,7 +7,13 @@
       "Bash(pdftoppm -r 72 out.pdf /tmp/pdf3_page)",
       "Bash(pdftoppm -r 72 out.pdf /tmp/pdf4_page)",
       "Bash(git add:*)",
-      "Bash(git commit -m ':*)"
+      "Bash(git commit -m ':*)",
+      "Bash(python -m pytest tests/ -x --tb=short -q)",
+      "Bash(python -m pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing -q)",
+      "Bash(python -m pytest tests/ --cov=. --cov-report=term-missing -q)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest --co -q)",
+      "Bash(python -m pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc -q)"
     ]
   }
 }

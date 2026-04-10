@@ -5,7 +5,6 @@ import sys
 import logging
 import numpy as np
 import cv2
-import pytest
 
 from core.config import ProcessingConfig
 from steps.quality_check import (

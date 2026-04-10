@@ -1,8 +1,6 @@
 """
 core/pipeline.py のテスト。
 """
-import numpy as np
-import pytest
 from unittest.mock import MagicMock
 
 from core.config import ProcessingConfig

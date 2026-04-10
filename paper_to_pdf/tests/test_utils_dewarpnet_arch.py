@@ -2,7 +2,6 @@
 utils/dewarpnet_arch.py のテスト。
 """
 import torch
-import numpy as np
 from utils.dewarpnet_arch import (
     convert_state_dict,
     UnetGenerator,

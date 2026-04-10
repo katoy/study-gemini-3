@@ -33,16 +33,15 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────
 
 def extract_pdf_pages(pdf_path: Path, dpi: int = 150) -> list[np.ndarray]:
-    doc = fitz.open(str(pdf_path))
     scale = dpi / 72.0
     mat = fitz.Matrix(scale, scale)
     pages = []
-    for page in doc:
-        pix = page.get_pixmap(matrix=mat)
-        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-        img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR if pix.n == 4 else cv2.COLOR_RGB2BGR)
-        pages.append(img)
-    doc.close()
+    with fitz.open(str(pdf_path)) as doc:
+        for page in doc:
+            pix = page.get_pixmap(matrix=mat)
+            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR if pix.n == 4 else cv2.COLOR_RGB2BGR)
+            pages.append(img)
     return pages
 
 

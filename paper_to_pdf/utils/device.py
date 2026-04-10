@@ -29,6 +29,5 @@ def get_device():
         return torch.device("cpu")
     except ImportError:
         logger.debug("PyTorch is not installed. Falling back to CPU.")
-        import types
         # torch 未インストール時は文字列 "cpu" を返す (torch 非依存コードで安全に使用可能)
         return "cpu"

@@ -3,7 +3,6 @@ page_detector.py のテスト。
 """
 import cv2
 import numpy as np
-import pytest
 
 from page_detector import (
     order_points,

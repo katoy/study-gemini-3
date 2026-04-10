@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -160,7 +159,6 @@ class RealESRGANEnhancer(BaseAIEnhancer):
     }
     def _try_load(self) -> None:  # pragma: no cover
         try:
-            import torch
             model_path = CACHE_DIR / f"RealESRGAN_x{self.scale}plus.pth"
             if not model_path.exists():
                 logger.info("RealESRGAN x%d モデルをダウンロード中...", self.scale)
@@ -183,7 +181,7 @@ class Swin2SREnhancer(BaseAIEnhancer):
         self.scale = scale; self._model = None; self._processor = None; self._device = "cpu"; self._try_load()
     def _try_load(self) -> None:  # pragma: no cover
         try:
-            import torch; from transformers import Swin2SRForImageSuperResolution, Swin2SRImageProcessor
+            from transformers import Swin2SRForImageSuperResolution, Swin2SRImageProcessor
             mid = f"caidas/swin2SR-classical-sr-x{self.scale}-64"
             self._processor = Swin2SRImageProcessor.from_pretrained(mid); self._model = Swin2SRForImageSuperResolution.from_pretrained(mid)
             self._model.eval(); self._device = get_device(); self._model = self._model.to(self._device)

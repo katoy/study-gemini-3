@@ -188,7 +188,7 @@ def main():
         if getattr(args, 'diagnose', False):
             _run_diagnosis(args.output)
 
-    except Exception as e:
+    except Exception:
         logging.exception("Fatal error during processing")
         sys.exit(1)
 

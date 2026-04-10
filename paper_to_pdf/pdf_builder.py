@@ -11,9 +11,8 @@ pdf_builder.py
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Optional
 
 from PIL import Image
 

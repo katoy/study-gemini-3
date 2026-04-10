@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import cv2
 from collections.abc import Callable
-from pathlib import Path
 
 import numpy as np
 
@@ -18,12 +17,10 @@ from page_detector import (
     detect_page_contour,
     detect_writing_direction,
     correct_orientation_robust,
-    four_point_transform,
     get_perspective_matrices,
     split_spread,
     trim_page_border,
     find_center_seam,
-    order_points,
 )
 
 logger = logging.getLogger(__name__)

@@ -1,10 +1,8 @@
 """
 steps/detection.py のテスト。
 """
-import cv2
 import numpy as np
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from core.config import ProcessingConfig
 from steps.detection import DetectionStep

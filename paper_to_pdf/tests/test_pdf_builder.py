@@ -2,13 +2,9 @@
 pdf_builder.py のテスト。
 """
 import sys
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import numpy as np
 import pytest
-import cv2
 from PIL import Image
 
 from pdf_builder import build_pdf_streaming, make_thumbnail, _build_pdf_pillow

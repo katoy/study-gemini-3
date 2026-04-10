@@ -1,15 +1,10 @@
 """
 utils/image.py のテスト。
 """
-import io
-import logging
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import cv2
 import numpy as np
-import pytest
 from PIL import Image
 
 from utils.image import fix_exif_rotation, sort_by_filename, bgr_to_pil, extract_line_profiles

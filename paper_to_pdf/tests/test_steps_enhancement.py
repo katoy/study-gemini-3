@@ -1,8 +1,6 @@
 """
 steps/enhancement.py のテスト。
 """
-import numpy as np
-import pytest
 from unittest.mock import patch, MagicMock
 
 from core.config import ProcessingConfig

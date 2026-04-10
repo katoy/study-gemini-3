@@ -5,7 +5,7 @@ core/config.py
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # 出力用紙サイズ (幅 x 高さ, 単位: px @ 300 dpi)
 OUTPUT_SIZES: dict[str, tuple[int, int]] = {

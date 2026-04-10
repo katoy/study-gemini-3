@@ -1,8 +1,6 @@
 """
 steps/dewarp.py のテスト。
 """
-import numpy as np
-import pytest
 from unittest.mock import MagicMock, patch
 
 from core.config import ProcessingConfig

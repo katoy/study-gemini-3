@@ -9,7 +9,6 @@ from __future__ import annotations
 import functools
 from collections import OrderedDict
 
-import numpy as np
 import torch
 import torch.nn as nn
 
