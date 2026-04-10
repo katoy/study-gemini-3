@@ -27,6 +27,10 @@ def _build_pdf_pillow(
     """
     Pillow を使った PDF 生成 (内部実装)。
     PyMuPDF が利用できない場合の build_pdf_streaming() フォールバック先。
+
+    注意: Pillow の PDF 保存 API (save_all + append_images) の仕様上、
+    全ページ画像をメモリに保持してから保存する。
+    大量ページの場合はメモリ使用量が増加するため、PyMuPDF の使用を推奨。
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
