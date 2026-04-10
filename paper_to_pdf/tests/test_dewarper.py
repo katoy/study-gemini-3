@@ -5,13 +5,13 @@ import numpy as np
 import torch
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_image_broken, _DewarpNetInferencer
+from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_result_invalid, _DewarpNetInferencer
 
 class TestDewarperFunctions:
-    def test_is_image_broken(self):
-        assert bool(_is_image_broken(None, np.full((10,10,3), 255, dtype=np.uint8))) is True
-        assert bool(_is_image_broken(None, np.full((10,10,3), 0, dtype=np.uint8))) is True
-        assert bool(_is_image_broken(None, np.full((10,10,3), 128, dtype=np.uint8))) is False
+    def test_is_result_invalid(self):
+        assert bool(_is_result_invalid(None, np.full((10,10,3), 255, dtype=np.uint8))) is True
+        assert bool(_is_result_invalid(None, np.full((10,10,3), 0, dtype=np.uint8))) is True
+        assert bool(_is_result_invalid(None, np.full((10,10,3), 128, dtype=np.uint8))) is False
 
     def test_advanced_polynomial_dewarp_branches(self):
         img = np.zeros((500, 800, 3), dtype=np.uint8)
@@ -29,12 +29,12 @@ class TestDewarperFunctions:
         # 適度な湾曲
         pts_curved[:, 1] = 0.0001 * (pts_curved[:, 0] - 400)**2
         with patch("dewarper.extract_line_profiles", return_value=(pts_curved, w_flat, 1.0)):
-            with patch("dewarper._is_image_broken", return_value=False):
+            with patch("dewarper._is_result_invalid", return_value=False):
                 _advanced_polynomial_dewarp(img)
 
-        # 3. _is_image_broken == True
+        # 3. _is_result_invalid == True
         with patch("dewarper.extract_line_profiles", return_value=(pts_curved, w_flat, 1.0)):
-            with patch("dewarper._is_image_broken", return_value=True):
+            with patch("dewarper._is_result_invalid", return_value=True):
                 _advanced_polynomial_dewarp(img)
         
         # 4. len(pts_np) < 200

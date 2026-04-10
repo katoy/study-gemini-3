@@ -39,7 +39,8 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 
     # 2. 背景（紙の色）の推定
     # かなり大きなカーネルで文字を消し、紙の地の色だけを抽出する
-    kernel_size = max(31, int(min(image.shape[:2]) * 0.2) | 1)
+    _MAX_KERNEL = 255  # cv2.blur の実用上限（超高解像度画像でのハングを防止）
+    kernel_size = min(_MAX_KERNEL, max(31, int(min(image.shape[:2]) * 0.2) | 1))
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     
     # 膨張処理で文字を消す

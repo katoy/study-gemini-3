@@ -72,7 +72,7 @@ class _DewarpNetInferencer:
 # 多項式補正 (Polynomial)
 # ──────────────────────────────────────────────
 
-def _is_image_broken(original: np.ndarray, processed: np.ndarray) -> bool:
+def _is_result_invalid(original: np.ndarray, processed: np.ndarray) -> bool:
     mean = np.mean(processed)
     return mean > 250 or mean < 5
 
@@ -95,7 +95,7 @@ def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) ->
             mx, my = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
             my = np.clip(my + target.astype(np.float32) * 0.95, 0, h - 1).astype(np.float32)
             res = cv2.remap(curr_img, mx, my, cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
-            if not _is_image_broken(curr_img, res):
+            if not _is_result_invalid(curr_img, res):
                 curr_img = res
                 logger.debug("poly iter %d", iteration)
             else:

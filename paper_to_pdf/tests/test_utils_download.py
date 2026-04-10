@@ -60,3 +60,10 @@ class TestDownloadFile:
                           expected_sha256=correct)
 
         assert dest.read_bytes() == b"hello"
+
+    def test_timeout_raises_with_message(self, tmp_path):
+        dest = tmp_path / "model.pth"
+        with patch("utils.download.urllib.request.urlopen",
+                   side_effect=TimeoutError("timed out")):
+            with pytest.raises(TimeoutError, match="タイムアウト"):
+                download_file("https://example.com/model.pth", dest, timeout=30)
