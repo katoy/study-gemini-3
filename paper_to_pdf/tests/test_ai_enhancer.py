@@ -87,12 +87,18 @@ class TestDocResEnhancer:
     @patch("ai_enhancer._build_docres_unet")
     @patch("ai_enhancer.urllib.request.urlretrieve")
     def test_try_load(self, m_ret, m_build, m_load):
-        # 1. Download path
-        with patch.object(Path, "exists", side_effect=[False, True, True]):
-            m = MagicMock(); m.to.return_value = m; m_build.return_value = m
+        # 1. _MODEL_URL が空の場合はダウンロードせず model が None のまま
+        with patch.object(Path, "exists", return_value=False):
             e = DocResEnhancer()
-            assert m_ret.called
-        # 2. Load error
+            assert not m_ret.called
+            assert e._model is None
+        # 2. _MODEL_URL が設定されている場合はダウンロードを試みる
+        with patch.object(DocResEnhancer, "_MODEL_URL", "https://example.com/docres.pth"):
+            with patch.object(Path, "exists", side_effect=[False, True, True]):
+                m = MagicMock(); m.to.return_value = m; m_build.return_value = m
+                e = DocResEnhancer()
+                assert m_ret.called
+        # 3. Load error
         with patch("ai_enhancer._build_docres_unet", side_effect=Exception):
             assert DocResEnhancer()._model is None
 
