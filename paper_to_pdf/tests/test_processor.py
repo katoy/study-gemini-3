@@ -159,7 +159,29 @@ class TestBookProcessor:
             with pytest.raises(RuntimeError, match="No pages"):
                 proc.run(img_dir, out_pdf)
 
-    def test_run_dewarpnet_mode_creates_spread_dewarper(self, tmp_path):
+    def test_run_pipeline_error_continues(self, tmp_path):
+        """pipeline.run() が例外を送出しても続行し、全失敗なら RuntimeError。"""
+        from processor import BookProcessor
+        img_dir = tmp_path / "pipeline_input"
+        img_dir.mkdir()
+        dummy_img = np.full((300, 200, 3), 200, dtype=np.uint8)
+        for i in range(2):
+            cv2.imwrite(str(img_dir / f"img{i:02d}.jpg"), dummy_img)
+        out_pdf = tmp_path / "out.pdf"
+        cfg = ProcessingConfig(dewarp_mode="none", split=False)
+        proc = BookProcessor(cfg)
+
+        dummy_image = np.zeros((10, 10, 3), dtype=np.uint8)
+        with patch("processor.Pipeline") as MockPipeline, \
+             patch("processor.build_pdf_streaming"), \
+             patch("processor.fix_exif_rotation", return_value=dummy_image):
+            mock_inst = MagicMock()
+            mock_inst.run.side_effect = RuntimeError("pipeline error")
+            MockPipeline.return_value = mock_inst
+            with pytest.raises(RuntimeError, match="No pages"):
+                proc.run(img_dir, out_pdf)
+
+
         """dewarpnet モードでは spread_dewarper が作られる。"""
         from processor import BookProcessor
         img_dir = self._make_input_dir(tmp_path, n_images=1)

@@ -109,6 +109,7 @@ class BookProcessor:
 
             processed_paths = []
             total = len(input_paths)
+            failed_images: list[str] = []
 
             # 4. 画像処理ループ
             for i, img_path in enumerate(input_paths):
@@ -120,11 +121,17 @@ class BookProcessor:
                 image_bgr = fix_exif_rotation(img_path)
                 if image_bgr is None:
                     logger.error(f"Cannot load image: {img_path}")
+                    failed_images.append(img_path.name)
                     continue
 
                 # パイプライン実行
                 logger.debug(f"Running pipeline for {img_path.name}")
-                pages = pipeline.run(image_bgr)
+                try:
+                    pages = pipeline.run(image_bgr)
+                except Exception as e:
+                    logger.error(f"Pipeline failed for {img_path.name}: {e}")
+                    failed_images.append(img_path.name)
+                    continue
 
                 # 結果の保存
                 for page_bgr in pages:
@@ -134,6 +141,16 @@ class BookProcessor:
                         logger.error(f"Failed to write page image: {tmp_path}")
                         raise IOError(f"Cannot write image file: {tmp_path}")
                     processed_paths.append(tmp_path)
+
+            # 処理結果サマリー
+            succeeded = total - len(failed_images)
+            if failed_images:
+                logger.warning(
+                    "処理結果: %d/%d 成功, %d 件失敗: %s",
+                    succeeded, total, len(failed_images), ", ".join(failed_images)
+                )
+            else:
+                logger.info("処理結果: %d/%d 成功", succeeded, total)
 
             # 5. PDF 生成
             if not processed_paths:
