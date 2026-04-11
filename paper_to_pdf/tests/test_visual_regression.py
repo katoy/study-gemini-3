@@ -166,8 +166,9 @@ class TestVisualRegression:
         # すべての画像をコピー
         for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
             shutil.copy(f, img_dir / f.name)
-        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h", 
-                             {"dewarp_mode": "polynomial", "split": True, "dpi": 72, "rotate_angle": 180})
+        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h",
+                             {"dewarp_mode": "dewarpnet", "split": True, "dpi": 72,
+                              "rotate_angle": 180, "writing_mode": "horizontal"})
 
     def test_samples_v_integration(self, workspace):
         sample_src = Path("samples_v")
