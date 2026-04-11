@@ -157,17 +157,28 @@ class TestVisualRegression:
         self._run_visual_test(img_dir, workspace / "out.pdf", "synthetic", 
                              {"dewarp_mode": "none", "split": False, "dpi": 72})
 
-    def test_samples_h_integration(self, workspace):
+    def test_samples_h_dewarpnet(self, workspace):
         sample_src = Path("samples_h")
         if not sample_src.exists():
             pytest.skip("samples_h not found")
         img_dir = workspace / "inputs"
         img_dir.mkdir()
-        # すべての画像をコピー
         for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
             shutil.copy(f, img_dir / f.name)
-        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h",
+        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h_dewarpnet",
                              {"dewarp_mode": "dewarpnet", "split": True, "dpi": 72,
+                              "rotate_angle": 180, "writing_mode": "horizontal"})
+
+    def test_samples_h_polynomial(self, workspace):
+        sample_src = Path("samples_h")
+        if not sample_src.exists():
+            pytest.skip("samples_h not found")
+        img_dir = workspace / "inputs"
+        img_dir.mkdir()
+        for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
+            shutil.copy(f, img_dir / f.name)
+        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h_polynomial",
+                             {"dewarp_mode": "polynomial", "split": True, "dpi": 72,
                               "rotate_angle": 180, "writing_mode": "horizontal"})
 
     def test_samples_v_integration(self, workspace):
