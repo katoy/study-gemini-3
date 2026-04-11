@@ -5,7 +5,11 @@ import numpy as np
 import torch
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_result_invalid, _DewarpNetInferencer, _DewarpNetContentError
+from dewarper import (
+    Dewarper, _advanced_polynomial_dewarp, _is_result_invalid,
+    _DewarpNetInferencer, _DewarpNetContentError,
+    _estimate_curvature_percent, _DEWARPNET_MIN_CURVATURE_PCT,
+)
 
 class TestDewarperFunctions:
     def test_is_result_invalid(self):
@@ -27,7 +31,7 @@ class TestDewarperFunctions:
     def test_advanced_polynomial_dewarp_branches(self):
         img = np.zeros((500, 800, 3), dtype=np.uint8)
         w_flat = np.ones(201, dtype=np.float32)
-        
+
         # 1. curv_pct < 0.2 (平坦な場合)
         pts_flat = np.zeros((201, 2), dtype=np.float32)
         pts_flat[:, 0] = np.linspace(0, 799, 201)
@@ -47,14 +51,41 @@ class TestDewarperFunctions:
         with patch("dewarper.extract_line_profiles", return_value=(pts_curved, w_flat, 1.0)):
             with patch("dewarper._is_result_invalid", return_value=True):
                 _advanced_polynomial_dewarp(img)
-        
-        # 4. len(pts_np) < 200
-        with patch("dewarper.extract_line_profiles", return_value=(np.zeros((10, 2)), np.ones(10), 1.0)):
-            _advanced_polynomial_dewarp(img)
+
+        # 4. len(pts_np) < 200 (2 回目の iteration で検出なし)
+        call_count = 0
+        def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return (pts_curved, w_flat, 1.0)
+            return (np.zeros((10, 2)), np.ones(10), 1.0)
+        with patch("dewarper.extract_line_profiles", side_effect=side_effect):
+            with patch("dewarper._is_result_invalid", return_value=False):
+                _advanced_polynomial_dewarp(img)
 
         # 5. Vertical
         with patch("dewarper.extract_line_profiles", return_value=(pts_flat, w_flat, 1.0)):
             _advanced_polynomial_dewarp(img, is_vertical=True)
+
+    def test_estimate_curvature_percent(self):
+        img = np.zeros((500, 800, 3), dtype=np.uint8)
+        w_flat = np.ones(201, dtype=np.float32)
+        pts_flat = np.zeros((201, 2), dtype=np.float32)
+        pts_flat[:, 0] = np.linspace(0, 799, 201)
+
+        # 平坦な場合は 0 に近い
+        with patch("dewarper.extract_line_profiles", return_value=(pts_flat, w_flat, 1.0)):
+            curv = _estimate_curvature_percent(img)
+        assert curv < 0.5
+
+        # ライン少ない場合は 0.0
+        with patch("dewarper.extract_line_profiles", return_value=(np.zeros((10, 2)), np.ones(10), 1.0)):
+            assert _estimate_curvature_percent(img) == 0.0
+
+        # is_vertical=True でも動作する
+        with patch("dewarper.extract_line_profiles", return_value=(pts_flat, w_flat, 1.0)):
+            _estimate_curvature_percent(img, is_vertical=True)
 
 class TestDewarpNetInferencer:
     @patch("torch.load")
@@ -102,8 +133,9 @@ class TestDewarpNetInferencer:
         d._ai_inferencer = MagicMock()
         d._ai_inferencer.dewarp.side_effect = _DewarpNetContentError("テスト用エラー")
         img = np.full((50, 50, 3), 128, dtype=np.uint8)
-        with patch("dewarper._advanced_polynomial_dewarp", return_value=img) as mock_poly:
-            result = d.dewarp(img)
+        with patch("dewarper._estimate_curvature_percent", return_value=_DEWARPNET_MIN_CURVATURE_PCT + 1.0):
+            with patch("dewarper._advanced_polynomial_dewarp", return_value=img) as mock_poly:
+                result = d.dewarp(img)
         assert d.mode == "polynomial"
         assert d._ai_inferencer is None
         mock_poly.assert_called_once()
@@ -127,12 +159,26 @@ class TestDewarperClass:
         mock_inf.dewarp.return_value = np.zeros((10,10,3), dtype=np.uint8)
         d._ai_inferencer = mock_inf
         img = np.zeros((10,10,3), dtype=np.uint8)
-        assert d.dewarp(img).shape == (10,10,3)
-        mock_inf.dewarp.side_effect = Exception()
-        d.dewarp(img)
+        # 湾曲度が十分ある場合は DewarpNet を呼ぶ
+        with patch("dewarper._estimate_curvature_percent", return_value=_DEWARPNET_MIN_CURVATURE_PCT + 1.0):
+            assert d.dewarp(img).shape == (10,10,3)
+            mock_inf.dewarp.side_effect = Exception()
+            d.dewarp(img)
         d.mode = "polynomial"
         with patch("dewarper._advanced_polynomial_dewarp", side_effect=Exception()):
             d.dewarp(img)
+
+    def test_dewarp_skips_dewarpnet_for_flat_image(self):
+        """湾曲度が閾値未満の画像は DewarpNet をスキップして polynomial を使う。"""
+        d = Dewarper(mode="dewarpnet")
+        d._ai_inferencer = MagicMock()
+        img = np.full((50, 50, 3), 128, dtype=np.uint8)
+        with patch("dewarper._estimate_curvature_percent", return_value=_DEWARPNET_MIN_CURVATURE_PCT - 0.1):
+            with patch("dewarper._advanced_polynomial_dewarp", return_value=img) as mock_poly:
+                result = d.dewarp(img)
+        d._ai_inferencer.dewarp.assert_not_called()
+        mock_poly.assert_called_once()
+        np.testing.assert_array_equal(result, img)
 
     def test_unload(self):
         d = Dewarper()

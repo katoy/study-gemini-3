@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 class _DewarpNetContentError(ValueError):
     """DewarpNet がコンテンツを破壊した出力を返した場合の例外。"""
 
+_DEWARPNET_MIN_CURVATURE_PCT = 1.0
+"""DewarpNet を適用する最低湾曲度 (%)。これ未満の画像はスキップして polynomial を使用。"""
+
 # ──────────────────────────────────────────────
 # AI 補正 (DewarpNet)
 # ──────────────────────────────────────────────
@@ -106,22 +109,41 @@ def _is_result_invalid(original: np.ndarray, processed: np.ndarray) -> bool:
 
     return False
 
+def _estimate_curvature_percent(image_bgr: np.ndarray, is_vertical: bool = False) -> float:
+    """水平ライン検出で画像の湾曲度 (%) を推定する。
+
+    戻り値は (最大変位 - 最小変位) / 画像高さ × 100。
+    ライン検出に失敗した場合は 0.0 を返す。
+    """
+    img = cv2.rotate(image_bgr, cv2.ROTATE_90_CLOCKWISE) if is_vertical else image_bgr
+    h, w = img.shape[:2]
+    pts_np, weights_np, _ = extract_line_profiles(
+        cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15
+    )
+    if len(pts_np) < 200:
+        return 0.0
+    z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
+    target = np.polyval(z, np.arange(w, dtype=np.float32))
+    target = np.clip(target, -h * 0.35, h * 0.35)
+    return float((np.max(target) - np.min(target)) / h * 100.0)
+
+
 def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) -> np.ndarray:
     curr_img = image.copy()
     if is_vertical:
         curr_img = cv2.rotate(curr_img, cv2.ROTATE_90_CLOCKWISE)
     for iteration in range(3):
         h, w = curr_img.shape[:2]
-        pts_np, weights_np, _ = extract_line_profiles(cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15)
-        if len(pts_np) < 200:
-            break
-        z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
-        target = np.polyval(z, np.arange(w, dtype=np.float32))
-        target = np.clip(target, -h*0.35, h*0.35)
-        curv_pct = (np.max(target) - np.min(target)) / h * 100.0
+        curv_pct = _estimate_curvature_percent(curr_img)
         if curv_pct < 0.2:
             break
         if curv_pct < 35.0:
+            pts_np, weights_np, _ = extract_line_profiles(cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15)
+            if len(pts_np) < 200:
+                break
+            z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
+            target = np.polyval(z, np.arange(w, dtype=np.float32))
+            target = np.clip(target, -h*0.35, h*0.35)
             mx, my = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
             my = np.clip(my + target.astype(np.float32) * 0.95, 0, h - 1).astype(np.float32)
             res = cv2.remap(curr_img, mx, my, cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
@@ -155,17 +177,24 @@ class Dewarper:
 
     def dewarp(self, image_bgr: np.ndarray) -> np.ndarray:
         if self.mode == "dewarpnet" and self._ai_inferencer:
-            try:
-                return self._ai_inferencer.dewarp(image_bgr)
-            except _DewarpNetContentError as e:
-                # コンテンツが消失する画像に対して DewarpNet は不適。
-                # polynomial に切り替えて以降のページでは試みない。
-                logger.info("DewarpNet が不適合 (%s)。polynomial に切り替えます。", e)
-                self.mode = "polynomial"
-                self._ai_inferencer = None
-            except Exception as e:
-                logger.warning("DewarpNet 推論失敗: %s。polynomial にフォールバックします。", e)
-                return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
+            curv = _estimate_curvature_percent(image_bgr, self.is_vertical)
+            if curv < _DEWARPNET_MIN_CURVATURE_PCT:
+                logger.debug(
+                    "湾曲度 %.1f%% < %.1f%% のため DewarpNet をスキップします。",
+                    curv, _DEWARPNET_MIN_CURVATURE_PCT,
+                )
+            else:
+                try:
+                    return self._ai_inferencer.dewarp(image_bgr)
+                except _DewarpNetContentError as e:
+                    # コンテンツが消失する画像に対して DewarpNet は不適。
+                    # polynomial に切り替えて以降のページでは試みない。
+                    logger.info("DewarpNet が不適合 (%s)。polynomial に切り替えます。", e)
+                    self.mode = "polynomial"
+                    self._ai_inferencer = None
+                except Exception as e:
+                    logger.warning("DewarpNet 推論失敗: %s。polynomial にフォールバックします。", e)
+                    return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
         try:
             return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)
         except Exception as e:
