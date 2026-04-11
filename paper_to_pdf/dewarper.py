@@ -20,6 +20,9 @@ from utils.dewarpnet_arch import UnetGenerator, DnetCCNL, convert_state_dict
 
 logger = logging.getLogger(__name__)
 
+class _DewarpNetContentError(ValueError):
+    """DewarpNet がコンテンツを破壊した出力を返した場合の例外。"""
+
 # ──────────────────────────────────────────────
 # AI 補正 (DewarpNet)
 # ──────────────────────────────────────────────
@@ -70,8 +73,9 @@ class _DewarpNetInferencer:
         my = (bm[:, :, 1] + 1.0) * (h - 1) / 2.0
         result = cv2.remap(image_bgr, mx.astype(np.float32), my.astype(np.float32), cv2.INTER_LANCZOS4)
         if _is_result_invalid(image_bgr, result):
-            logger.warning("DewarpNet の出力が異常なため元画像を返します。")
-            return image_bgr
+            raise _DewarpNetContentError(
+                "DewarpNet の出力でコンテンツが消失しました。polynomial にフォールバックします。"
+            )
         return result
 
 # ──────────────────────────────────────────────
@@ -153,6 +157,12 @@ class Dewarper:
         if self.mode == "dewarpnet" and self._ai_inferencer:
             try:
                 return self._ai_inferencer.dewarp(image_bgr)
+            except _DewarpNetContentError as e:
+                # コンテンツが消失する画像に対して DewarpNet は不適。
+                # polynomial に切り替えて以降のページでは試みない。
+                logger.info("DewarpNet が不適合 (%s)。polynomial に切り替えます。", e)
+                self.mode = "polynomial"
+                self._ai_inferencer = None
             except Exception as e:
                 logger.warning("DewarpNet 推論失敗: %s。polynomial にフォールバックします。", e)
                 return _advanced_polynomial_dewarp(image_bgr, self.is_vertical)

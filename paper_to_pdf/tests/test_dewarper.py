@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_result_invalid, _DewarpNetInferencer
+from dewarper import Dewarper, _advanced_polynomial_dewarp, _is_result_invalid, _DewarpNetInferencer, _DewarpNetContentError
 
 class TestDewarperFunctions:
     def test_is_result_invalid(self):
@@ -82,16 +82,32 @@ class TestDewarpNetInferencer:
     @patch("torch.load", return_value={})
     @patch("dewarper.get_device", return_value="cpu")
     @patch("torch.nn.Module.load_state_dict")
-    def test_dewarp_invalid_result_returns_original(self, mock_load_sd, mock_dev, mock_load):
-        """DewarpNet の出力が白飛び/黒潰れの場合は元画像を返す。"""
+    def test_dewarp_invalid_result_raises(self, mock_load_sd, mock_dev, mock_load):
+        """DewarpNet の出力が白飛び/黒潰れ/コンテンツ消失の場合は例外を投げる。"""
         inf = _DewarpNetInferencer()
         inf.wc_model = MagicMock()
         inf.bm_model = MagicMock()
         inf.bm_model.return_value = torch.zeros((1, 2, 128, 128))
         img = np.zeros((100, 100, 3), dtype=np.uint8)  # 全黒 → remap後も黒 → invalid
-        res = inf.dewarp(img)
-        assert res.shape == (100, 100, 3)
-        np.testing.assert_array_equal(res, img)  # 元画像が返される
+        import pytest
+        with pytest.raises(_DewarpNetContentError):
+            inf.dewarp(img)
+
+    @patch("torch.load", return_value={})
+    @patch("dewarper.get_device", return_value="cpu")
+    @patch("torch.nn.Module.load_state_dict")
+    def test_dewarper_switches_to_polynomial_on_content_error(self, mock_load_sd, mock_dev, mock_load):
+        """_DewarpNetContentError 発生時に polynomial に切り替え、以降は DewarpNet を使わない。"""
+        d = Dewarper(mode="dewarpnet")
+        d._ai_inferencer = MagicMock()
+        d._ai_inferencer.dewarp.side_effect = _DewarpNetContentError("テスト用エラー")
+        img = np.full((50, 50, 3), 128, dtype=np.uint8)
+        with patch("dewarper._advanced_polynomial_dewarp", return_value=img) as mock_poly:
+            result = d.dewarp(img)
+        assert d.mode == "polynomial"
+        assert d._ai_inferencer is None
+        mock_poly.assert_called_once()
+        np.testing.assert_array_equal(result, img)
 
 class TestDewarperClass:
     def test_load_model_variants(self):
