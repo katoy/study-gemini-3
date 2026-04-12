@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_visual_regression.py::TestVisualRegression::test_synthetic_consistency -v)",
+      "Bash(python -m pytest --cov=. --cov-report=term-missing -q)",
+      "Bash(python -m pytest tests/test_visual_regression.py::TestVisualRegression::test_samples_h_dewarpnet -v)",
+      "Bash(UPDATE_GOLDENS=1 python -m pytest tests/test_visual_regression.py::TestVisualRegression::test_samples_h_dewarpnet tests/test_visual_regression.py::TestVisualRegression::test_samples_h_polynomial -v)",
+      "Bash(python -m pytest tests/test_visual_regression.py -v)",
+      "Bash(python -m pytest tests/test_processor.py -q)",
+      "Bash(python -m pytest tests/test_pdf_builder.py -q)",
+      "Bash(python -m pytest tests/ -q --ignore=tests/test_visual_regression.py)",
+      "Bash(python -m pytest tests/test_page_detector.py -q)",
+      "Bash(python -m pytest tests/test_dewarper.py -q)",
+      "Bash(python -m pytest tests/test_image_processor.py -q)",
+      "Bash(python -m pytest tests/test_steps_quality_check.py -q)",
+      "Bash(python -m pytest tests/test_utils_image.py -q)",
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
