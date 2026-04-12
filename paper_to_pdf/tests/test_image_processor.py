@@ -92,18 +92,30 @@ class TestDeskewPage:
         result = deskew_page(slightly_skewed)
         assert result.shape == slightly_skewed.shape
 
-    def test_improvement_ratio_guard(self):
-        """改善比が 1.3 未満の場合は補正をスキップする（line 139）。
-        低コントラストな孤立ピクセルだけの画像では傾き検出が信頼できず
-        improvement guard で early return する。"""
-        # スコアの改善が少ない「疎な」画像: 単一ランダムドット
+    def test_density_guard_sparse(self):
+        """暗ピクセルが 0.5% 未満の疎な画像は密度ガードで早期リターンする。"""
         rng = np.random.default_rng(42)
         img = np.full((600, 400, 3), 255, dtype=np.uint8)
-        for _ in range(50):
+        for _ in range(50):  # ~0.02% density → density guard
             y = int(rng.integers(10, 590))
             x = int(rng.integers(10, 390))
             img[y, x] = 0
         result = deskew_page(img)
+        assert result.shape == img.shape
+
+    def test_improvement_ratio_guard(self):
+        """改善比が 1.3 未満の場合は補正をスキップする（image_processor.py:152）。
+        cv2.warpAffine を常に同一画像を返すようモックすると
+        全角度でスコアが等しくなり改善比 = 1.0 < 1.3 が再現できる。"""
+        from unittest.mock import patch
+        img = np.full((600, 400, 3), 255, dtype=np.uint8)
+        for y in range(30, 570, 30):
+            img[y:y + 3, 20:380] = 0  # 横ラインで density ≈ 5%
+        # warpAffine が常に src をそのまま返す → 全角度でスコアが同じ
+        # → best_angle = -10.0°（最初の角度、≥ 0.3°）
+        # → best_score / score_at_zero = 1.0 < 1.3 → line 152 を通過
+        with patch("image_processor.cv2.warpAffine", side_effect=lambda src, M, dsize, **kw: src):
+            result = deskew_page(img)
         assert result.shape == img.shape
 
     def test_vertical_writing_mode_uses_vertical_projection(self):
@@ -116,15 +128,13 @@ class TestDeskewPage:
         assert result.shape == img.shape
 
     def test_vertical_improvement_ratio_guard(self):
-        """縦書きモードでも改善比 < 1.3 ならスキップする（line 142）。"""
-        # 疎なランダムドットは縦書きモードでも改善比が低い
-        rng = np.random.default_rng(7)
+        """縦書きモードでも改善比 < 1.3 ならスキップする（image_processor.py:152）。"""
+        from unittest.mock import patch
         img = np.full((600, 400, 3), 255, dtype=np.uint8)
-        for _ in range(40):
-            y = int(rng.integers(10, 590))
-            x = int(rng.integers(10, 390))
-            img[y, x] = 0
-        result = deskew_page(img, writing_mode="vertical")
+        for x in range(30, 370, 30):
+            img[20:580, x:x + 3] = 0  # 縦ラインで density ≈ 5%
+        with patch("image_processor.cv2.warpAffine", side_effect=lambda src, M, dsize, **kw: src):
+            result = deskew_page(img, writing_mode="vertical")
         assert result.shape == img.shape
 
 

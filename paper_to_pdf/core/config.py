@@ -15,6 +15,10 @@ OUTPUT_SIZES: dict[str, tuple[int, int]] = {
     "Letter": (2550, 3300),
 }
 
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
+    {".jpg", ".jpeg", ".png", ".heic", ".bmp", ".tiff", ".tif"}
+)
+
 _VALID_BOOK_TYPES  = {"jp_vert", "jp_horiz", "en", "manga", "auto"}
 _VALID_DEWARP_MODES = {"dewarpnet", "polynomial", "doctr", "none"}
 _VALID_SENSITIVITIES = {"low", "medium", "high"}

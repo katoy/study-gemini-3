@@ -39,7 +39,9 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 
     # 2. 背景（紙の色）の推定
     # かなり大きなカーネルで文字を消し、紙の地の色だけを抽出する
-    _MAX_KERNEL = 255  # cv2.blur の実用上限（超高解像度画像でのハングを防止）
+    # 255 は medianBlur の SIMD 制約を超えており、dilate でも処理時間が急増する。
+    # 127 は超高解像度スキャン(3000px超)でも文字を十分に膨張できる実用的な上限。
+    _MAX_KERNEL = 127
     kernel_size = min(_MAX_KERNEL, max(31, int(min(image.shape[:2]) * 0.2) | 1))
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     
@@ -74,8 +76,7 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 
     # 5. 黒の締め
     # 文字をはっきりさせる
-    res_l = cv2.addWeighted(res_l, 1.2, res_l, 0, -20)
-    res_l = np.clip(res_l, 0, 255).astype(np.uint8)
+    res_l = np.clip(res_l.astype(np.float32) * 1.2 - 20, 0, 255).astype(np.uint8)
 
     # ブレンド
     final_l = cv2.addWeighted(res_l, strength, l_ch, 1.0 - strength, 0)
@@ -112,6 +113,14 @@ def deskew_page(image: np.ndarray, writing_mode: str = "auto") -> np.ndarray:
 
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # テキスト密度ガード:
+    # 暗ピクセル比率が低すぎる（白紙・図版）か高すぎる（写真・黒背景）ページは
+    # 射影分散による傾き検出が信頼できないためスキップする。
+    dark_ratio = float(np.mean(thresh > 0))
+    if dark_ratio < 0.005 or dark_ratio > 0.5:
+        logger.debug("Deskew: テキスト密度 %.1f%% のためスキップします。", dark_ratio * 100)
+        return image
 
     def _proj_score(t: np.ndarray) -> float:
         if is_vertical:

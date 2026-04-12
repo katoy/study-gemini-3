@@ -14,7 +14,7 @@ from pathlib import Path
 
 import cv2
 
-from core.config import ProcessingConfig
+from core.config import ProcessingConfig, SUPPORTED_EXTENSIONS
 from core.pipeline import Pipeline
 from dewarper import Dewarper
 from steps.detection import DetectionStep
@@ -98,7 +98,7 @@ class BookProcessor:
             # 2. ファイルの読み込みとソート
             input_paths = sort_by_filename([
                 p for p in input_folder.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".bmp", ".tiff", ".tif"}
+                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
             ])
             
             if not input_paths:
@@ -136,13 +136,19 @@ class BookProcessor:
                     continue
 
                 # 結果の保存
+                write_failed = False
                 for page_bgr in pages:
                     tmp_path = self.tmp_dir / f"page_{len(processed_paths):05d}.jpg"
                     success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
                     if not success:
-                        logger.error(f"Failed to write page image: {tmp_path}")
-                        raise IOError(f"Cannot write image file: {tmp_path}")
+                        logger.error("ページ画像の書き込みに失敗しました: %s (画像: %s)",
+                                     tmp_path, img_path.name)
+                        write_failed = True
+                        break
                     processed_paths.append(tmp_path)
+                if write_failed:
+                    failed_images.append(img_path.name)
+                    continue
 
             # 処理結果サマリー
             succeeded = total - len(failed_images)
@@ -152,10 +158,11 @@ class BookProcessor:
                     succeeded, total, len(failed_images), ", ".join(failed_images)
                 )
                 failure_rate = len(failed_images) / total
-                if failure_rate > 0.5:
+                _MAX_FAILURE_RATE = 0.25  # 25% 超で中断（50% では損失が大きすぎる）
+                if failure_rate > _MAX_FAILURE_RATE:
                     raise RuntimeError(
-                        f"失敗率が50%を超えました ({len(failed_images)}/{total} 件失敗)。"
-                        " 処理を中断します。"
+                        f"失敗率が{int(_MAX_FAILURE_RATE * 100)}%を超えました"
+                        f" ({len(failed_images)}/{total} 件失敗)。処理を中断します。"
                     )
             else:
                 logger.info("処理結果: %d/%d 成功", succeeded, total)

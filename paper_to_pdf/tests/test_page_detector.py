@@ -34,6 +34,19 @@ class TestOrderPoints:
         result = order_points(pts)
         assert result.dtype == np.float32
 
+    def test_degenerate_fallback(self):
+        """同じ sum/diff 値を持つ縮退四角形でも 4 点が返る（角度ソートフォールバック）。"""
+        # 正方形: sum が最小=左上 と最大=右下 のみ uniqueで、
+        # argmin(diff) と argmax(diff) が別点を返すが、
+        # 近似的に縮退を起こすケースとして菱形を使う
+        pts = np.array([[50, 0], [100, 50], [50, 100], [0, 50]], dtype="float32")
+        result = order_points(pts)
+        assert result.shape == (4, 2)
+        assert result.dtype == np.float32
+        # 4点すべてが元の点セットに含まれる
+        for pt in result:
+            assert any(np.allclose(pt, p) for p in pts)
+
 
 # ── get_perspective_matrices ─────────────────────────────────────────
 

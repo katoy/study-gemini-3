@@ -40,11 +40,24 @@ def _build_pdf_pillow(
     if total == 0:
         raise ValueError("ページ画像が1枚もありません。")
 
-    if total > 100:
+    # Pillow の save_all API は全ページをメモリに展開してから保存するため、
+    # ページ数が多い場合はメモリ使用量が急増する。
+    # PyMuPDF はストリーミング処理で定量メモリのため、大規模利用時に推奨。
+    _PILLOW_PAGE_LIMIT = 300
+    if total > _PILLOW_PAGE_LIMIT:
+        raise MemoryError(
+            f"Pillow フォールバックでは {_PILLOW_PAGE_LIMIT} ページを超える PDF 生成は"
+            f"メモリ不足になる可能性があります（現在: {total} ページ）。"
+            " PyMuPDF をインストールしてください: pip install pymupdf"
+        )
+    if total > 50:
+        # A4 @ 300dpi JPEG 92品質: 約 0.5〜2 MB/ページ
+        est_mb_low  = total * 0.5
+        est_mb_high = total * 2.0
         logger.warning(
-            "Pillowフォールバックで %d ページを処理します。"
-            " メモリ使用量が増加する場合は PyMuPDF をインストールしてください: pip install pymupdf",
-            total,
+            "Pillowフォールバックで %d ページを処理します（推定メモリ使用量: %.0f〜%.0f MB）。"
+            " PyMuPDF を使用するとメモリ使用量を大幅に削減できます: pip install pymupdf",
+            total, est_mb_low, est_mb_high,
         )
 
     if progress_cb:

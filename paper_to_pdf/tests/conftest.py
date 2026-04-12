@@ -12,6 +12,14 @@ import pytest
 import cv2
 
 
+# ── ビジュアル回帰テスト用 ────────────────────────────────────────────
+
+@pytest.fixture(scope="session")
+def visual_regression_results():
+    """ビジュアル回帰テストの全結果を session スコープで共有するリスト。"""
+    return []
+
+
 # ── 基本画像フィクスチャ ──────────────────────────────────────────────
 
 @pytest.fixture

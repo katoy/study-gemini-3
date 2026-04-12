@@ -17,14 +17,37 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────
 
 def order_points(pts: np.ndarray) -> np.ndarray:
-    """4点を [左上, 右上, 右下, 左下] の順に整列する。"""
-    pts = pts.reshape(4, 2)
-    s = pts.sum(axis=1)
-    diff = np.diff(pts, axis=1)
-    tl = pts[np.argmin(s)]
-    br = pts[np.argmax(s)]
-    tr = pts[np.argmin(diff)]
-    bl = pts[np.argmax(diff)]
+    """4点を [左上, 右上, 右下, 左下] の順に整列する。
+
+    アルゴリズム:
+        x+y が最小の点 = 左上、最大 = 右下
+        y-x が最小の点 = 右上（大x・小y）、最大 = 左下（小x・大y）
+    同じ点が複数コーナーに割り当てられた場合は重心からの角度で再整列する。
+    """
+    pts = pts.reshape(4, 2).astype("float32")
+    s    = pts.sum(axis=1)           # x + y
+    diff = pts[:, 1] - pts[:, 0]    # y - x
+
+    idx_tl = np.argmin(s)
+    idx_br = np.argmax(s)
+    idx_tr = np.argmin(diff)
+    idx_bl = np.argmax(diff)
+
+    # 4点が重複なく選ばれているか確認（縮退四角形などへの防御）
+    if len({idx_tl, idx_br, idx_tr, idx_bl}) == 4:
+        return np.array([pts[idx_tl], pts[idx_tr], pts[idx_br], pts[idx_bl]], dtype="float32")
+
+    # 縮退ケース: 重心からの角度でソートして時計回りに整列
+    center = pts.mean(axis=0)
+    angles = np.arctan2(pts[:, 1] - center[1], pts[:, 0] - center[0])
+    order  = np.argsort(angles)   # 反時計回り (-π → π)
+    pts_ccw = pts[order]
+    # sum 最小点を左上に回転させる
+    s_ccw   = pts_ccw.sum(axis=1)
+    start   = int(np.argmin(s_ccw))
+    pts_ccw = np.roll(pts_ccw, -start, axis=0)
+    # 反時計回り [tl, bl, br, tr] → [tl, tr, br, bl] に変換
+    tl, bl, br, tr = pts_ccw
     return np.array([tl, tr, br, bl], dtype="float32")
 
 def get_perspective_matrices(pts: np.ndarray) -> tuple[np.ndarray, np.ndarray, int, int]:
@@ -90,8 +113,11 @@ def detect_page_contour(image: np.ndarray, sensitivity: str = "medium") -> np.nd
             continue
         
         # 中心のモーメントを計算
+        # m00 は contourArea と同値であり、面積フィルタを通過した輪郭では通常ゼロにならない。
+        # ただし浮動小数点実装の差異で稀に発生し得るため、ゼロ除算を防ぐ。
         M = cv2.moments(cnt)
-        if M['m00'] <= 1e-6:  # pragma: no cover  # 浮動小数点誤差で area > 0 でも発生し得る
+        if M['m00'] <= 1e-6:  # pragma: no cover
+            logger.warning("cv2.moments で m00 がゼロになりました (area=%.1f)。輪郭をスキップします。", area)
             continue
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
@@ -265,7 +291,9 @@ def detect_writing_direction(image: np.ndarray) -> str:
         return "left_first"
     if v_score > h_score * 1.2:
         return "right_first"
-    return "right_first" if np.count_nonzero(th[:, int(th.shape[1]*0.6):]) > np.count_nonzero(th[:, :int(th.shape[1]*0.4)]) * 1.2 else "left_first"
+    right_score = np.count_nonzero(th[:, int(th.shape[1] * 0.6):])
+    left_score  = np.count_nonzero(th[:, :int(th.shape[1] * 0.4)])
+    return "right_first" if right_score > left_score * 1.2 else "left_first"
 
 def split_spread(image: np.ndarray, order: str = "left_first", seam_x: int | None = None) -> list[np.ndarray]:
     if seam_x is None:

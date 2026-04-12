@@ -84,8 +84,11 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
         "left":   float(np.mean(text[:, :margin_w])),
         "right":  float(np.mean(text[:, -margin_w:])),
     }
-    # マージン全体の密度閾値（10% 以上で見切れの可能性）
-    margin_threshold = 0.10
+    # マージン全体の密度閾値（適応的）:
+    # 高密度ページでは印刷の滲み・影がマージンに混入しやすいため
+    # overall_density の半分を下限として閾値を緩める。
+    # 低密度ページ (overall_density < 0.20) では固定 0.10 を使用。
+    margin_threshold = max(0.10, overall_density * 0.5)
     # コンテンツ端そのものにテキストがある場合の閾値
     edge_threshold = 0.08
     # コンテンツ端から何px以内にテキストがあれば「見切れ」とみなすか
@@ -254,17 +257,25 @@ def _check_distortion(gray: np.ndarray, angle_threshold: float = 5.0, curve_thre
                 best_angle = a
 
     # 2. 湾曲検出 (共通ロジックを使用)
-    pts_np, weights_np, inv_scale = extract_line_profiles(gray, target_h=400, margin_v=0.20, margin_h=0.15)
-    
+    # 縦書きページ: 縦列の境界を水平ライン検出が「横ライン」として誤検出するため、
+    # 90°回転してから検出する（dewarper._estimate_curvature_percent と同じアプローチ）。
+    gray_for_curve = cv2.rotate(gray, cv2.ROTATE_90_CLOCKWISE) if is_vertical else gray
+    pts_np, weights_np, inv_scale = extract_line_profiles(gray_for_curve, target_h=400, margin_v=0.20, margin_h=0.15)
+
     max_curve_off_pct = 0.0
     if len(pts_np) > 50:
         # スケールを small (400px) 基準に戻してフィッティング
+        # 縦書き時は回転後の画像サイズで正規化する
+        gray_h, gray_w = gray_for_curve.shape[:2]
+        curve_scale = 400.0 / gray_h
+        curve_sw = int(gray_w * curve_scale)
+        curve_sh = 400
         xs, ys = pts_np[:, 0] / inv_scale, pts_np[:, 1] / inv_scale
         z = np.polyfit(xs, ys, 2, w=weights_np)
         poly = np.poly1d(z)
-        target = poly(np.arange(sw))
+        target = poly(np.arange(curve_sw))
         offset = np.max(target) - np.min(target)
-        max_curve_off_pct = (offset / sh) * 100.0
+        max_curve_off_pct = (offset / curve_sh) * 100.0
 
     is_distorted = abs(best_angle) > angle_threshold or max_curve_off_pct > curve_threshold_pct
     return is_distorted, best_angle, max_curve_off_pct

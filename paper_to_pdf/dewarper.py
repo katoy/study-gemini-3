@@ -72,8 +72,11 @@ class _DewarpNetInferencer:
             bm = self.bm_model(wc)
             bm = F.interpolate(bm, size=(h, w), mode="bilinear", align_corners=True)
             bm = bm[0].permute(1, 2, 0).cpu().numpy()
-        mx = (bm[:, :, 0] + 1.0) * (w - 1) / 2.0
-        my = (bm[:, :, 1] + 1.0) * (h - 1) / 2.0
+        # DnetCCNL の backward mapping 出力: チャンネル 0 = x (水平), チャンネル 1 = y (垂直)
+        # 正規化座標 [-1, 1] を元画像のピクセル座標 [0, w-1] / [0, h-1] に変換する。
+        # cv2.remap(src, map1=map_x, map2=map_y) → dst(x,y) = src(map_x[y,x], map_y[y,x])
+        mx = (bm[:, :, 0] + 1.0) * (w - 1) / 2.0   # x 座標マップ (map1)
+        my = (bm[:, :, 1] + 1.0) * (h - 1) / 2.0   # y 座標マップ (map2)
         result = cv2.remap(image_bgr, mx.astype(np.float32), my.astype(np.float32), cv2.INTER_LANCZOS4)
         if _is_result_invalid(image_bgr, result):
             raise _DewarpNetContentError(
@@ -109,11 +112,13 @@ def _is_result_invalid(original: np.ndarray, processed: np.ndarray) -> bool:
 
     return False
 
-def _estimate_curvature_percent(image_bgr: np.ndarray, is_vertical: bool = False) -> float:
+def _estimate_curvature_percent(image_bgr: np.ndarray, is_vertical: bool = False) -> float | None:
     """水平ライン検出で画像の湾曲度 (%) を推定する。
 
     戻り値は (最大変位 - 最小変位) / 画像高さ × 100。
-    ライン検出に失敗した場合は 0.0 を返す。
+    ライン検出に必要な特徴点が不足している場合は None を返す。
+    呼び出し元は None を「湾曲不明（補正を試みるべき）」として扱うこと。
+    0.0 は「湾曲なし（補正不要）」を意味する。
     """
     img = cv2.rotate(image_bgr, cv2.ROTATE_90_CLOCKWISE) if is_vertical else image_bgr
     h, w = img.shape[:2]
@@ -121,7 +126,8 @@ def _estimate_curvature_percent(image_bgr: np.ndarray, is_vertical: bool = False
         cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15
     )
     if len(pts_np) < 200:
-        return 0.0
+        logger.debug("ライン検出の特徴点が不足しています (%d < 200)。湾曲度を推定できません。", len(pts_np))
+        return None
     z = np.polyfit(pts_np[:, 0], pts_np[:, 1], 3, w=weights_np)
     target = np.polyval(z, np.arange(w, dtype=np.float32))
     target = np.clip(target, -h * 0.35, h * 0.35)
@@ -135,7 +141,8 @@ def _advanced_polynomial_dewarp(image: np.ndarray, is_vertical: bool = False) ->
     for iteration in range(3):
         h, w = curr_img.shape[:2]
         curv_pct = _estimate_curvature_percent(curr_img)
-        if curv_pct < 0.2:
+        # None = ライン検出失敗 → polynomial は信頼できる特徴点が必要なのでスキップ
+        if curv_pct is None or curv_pct < 0.2:
             break
         if curv_pct < 35.0:
             pts_np, weights_np, _ = extract_line_profiles(cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY), target_h=500, margin_h=0.15)
@@ -178,12 +185,17 @@ class Dewarper:
     def dewarp(self, image_bgr: np.ndarray) -> np.ndarray:
         if self.mode == "dewarpnet" and self._ai_inferencer:
             curv = _estimate_curvature_percent(image_bgr, self.is_vertical)
-            if curv < _DEWARPNET_MIN_CURVATURE_PCT:
+            # curv が None = ライン検出失敗（低コントラスト・疎テキスト）
+            # → DewarpNet は独自の特徴を使うため、湾曲不明でも試みる価値がある。
+            if curv is not None and curv < _DEWARPNET_MIN_CURVATURE_PCT:
                 logger.debug(
                     "湾曲度 %.1f%% < %.1f%% のため DewarpNet をスキップします。",
                     curv, _DEWARPNET_MIN_CURVATURE_PCT,
                 )
             else:
+                if curv is None:
+                    logger.info("湾曲度不明のため DewarpNet を試みます。")
+
                 try:
                     return self._ai_inferencer.dewarp(image_bgr)
                 except _DewarpNetContentError as e:

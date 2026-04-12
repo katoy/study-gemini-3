@@ -22,8 +22,11 @@ def fix_exif_rotation(image_path: str | Path) -> np.ndarray | None:
     """
     try:
         with Image.open(image_path) as pil_img:
-            exif = pil_img._getexif()
             rotated: Image.Image | None = None
+            try:
+                exif = pil_img.getexif()  # Pillow 6.0+ 公式 API
+            except Exception:
+                exif = {}
             if exif:
                 orientation_key = next((k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None)
                 if orientation_key and orientation_key in exif:

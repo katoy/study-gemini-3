@@ -79,9 +79,9 @@ class TestDewarperFunctions:
             curv = _estimate_curvature_percent(img)
         assert curv < 0.5
 
-        # ライン少ない場合は 0.0
+        # ライン少ない場合は None（「湾曲不明」= 0.0 と区別する）
         with patch("dewarper.extract_line_profiles", return_value=(np.zeros((10, 2)), np.ones(10), 1.0)):
-            assert _estimate_curvature_percent(img) == 0.0
+            assert _estimate_curvature_percent(img) is None
 
         # is_vertical=True でも動作する
         with patch("dewarper.extract_line_profiles", return_value=(pts_flat, w_flat, 1.0)):
@@ -179,6 +179,18 @@ class TestDewarperClass:
         d._ai_inferencer.dewarp.assert_not_called()
         mock_poly.assert_called_once()
         np.testing.assert_array_equal(result, img)
+
+    def test_dewarp_calls_dewarpnet_when_curvature_unknown(self):
+        """湾曲度が None（ライン検出失敗）でも DewarpNet を試みる（dewarper.py:197）。"""
+        d = Dewarper(mode="dewarpnet")
+        mock_inf = MagicMock()
+        result_img = np.full((10, 10, 3), 128, dtype=np.uint8)
+        mock_inf.dewarp.return_value = result_img
+        d._ai_inferencer = mock_inf
+        img = np.zeros((10, 10, 3), dtype=np.uint8)
+        with patch("dewarper._estimate_curvature_percent", return_value=None):
+            d.dewarp(img)
+        mock_inf.dewarp.assert_called_once()
 
     def test_unload(self):
         d = Dewarper()

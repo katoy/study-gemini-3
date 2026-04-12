@@ -72,9 +72,6 @@ def generate_html_report(results: list[dict]):
     with open(REPORTS_DIR / "index.html", "w") as f:
         f.write("\n".join(html))
 
-# 全テストを通した結果を保持するためのグローバルリスト (pytest 実行単位)
-_all_results = []
-
 class TestVisualRegression:
     GOLDEN_DIR = Path("tests/goldens")
 
@@ -84,7 +81,8 @@ class TestVisualRegression:
         yield Path(tmpdir)
         shutil.rmtree(tmpdir)
 
-    def _run_visual_test(self, input_dir: Path, output_pdf: Path, test_name: str, config_kwargs: dict):
+    def _run_visual_test(self, input_dir: Path, output_pdf: Path, test_name: str, config_kwargs: dict,
+                         all_results: list):
         cfg = ProcessingConfig(**config_kwargs)
         proc = BookProcessor(cfg)
         proc.run(input_folder=input_dir, output_pdf=output_pdf)
@@ -105,6 +103,17 @@ class TestVisualRegression:
             report_name = f"{test_name}_p{i:02d}"
             
             if update_mode:
+                # 全黒・全白など明らかに破損した画像を golden に固定しないよう警告する
+                mean_val = float(np.mean(page))
+                std_val  = float(np.std(page))
+                if mean_val < 5 or mean_val > 250 or std_val < 2:
+                    import warnings
+                    warnings.warn(
+                        f"[UPDATE_GOLDENS] {golden_path.name}: "
+                        f"画像が疑わしい値です (mean={mean_val:.1f}, std={std_val:.1f})。"
+                        " 破損した出力が golden として登録される可能性があります。",
+                        UserWarning, stacklevel=2
+                    )
                 cv2.imwrite(str(golden_path), page)
                 continue
 
@@ -114,8 +123,8 @@ class TestVisualRegression:
             
             if golden_path.exists():
                 ref = cv2.imread(str(golden_path))
-            if page.shape != ref.shape:
-                ref = cv2.resize(ref, (page.shape[1], page.shape[0]))
+                if page.shape != ref.shape:
+                    ref = cv2.resize(ref, (page.shape[1], page.shape[0]))
                 diff = cv2.absdiff(page, ref)
                 score = 1.0 - (np.count_nonzero(diff) / diff.size)
                 if score < 0.99:
@@ -141,23 +150,24 @@ class TestVisualRegression:
                 "status": status, "score": score
             }
             local_results.append(res)
-            _all_results.append(res)
+            all_results.append(res)
 
         if not update_mode:
-            generate_html_report(_all_results)
+            generate_html_report(all_results)
             assert all(r["status"] in ("PASS", "NEW") for r in local_results)
 
-    def test_synthetic_consistency(self, workspace):
+    def test_synthetic_consistency(self, workspace, visual_regression_results):
         img_dir = workspace / "inputs"
         img_dir.mkdir()
         canvas = np.zeros((600, 800, 3), dtype=np.uint8)
         cv2.rectangle(canvas, (50, 50), (380, 550), (255, 255, 255), -1)
         cv2.putText(canvas, "Synthetic", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2)
         cv2.imwrite(str(img_dir / "0001.png"), canvas)
-        self._run_visual_test(img_dir, workspace / "out.pdf", "synthetic", 
-                             {"dewarp_mode": "none", "split": False, "dpi": 72})
+        self._run_visual_test(img_dir, workspace / "out.pdf", "synthetic",
+                             {"dewarp_mode": "none", "split": False, "dpi": 72},
+                             visual_regression_results)
 
-    def test_samples_h_dewarpnet(self, workspace):
+    def test_samples_h_dewarpnet(self, workspace, visual_regression_results):
         sample_src = Path("samples_h")
         if not sample_src.exists():
             pytest.skip("samples_h not found")
@@ -167,9 +177,10 @@ class TestVisualRegression:
             shutil.copy(f, img_dir / f.name)
         self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h_dewarpnet",
                              {"dewarp_mode": "dewarpnet", "split": True, "dpi": 72,
-                              "rotate_angle": 180, "writing_mode": "horizontal"})
+                              "rotate_angle": 180, "writing_mode": "horizontal"},
+                             visual_regression_results)
 
-    def test_samples_h_polynomial(self, workspace):
+    def test_samples_h_polynomial(self, workspace, visual_regression_results):
         sample_src = Path("samples_h")
         if not sample_src.exists():
             pytest.skip("samples_h not found")
@@ -179,17 +190,18 @@ class TestVisualRegression:
             shutil.copy(f, img_dir / f.name)
         self._run_visual_test(img_dir, workspace / "out.pdf", "samples_h_polynomial",
                              {"dewarp_mode": "polynomial", "split": True, "dpi": 72,
-                              "rotate_angle": 180, "writing_mode": "horizontal"})
+                              "rotate_angle": 180, "writing_mode": "horizontal"},
+                             visual_regression_results)
 
-    def test_samples_v_integration(self, workspace):
+    def test_samples_v_integration(self, workspace, visual_regression_results):
         sample_src = Path("samples_v")
         if not sample_src.exists():
             pytest.skip("samples_v not found")
         img_dir = workspace / "inputs"
         img_dir.mkdir()
-        # すべての画像をコピー
         for f in sorted(list(sample_src.glob("*.png")) + list(sample_src.glob("*.jpg"))):
             shutil.copy(f, img_dir / f.name)
-        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_v", 
-                             {"dewarp_mode": "none", "split": True, "dpi": 72, 
-                              "rotate_angle": 180, "writing_mode": "vertical"})
+        self._run_visual_test(img_dir, workspace / "out.pdf", "samples_v",
+                             {"dewarp_mode": "none", "split": True, "dpi": 72,
+                              "rotate_angle": 180, "writing_mode": "vertical"},
+                             visual_regression_results)

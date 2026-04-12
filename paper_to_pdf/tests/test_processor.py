@@ -243,8 +243,8 @@ class TestBookProcessor:
             proc.run(img_dir, out_pdf)
             MockDewarper.assert_called()
 
-    def test_run_imwrite_failure_raises(self, tmp_path):
-        """cv2.imwrite が失敗した場合は IOError が発生する（lines 126-127）。"""
+    def test_run_imwrite_failure_counts_as_failed(self, tmp_path):
+        """cv2.imwrite が失敗した場合は failed_images に追加されて RuntimeError になる。"""
         from processor import BookProcessor
         img_dir = self._make_input_dir(tmp_path, n_images=1)
         out_pdf = tmp_path / "out.pdf"
@@ -258,7 +258,8 @@ class TestBookProcessor:
                 np.full((300, 200, 3), 200, dtype=np.uint8)
             ]
             MockPipeline.return_value = mock_pipeline_inst
-            with pytest.raises(IOError, match="Cannot write image"):
+            # imwrite 失敗 → 全1枚が failed → 失敗率100% > 50% → RuntimeError
+            with pytest.raises(RuntimeError, match="失敗率"):
                 proc.run(img_dir, out_pdf)
 
     def test_vertical_writing_mode_disables_all_dewarp(self, tmp_path):

@@ -60,13 +60,21 @@ class TestBuildPdfPillow:
         assert out.exists()
 
     def test_large_page_count_logs_warning(self, tmp_path, caplog):
-        """101ページ以上の場合はwarningをログ出力する。"""
+        """51ページ以上の場合はメモリ警告をログ出力する。"""
         import logging
-        imgs = [_make_temp_image(tmp_path, f"p{i}.jpg") for i in range(101)]
+        imgs = [_make_temp_image(tmp_path, f"p{i}.jpg") for i in range(51)]
         out = tmp_path / "out.pdf"
         with caplog.at_level(logging.WARNING, logger="pdf_builder"):
             _build_pdf_pillow(imgs, out)
-        assert any("101" in m for m in caplog.messages)
+        assert any("51" in m for m in caplog.messages)
+
+    def test_over_page_limit_raises_memory_error(self, tmp_path):
+        """301ページ以上の場合は MemoryError を発生させる。"""
+        imgs = [_make_temp_image(tmp_path, f"p{i}.jpg") for i in range(301)]
+        out = tmp_path / "out.pdf"
+        import pytest
+        with pytest.raises(MemoryError, match="300"):
+            _build_pdf_pillow(imgs, out)
 
 
 # ── build_pdf_streaming ───────────────────────────────────────────────

@@ -101,11 +101,25 @@ class TestFixExifRotation:
         pil_img = Image.new("RGB", (60, 30))
         path = tmp_path / "no_orient.jpg"
         pil_img.save(str(path))
-        # _getexif() が orientation キーなしの dict を返すケース
+        # getexif() が orientation キーなしの dict を返すケース
         mock_img = MagicMock()
         mock_img.convert.return_value = pil_img
         mock_exif = {999: "something"}  # orientation キーなし
-        mock_img._getexif.return_value = mock_exif
+        mock_img.getexif.return_value = mock_exif
+        with patch("utils.image.Image.open", return_value=mock_img):
+            result = fix_exif_rotation(str(path))
+        assert result is not None
+
+    def test_getexif_raises_exception(self, tmp_path):
+        """getexif() が例外を出す場合は exif なしとして処理を続行する。"""
+        pil_img = Image.new("RGB", (60, 30))
+        path = tmp_path / "getexif_err.jpg"
+        pil_img.save(str(path))
+        mock_img = MagicMock()
+        # with Image.open(...) as pil_img: の pil_img は __enter__.return_value
+        mock_ctx = mock_img.__enter__.return_value
+        mock_ctx.convert.return_value = pil_img
+        mock_ctx.getexif.side_effect = Exception("getexif failed")
         with patch("utils.image.Image.open", return_value=mock_img):
             result = fix_exif_rotation(str(path))
         assert result is not None
@@ -182,3 +196,42 @@ class TestExtractLineProfiles:
         gray = self._make_lined_gray(h=h, w=600)
         _, _, inv_scale = extract_line_profiles(gray, target_h=400)
         assert abs(inv_scale - h / 400) < 0.01
+
+    def _make_curved_gray(self, h=400, w=600):
+        """U字型に湾曲したテキスト行を模したグレースケール画像。"""
+        img = np.full((h, w), 255, dtype=np.uint8)
+        for row_base in range(60, h - 60, 30):
+            for x in range(20, w - 20):
+                # U字カーブ: 中央が下がる
+                curve = int(30 * ((x - w / 2) / (w / 2)) ** 2)
+                y = row_base + curve
+                if 0 <= y < h:
+                    img[y:y + 2, x] = 0
+        return img
+
+    def test_curved_lines_detected(self):
+        """湾曲したテキスト行から特徴点が複数検出される。"""
+        gray = self._make_curved_gray()
+        pts, weights, inv_scale = extract_line_profiles(gray)
+        # 湾曲画像では特徴点が得られる
+        assert len(pts) > 0
+        assert len(weights) == len(pts)
+        # y 値（変位）に幅がある（曲がっている）
+        if len(pts) > 1:
+            y_values = pts[:, 1]
+            assert np.max(y_values) - np.min(y_values) > 0
+
+    def test_weights_are_positive(self):
+        """weight は常に正の値である。"""
+        gray = self._make_lined_gray()
+        _, weights, _ = extract_line_profiles(gray)
+        if len(weights) > 0:
+            assert np.all(weights > 0)
+
+    def test_margin_excludes_edges(self):
+        """margin_v=0.49 にすると、上下端の行が除外されて点数が減る。"""
+        gray = self._make_lined_gray(h=400, w=300)
+        pts_default, _, _ = extract_line_profiles(gray, margin_v=0.05)
+        pts_tight, _, _   = extract_line_profiles(gray, margin_v=0.49)
+        # 極端に狭いマージンでは検出点が減る（または0）
+        assert len(pts_tight) <= len(pts_default)
