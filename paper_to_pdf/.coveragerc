@@ -16,14 +16,9 @@ omit =
     convert_markitdown.py
     convert_markitdown_v2.py
     convert_ocrmac.py
-    debug_pdf.py
-    debug_v_ocr.py
-    extract_direct.py
-    extract_text.py
     extract_text_layer.py
     find_angle.py
     solve_v.py
-    test_pdf_rot.py
 
 [report]
 fail_under = 100
