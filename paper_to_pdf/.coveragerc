@@ -7,6 +7,9 @@ omit =
     check_book_detection.py
     check_seam_detection.py
     compare_pages.py
+    verify_ocr.py
+    verify_ocr_server.py
+    ocr_pdf.py
 
 [report]
 fail_under = 100

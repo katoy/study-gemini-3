@@ -7,9 +7,23 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 from dewarper import (
     Dewarper, _advanced_polynomial_dewarp, _is_result_invalid,
-    _DewarpNetInferencer, _DewarpNetContentError,
+    _DewarpNetInferencer, DewarpError, DewarpContentError, _DewarpNetContentError,
     _estimate_curvature_percent, _DEWARPNET_MIN_CURVATURE_PCT,
 )
+
+class TestDewarpErrorHierarchy:
+    """DewarpError 例外階層の確認。"""
+
+    def test_dewarpcontent_error_is_dewarperror(self):
+        assert issubclass(DewarpContentError, DewarpError)
+
+    def test_dewarperror_is_runtime_error(self):
+        assert issubclass(DewarpError, RuntimeError)
+
+    def test_backward_compat_alias(self):
+        """_DewarpNetContentError は DewarpContentError の後方互換エイリアスであること。"""
+        assert _DewarpNetContentError is DewarpContentError
+
 
 class TestDewarperFunctions:
     def test_is_result_invalid(self):

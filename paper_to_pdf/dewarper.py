@@ -20,8 +20,14 @@ from utils.dewarpnet_arch import UnetGenerator, DnetCCNL, convert_state_dict
 
 logger = logging.getLogger(__name__)
 
-class _DewarpNetContentError(ValueError):
+class DewarpError(RuntimeError):
+    """湾曲補正で発生する例外の基底クラス。"""
+
+class DewarpContentError(DewarpError):
     """DewarpNet がコンテンツを破壊した出力を返した場合の例外。"""
+
+# 後方互換エイリアス (モジュール内部でのみ使用)
+_DewarpNetContentError = DewarpContentError
 
 _DEWARPNET_MIN_CURVATURE_PCT = 1.0
 """DewarpNet を適用する最低湾曲度 (%)。これ未満の画像はスキップして polynomial を使用。"""
