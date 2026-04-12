@@ -18,7 +18,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
