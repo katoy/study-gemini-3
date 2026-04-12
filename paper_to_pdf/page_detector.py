@@ -176,109 +176,114 @@ def correct_orientation_robust(image: np.ndarray) -> tuple[np.ndarray, int | Non
         return cv2.rotate(image, code), code
     return image, None
 
-def find_center_seam(warped_image: np.ndarray) -> int:
+def _seam_strategy_blank_page(col_density: np.ndarray, w: int, center: int) -> int | None:
+    """戦略0: 片側空白（一方のページが白紙）。
+
+    左右それぞれの外側 30% 領域のテキスト密度を比較し、
+    一方が極端に疎な場合は物理的な綴じ目を中央 (50%) と仮定して返す。
+    該当しない場合は None を返す。
     """
-    見開き画像から綴じ目 (Binding/Gutter) の水平位置を推定する。
+    far_left  = float(np.mean(col_density[int(w * 0.05) : int(w * 0.35)]))
+    far_right = float(np.mean(col_density[int(w * 0.65) : int(w * 0.95)]))
+    logger.debug("find_center_seam: far_left=%.4f far_right=%.4f", far_left, far_right)
 
-    以下の 3 つの独立した戦略を優先順位順に試行する (多層防御):
+    blank_thresh   = 0.008
+    content_thresh = 0.003  # 目次・扉等の薄いページにも対応
 
-    戦略 0 (片側空白検出):
-    - 左右のページ（中央 30% ずつ）のテキスト密度（輝度 < 128 の比率）を比較する。
-    - 一方の密度が閾値 (0.008) 未満で、かつもう一方が 5 倍以上の密度を持つ場合、
-      白紙ページとみなす。この場合、物理的な綴じ目は中央 (50%) にあると仮定する。
-
-    戦略 1 (明るいギャップ検出):
-    - 中央付近 (40-60%) の列ごとのテキスト密度を走査し、密度がほぼゼロ (0.002 未満) の
-      垂直な「隙間」を探す。
-    - 製本時の白いマージンやスパインが露出しているケースに有効。
-    - 複数の候補がある場合、画像中央 (50%) に最も近いものを選択する。
-
-    戦略 2 (輝度最小値/影検出):
-    - 垂直方向に強いブラーをかけ、行方向の平均輝度プロファイルを生成する。
-    - 綴じ目付近には物理的な「谷」による影（暗部）が生じるため、輝度の最小点を探索する。
-    - 中心引力ペナルティ (Gaussian-like penalty) を付与することで、
-      ページ端の影や大きな図版による暗部への誤吸着を防ぎ、中央付近の最小値を優先する。
-
-    Returns:
-        綴じ目の x 座標 (ピクセル)
-    """
-    h, w = warped_image.shape[:2]
-    if w < 100 or h < 50:  # 極端に小さい画像はセンターを返す
-        logger.debug("find_center_seam: image too small (%dx%d), using center", w, h)
-        return w // 2
-    gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-    # 綴じ目の探索範囲: 40%〜60% に限定（端への誤検出を防ぐ）
-    SEAM_MIN = int(w * 0.40)
-    SEAM_MAX = int(w * 0.60)
-    center = w // 2
-    s, e = SEAM_MIN, SEAM_MAX
-
-    # ── 戦略0: 片側空白 (一方のページが白紙) ─────────────────
-    text = (gray < 128).astype(np.float32)
-    col_density = np.mean(text, axis=0)
-
-    # センター付近を避けた外側領域で密度計測。
-    far_left_density  = float(np.mean(col_density[int(w * 0.05) : int(w * 0.35)]))
-    far_right_density = float(np.mean(col_density[int(w * 0.65) : int(w * 0.95)]))
-    logger.debug(
-        "find_center_seam: far_left=%.4f far_right=%.4f",
-        far_left_density, far_right_density,
-    )
-
-    blank_thresh = 0.008
-    # テキスト密度が薄いページ（目次・扉等）にも対応するため、コンテンツ側の最小閾値を低めに設定
-    content_thresh = 0.003
-
-    # 右ページが空白で左ページにコンテンツがある場合
-    if far_right_density < blank_thresh and far_left_density > far_right_density * 5 and far_left_density > content_thresh:
-        # 片側空白の場合は物理的な綴じ目は見開き中央（50%）にあるので center を返す
+    if far_right < blank_thresh and far_left > far_right * 5 and far_left > content_thresh:
         logger.debug("find_center_seam: blank-right x=%d (%.1f%%)", center, center / w * 100)
         return center
-
-    # 左ページが空白で右ページにコンテンツがある場合
-    if far_left_density < blank_thresh and far_right_density > far_left_density * 5 and far_right_density > content_thresh:
-        # 片側空白の場合は物理的な綴じ目は見開き中央（50%）にあるので center を返す
+    if far_left < blank_thresh and far_right > far_left * 5 and far_right > content_thresh:
         logger.debug("find_center_seam: blank-left x=%d (%.1f%%)", center, center / w * 100)
         return center
+    return None
 
-    # ── 戦略1: 明るいギャップ (ゼロ密度ブロック) ──────────────
-    # 40-60% の範囲内で候補を全収集し、50% に最も近いものを選ぶ
+
+def _seam_strategy_bright_gap(col_density: np.ndarray, w: int, center: int,
+                               seam_min: int, seam_max: int) -> int | None:
+    """戦略1: 明るいギャップ（ゼロ密度ブロック）。
+
+    中央付近 (seam_min〜seam_max) で密度がほぼゼロの連続領域を探し、
+    中央に最も近い候補を返す。見つからない場合は None を返す。
+    """
     min_gap = int(w * 0.02)
     max_gap = int(w * 0.08)
-
     zero_mask = col_density < 0.002
+
     run_start, run_len = 0, 0
-    gap_candidates = []
-    for i in range(s, e):
+    candidates: list[int] = []
+    for i in range(seam_min, seam_max):
         if zero_mask[i]:
             if run_len == 0:
                 run_start = i
             run_len += 1
         else:
             if min_gap <= run_len <= max_gap:
-                gap_candidates.append(run_start + run_len // 2)
+                candidates.append(run_start + run_len // 2)
             run_len = 0
     if min_gap <= run_len <= max_gap:
-        gap_candidates.append(run_start + run_len // 2)
+        candidates.append(run_start + run_len // 2)
 
-    if gap_candidates:
-        cx = min(gap_candidates, key=lambda x: abs(x - center))
+    if candidates:
+        cx = min(candidates, key=lambda x: abs(x - center))
         logger.debug("find_center_seam: bright gap x=%d (%.1f%%)", cx, cx / w * 100)
         return cx
+    return None
 
-    # ── 戦略2: 輝度最小値 (暗い製本影) ───────────────────────
-    # 40-60% の範囲で輝度スコアを計算し、50% に最も近い極小点を選ぶ
+
+def _seam_strategy_brightness_min(gray: np.ndarray, w: int, h: int,
+                                   seam_min: int, seam_max: int) -> int:
+    """戦略2: 輝度最小値（暗い製本影）。
+
+    垂直ブラー後の輝度プロファイルから中心引力ペナルティ付きの最小点を返す。
+    常に値を返す（最後の砦）。
+    """
     v_blur = cv2.blur(gray, (1, h // 4))
-    brightness_profile = np.mean(v_blur, axis=0).astype(np.float32)
+    profile = np.mean(v_blur, axis=0).astype(np.float32)
     sigma = max(20, w // 80)
     k = sigma * 6 + 1
-    smoothed_b = cv2.GaussianBlur(brightness_profile.reshape(1, -1), (k, 1), sigma)[0]
+    smoothed = cv2.GaussianBlur(profile.reshape(1, -1), (k, 1), sigma)[0]
     x = np.arange(w)
-    center_penalty = ((x - w / 2) / (w / 4)) ** 2 * 1000
-    score = smoothed_b + center_penalty
-    seam_x = SEAM_MIN + int(np.argmin(score[SEAM_MIN:SEAM_MAX]))
+    penalty = ((x - w / 2) / (w / 4)) ** 2 * 1000
+    score = smoothed + penalty
+    seam_x = seam_min + int(np.argmin(score[seam_min:seam_max]))
     logger.debug("find_center_seam: brightness-min x=%d (%.1f%%)", seam_x, seam_x / w * 100)
     return seam_x
+
+
+def find_center_seam(warped_image: np.ndarray) -> int:
+    """
+    見開き画像から綴じ目 (Binding/Gutter) の水平位置を推定する。
+
+    3 つの独立した戦略を優先順位順に試行する (多層防御):
+      戦略0: 片側空白検出 (_seam_strategy_blank_page)
+      戦略1: 明るいギャップ検出 (_seam_strategy_bright_gap)
+      戦略2: 輝度最小値/影検出 (_seam_strategy_brightness_min)
+
+    Returns:
+        綴じ目の x 座標 (ピクセル)
+    """
+    h, w = warped_image.shape[:2]
+    if w < 100 or h < 50:
+        logger.debug("find_center_seam: image too small (%dx%d), using center", w, h)
+        return w // 2
+
+    gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
+    seam_min = int(w * 0.40)
+    seam_max = int(w * 0.60)
+    center   = w // 2
+
+    col_density = np.mean((gray < 128).astype(np.float32), axis=0)
+
+    result = _seam_strategy_blank_page(col_density, w, center)
+    if result is not None:
+        return result
+
+    result = _seam_strategy_bright_gap(col_density, w, center, seam_min, seam_max)
+    if result is not None:
+        return result
+
+    return _seam_strategy_brightness_min(gray, w, h, seam_min, seam_max)
 
 def detect_writing_direction(image: np.ndarray) -> str:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
