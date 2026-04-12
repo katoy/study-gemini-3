@@ -331,3 +331,57 @@ python main.py <入力フォルダ> <出力PDF> [オプション]
 ## ライセンス・引用
 - **DewarpNet:** Stony Brook University (MIT License)
 - **Real-ESRGAN:** Tencent ARC (BSD 3-Clause)
+
+---
+
+## 付録：横書き画像からの Markdown 作成手順
+
+スマホ等で撮影した横書きの画像セット (`samples_h/*.png` 等) から、補正済み PDF を経由して高精度な Markdown を作成するための標準的な手順です。
+
+このワークフローは、**「AI による画像の歪み補正 (main.py)」** と **「Mac ネイティブの高性能 OCR (extract_text.py)」** を組み合わせることで、ノイズの少ない綺麗なテキスト抽出を実現します。
+
+### 手順 1：画像から補正済み PDF を作成する (`main.py`)
+
+まず、撮影された生の画像を読み込み、ページの湾曲補正、見開きの分割、紙面のクリーンアップを行い、1 つの PDF にまとめます。
+
+```bash
+python3 main.py <入力フォルダ> <出力PDF> --book-type jp_horiz --dewarp-mode dewarpnet
+```
+
+*   **`--book-type jp_horiz`**: 横書き書籍としてページ分割と順序を最適化します。
+*   **`--dewarp-mode dewarpnet`**: AI モデルを使用して、ページ中央の「うねり」を真っ直ぐに補正します。
+
+### 手順 2：PDF からテキストを抽出して Markdown に保存する (`extract_text.py`)
+
+次に、生成された PDF の各ページを Mac の **Vision Framework (Apple のネイティブ OCR)** で解析し、構造化された Markdown テキストとして出力します。
+
+```bash
+python3 extract_text.py <入力PDF> <出力Markdown>
+```
+
+*   **自動回転補正**: OCR 時に 0, 90, 180, 270 度の全方位をテストし、最も文字が認識された向きを自動採用するため、向きの指定ミスによる失敗を防ぎます。
+*   **多言語対応**: デフォルトで日本語 (`ja-JP`) と英語 (`en-US`) を同時に認識します。
+
+---
+
+### 実行例 (`samples_h/*.png` → `out.pdf` → `out.md`)
+
+ターミナルで以下のコマンドを順番に実行します。
+
+```bash
+# 手順 1: 画像フォルダから補正済み PDF を作成
+python3 main.py samples_h out.pdf --book-type jp_horiz --dewarp-mode dewarpnet
+
+# 手順 2: 作成した PDF から Markdown を抽出
+python3 extract_text.py out.pdf out.md
+```
+
+### 補足：さらに精度を上げたい場合
+
+文字が小さかったり、画像が不鮮明な場合は、`main.py` 実行時に **AI 超解像** を追加することで認識率が向上します。
+
+```bash
+# AI 超解像 (Swin2SR) を適用して文字を鮮明化
+python3 main.py samples_h out.pdf --book-type jp_horiz --ai-enhance --ai-backend swin2sr --ai-scale 2
+```
+
