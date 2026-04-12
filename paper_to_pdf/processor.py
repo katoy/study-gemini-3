@@ -28,6 +28,9 @@ from pdf_builder import build_pdf_streaming
 # ロガー設定
 logger = logging.getLogger(__name__)
 
+_MAX_FAILURE_RATE = 0.25  # 25% 超で中断
+
+
 class BookProcessor:
     """
     一連の画像処理から PDF 生成までを管理するプロセッサクラス。
@@ -48,14 +51,12 @@ class BookProcessor:
                 logger.warning("一時ディレクトリの削除に失敗しました %s: %s", self.tmp_dir, e)
             logger.debug("Temporary workspace cleaned up.")
 
-    def run(self, input_folder: Path, output_pdf: Path,
-            progress_cb: Callable[[float, str], None] | None = None):
-        """
-        処理パイプラインを実行する。
-        """
-        self._init_workspace()
-        
-        # 1. パイプラインの構築
+    # ──────────────────────────────────────────────
+    # パイプライン構築
+    # ──────────────────────────────────────────────
+
+    def _create_pipeline(self, progress_cb: Callable | None) -> Pipeline:
+        """設定に基づいてパイプラインを構築して返す。"""
         pipeline = Pipeline(self.config)
         # show_book_area / show_page_area は検出確認モード。
         # 後続の補正ステップをスキップして検出結果をそのまま PDF に出力する。
@@ -93,81 +94,103 @@ class BookProcessor:
 
         if run_full:
             pipeline.add_step(QualityCheckStep(self.config))
-        
-        try:
-            # 2. ファイルの読み込みとソート
-            input_paths = sort_by_filename([
-                p for p in input_folder.iterdir()
-                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
-            ])
-            
-            if not input_paths:
-                raise ValueError(f"No valid images found in {input_folder}")
 
-            logger.info(f"Processing {len(input_paths)} raw images...")
-            
-            # 3. パイプラインの初期化 (モデルロード等)
-            pipeline.initialize()
+        return pipeline
 
-            processed_paths = []
-            total = len(input_paths)
-            failed_images: list[str] = []
+    # ──────────────────────────────────────────────
+    # 入力ファイル読み込み
+    # ──────────────────────────────────────────────
 
-            # 4. 画像処理ループ
-            for i, img_path in enumerate(input_paths):
-                logger.info(f"[{i+1}/{total}] Processing {img_path.name}")
-                if progress_cb:
-                    progress_cb(i / total, f"Processing {img_path.name}")
+    def _load_images(self, input_folder: Path) -> list[Path]:
+        """対応フォーマットの画像をソートして返す。"""
+        paths = sort_by_filename([
+            p for p in input_folder.iterdir()
+            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        ])
+        if not paths:
+            raise ValueError(f"No valid images found in {input_folder}")
+        logger.info(f"Processing {len(paths)} raw images...")
+        return paths
 
-                # 画像読み込み (EXIF回転補正)
-                image_bgr = fix_exif_rotation(img_path)
-                if image_bgr is None:
-                    logger.error(f"Cannot load image: {img_path}")
-                    failed_images.append(img_path.name)
-                    continue
+    # ──────────────────────────────────────────────
+    # 画像処理ループ
+    # ──────────────────────────────────────────────
 
-                # パイプライン実行
-                logger.debug(f"Running pipeline for {img_path.name}")
-                try:
-                    pages = pipeline.run(image_bgr)
-                except Exception as e:
-                    logger.error(f"Pipeline failed for {img_path.name}: {e}")
-                    failed_images.append(img_path.name)
-                    continue
+    def _run_pipeline(self, pipeline: Pipeline, input_paths: list[Path],
+                      progress_cb: Callable | None) -> list[Path]:
+        """全入力画像をパイプラインで処理し、一時ページ画像パスのリストを返す。"""
+        processed_paths: list[Path] = []
+        failed_images: list[str] = []
+        total = len(input_paths)
 
-                # 結果の保存
-                write_failed = False
-                for page_bgr in pages:
-                    tmp_path = self.tmp_dir / f"page_{len(processed_paths):05d}.jpg"
-                    success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
-                    if not success:
-                        logger.error("ページ画像の書き込みに失敗しました: %s (画像: %s)",
-                                     tmp_path, img_path.name)
-                        write_failed = True
-                        break
-                    processed_paths.append(tmp_path)
-                if write_failed:
-                    failed_images.append(img_path.name)
-                    continue
+        for i, img_path in enumerate(input_paths):
+            logger.info(f"[{i+1}/{total}] Processing {img_path.name}")
+            if progress_cb:
+                progress_cb(i / total, f"Processing {img_path.name}")
 
-            # 処理結果サマリー
-            succeeded = total - len(failed_images)
-            if failed_images:
-                logger.warning(
-                    "処理結果: %d/%d 成功, %d 件失敗: %s",
-                    succeeded, total, len(failed_images), ", ".join(failed_images)
+            # 画像読み込み (EXIF回転補正)
+            image_bgr = fix_exif_rotation(img_path)
+            if image_bgr is None:
+                logger.error(f"Cannot load image: {img_path}")
+                failed_images.append(img_path.name)
+                continue
+
+            # パイプライン実行
+            logger.debug(f"Running pipeline for {img_path.name}")
+            try:
+                pages = pipeline.run(image_bgr)
+            except Exception as e:
+                logger.error(f"Pipeline failed for {img_path.name}: {e}")
+                failed_images.append(img_path.name)
+                continue
+
+            # 結果の保存
+            write_failed = False
+            for page_bgr in pages:
+                tmp_path = self.tmp_dir / f"page_{len(processed_paths):05d}.jpg"
+                success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                if not success:
+                    logger.error("ページ画像の書き込みに失敗しました: %s (画像: %s)",
+                                 tmp_path, img_path.name)
+                    write_failed = True
+                    break
+                processed_paths.append(tmp_path)
+            if write_failed:
+                failed_images.append(img_path.name)
+                continue
+
+        # 処理結果サマリー
+        succeeded = total - len(failed_images)
+        if failed_images:
+            logger.warning(
+                "処理結果: %d/%d 成功, %d 件失敗: %s",
+                succeeded, total, len(failed_images), ", ".join(failed_images)
+            )
+            failure_rate = len(failed_images) / total
+            if failure_rate > _MAX_FAILURE_RATE:
+                raise RuntimeError(
+                    f"失敗率が{int(_MAX_FAILURE_RATE * 100)}%を超えました"
+                    f" ({len(failed_images)}/{total} 件失敗)。処理を中断します。"
                 )
-                failure_rate = len(failed_images) / total
-                _MAX_FAILURE_RATE = 0.25  # 25% 超で中断（50% では損失が大きすぎる）
-                if failure_rate > _MAX_FAILURE_RATE:
-                    raise RuntimeError(
-                        f"失敗率が{int(_MAX_FAILURE_RATE * 100)}%を超えました"
-                        f" ({len(failed_images)}/{total} 件失敗)。処理を中断します。"
-                    )
-            else:
-                logger.info("処理結果: %d/%d 成功", succeeded, total)
+        else:
+            logger.info("処理結果: %d/%d 成功", succeeded, total)
 
-            # 5. PDF 生成
+        return processed_paths
+
+    # ──────────────────────────────────────────────
+    # メインエントリポイント
+    # ──────────────────────────────────────────────
+
+    def run(self, input_folder: Path, output_pdf: Path,
+            progress_cb: Callable[[float, str], None] | None = None):
+        """処理パイプラインを実行する。"""
+        self._init_workspace()
+        pipeline = self._create_pipeline(progress_cb)
+        try:
+            input_paths = self._load_images(input_folder)
+            pipeline.initialize()
+            processed_paths = self._run_pipeline(pipeline, input_paths, progress_cb)
+
             if not processed_paths:
                 raise RuntimeError("No pages were processed successfully.")
 
@@ -178,7 +201,6 @@ class BookProcessor:
                 dpi=self.config.dpi,
                 progress_cb=progress_cb
             )
-
         finally:
             try:
                 pipeline.finalize()
