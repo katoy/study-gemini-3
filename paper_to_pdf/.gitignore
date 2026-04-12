@@ -46,4 +46,4 @@ nosetests.xml
 tests/reports/
 
 # Claude Code ローカル設定
-.claude/
+./.claude/
