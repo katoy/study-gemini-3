@@ -104,7 +104,7 @@ class DetectionStep(ProcessingStep):
                 seam_x = find_center_seam(warped_book)
                 # 開き方向の判定 (--writing-mode 指定があればそちらを優先)
                 page_order = self._resolve_page_order(warped_book)
-                logger.info(f"Split Result -> Order: {page_order}, Seam: {seam_x}/{bw}")
+                logger.debug(f"Split Result -> Order: {page_order}, Seam: {seam_x}/{bw}")
 
                 if self.config.show_page_area:
                     sides = ["right", "left"] if page_order == "right_first" else ["left", "right"]

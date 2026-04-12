@@ -1,77 +1,74 @@
 # プロジェクトレビュー結果 (paper-to-pdf)
 
 ## レビュー対象情報
-- **Branch**: work
-- **最終更新**: 2026-04-12
+
+| 項目 | 内容 |
+|---|---|
+| Branch | work |
+| 最終更新 | 2026-04-12 |
+| テスト件数 | 317 件 |
+| カバレッジ | 100% |
+| 判定 | **承認 (Excellent)** |
 
 ---
 
-## セッション 1（旧来レビュー）
+## 対応済み一覧
 
-### 概要
-DewarpNet 統合・パラメータ最適化・テスト網羅率 100% 達成を実施。
-
-### 評価
-- DewarpNet のクリーンな設計・フォールバック機構・デバイス最適化
-- ビジュアル回帰テストの導入（エンドツーエンド検証）
-- pre-commit フックによるカバレッジ強制
-
----
-
-## セッション 2（2026-04-12 コードレビューと全修正）
-
-### 実施内容
-
-全ソースファイルをレビューし、🔴即修正 5 件・🟠修正推奨 7 件・バグ修正 1 件を対応した。
-テスト件数：303 → 309 件、カバレッジ：100% を維持。
-
----
-
-### 🔴 即修正（対応済み）
+### 🔴 即修正（5件）
 
 | # | ファイル | 問題 | 修正 |
 |---|---|---|---|
-| 1 | `page_detector.py` | `order_points` の `np.diff` が不明瞭で縮退四角形に未対応 | `pts[:,1]-pts[:,0]` に明瞭化。同一点が複数コーナーに割り当てられる縮退ケースは重心角度ソートでフォールバック |
-| 2 | `dewarper.py` | `cv2.remap` の `map_x/map_y` 引数に対する `bm` チャンネル順序の根拠がコード内に明示なし | `bm[:,：,0]=x, bm[:,：,1]=y` の対応と `cv2.remap` の仕様をコメントで文書化 |
-| 3 | `processor.py` | `cv2.imwrite` 失敗時だけ `IOError` を即時投げ、他エラーは `continue` する不一貫 | 失敗時を `failed_images` に追加して `continue` に統一。テストも更新 |
-| 4 | `image_processor.py` | `_MAX_KERNEL = 255` が大解像度画像で `cv2.dilate` の処理時間急増リスク | 127 に削減。コメントで理由を明示 |
-| 5 | `pdf_builder.py` | Pillow フォールバックが全ページをメモリに乗せるが制限なし | 300 ページ超で `MemoryError`。51 ページ超で推定メモリ量を WARNING ログ出力 |
+| 1 | `page_detector.py` | `order_points` の縮退四角形未対応 | 重心角度ソートでフォールバック |
+| 2 | `dewarper.py` | `bm` チャンネル順序の根拠が未明示 | コメントで文書化 |
+| 3 | `processor.py` | `cv2.imwrite` 失敗時の挙動が不一貫 | `failed_images` に追加して `continue` に統一 |
+| 4 | `image_processor.py` | `_MAX_KERNEL=255` で大解像度時に処理時間急増 | 127 に削減 |
+| 5 | `pdf_builder.py` | Pillow フォールバックがメモリ無制限 | 51 ページ超で推定メモリ量 WARNING ログ |
 
----
-
-### 🟠 修正推奨（対応済み）
+### 🟠 修正推奨（7件）
 
 | # | ファイル | 問題 | 修正 |
 |---|---|---|---|
-| 1 | `page_detector.py:117` | `M['m00']` ゼロガードがサイレントスキップ | `logger.warning` を追加して観測可能にした |
-| 2 | `dewarper.py:127` | ライン検出失敗時に `0.0` を返すと「湾曲なし」と誤解釈され DewarpNet/polynomial 両方スキップ | 戻り値を `None`（湾曲不明）に変更。DewarpNet は `None` でも試みる。polynomial は `None` でスキップ |
-| 3 | `image_processor.py:122` | `deskew_page` が図版・白紙ページでも傾き補正を試みる | テキスト密度ガード追加（dark_ratio < 0.5% または > 50% はスキップ） |
-| 4 | `steps/quality_check.py:88` | テキスト見切れ検出の `margin_threshold` が固定 10%。高密度ページで誤検出リスク | `max(0.10, overall_density * 0.5)` の適応的閾値に変更 |
-| 5 | `processor.py:161` | 失敗率閾値 50% が高すぎ | 25% に引き下げ。`_MAX_FAILURE_RATE` 定数で管理 |
-| 6 | `tests/test_utils_image.py` | `extract_line_profiles` のテストが基本形のみ | 湾曲ライン検出・weight 正値確認・マージン除外の 4 件を追加 |
-| 7 | `tests/test_visual_regression.py:105` | `UPDATE_GOLDENS=1` で全黒/全白の破損画像が無条件に golden 化される | 書き込み前に `mean/std` チェックし疑わしい値は `UserWarning` を発出 |
+| 1 | `page_detector.py` | `M['m00']` ゼロガードがサイレントスキップ | `logger.warning` 追加 |
+| 2 | `dewarper.py` | ライン検出失敗時 `0.0` 返却で「湾曲なし」と誤解釈 | `None`（湾曲不明）に変更 |
+| 3 | `image_processor.py` | 図版・白紙でも傾き補正実行 | テキスト密度ガード追加 |
+| 4 | `steps/quality_check.py` | `margin_threshold` 固定 10% で誤検出 | `max(0.10, density * 0.5)` の適応的閾値に変更 |
+| 5 | `processor.py` | 失敗率閾値 50% が高すぎ | 25% に引き下げ（`_MAX_FAILURE_RATE` 定数化） |
+| 6 | `tests/test_utils_image.py` | `extract_line_profiles` テストが基本形のみ | 4 件追加 |
+| 7 | `tests/test_visual_regression.py` | 破損画像が無条件に golden 化される | 書き込み前に `mean/std` チェックし `UserWarning` 発出 |
 
----
-
-### 🐛 バグ修正（今回発見）
+### 🐛 バグ修正（1件）
 
 | ファイル | 問題 | 修正 |
 |---|---|---|
-| `steps/quality_check.py:260` | 縦書きページの湾曲検出で `extract_line_profiles`（水平エッジ検出）をそのまま使用。縦列の文字境界が「湾曲した横ライン」として誤検出され、正常ページに 5.6% の偽湾曲値が出て警告が発生していた | `is_vertical=True` 時は画像を 90° 回転してから `extract_line_profiles` を呼ぶよう修正。`dewarper._estimate_curvature_percent` と同じアプローチ |
+| `steps/quality_check.py` | 縦書きページで水平エッジ検出を誤用し偽湾曲警告が発生 | `is_vertical=True` 時に 90° 回転してから処理 |
 
----
+### 🟡 設計・可読性（7件）
 
-### 🟡 設計・可読性（未対応・今後の検討事項）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 1 | `core/config.py` | `__post_init__` バリデーションを dict 化 | 06b9f63 |
+| 2 | `processor.py` | `run()` を `_create_pipeline / _load_images / _run_pipeline` に分割 | 83f7b55 |
+| 3 | `page_detector.py` | `find_center_seam` の 3 戦略を独立関数に抽出 | 655c915 |
+| 4 | `dewarper.py` | `DewarpError` 基底クラス階層を整理 | ffdb303 |
+| 5 | `core/pipeline.py` | strict モード追加（エラー再送出） | b3c91e2 |
+| 6 | 複数ファイル | マジックナンバーを `constants.py` に集約 | 9f6551b |
+| 7 | 複数ファイル | `logger.info/debug` の使い分けを統一（INFO=ユーザー向け、DEBUG=開発者向け） | — |
 
-| # | ファイル | 提案 |
+### 🔵 テスト強化（2件）
+
+| 内容 | 詳細 |
+|---|---|
+| ビジュアル回帰テストにログ出力チェックを追加 | `_LogCapture` ハンドラで WARNING+ を収集し `warnings.txt` と差分比較。新規警告・消失警告を自動検出 |
+| `.coveragerc` に変換スクリプトを追加 | `convert_docling.py` 等の未追跡スクリプトをカバレッジ除外 |
+
+**ログ golden の現状：**
+
+| テスト | WARNING 行数 | 主な内容 |
 |---|---|---|
-| 1 | `core/config.py` | `__post_init__` のバリデーションをdict化して肥大化を防ぐ |
-| 2 | `processor.py` | `run()` メソッド（130行）を `_create_pipeline / _load_images / _run_pipeline` に分割 |
-| 3 | `page_detector.py` | `find_center_seam` の 3 戦略を個別関数に抽出 |
-| 4 | `dewarper.py` | `_DewarpNetContentError` を `DewarpingError` 基底クラスに整理 |
-| 5 | `core/pipeline.py` | エラー時のサイレントフォールバックにモード切替（strict/fallback）を追加 |
-| 6 | 複数ファイル | マジックナンバーを `constants.py` に集約 |
-| 7 | 複数ファイル | `logger.debug/info` の使い分けを統一（INFO=ユーザー向け、DEBUG=開発者向け） |
+| `synthetic` | 3 | 品質チェック：文字見切れ検出 |
+| `samples_h_dewarpnet` | 2 | DewarpNet→polynomial 永続切替 |
+| `samples_h_polynomial` | 0 | — |
+| `samples_v` | 0 | — |
 
 ---
 
@@ -79,7 +76,7 @@ DewarpNet 統合・パラメータ最適化・テスト網羅率 100% 達成を�
 
 **判定: 承認 (Excellent)**
 
-- テスト 309 件・カバレッジ 100% を維持
-- 縦書きモードの偽陽性品質警告を解消
-- 即修正・修正推奨の全 12 件に対応済み
-- 残課題は設計/可読性の改善のみ（機能・品質への影響なし）
+- テスト 317 件・カバレッジ 100% を維持
+- 即修正 5・修正推奨 7・バグ修正 1・設計改善 7 件すべて対応済み
+- ビジュアル回帰テストで画像品質とログ出力の両方を検出可能
+- 残課題なし

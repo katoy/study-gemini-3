@@ -16,7 +16,9 @@
       "Bash(python -m pytest tests/test_utils_image.py -q)",
       "Bash(python:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -1,7 +1,10 @@
 """
 ビジュアル回帰テスト: 生成された PDF の見た目をチェックし、差分レポートを生成する。
+ログ出力（WARNING/ERROR）の変化も golden ファイルで検出する。
 """
+import logging
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -15,6 +18,32 @@ from processor import BookProcessor
 from core.config import ProcessingConfig
 
 REPORTS_DIR = Path("tests/reports")
+
+# 動的な値を正規化するパターン（数値・ファイルパス・UUIDなど）
+_NORMALIZE_PATTERNS = [
+    (re.compile(r"\d+\.\d+"), "N.N"),   # 浮動小数点
+    (re.compile(r"\b\d+\b"), "N"),       # 整数
+    (re.compile(r"/[^\s]+"), "PATH"),    # ファイルパス
+]
+
+
+def _normalize_log_message(msg: str) -> str:
+    """ログメッセージから動的な値を除去して比較可能な形式にする。"""
+    for pattern, replacement in _NORMALIZE_PATTERNS:
+        msg = pattern.sub(replacement, msg)
+    return msg
+
+
+class _LogCapture(logging.Handler):
+    """WARNING 以上のログレコードをキャプチャするハンドラ。"""
+
+    def __init__(self):
+        super().__init__(logging.WARNING)
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        normalized = _normalize_log_message(record.getMessage())
+        self.lines.append(f"{record.levelname}: {record.name}: {normalized}")
 
 def pdf_to_images(pdf_path: Path, dpi: int = 72) -> list[np.ndarray]:
     """PDF の各ページを BGR 画像のリストに変換する。"""
@@ -85,8 +114,16 @@ class TestVisualRegression:
                          all_results: list):
         cfg = ProcessingConfig(**config_kwargs)
         proc = BookProcessor(cfg)
-        proc.run(input_folder=input_dir, output_pdf=output_pdf)
-        
+
+        # WARNING/ERROR ログをキャプチャしながら実行
+        log_capture = _LogCapture()
+        root_logger = logging.getLogger()
+        root_logger.addHandler(log_capture)
+        try:
+            proc.run(input_folder=input_dir, output_pdf=output_pdf)
+        finally:
+            root_logger.removeHandler(log_capture)
+
         pages = pdf_to_images(output_pdf)
         assert len(pages) > 0
         
@@ -151,6 +188,35 @@ class TestVisualRegression:
             }
             local_results.append(res)
             all_results.append(res)
+
+        # ── ログ出力の golden 比較 ──────────────────────────────
+        golden_log_path = test_golden_dir / "warnings.txt"
+        actual_log_lines = sorted(log_capture.lines)
+
+        if update_mode:
+            test_golden_dir.mkdir(parents=True, exist_ok=True)
+            golden_log_path.write_text("\n".join(actual_log_lines), encoding="utf-8")
+        else:
+            if golden_log_path.exists():
+                expected_log_lines = [
+                    l for l in golden_log_path.read_text(encoding="utf-8").splitlines() if l
+                ]
+                added   = sorted(set(actual_log_lines) - set(expected_log_lines))
+                removed = sorted(set(expected_log_lines) - set(actual_log_lines))
+                diff_msg_parts = []
+                if added:
+                    diff_msg_parts.append("新規ログ:\n  " + "\n  ".join(added))
+                if removed:
+                    diff_msg_parts.append("消失ログ:\n  " + "\n  ".join(removed))
+                assert not diff_msg_parts, (
+                    f"[{test_name}] ログ出力が golden と異なります。\n"
+                    + "\n".join(diff_msg_parts)
+                    + f"\n\nUPDATE_GOLDENS=1 で更新してください。"
+                )
+            else:
+                # golden がない場合は今回の出力を記録（NEW 扱い）
+                test_golden_dir.mkdir(parents=True, exist_ok=True)
+                golden_log_path.write_text("\n".join(actual_log_lines), encoding="utf-8")
 
         if not update_mode:
             generate_html_report(all_results)

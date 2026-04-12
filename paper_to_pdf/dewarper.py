@@ -200,14 +200,14 @@ class Dewarper:
                 )
             else:
                 if curv is None:
-                    logger.info("湾曲度不明のため DewarpNet を試みます。")
+                    logger.debug("湾曲度不明のため DewarpNet を試みます。")
 
                 try:
                     return self._ai_inferencer.dewarp(image_bgr)
                 except _DewarpNetContentError as e:
                     # コンテンツが消失する画像に対して DewarpNet は不適。
                     # polynomial に切り替えて以降のページでは試みない。
-                    logger.info("DewarpNet が不適合 (%s)。polynomial に切り替えます。", e)
+                    logger.warning("DewarpNet が不適合 (%s)。polynomial に切り替えます。", e)
                     self.mode = "polynomial"
                     self._ai_inferencer = None
                 except Exception as e:
