@@ -18,6 +18,7 @@ import sys
 import cv2
 import numpy as np
 
+from core.constants import MIN_TEXT_DENSITY
 from steps.base import ProcessingStep
 from utils.image import extract_line_profiles
 
@@ -72,7 +73,7 @@ def _check_text_clipping(gray: np.ndarray) -> tuple[bool, dict]:
     # 白紙・扉ページ等、全体テキスト密度が極めて低い場合は見切れ判定をスキップ
     # 判定用の文字閾値を 80 -> 60 に厳格化（薄い影を無視）
     overall_density = float(np.mean(content < 60))
-    if overall_density < 0.005:
+    if overall_density < MIN_TEXT_DENSITY:
         return False, {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
 
     margin_h = max(10, int(ch * 0.02))

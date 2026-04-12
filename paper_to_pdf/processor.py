@@ -15,6 +15,7 @@ from pathlib import Path
 import cv2
 
 from core.config import ProcessingConfig, SUPPORTED_EXTENSIONS
+from core.constants import JPEG_QUALITY
 from core.pipeline import Pipeline
 from dewarper import Dewarper
 from steps.detection import DetectionStep
@@ -148,7 +149,7 @@ class BookProcessor:
             write_failed = False
             for page_bgr in pages:
                 tmp_path = self.tmp_dir / f"page_{len(processed_paths):05d}.jpg"
-                success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                success = cv2.imwrite(str(tmp_path), page_bgr, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
                 if not success:
                     logger.error("ページ画像の書き込みに失敗しました: %s (画像: %s)",
                                  tmp_path, img_path.name)

@@ -12,6 +12,7 @@ import numpy as np
 import logging
 
 from core.config import OUTPUT_SIZES
+from core.constants import MIN_TEXT_DENSITY
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def deskew_page(image: np.ndarray, writing_mode: str = "auto") -> np.ndarray:
     # 暗ピクセル比率が低すぎる（白紙・図版）か高すぎる（写真・黒背景）ページは
     # 射影分散による傾き検出が信頼できないためスキップする。
     dark_ratio = float(np.mean(thresh > 0))
-    if dark_ratio < 0.005 or dark_ratio > 0.5:
+    if dark_ratio < MIN_TEXT_DENSITY or dark_ratio > 0.5:
         logger.debug("Deskew: テキスト密度 %.1f%% のためスキップします。", dark_ratio * 100)
         return image
 
