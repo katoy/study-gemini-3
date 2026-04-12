@@ -54,22 +54,24 @@ class ProcessingConfig:
 
     def __post_init__(self) -> None:
         """フィールド値のバリデーション"""
-        if self.book_type not in _VALID_BOOK_TYPES:
-            raise ValueError(f"book_type は {_VALID_BOOK_TYPES} のいずれかを指定してください: {self.book_type!r}")
-        if self.dewarp_mode not in _VALID_DEWARP_MODES:
-            raise ValueError(f"dewarp_mode は {_VALID_DEWARP_MODES} のいずれかを指定してください: {self.dewarp_mode!r}")
-        if self.sensitivity not in _VALID_SENSITIVITIES:
-            raise ValueError(f"sensitivity は {_VALID_SENSITIVITIES} のいずれかを指定してください: {self.sensitivity!r}")
-        if self.output_size not in OUTPUT_SIZES:
-            raise ValueError(f"output_size は {set(OUTPUT_SIZES)} のいずれかを指定してください: {self.output_size!r}")
-        if self.ai_backend not in _VALID_AI_BACKENDS:
-            raise ValueError(f"ai_backend は {_VALID_AI_BACKENDS} のいずれかを指定してください: {self.ai_backend!r}")
-        if self.ai_scale not in _VALID_AI_SCALES:
-            raise ValueError(f"ai_scale は {_VALID_AI_SCALES} のいずれかを指定してください: {self.ai_scale!r}")
-        if self.rotate_angle not in _VALID_ROTATE_ANGLES:
-            raise ValueError(f"rotate_angle は {_VALID_ROTATE_ANGLES} のいずれかを指定してください: {self.rotate_angle!r}")
-        if self.writing_mode not in _VALID_WRITING_MODES:
-            raise ValueError(f"writing_mode は {_VALID_WRITING_MODES} のいずれかを指定してください: {self.writing_mode!r}")
+        # 選択肢チェック: {フィールド名: 有効値セット} の形式で一元管理する。
+        # 新しいオプションを追加する際はここに1行追加するだけでよい。
+        _choice_validators: dict[str, set] = {
+            "book_type":    _VALID_BOOK_TYPES,
+            "dewarp_mode":  _VALID_DEWARP_MODES,
+            "sensitivity":  _VALID_SENSITIVITIES,
+            "output_size":  set(OUTPUT_SIZES),
+            "ai_backend":   _VALID_AI_BACKENDS,
+            "ai_scale":     _VALID_AI_SCALES,
+            "rotate_angle": _VALID_ROTATE_ANGLES,
+            "writing_mode": _VALID_WRITING_MODES,
+        }
+        for field, valid_set in _choice_validators.items():
+            value = getattr(self, field)
+            if value not in valid_set:
+                raise ValueError(
+                    f"{field} は {valid_set} のいずれかを指定してください: {value!r}"
+                )
         if not (0.0 <= self.shadow_strength <= 1.0):
             raise ValueError(f"shadow_strength は 0.0〜1.0 の範囲で指定してください: {self.shadow_strength!r}")
 
