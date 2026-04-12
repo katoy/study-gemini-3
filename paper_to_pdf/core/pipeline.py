@@ -18,9 +18,17 @@ logger = logging.getLogger(__name__)
 class Pipeline:
     """
     複数の処理ステップを順次実行するパイプライン。
+
+    Parameters
+    ----------
+    config : ProcessingConfig
+    strict : bool
+        True の場合、ステップでエラーが発生すると即座に例外を再送出する。
+        False (デフォルト) の場合、エラーをログに記録してステップをスキップし処理を続行する。
     """
-    def __init__(self, config: ProcessingConfig):
+    def __init__(self, config: ProcessingConfig, strict: bool = False):
         self.config = config
+        self.strict = strict
         self.steps: list[ProcessingStep] = []
 
     def add_step(self, step: ProcessingStep):
@@ -42,7 +50,9 @@ class Pipeline:
     def run(self, image: np.ndarray) -> list[np.ndarray]:
         """
         1つの入力画像に対して全ステップを実行し、結果（1つ以上の画像）を返す。
-        ステップでエラーが発生した場合はログに記録し、そのステップをスキップして続行する。
+
+        strict=False (デフォルト) の場合、エラーが発生したステップをスキップして続行する。
+        strict=True の場合、エラーを即座に再送出する。
         """
         current_images = [image]
 
@@ -52,6 +62,8 @@ class Pipeline:
                 logger.debug(f"Running step: {step.name}")
                 current_images = step.process(current_images)
             except Exception as e:
+                if self.strict:
+                    raise
                 logger.error(f"Error in step {step.name}: {e}", exc_info=True)
                 # エラーが発生したステップの出力は使わず、入力をそのまま次ステップへ渡す
                 current_images = prev_images

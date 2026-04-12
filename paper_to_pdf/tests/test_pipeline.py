@@ -105,3 +105,27 @@ class TestPipeline:
 
     def test_config_stored(self):
         assert self.pipeline.config is self.cfg
+
+    # ── strict モード ──────────────────────────────────────────────────
+
+    def test_strict_false_by_default(self):
+        assert self.pipeline.strict is False
+
+    def test_strict_mode_raises_on_step_error(self, white_image):
+        """strict=True の場合、ステップエラーが即座に再送出される。"""
+        strict_pipeline = Pipeline(self.cfg, strict=True)
+        strict_pipeline.add_step(ErrorStep(self.cfg))
+        import pytest
+        with pytest.raises(RuntimeError, match="Intentional error"):
+            strict_pipeline.run(white_image)
+
+    def test_strict_mode_does_not_swallow_error(self, white_image):
+        """strict=True では後続ステップは実行されない。"""
+        strict_pipeline = Pipeline(self.cfg, strict=True)
+        passthrough = PassthroughStep(self.cfg)
+        strict_pipeline.add_step(ErrorStep(self.cfg))
+        strict_pipeline.add_step(passthrough)
+        import pytest
+        with pytest.raises(RuntimeError):
+            strict_pipeline.run(white_image)
+        assert not passthrough.called
