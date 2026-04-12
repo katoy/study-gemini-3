@@ -44,3 +44,6 @@ nosetests.xml
 *.swp
 *.swo
 tests/reports/
+
+# Claude Code ローカル設定
+.claude/
