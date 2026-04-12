@@ -1,219 +1,333 @@
-# paper_to_pdf (Advanced CLI Edition)
+# paper_to_pdf
 
-スマホで撮影した書籍の見開きページを、AI 級の高精度な補正を施してクリーンな PDF に変換するコマンドライン・ツールです。
-最新のリファクタリングにより、処理工程がパイプライン化され、拡張性と保守性が大幅に向上しました。
+スマホで撮影した書籍の見開きページを AI 補正してクリーンな PDF に変換する高度な CLI ツール。
 
 ---
 
 ## 目次
 
 1. [主な機能](#主な機能)
-2. [アーキテクチャ](#アーキテクチャ)
-3. [セットアップ](#セットアップ)
-4. [使い方](#使い方)
-    - [実行例](#実行例)
-    - [オプション一覧](#オプション一覧)
-5. [AI 補正バックエンド](#ai-補正バックエンド)
-6. [パフォーマンス](#パフォーマンス)
-7. [補正アルゴリズムについて](#補正アルゴリズムについて)
-8. [より綺麗にスキャンするためのヒント](#より綺麗にスキャンするためのヒント)
-9. [対応画像フォーマット](#対応画像フォーマット)
+2. [ディレクトリ構成](#ディレクトリ構成)
+3. [処理パイプラインの流れ](#処理パイプラインの流れ)
+4. [補正アルゴリズムの詳細](#補正アルゴリズムの詳細)
+5. [セットアップ](#セットアップ)
+6. [テスト](#テスト)
+7. [使い方](#使い方)
+8. [オプション一覧](#オプション一覧)
+9. [AI 補正バックエンド](#ai-補正バックエンド)
+10. [パフォーマンス目安](#パフォーマンス目安-a4--300-dpi-見開き)
+11. [ライセンス・引用](#ライセンス引用)
 
 ---
 
 ## 主な機能
 
-- **インテリジェント自動判定:** スマホを縦に持って撮った「横向きの見開き」も自動で回転・分割。
-- **高度な湾曲補正 (DewarpNet / Polynomial / DocTR):**
-    - `dewarpnet`: 深層学習を用いた強力な 3D 湾曲補正。
-    - `polynomial`: 3次多項式を用いてページの非対称な膨らみを精密に平坦化。
-    - `doctr`: AI Transformer ベースの文書補正。
+- **EXIF 自動回転補正:** JPEG・HEIC・TIFF など各フォーマットの EXIF 方向情報を読み取り、正しい向きに補正してから処理を開始。
+- **対応入力フォーマット:** `.jpg` / `.jpeg` / `.png` / `.heic` / `.bmp` / `.tiff` / `.tif`
+- **高精度ページ境界検出:** 白比率プロファイル + Canny エッジ密度急落で、背景テクスチャを確実に除去。台形に傾いた書籍も正確に検出。
+- **Portrait 見開き対応:** カメラを 90° 回転して撮影した見開き（上下配置）を自動検出し、水平分割。
+- **ページ順序自動判定:** 縦書き/横書きの形態解析により、右開き/左開きを自動推定。
+- **高度な湾曲補正 (Dewarping):**
+  - **反復的高精度補正:** 3段階のパスにより、文字列をほぼ完璧な水平に整列。
+  - **WLS フィッティング:** 重み付き最小二乗法により、長い本文行を優先的に平坦化。
+  - **AI 幾何補正 (DewarpNet):** 深層学習による 3D 湾曲補正（見開き全体に対応）。
+    - **湾曲度事前チェック:** 適用前に水平ライン検出で湾曲度を推定し、1.0% 未満の平坦な画像は DewarpNet をスキップして polynomial を使用。不要な推論を回避。
+    - **自動フォールバック:** DewarpNet がコンテンツを破壊する出力を生成した場合、以降のページは自動的に polynomial に永続切り替え。
+  - **縦書き書籍の安全処理:** `--writing-mode vertical` 指定時は湾曲補正を自動的に無効化。縦書き列長の差を「湾曲」と誤検出して文字が消える問題を防止。
 - **AI 超解像 & 復元補正:** Real-ESRGAN / Swin2SR による鮮明化、DocRes による AI 影・裏写り除去。
-- **強力なドキュメント・クリーン:** 背景（紙の色）を純白にし、裏写り（ブリードスルー）や影を完全に排除。
-- **精密な傾き補正 (Deskew):** テキスト行を 0.1度単位で検出し、完全に水平な状態に回転補正。
-- **AI コーナー検出:** `--sensitivity ai` でコーナーを AI により精密に検出。
-- **メモリ効率重視:** ストリーミング方式により、数百枚の画像でも安定して PDF を生成。
+- **ドキュメント・クリーニング:** 適応型白色化で紙面を純白に。照明ムラを解消。
+- **品質診断 (Quality Check):** 本文エリア（中央 70%）に特化した歪み検出。文字の見切れ、余分な背景を自動検出し、レポート。
 
-## アーキテクチャ
+---
 
-処理工程が独立したステップとして分離されており、パイプライン形式で実行されます。
+## ディレクトリ構成
 
-- **`core/`**: 設定管理 (`config.py`) とパイプライン制御 (`pipeline.py`)。
-- **`steps/`**: 各処理フェーズの独立した実装。
-    - `DetectionStep` (`detection.py`): ページ境界検出と見開き分割。
-    - `DewarpStep` (`dewarp.py`): 湾曲補正（AI / 多項式 / DocTR）。
-    - `EnhancementStep` (`enhancement.py`): AI による超解像・復元補正。
-    - `PostProcessStep` (`postprocess.py`): 影除去、傾き・向き補正、サイズ正規化。
-- **`utils/`**: 共通ユーティリティ。
-    - `device.py`: デバイス（CPU / MPS / CUDA）選択。
-    - `image.py`: 画像 I/O ヘルパー。
-    - `paths.py`: モデルキャッシュパス管理。
-    - `dewarpnet_arch.py`: DewarpNet モデル定義。
+| パス | 役割 |
+|------|------|
+| `main.py` | CLI エントリポイント・引数処理 |
+| `processor.py` | 全体プロセスのオーケストレーション |
+| `core/pipeline.py` | 処理ステップの実行管理 |
+| `core/config.py` | 処理設定データクラス (`ProcessingConfig`) |
+| `page_detector.py` | ページ境界検出・綴じ目検出・分割のコアロジック |
+| `dewarper.py` | 湾曲補正 (AI / 多項式) のエントリポイント |
+| `image_processor.py` | 後処理モジュール（影除去・白色化・サイズ正規化） |
+| `ai_enhancer.py` | AI 超解像・復元補正のインターフェース |
+| `pdf_builder.py` | ストリーミング方式による PDF 生成 |
+| `steps/` | パイプラインの各処理ステップ |
+| `utils/device.py` | 利用デバイス (CPU / MPS / CUDA) の自動選択 |
+| `utils/image.py` | 画像 I/O・EXIF 回転補正・行プロファイル抽出 |
+| `utils/download.py` | モデルウェイトの SHA256 検証付きダウンロード |
+| `utils/dewarpnet_arch.py` | DewarpNet ネットワーク定義 |
+| `utils/paths.py` | キャッシュディレクトリなどのパス定数 |
+
+#### 開発・診断用スクリプト（カバレッジ計測対象外）
+
+| パス | 役割 |
+|------|------|
+| `analyze_img.py` | 入力画像の統計情報を表示するデバッグツール |
+| `check_book_detection.py` | ページ境界検出結果を目視確認するツール |
+| `check_seam_detection.py` | 綴じ目検出結果を目視確認するツール |
+| `compare_pages.py` | 処理前後の画像を並べて比較表示するツール |
+ 
+---
+ 
+## 処理パイプラインの流れ
+ 
+```mermaid
+graph TD
+    A[入力画像] --> B[DetectionStep]
+    subgraph "1. Detection & Split (page_detector.py)"
+        B --> B1[書籍領域の境界検出]
+        B1 --> B2[透視変換による正投影]
+        B2 --> B3[AI 幾何補正: DewarpNet/DocTr ※任意]
+        B3 --> B4[向き・天地の自動補正]
+        B4 --> B5[綴じ目検出 & 左右ページ分割]
+    end
+    B5 --> C[DewarpStep]
+    subgraph "2. Refined Dewarp (dewarper.py)"
+        C --> C1[共通行プロファイルの抽出]
+        C1 --> C2[WLS重み付き 3次多項式フィッティング]
+        C2 --> C3[3段階の反復的平坦化 (Straightening)]
+        C3 --> C4[安全ガード: 補正量制限 & 破綻検知]
+    end
+    C4 --> D[EnhancementStep]
+    subgraph "3. Enhancement (ai_enhancer.py)"
+        D --> D1[AI 超解像: Real-ESRGAN / Swin2SR]
+        D1 --> D2[AI 影・裏写り除去: DocRes]
+    end
+    D2 --> E[PostProcessStep]
+    subgraph "4. Finalizing (image_processor.py)"
+        E --> E1[適応型白色化 & コントラスト調整]
+        E1 --> E2[出力サイズ正規化: A4/B5 等]
+    end
+    E2 --> F[QualityCheckStep]
+    subgraph "5. Quality Evaluation"
+        F --> F1[本文エリア特化の湾曲・傾き評価]
+        F1 --> F2[文字見切れ & 背景残留の判定]
+        F2 --> F3[品質診断レポート生成]
+    end
+    F3 --> G[PDF Builder]
+    G --> H((出力 PDF))
+```
+ 
+---
+ 
+## 補正アルゴリズムの詳細
+
+### 1. ページ境界検出 (Detection)
+複数のアルゴリズムを多層防御的に組み合わせ、最もスコアの高い結果を採用します。
+- **Edge & Profile:** ページの内部領域（白比率）と、背景との物理境界（エッジ密度）を統合評価。
+- **Safety Inset:** 検出された境界を 0.2% 内側に追い込むことで、背景の写り込みを完全に除去。
+
+### 2. 反復的湾曲補正 (Polynomial Dewarping)
+従来の 1 パス補正とは異なり、以下の高度なプロセスを踏みます。
+1. **共通プロファイル抽出:** `utils/image.py` の共通ロジックにより、画像全体のテキスト行のうねりを正確に抽出。
+2. **重み付き最小二乗法 (WLS):** 行の長さに応じた重み付けを行い、3次多項式で高精度にフィッティング。
+3. **3段階反復:** 補正を 3 回繰り返すことで、残存する微細な歪みを段階的に排除し、文字列を真っ直ぐにします。
+4. **安全装置:** 補正量リミッター (高さの 35% 以内) と白紙化検知により、画像の完全性を保護。
+
+### 3. DewarpNet の安全設計
+
+DewarpNet は精度が高い反面、特定の書籍画像でコンテンツを破壊する出力を生成することがあります。以下の 2 段階の保護機構を備えています。
+
+| 保護レイヤー | 動作 |
+|---|---|
+| **湾曲度事前チェック** | 適用前に水平ライン検出で湾曲度 (%) を推定。`1.0%` 未満の平坦な画像は DewarpNet をスキップして polynomial を使用 |
+| **コンテンツ消失検知** | DewarpNet の出力で暗ピクセル (テキスト) が 90% 以上消失した場合、`polynomial` に永続切り替え。以降のページは polynomial を使用 |
+
+---
 
 ## セットアップ
-
-### 1. Python 仮想環境を作成
 
 ```bash
 cd paper_to_pdf
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-### 2. 依存パッケージをインストール
-
-```bash
 pip install -r requirements.txt
 ```
 
-> **M1 Mac の場合:** PyTorch は MPS（Metal）で GPU 加速されます。
-> **AI 補正を使用する場合:** `pip install realesrgan basicsr` (Real-ESRGAN) または `pip install transformers accelerate` (Swin2SR) が必要です。
+> **M1 Mac:** PyTorch は MPS (Metal Performance Shaders) で GPU 加速されます。
+
+---
+
+## テスト
+
+### 1. 単体テスト & カバレッジ
+コードのロジックを検証し、100% の網羅率を維持しています。
+
+```bash
+# テスト実行
+pytest -q
+
+# カバレッジ計測
+pytest --cov=. --cov-report=term-missing -q
+```
+
+カバレッジ計測対象: `core/`, `image_processor.py`, `page_detector.py`, `pdf_builder.py`, `processor.py`, `steps/`, `utils/`, `ai_enhancer.py`, `dewarper.py`
+
+| モジュール | カバレッジ |
+|------------|-----------|
+| `ai_enhancer.py` | 100% |
+| `core/config.py` | 100% |
+| `core/pipeline.py` | 100% |
+| `dewarper.py` | 100% |
+| `image_processor.py` | 100% |
+| `page_detector.py` | 100% |
+| `pdf_builder.py` | 100% |
+| `processor.py` | 100% |
+| `steps/base.py` | 100% |
+| `steps/detection.py` | 100% |
+| `steps/dewarp.py` | 100% |
+| `steps/enhancement.py` | 100% |
+| `steps/postprocess.py` | 100% |
+| `steps/quality_check.py` | 100% |
+| `utils/device.py` | 100% |
+| `utils/dewarpnet_arch.py` | 100% |
+| `utils/image.py` | 100% |
+| `utils/paths.py` | 100% |
+| **TOTAL** | **100%** |
+
+> **pre-commit フック:** `git commit` 実行時に自動でテストとカバレッジ計測を実行します。カバレッジ 100% 未満、またはテスト失敗時はコミットが中止されます。
+
+### 2. ビジュアル回帰テスト
+PDF の表示内容（見た目）に変化がないかを自動検証します。
+
+**仕組み:**
+1.  **レンダリング**: `BookProcessor` で生成された PDF を `PyMuPDF` で PNG 画像に変換します（比較の安定性を高めるため、低解像度の 72dpi を採用）。
+2.  **GOLDEN 画像のロード**: `tests/goldens/` ディレクトリに保存されている「以前の正しい出力結果（GOLDEN 画像）」を基準画像として読み込みます。
+3.  **ピクセル差分の抽出**: OpenCV の `cv2.absdiff` を用いて、現在の出力と GOLDEN 画像をピクセル単位で比較します。
+4.  **不一致の判定**: 全ピクセルのうち、色が変化したピクセルの割合を算出します。一致率（Score）が 99% 未満の場合、テスト失敗とみなします。
+5.  **レポート生成**: 差異があった箇所を**赤色でハイライト**した Diff 画像を作成し、`tests/reports/index.html` にまとめます。
+
+**GOLDEN 画像について:**
+GOLDEN 画像は、コードの変更によって PDF のレイアウトや画質が意図せず劣化していないかを監視するための「視覚的な期待値」です。リポジトリにコミットすることで、異なる開発環境や CI上でも同一の見た目が維持されているかを保証します。
+
+```bash
+# 見た目の比較テストを実行
+pytest tests/test_visual_regression.py
+
+# 差分がある場合、以下のレポートで詳細を確認できます
+# tests/reports/index.html
+```
+
+#### GOLDEN 画像（正解画像）の更新方法
+プログラムの改善や意図的な仕様変更により、PDF の見た目が変わる場合は、以下のコマンドで GOLDEN 画像を現在の実行結果で上書き更新できます。
+
+```bash
+UPDATE_GOLDENS=1 pytest tests/test_visual_regression.py
+```
+
+このコマンドを実行すると、`tests/goldens/` 配下の画像が最新の変換結果に置き換わります。更新後は、新しい GOLDEN 画像を Git にコミットしてください。
+
+---
 
 ## 使い方
 
 ```bash
-python main.py [入力フォルダ] [出力PDF] [オプション]
+python main.py <入力フォルダ> <出力PDF> [オプション]
 ```
 
 ### 実行例
 
-```bash
-# 漫画の自炊（右開き、グレースケール、強力な湾曲補正）
-python main.py ./samples out.pdf --book-type manga --dewarp-mode dewarpnet
+- **基本（AI + 高精度補正）:**
+  ```bash
+  python main.py ./samples out.pdf --dewarp-mode dewarpnet
+  ```
+- **縦書き書籍（逆さまに撮影した場合）:**
+  ```bash
+  python main.py ./samples_v out.pdf --rotate-angle 180 --writing-mode vertical
+  ```
+- **最高画質（超解像 x2）:**
+  ```bash
+  python main.py ./samples out.pdf --ai-enhance --ai-backend realesrgan --ai-scale 2
+  ```
+- **診断モード（品質レポートを表示）:**
+  ```bash
+  python main.py ./samples out.pdf --diagnose
+  ```
 
-# 小説・実用書（縦書き、A4サイズ、影・裏写り除去）
-python main.py ./novel/ novel.pdf --book-type jp_vert --shadow-strength 1.0
+---
 
-# AI 超解像を適用（Real-ESRGAN x2）
-python main.py ./input out.pdf --ai-enhance --ai-backend realesrgan --ai-scale 2
+## オプション一覧
 
-# AI による影・裏写り除去（超解像なし）
-python main.py ./input out.pdf --ai-enhance --ai-backend docres --ai-scale 1
-
-# AI コーナー検出 + 詳細ログ
-python main.py ./input out.pdf --sensitivity ai --verbose
-```
-
-### オプション一覧
+### 基本設定
 
 | オプション | 説明 | デフォルト |
 |------------|------|------------|
-| `--book-type` | `jp_vert` (縦書き), `jp_horiz` (横書き), `en` (英語), `manga` (漫画) | `jp_vert` |
-| `--dewarp-mode` | `dewarpnet` (AI 高精度), `polynomial` (幾何補正), `doctr` (AI Transformer), `none` (なし) | `dewarpnet` |
-| `--ai-enhance` | AI モデルで超解像・復元補正を行う | (行わない) |
-| `--ai-backend` | `realesrgan` (超解像), `swin2sr` (超解像), `docres` (AI 影・裏写り除去) | `realesrgan` |
-| `--ai-scale` | 超解像の拡大倍率 (`1`: 復元のみ, `2`, `4`) | `2` |
-| `--output-size` | `A4`, `A5`, `B5`, `Letter` | `A4` |
-| `--sensitivity` | `low`, `medium`, `high`, `ai` (AI によるコーナー検出) | `medium` |
-| `--grayscale` | 強制的にグレースケールで出力 | (書籍タイプに依存) |
-| `--shadow-strength`| 影・裏写り除去の強度 (0.0 - 1.0) | `1.0` |
-| `--no-split` | 見開き分割を行わない | (分割する) |
-| `--no-orient` | 向きの自動補正を行わない | (補正する) |
-| `--no-border` | 黒縁除去を行わない | (除去する) |
-| `--verbose`, `-v` | 詳細ログを出力 | (なし) |
+| `--book-type` | 書籍タイプ (`auto`, `jp_vert`, `jp_horiz`, `en`, `manga`) | `auto` |
+| `--dewarp-mode` | 湾曲補正モード (`dewarpnet`, `polynomial`, `doctr`, `none`) | `dewarpnet` |
+| `--writing-mode` | 書字方向 (`auto`, `horizontal`, `vertical`)。`vertical` 指定時は湾曲補正を自動無効化 | `auto` |
+| `--output-size` | 出力用紙サイズ (`A4`, `A5`, `B5`, `Letter`) | `A4` |
+| `--sensitivity` | ページ境界検出感度 (`low`, `medium`, `high`) | `medium` |
+| `--rotate-angle` | 手動回転角度 (`0`, `90`, `180`, `270`) | `0` |
+
+### 後処理
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--shadow-strength` | 影・裏写り除去強度 (0.0〜1.0) | `1.0` |
+| `--grayscale` | グレースケールで出力する | 無効 |
+| `--no-orient` | 向きの自動補正を無効化する | 有効 |
+| `--no-border` | 黒縁の自動除去を無効化する | 有効 |
+
+### AI 補正
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--ai-enhance` | AI 超解像・復元補正を有効化する | 無効 |
+| `--ai-backend` | AI 補正バックエンド (`realesrgan`, `swin2sr`, `docres`) | `realesrgan` |
+| `--ai-scale` | 超解像の拡大倍率 (`1`, `2`, `4`) | `2` |
+
+### 診断・確認
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--diagnose` | 処理後に品質診断サマリーを表示する | 無効 |
+| `--show-book-area` | 書籍領域を赤枠描画した確認用 PDF を出力（後処理スキップ） | 無効 |
+| `--show-page-area` | ページ領域を赤枠描画した確認用 PDF を出力（後処理スキップ） | 無効 |
+
+### ログ
+
+| オプション | 説明 |
+|------------|------|
+| `--verbose`, `-v` | DEBUG レベルの詳細ログを出力する |
+| `--quiet`, `-q` | WARNING 以上のみ出力する（INFO を抑制） |
+
+---
 
 ## AI 補正バックエンド
 
-### Real-ESRGAN（推奨）
-- ノイズ除去 + 超解像。書籍スキャンに最適化。
-- インストール: `pip install realesrgan basicsr`
-- モデルは初回実行時に自動ダウンロード (`~/.cache/paper_to_pdf/`)
+### 湾曲補正 (Dewarping)
 
-### Swin2SR（HuggingFace）
-- Swin Transformer V2 ベースの超解像。
-- インストール: `pip install transformers accelerate`
-- モデルは HuggingFace Hub から自動ダウンロード。
+| バックエンド | `--dewarp-mode` | 説明 |
+|---|---|---|
+| DewarpNet | `dewarpnet` | 深層学習による 3D 湾曲補正。見開き全体に適用。GPU 推奨。湾曲度 1.0% 未満の平坦な画像は自動スキップ。コンテンツ消失を検知した場合は polynomial に永続切り替え。 |
+| DocTr | `doctr` | Transformer ベースの AI 湾曲補正。 |
+| Polynomial | `polynomial` | CPU 完結。3段階の反復多項式補正。AI モデル不要。 |
+| なし | `none` | 湾曲補正をスキップ。 |
 
-> **Warning: You are sending unauthenticated requests to the HF Hub...** が表示される場合  
-> HuggingFace の認証トークンが未設定です。[https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) でトークンを取得し、以下のいずれかで設定してください。
->
-> ```bash
-> # 方法 A: CLI でログイン（推奨・一度だけ実行）
-> huggingface-cli login
->
-> # 方法 B: 環境変数で設定
-> export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxx"
-> ```
->
-> 未認証でも動作しますが、ダウンロード速度が制限される場合があります。
+> **注意:** `--writing-mode vertical` 指定時は、いずれのモードでも湾曲補正が自動的に無効化されます。縦書き書籍では列長の差を「湾曲」と誤検出して文字が欠落するためです。
 
-### DocRes（AI 影・裏写り除去）
-- AI による高精度な影・裏写り（ブリードスルー）除去。`--ai-scale 1` と組み合わせて復元のみの用途にも利用可能。
-- インストール: `pip install transformers`
-- `--ai-backend docres --ai-scale 1` で超解像なしの復元処理として動作。
+### 超解像・復元補正 (`--ai-enhance` 有効時)
 
-### DewarpNet（`--dewarp-mode dewarpnet` 使用時）
-- 湾曲補正に AI モデルを使用。PyTorch 必須。
-- モデルが未ダウンロードまたは PyTorch 未インストール時は polynomial に自動フォールバック。
-
-> **M1 Mac の場合:** PyTorch は MPS（Metal）で GPU 加速されます。
+| バックエンド | `--ai-backend` | 説明 |
+|---|---|---|
+| Real-ESRGAN | `realesrgan` | 汎用超解像。`--ai-scale 2` / `4` で拡大。 |
+| Swin2SR | `swin2sr` | Swin Transformer ベースの超解像。 |
+| DocRes | `docres` | ドキュメント特化の AI 影・裏写り除去。 |
 
 ---
 
-## パフォーマンス
+## パフォーマンス目安 (A4 @ 300 DPI 見開き)
 
-> 以下の数値は **A4 @ 300 DPI（約 2480×3508 px）の見開き 1 枚** を処理した場合のおおよその目安です。  
-> 実測値は画像サイズ・内容・ハードウェア環境によって大きく変わります。
-
-### 湾曲補正モードの速度比較
-
-| モード | CPU | M1 Mac (MPS) | 備考 |
-|--------|-----|--------------|------|
-| `none` | < 0.1 s | < 0.1 s | 補正なし |
-| `polynomial` | 0.1〜0.5 s | 0.1〜0.5 s | GPU 不要。軽量で安定 |
-| `dewarpnet` | 1〜3 s | 0.5〜1.5 s | AI による高精度補正。初回はモデルロードに数秒 |
-| `doctr` | *(placeholder)* | *(placeholder)* | 実装予定 |
-
-### AI 超解像・復元モデルの速度比較
-
-タイル推論（512 px または 128 px 単位）のため、処理時間は画像サイズに概ね比例します。
-
-| バックエンド | スケール | CPU | M1 Mac (MPS) | NVIDIA GPU (CUDA) | 特徴 |
-|--------------|----------|-----|--------------|-------------------|------|
-| `realesrgan` | ×2 | 15〜40 s | 3〜8 s | 1〜3 s | **推奨。** 品質・速度のバランスが最良 |
-| `realesrgan` | ×4 | 40〜120 s | 8〜25 s | 2〜8 s | 高解像度が必要な場合 |
-| `swin2sr` | ×2 | 数分 | 30〜90 s | 10〜30 s | タイル 128 px のため非常に遅い |
-| `swin2sr` | ×4 | 数分〜 | 60〜180 s | 20〜60 s | CPU での利用は非推奨 |
-| `docres` | ×1 | 8〜20 s | 2〜5 s | 1〜2 s | 復元のみ（超解像なし）。高速 |
-
-### 処理全体の目安（`--ai-enhance` なし）
-
-見開き 1 枚あたり、湾曲補正を含む全処理（AI 超解像除く）のおおよその合計時間：
-
-| 構成 | CPU |
-|------|-----|
-| `--dewarp-mode none` | < 1 s |
-| `--dewarp-mode polynomial` | 0.5〜2 s |
-| `--dewarp-mode dewarpnet` | 2〜5 s |
-
-### 推奨設定
-
-| 目的 | 推奨オプション |
-|------|---------------|
-| **速度重視**（プレビュー確認など） | `--dewarp-mode polynomial` |
-| **品質重視**（最終出力） | `--dewarp-mode dewarpnet --ai-enhance --ai-backend realesrgan --ai-scale 2` |
-| **影・裏写りが強い場合** | `--ai-enhance --ai-backend docres --ai-scale 1` |
-| **GPU なしで AI 超解像** | `--ai-enhance --ai-backend realesrgan --ai-scale 2`（CPU でも動作するが遅い） |
+| モード | 環境 | 速度 |
+|--------|------|------|
+| Polynomial (3-iter) | CPU | ~0.8s |
+| DewarpNet | M1 Mac (MPS) | ~1.2s |
+| Real-ESRGAN x2 | M1 Mac (MPS) | ~5.0s |
 
 ---
 
-## 補正アルゴリズムについて
-
-### 1. 湾曲補正 (Dewarping)
-AI（DewarpNet）または 3次多項式メッシュフィッティングを採用。ページの綴じ目付近の急激な曲がりと、画像端の歪みの両方を考慮して平坦化します。
-
-### 2. 背景白色化 (Document Cleaning)
-単なる二値化ではなく、エリアごとの紙の明るさを推定する「適応型白色化」を行います。これにより、文字を鮮明に残したまま、裏側の透けや照明のムラを消し去ります。
-
-### 3. 傾き補正 (Deskewing)
-ハフ変換によりテキストの行（ベースライン）を検出し、画像全体を微細回転させます。
-
-## より綺麗にスキャンするためのヒント
-
-1. **背景を工夫する:** 本の背景に黒い布などを敷くと、ページの境界（エッジ）をより正確に検出できます。
-2. **照明を均一にする:** 強い直射日光よりも、柔らかな間接照明の方が影除去が綺麗にかかります。
-3. **フラットに置く:** 可能な限り本を平らに開いて撮影することで、湾曲補正の精度が最大化されます。
-
-## 対応画像フォーマット
-
-- JPEG, PNG, HEIC, BMP, TIFF, TIF
+## ライセンス・引用
+- **DewarpNet:** Stony Brook University (MIT License)
+- **Real-ESRGAN:** Tencent ARC (BSD 3-Clause)

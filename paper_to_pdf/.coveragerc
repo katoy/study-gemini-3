@@ -1,0 +1,20 @@
+[run]
+source = .
+omit =
+    tests/*
+    main.py
+    analyze_img.py
+    check_book_detection.py
+    check_seam_detection.py
+    compare_pages.py
+    verify_ocr.py
+    verify_ocr_server.py
+    ocr_pdf.py
+    pdf_to_markdown.py
+    convert_docling.py
+    convert_markitdown.py
+    convert_ocrmac.py
+
+[report]
+fail_under = 100
+show_missing = true

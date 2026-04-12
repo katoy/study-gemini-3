@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+import logging
 
 from core.config import OUTPUT_SIZES
+from core.constants import MIN_TEXT_DENSITY
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # 1. 強化された影・裏写り除去 (Document Cleaner)
@@ -24,13 +28,22 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
     if strength <= 0:
         return image
 
+    # 白紙ページガード: 暗ピクセル(輝度<150)が2%未満なら文字がないため処理をスキップ。
+    # Division Normalization + NORM_MINMAX が白紙の微細な色むらを増幅して破壊するのを防ぐ。
+    _gray_check = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if np.mean(_gray_check < 150) < 0.02:
+        return image
+
     # 1. 輝度チャンネル (L) の抽出
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
 
     # 2. 背景（紙の色）の推定
     # かなり大きなカーネルで文字を消し、紙の地の色だけを抽出する
-    kernel_size = max(31, int(min(image.shape[:2]) * 0.2) | 1)
+    # 255 は medianBlur の SIMD 制約を超えており、dilate でも処理時間が急増する。
+    # 127 は超高解像度スキャン(3000px超)でも文字を十分に膨張できる実用的な上限。
+    _MAX_KERNEL = 127
+    kernel_size = min(_MAX_KERNEL, max(31, int(min(image.shape[:2]) * 0.2) | 1))
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     
     # 膨張処理で文字を消す
@@ -64,8 +77,7 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 
     # 5. 黒の締め
     # 文字をはっきりさせる
-    res_l = cv2.addWeighted(res_l, 1.2, res_l, 0, -20)
-    res_l = np.clip(res_l, 0, 255).astype(np.uint8)
+    res_l = np.clip(res_l.astype(np.float32) * 1.2 - 20, 0, 255).astype(np.uint8)
 
     # ブレンド
     final_l = cv2.addWeighted(res_l, strength, l_ch, 1.0 - strength, 0)
@@ -78,98 +90,337 @@ def remove_shadow(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
 # 2. 傾き補正 (Deskew)
 # ──────────────────────────────────────────────
 
-def deskew_page(image: np.ndarray) -> np.ndarray:
+def deskew_page(image: np.ndarray, writing_mode: str = "auto") -> np.ndarray:
     """
-    画像内のテキスト行の傾きを検出し、水平に回転補正する。
+    画像内のテキストの傾きを検出し、水平に回転補正する。
+
+    改良点:
+      - ±10° に探索範囲を拡大
+      - writing_mode に応じて射影分散の軸を切り替え:
+          縦書き (vertical): 垂直射影分散 (axis=0) で評価
+          横書き / auto    : 水平射影分散 (axis=1) で評価
+        縦書きページで max(h, v) を使うと、誤った角度の h_score が
+        v_score を上回り誤補正が起きるため軸を固定する。
+      - 回転前にキャンバスをパディングして四隅のテキストが欠けないようにする
     """
     h, w = image.shape[:2]
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # エッジ抽出
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    
-    # ハフ変換で直線（行）を検出
-    # 解像度 1度単位で -10度 〜 +10度の範囲を探す
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, 
-                            minLineLength=w // 5, maxLineGap=20)
-    
-    if lines is None:
+    is_vertical = (writing_mode == "vertical")
+
+    # 処理高速化のために縮小
+    scale = 600 / h
+    small = cv2.resize(image, (int(w * scale), 600))
+    sh, sw = small.shape[:2]
+    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # テキスト密度ガード:
+    # 暗ピクセル比率が低すぎる（白紙・図版）か高すぎる（写真・黒背景）ページは
+    # 射影分散による傾き検出が信頼できないためスキップする。
+    dark_ratio = float(np.mean(thresh > 0))
+    if dark_ratio < MIN_TEXT_DENSITY or dark_ratio > 0.5:
+        logger.debug("Deskew: テキスト密度 %.1f%% のためスキップします。", dark_ratio * 100)
         return image
-        
-    angles = []
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = np.degrees(np.arctan2(y2 - y1, x2 - x1))
-        # 極端な傾き（縦書きの縦線など）を除外、±15度以内を対象
-        if abs(angle) < 15:
-            angles.append(angle)
-            
-    if not angles:
+
+    def _proj_score(t: np.ndarray) -> float:
+        if is_vertical:
+            return float(np.var(np.sum(t, axis=0)))
+        return float(np.var(np.sum(t, axis=1)))
+
+    score_at_zero = _proj_score(thresh)
+
+    best_score = -1
+    best_angle = 0
+
+    # ±10° を 0.25° 刻みで探索（細かくすることで小さな傾きも補正）
+    for angle in np.arange(-10, 10.1, 0.25):
+        M = cv2.getRotationMatrix2D((sw // 2, sh // 2), angle, 1.0)
+        rotated = cv2.warpAffine(thresh, M, (sw, sh), flags=cv2.INTER_NEAREST)
+
+        score = _proj_score(rotated)
+
+        if score > best_score:
+            best_score = score
+            best_angle = angle
+
+    if abs(best_angle) < 0.3:
         return image
-        
-    # 最頻値（中央値）の角度を採用
-    median_angle = np.median(angles)
-    
-    if abs(median_angle) < 0.1: # 傾きが微小なら何もしない
+
+    # 改善比ガード: 0° スコアに対して 30% 以上の改善がない場合はテキスト方向の
+    # 検出が信頼できないためスキップ（イラスト・白紙・疎なページでの誤補正を防ぐ）
+    if score_at_zero > 0 and best_score / score_at_zero < 1.3:
         return image
-        
-    # 回転行列の作成
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
-    
-    # 回転（余白は白で埋める）
-    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_LANCZOS4, 
-                             borderMode=cv2.BORDER_REPLICATE)
-    
-    return rotated
+
+    logger.debug("Deskew: angle = %.2f degrees", best_angle)
+
+    # 四隅のコンテンツを失わないよう、対角長以上のパディングを追加してから回転
+    diag = int(np.sqrt(w * w + h * h)) + 4
+    pad_x = (diag - w) // 2
+    pad_y = (diag - h) // 2
+    padded = cv2.copyMakeBorder(
+        image, pad_y, pad_y, pad_x, pad_x,
+        cv2.BORDER_CONSTANT, value=(255, 255, 255)
+    )
+    ph, pw = padded.shape[:2]
+    M = cv2.getRotationMatrix2D((pw // 2, ph // 2), best_angle, 1.0)
+    rotated_full = cv2.warpAffine(
+        padded, M, (pw, ph),
+        flags=cv2.INTER_LANCZOS4,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255)
+    )
+    # パディング分を除いて元サイズに戻す
+    return rotated_full[pad_y:pad_y + h, pad_x:pad_x + w]
 
 # ──────────────────────────────────────────────
 # 3. 向き補正 (Orientation)
 # ──────────────────────────────────────────────
 
-def fix_orientation(image: np.ndarray) -> np.ndarray:
-    h, w = image.shape[:2]
-    if h >= w:
-        return image
+def _is_upside_down(image: np.ndarray) -> bool:
+    """
+    ページが 180° 逆さまかを検出する。
+
+    3 つのシグナルを組み合わせてスコアリング:
+      1. 上下マージン差  : 逆さまなら上マージンが大きくなりやすい
+      2. 垂直ストローク方向: 正位置では「黒の上端」遷移が多い
+      3. 上下 20% テキスト密度差: フッター (ページ番号のみ) が上に来ると疎になる
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges_h = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-    edges_v = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-    if np.abs(edges_h).sum() >= np.abs(edges_v).sum():
-        return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    h, w = gray.shape
+    scale = 600 / h
+    small = cv2.resize(gray, (int(w * scale), 600))
+    sh = small.shape[0]
+
+    blur = cv2.GaussianBlur(small, (5, 5), 0)
+    _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    row_density = binary.mean(axis=1)
+    text_thr = row_density.max() * 0.15
+    is_text = row_density > text_thr
+
+    if not is_text.any():
+        return False
+
+    first_text = int(np.where(is_text)[0][0])
+    last_text  = int(np.where(is_text)[0][-1])
+
+    # ── Signal 1: マージン差 ──
+    top_margin = first_text / sh
+    bot_margin = (sh - 1 - last_text) / sh
+    margin_score = top_margin - bot_margin  # 正 → 逆さまの疑い
+
+    # ── Signal 2: 垂直ストローク方向 ──
+    b = binary.astype(np.int32)
+    diff = b[1:] - b[:-1]
+    top_edges = float(np.sum(diff >  50))   # 白→黒 = 文字上端
+    bot_edges = float(np.sum(diff < -50))   # 黒→白 = 文字下端
+    total_edges = top_edges + bot_edges
+    stroke_score = (bot_edges - top_edges) / total_edges if total_edges > 0 else 0.0
+
+    # ── Signal 3: 上下 20% テキスト密度差 ──
+    fifth = sh // 5
+    top_count = float(is_text[:fifth].sum())
+    bot_count = float(is_text[4 * fifth:].sum())
+    total_count = top_count + bot_count
+    density_score = (bot_count - top_count) / total_count if total_count > 0 else 0.0
+
+    score = margin_score * 0.5 + stroke_score * 0.2 + density_score * 0.3
+    logger.debug(
+        "_is_upside_down: margin=%.3f stroke=%.3f density=%.3f → score=%.3f",
+        margin_score, stroke_score, density_score, score,
+    )
+    return score > 0.08
+
+
+def fix_orientation(image: np.ndarray) -> np.ndarray:
+    """
+    画像の向きを補正する。
+      Step 1: landscape (h < w) なら 90° 回転して portrait にする。
+    """
+    h, w = image.shape[:2]
+
+    # Step 1: 90° 補正
+    if h < w:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        edges_h = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+        edges_v = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+        if np.abs(edges_h).sum() >= np.abs(edges_v).sum():
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        else:
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+
+    return image
+
+# ──────────────────────────────────────────────
+# 4a. テクスチャ背景除去 (籐・机など)
+# ──────────────────────────────────────────────
+
+def remove_textured_border(image: np.ndarray) -> np.ndarray:
+    """
+    行/列ごとの「白ピクセル比率」でページ領域を特定し、
+    籐や机などのテクスチャ背景を上下左右からクロップする。
+
+    識別ロジック:
+      - ページ行/列: 白ピクセル (輝度 ≥ 200) が 40% 以上 → ページとして保持
+      - 籐/机テクスチャ行/列: 中程度輝度が多く白が 30% 以下 → 背景として除去
+    パーセンタイルではなく白比率を使うことで、籐テクスチャのハイライト
+    （藤繊維の光沢で 75%ile が高い）による誤検出を防ぐ。
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    # 白ピクセル比率: 輝度 ≥ 200 のピクセルの割合
+    white_thresh = 200
+    min_white_ratio = 0.25  # この比率未満の行/列はテクスチャ背景と判定
+
+    row_white = np.mean(gray >= white_thresh, axis=1)
+    col_white = np.mean(gray >= white_thresh, axis=0)
+
+    page_rows = row_white >= min_white_ratio
+    page_cols = col_white >= min_white_ratio
+
+    if not page_rows.any() or not page_cols.any():
+        logger.debug("remove_textured_border: 有効なページ領域が見つからない")
+        return image
+
+    # 画像全体の白比率が高い (>60%) 場合は既にクリーンな書籍ページ。
+    # 高密度テキスト行を誤ってテクスチャ背景と判定するのを防ぐ。
+    overall_white = float(np.mean(gray >= white_thresh))
+    if overall_white > 0.60:
+        logger.debug("remove_textured_border: overall_white=%.2f > 0.60 → スキップ", overall_white)
+        return image
+
+    r_min = int(np.where(page_rows)[0][0])
+    r_max = int(np.where(page_rows)[0][-1])
+    c_min = int(np.where(page_cols)[0][0])
+    c_max = int(np.where(page_cols)[0][-1])
+
+    # ほぼ削る必要がない場合はそのまま
+    if r_min < h * 0.02 and r_max > h * 0.98 and c_min < w * 0.02 and c_max > w * 0.98:
+        return image
+
+    # 安全余白を追加してクロップ（テキストを絶対に切らない）
+    pad = max(10, int(min(h, w) * 0.01))
+    r_min = max(0, r_min - pad)
+    r_max = min(h - 1, r_max + pad)
+    c_min = max(0, c_min - pad)
+    c_max = min(w - 1, c_max + pad)
+
+    # アスペクト比保護: クロップで Portrait→Landscape に転換しない
+    # (転換するとfix_orientationが誤方向に回転する原因になる)
+    new_h = r_max - r_min + 1
+    new_w = c_max - c_min + 1
+    original_portrait = h >= w
+    if original_portrait and new_w > new_h:
+        # 縦が足りなくなった分、上下にパディングを追加して Portrait を維持
+        extra = (new_w - new_h + 1) // 2
+        r_min = max(0, r_min - extra)
+        r_max = min(h - 1, r_max + extra)
+        logger.debug(
+            "remove_textured_border: portrait guard applied, extra=%d", extra
+        )
+
+    logger.debug(
+        "remove_textured_border: crop rows %d-%d, cols %d-%d (original %dx%d)",
+        r_min, r_max, c_min, c_max, w, h,
+    )
+    return image[r_min:r_max + 1, c_min:c_max + 1]
+
 
 # ──────────────────────────────────────────────
 # 4. 黒縁除去
 # ──────────────────────────────────────────────
 
-def remove_border(image: np.ndarray, threshold: int = 40, padding: int = 5) -> np.ndarray:
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    rows = np.any(mask > 0, axis=1)
-    cols = np.any(mask > 0, axis=0)
-    if not rows.any() or not cols.any():
-        return image
-    r_min, r_max = np.where(rows)[0][[0, -1]]
-    c_min, c_max = np.where(cols)[0][[0, -1]]
+def remove_border(image: np.ndarray, threshold: int = 30, padding: int = 2) -> np.ndarray:
+    """
+    画像の外周にある暗い「黒縁」(撮影時の背景) を除去する。
+    
+    改良点:
+      - ページ全体をクロップするのではなく、外周から中心に向かって
+        連続する暗いピクセルのみを削る。
+    """
     h, w = image.shape[:2]
-    return image[max(0, r_min-padding):min(h, r_max+padding), max(0, c_min-padding):min(w, c_max+padding)]
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # マスク作成 (暗い部分を True)
+    dark = gray < threshold
+    
+    # 各辺からどこまで暗いピクセルが続いているかを探す
+    top, bottom, left, right = 0, h - 1, 0, w - 1
+    
+    # 上から
+    while top < h // 4 and np.mean(dark[top, :]) > 0.5:
+        top += 1
+    # 下から
+    while bottom > 3 * h // 4 and np.mean(dark[bottom, :]) > 0.5:
+        bottom -= 1
+    # 左から
+    while left < w // 4 and np.mean(dark[:, left]) > 0.5:
+        left += 1
+    # 右から
+    while right > 3 * w // 4 and np.mean(dark[:, right]) > 0.5:
+        right -= 1
+        
+    # 安全のためパディング（戻し）
+    top = max(0, top - padding)
+    bottom = min(h - 1, bottom + padding)
+    left = max(0, left - padding)
+    right = min(w - 1, right + padding)
+    
+    return image[top:bottom+1, left:right+1]
 
 # ──────────────────────────────────────────────
 # 5. サイズ正規化
 # ──────────────────────────────────────────────
 
 def normalize_size(image: np.ndarray, target_size: str = "A4", grayscale: bool = False) -> np.ndarray:
+    """
+    画像をターゲットサイズ (A4, B5 等) に合わせ、背景を浄化してページいっぱいに収める。
+    画像の縦横比に応じて portrait / landscape を自動判別する。
+    """
     size = OUTPUT_SIZES.get(target_size, OUTPUT_SIZES["A4"])
-    target_w, target_h = size
-    if image.shape[1] > image.shape[0]:
-        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    portrait_w, portrait_h = size  # OUTPUT_SIZES は常に portrait (幅 < 高さ) で定義
+
     h, w = image.shape[:2]
-    scale = min(target_w / w, target_h / h)
+
+    # 画像が横長なら landscape A4 を使用
+    if w > h:
+        target_w, target_h = portrait_h, portrait_w  # 幅と高さを入れ替え
+    else:
+        target_w, target_h = portrait_w, portrait_h
+    
+    # 1. 適応的背景浄化 (Document Cleaning)
+    # 画像の明るい部分（上位 10%）の中央値をホワイトポイントとする
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    white_point = np.percentile(gray, 90)
+    
+    # ホワイトポイントを 255 に、0 はそのままに引き伸ばす
+    # 200〜240程度のグレー背景を白く飛ばす
+    if white_point > 150:
+        image_f = image.astype(np.float32)
+        image_f = (image_f * (255.0 / max(white_point, 1.0)))
+        image = np.clip(image_f, 0, 255).astype(np.uint8)
+
+    # 2. サイズ調整と配置
+    # マージン 0% (ページいっぱいに配置)
+    inner_w = target_w
+    inner_h = target_h
+    
+    scale = min(inner_w / w, inner_h / h)
     new_w, new_h = int(w * scale), int(h * scale)
+    
     resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+    
+    # 白背景のキャンバス作成
     canvas = np.full((target_h, target_w, 3), 255, dtype=np.uint8)
-    y_off, x_off = (target_h - new_h) // 2, (target_w - new_w) // 2
+    
+    # 中央配置
+    y_off = (target_h - new_h) // 2
+    x_off = (target_w - new_w) // 2
     canvas[y_off:y_off + new_h, x_off:x_off + new_w] = resized
+    
     if grayscale:
-        canvas = cv2.cvtColor(cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+        gray_out = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
+        canvas = cv2.cvtColor(gray_out, cv2.COLOR_GRAY2BGR)
+        
     return canvas

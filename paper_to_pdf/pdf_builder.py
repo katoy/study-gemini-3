@@ -11,12 +11,13 @@ pdf_builder.py
 
 from __future__ import annotations
 
-import os
+import logging
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Optional
 
 from PIL import Image
 
+logger = logging.getLogger(__name__)
 
 def _build_pdf_pillow(
     image_paths: list[str | Path],
@@ -27,6 +28,10 @@ def _build_pdf_pillow(
     """
     Pillow を使った PDF 生成 (内部実装)。
     PyMuPDF が利用できない場合の build_pdf_streaming() フォールバック先。
+
+    注意: Pillow の PDF 保存 API (save_all + append_images) の仕様上、
+    全ページ画像をメモリに保持してから保存する。
+    大量ページの場合はメモリ使用量が増加するため、PyMuPDF の使用を推奨。
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,6 +40,26 @@ def _build_pdf_pillow(
     if total == 0:
         raise ValueError("ページ画像が1枚もありません。")
 
+    # Pillow の save_all API は全ページをメモリに展開してから保存するため、
+    # ページ数が多い場合はメモリ使用量が急増する。
+    # PyMuPDF はストリーミング処理で定量メモリのため、大規模利用時に推奨。
+    _PILLOW_PAGE_LIMIT = 300
+    if total > _PILLOW_PAGE_LIMIT:
+        raise MemoryError(
+            f"Pillow フォールバックでは {_PILLOW_PAGE_LIMIT} ページを超える PDF 生成は"
+            f"メモリ不足になる可能性があります（現在: {total} ページ）。"
+            " PyMuPDF をインストールしてください: pip install pymupdf"
+        )
+    if total > 50:
+        # A4 @ 300dpi JPEG 92品質: 約 0.5〜2 MB/ページ
+        est_mb_low  = total * 0.5
+        est_mb_high = total * 2.0
+        logger.warning(
+            "Pillowフォールバックで %d ページを処理します（推定メモリ使用量: %.0f〜%.0f MB）。"
+            " PyMuPDF を使用するとメモリ使用量を大幅に削減できます: pip install pymupdf",
+            total, est_mb_low, est_mb_high,
+        )
+
     if progress_cb:
         progress_cb(0.0, f"PDF 生成開始: {total} ページ")
 
@@ -42,7 +67,8 @@ def _build_pdf_pillow(
     append_imgs = []
 
     for i, path in enumerate(image_paths):
-        img = Image.open(path).convert("RGB")
+        with Image.open(path) as img_file:
+            img = img_file.convert("RGB").copy()
 
         if i == 0:
             first_img = img
@@ -53,7 +79,7 @@ def _build_pdf_pillow(
             pct = (i + 1) / total
             progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
 
-    if first_img is None:
+    if first_img is None:  # pragma: no cover
         raise RuntimeError("先頭ページの読み込みに失敗しました。")
 
     first_img.save(
@@ -82,7 +108,6 @@ def build_pdf_streaming(
     ページ数が多い場合でもメモリ使用量を一定に保つ。
     """
     try:
-        import fitz  # PyMuPDF
         _build_pdf_fitz(image_paths, output_path, dpi, progress_cb)
     except ImportError:
         # PyMuPDF がなければ Pillow で処理
@@ -100,24 +125,21 @@ def _build_pdf_fitz(
 
     output_path = Path(output_path)
     total = len(image_paths)
-    pdf_doc = fitz.open()
 
-    for i, path in enumerate(image_paths):
-        img_doc = fitz.open(str(path))
-        pdfbytes = img_doc.convert_to_pdf()
-        img_doc.close()
+    with fitz.open() as pdf_doc:
+        for i, path in enumerate(image_paths):
+            with fitz.open(str(path)) as img_doc:
+                pdfbytes = img_doc.convert_to_pdf()
 
-        img_pdf = fitz.open("pdf", pdfbytes)
-        pdf_doc.insert_pdf(img_pdf)
-        img_pdf.close()
+            with fitz.open("pdf", pdfbytes) as img_pdf:
+                pdf_doc.insert_pdf(img_pdf)
 
-        if progress_cb:
-            pct = (i + 1) / total
-            progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
+            if progress_cb:
+                pct = (i + 1) / total
+                progress_cb(pct, f"PDF 結合中... {i + 1}/{total} ページ")
 
-    pdf_doc.set_metadata({"producer": "paper_to_pdf", "creator": "paper_to_pdf"})
-    pdf_doc.save(str(output_path), garbage=4, deflate=True)
-    pdf_doc.close()
+        pdf_doc.set_metadata({"producer": "paper_to_pdf", "creator": "paper_to_pdf"})
+        pdf_doc.save(str(output_path), garbage=4, deflate=True)
 
     if progress_cb:
         progress_cb(1.0, f"PDF 保存完了: {output_path.name}")
@@ -125,7 +147,8 @@ def _build_pdf_fitz(
 
 def make_thumbnail(image_path: str | Path, size: tuple[int, int] = (150, 212)) -> Image.Image:
     """プレビュー用サムネイルを生成して返す（PIL Image）。"""
-    img = Image.open(image_path).convert("RGB")
+    with Image.open(image_path) as img_file:
+        img = img_file.convert("RGB")
     img.thumbnail(size, Image.LANCZOS)
 
     # 白背景に中央配置
