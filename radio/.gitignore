@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.Python
+.python-version
+.venv/
+venv/
+ENV/
+env/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+
+# Project data
+downloads/
+test_downloads/
+.cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
