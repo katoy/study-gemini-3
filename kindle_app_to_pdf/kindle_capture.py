@@ -93,49 +93,104 @@ end tell
 
 def _get_window_bounds(process_name: str) -> tuple[int, int, int, int]:
     """
-    System Events 経由でウィンドウの表示領域を返します。
-
-    Returns:
-        (x, y, width, height) のタプル
+    System Events 経由で Kindle 本体のウィンドウ（最も大きいウィンドウ）の領域を返します。
+    ダイアログが前面にあっても本体をターゲットにします。
     """
     script = f'''
 tell application "System Events"
     tell process "{process_name}"
-        set pos to position of front window
-        set sz to size of front window
+        set allWindows to every window
+        if (count of allWindows) is 0 then return "0,0,0,0"
+        
+        set largestWin to item 1 of allWindows
+        set maxArea to 0
+        repeat with win in allWindows
+            try
+                set sz to size of win
+                set area to (item 1 of sz) * (item 2 of sz)
+                if area > maxArea then
+                    set maxArea to area
+                    set largestWin to win
+                end if
+            end try
+        end repeat
+        
+        set pos to position of largestWin
+        set sz to size of largestWin
         return (item 1 of pos as string) & "," & (item 2 of pos as string) & "," & (item 1 of sz as string) & "," & (item 2 of sz as string)
     end tell
 end tell
 '''
     raw = _run_applescript(script)
     parts = [int(v.strip()) for v in raw.split(',')]
-    x, y, w, h = parts
-    return x, y, w, h
+    if len(parts) != 4:
+        raise RuntimeError("ウィンドウ領域の取得に失敗しました。")
+    return parts[0], parts[1], parts[2], parts[3]
 
 
 def _capture_window_region(process_name: str, output_path: str) -> None:
     """
     Kindle ウィンドウの領域をスクリーンショット撮影します。
-
-    screencapture の -R オプションで指定領域のみを撮影します。
     """
+    # 撮影直前に確実に最前面へ
+    script_activate = f'''
+tell application "System Events"
+    tell process "{process_name}"
+        set frontmost to true
+    end tell
+end tell
+'''
+    _run_applescript(script_activate)
+    time.sleep(0.1) # 確実な切り替えを待つ
+
     x, y, w, h = _get_window_bounds(process_name)
+    if w == 0 or h == 0:
+        raise RuntimeError("Kindle ウィンドウが見つかりません。")
     subprocess.run(
         ['screencapture', '-x', '-R', f'{x},{y},{w},{h}', output_path],
         check=True
     )
 
 
-def _send_next_page(process_name: str) -> None:
-    """次ページへ進むキー（右矢印キー）を Kindle アプリに送信します。"""
+def _send_next_page(process_name: str, direction: str = 'right') -> None:
+    """次ページへ進むキーを Kindle アプリに送信します。"""
+    # 123: 左矢印, 124: 右矢印, 49: スペース
+    if direction == 'left':
+        key_code = 123
+    elif direction == 'space':
+        key_code = 49
+    else:
+        key_code = 124
+
     script = f'''
 tell application "System Events"
     tell process "{process_name}"
-        key code 124
+        set frontmost to true
+        key code {key_code}
     end tell
 end tell
 '''
     _run_applescript(script)
+
+
+def _dismiss_dialog(process_name: str) -> bool:
+    """
+    Escape キーを送信してダイアログを閉じます。
+    ダイアログが閉じられた（または元々なかった）場合は True を返します。
+    """
+    script = f'''
+tell application "System Events"
+    tell process "{process_name}"
+        set frontmost to true
+        key code 53 # Escape
+    end tell
+end tell
+'''
+    try:
+        _run_applescript(script)
+        return True
+    except Exception:
+        return False
 
 
 def _calculate_md5(path: Path) -> str:
@@ -147,26 +202,85 @@ def _calculate_md5(path: Path) -> str:
     return hash_md5.hexdigest()
 
 
+def _is_dialog_active(process_name: str, book_title: str) -> bool:
+    """
+    評価ダイアログや終了画面が表示されているか判定します。
+    UI 要素の中から「評価」「完了」「閉じる」などのキーワードを探します。
+    """
+    safe_book_title = book_title.replace('"', '\\"')
+    
+    script = f'''
+tell application "System Events"
+    tell process "{process_name}"
+        set winList to every window
+        if (count of winList) is 0 then return "true|no_window"
+        
+        set frontWin to front window
+        set frontTitle to name of frontWin
+        
+        -- 1. タイトルのチェック (本の内容でなくなったら終了)
+        if frontTitle is not "" and frontTitle does not contain "{safe_book_title}" then
+            return "true|title_mismatch|" & frontTitle
+        end if
+        
+        -- 2. ウィンドウ内の全 UI 要素からキーワードを検索
+        -- 評価、レビュー、完了、閉じる、送信 などのボタンやテキストがあるか
+        try
+            set uiElems to UI elements of frontWin
+            set allNames to ""
+            repeat with e in uiElems
+                try
+                    set n to name of e
+                    set allNames to allNames & n & ","
+                end try
+            end repeat
+            
+            set keywords to {{"評価", "レビュー", "完了", "閉じる", "送信", "Rate this", "Review", "Done", "Close"}}
+            repeat with k in keywords
+                if allNames contains k then
+                    return "true|keyword_detected|" & k
+                end if
+            end repeat
+        end try
+
+        -- 3. 明示的なダイアログロール
+        repeat with w in winList
+            try
+                if role of w is "AXDialog" or subrole of w is "AXDialog" then
+                    return "true|dialog_role|" & (name of w)
+                end if
+            end try
+        end repeat
+
+        return "false"
+    end tell
+end tell
+'''
+    try:
+        result = _run_applescript(script)
+        if not result or result == "false":
+            return False
+        
+        logger.info(f"終端・ダイアログ検知: {result}")
+        return True
+    except Exception as e:
+        logger.debug(f"ダイアログチェック失敗 (無視して継続): {e}")
+        return False
+
 def capture_kindle_pages(
     output_dir: str,
     page_delay: float = 1.5,
+    direction: str = 'right',
 ) -> tuple[str, list[str]]:
     """
     Mac Kindle デスクトップアプリの全ページをキャプチャします。
-
-    Args:
-        output_dir:  スクリーンショットの保存先ディレクトリ
-        page_delay:  ページ送り後の待機時間（秒）
-
-    Returns:
-        (book_title, [screenshot_path, ...])
     """
     app_name, process_name = _find_and_activate_kindle()
     logger.info(f"Kindle アプリを検出: {app_name} (プロセス: {process_name})")
 
-    raw_title = get_window_title(process_name)
-    book_title = sanitize_filename(raw_title)
-    logger.info(f"書籍タイトル: {book_title}")
+    raw_book_title = get_window_title(process_name)
+    book_title = sanitize_filename(raw_book_title)
+    logger.info(f"書籍タイトル: {book_title} (判定用: {raw_book_title})")
 
     book_dir = Path(output_dir) / book_title
     counter = 2
@@ -176,30 +290,56 @@ def capture_kindle_pages(
     book_dir.mkdir(parents=True, exist_ok=True)
 
     screenshots: list[str] = []
-    prev_hash: str | None = None
+    hash_history: list[str] = []
+    MAX_HISTORY = 5
     same_count = 0
 
-    logger.info("キャプチャ開始 (終端を検出したら自動停止します)...")
+    logger.info(f"キャプチャ開始 (方向: {direction})...")
 
     while True:
+        # 1. 撮影前のチェック (ダイアログが出ていたらまず消去を試みる)
+        if _is_dialog_active(process_name, raw_book_title):
+            logger.info("撮影前にダイアログ（またはウィンドウ状態の変化）を検出しました。消去を試みます。")
+            _dismiss_dialog(process_name)
+            time.sleep(1.5)
+
         shot_path = book_dir / f"page_{len(screenshots) + 1:04d}.png"
         _capture_window_region(process_name, str(shot_path))
+        
+        # 2. 撮影直後のチェック (重要: 撮影中に評価ダイアログが出た場合)
+        if _is_dialog_active(process_name, raw_book_title):
+            logger.info("撮影した画像にダイアログが含まれている可能性があるため、破棄して終了します。")
+            if shot_path.exists():
+                shot_path.unlink()
+            break
+
         cur_hash = _calculate_md5(shot_path)
 
-        if cur_hash == prev_hash:
+        # 3. ハッシュによる重複チェック
+        if cur_hash in hash_history:
             same_count += 1
             if shot_path.exists():
                 shot_path.unlink()
             if same_count >= MAX_SAME_PAGES:
-                print(f"\n終端を検出しました。合計 {len(screenshots)} ページ")
+                print(f"\n終端を検出しました（画像重複による停滞）。合計 {len(screenshots)} ページ")
+                # 【重要】進めなくなった際の最後の1枚（＝重複の起点となったダイアログ等）を削除
+                if screenshots:
+                    last_path = screenshots.pop()
+                    if Path(last_path).exists():
+                        Path(last_path).unlink()
+                    print(f"末尾の重複元画像を除外しました。最終合計: {len(screenshots)} ページ")
                 break
         else:
             same_count = 0
             screenshots.append(str(shot_path))
+            hash_history.append(cur_hash)
+            if len(hash_history) > MAX_HISTORY:
+                hash_history.pop(0)
+            
             print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end='', flush=True)
 
-        prev_hash = cur_hash
-        _send_next_page(process_name)
+        # 次のページへ
+        _send_next_page(process_name, direction=direction)
         time.sleep(page_delay)
 
     return book_title, screenshots
