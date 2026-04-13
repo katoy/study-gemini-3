@@ -49,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         default=1.5,
         help='ページ送り後の待機時間(秒) (デフォルト: 1.5)',
     )
+    parser.add_argument(
+        '--direction',
+        choices=['right', 'left', 'space'],
+        default='space',
+        help='ページめくりの方向: right=右矢印, left=左矢印, space=スペースキー(デフォルト)',
+    )
     return parser.parse_args()
 
 
@@ -105,9 +111,20 @@ def _prepare_screenshots(
     book_title, screenshots = capture_kindle_pages(
         output_dir=str(output_dir),
         page_delay=args.page_delay,
+        direction=args.direction,
     )
+    
+    if not screenshots:
+        raise RuntimeError("キャプチャされたページがありません。Kindle アプリの設定を確認してください。")
+    
+    if len(screenshots) == 1:
+        logger.warning("キャプチャが 1 ページのみで終了しました。")
+        logger.warning("ページ捲りが正しく行われていない可能性があります。")
+        logger.warning("Kindle アプリにフォーカスが当たっているか確認し、")
+        logger.warning("改善しない場合は --direction space をお試しください。")
+
     logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
-    shot_dir = Path(screenshots[0]).parent if screenshots else None
+    shot_dir = Path(screenshots[0]).parent
     return book_title, screenshots, shot_dir
 
 

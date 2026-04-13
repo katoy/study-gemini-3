@@ -1,0 +1,15 @@
+# 基本依存パッケージ
+opencv-python
+Pillow
+numpy
+torch
+torchvision
+requests
+pypdfium2
+ocrmac
+
+# AI 補正バックエンド (オプション)
+# --ai-backend realesrgan を使う場合:
+#   pip install realesrgan
+# --ai-backend swin2sr を使う場合:
+#   pip install transformers accelerate

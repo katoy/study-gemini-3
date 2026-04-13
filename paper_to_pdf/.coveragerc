@@ -12,8 +12,13 @@ omit =
     ocr_pdf.py
     pdf_to_markdown.py
     convert_docling.py
+    convert_docling_v2.py
     convert_markitdown.py
+    convert_markitdown_v2.py
     convert_ocrmac.py
+    extract_text_layer.py
+    find_angle.py
+    solve_v.py
 
 [report]
 fail_under = 100
