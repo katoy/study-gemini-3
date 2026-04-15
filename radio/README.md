@@ -19,7 +19,7 @@ NHK ラジオの聞き逃し番組を一覧表示し、番組ごとにエピソ�
 
 ## 動作環境
 
-- **Python**: 3.11 以上推奨
+- **Python**: 3.13 以上
 - **外部コマンド**: `yt-dlp`
 - **Python 標準ライブラリ**: `tkinter` を含む通常の Python 環境
 
@@ -33,22 +33,36 @@ NHK ラジオの聞き逃し番組を一覧表示し、番組ごとにエピソ�
 cd radio
 ```
 
-### 2. `yt-dlp` をインストール
+### 2. 依存をインストール
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+`requirements.txt` では Python パッケージ版の `yt-dlp` を入れます。
+
+package として入れる場合は:
+
+```bash
+python3 -m pip install -e .
+```
+
+コマンドを直接入れたい場合は:
 
 ```bash
 brew install yt-dlp
-```
-
-または:
-
-```bash
-python3 -m pip install -U yt-dlp
 ```
 
 ### 3. 実行確認
 
 ```bash
 python3 nhk_radio_dl.py --help
+```
+
+### 4. テスト実行
+
+```bash
+python3 -m unittest discover -s tests
 ```
 
 ## 使い方
@@ -93,6 +107,8 @@ python3 nhk_radio_dl.py -g language
 python3 nhk_radio_dl.py --clear-cache
 ```
 
+この操作では番組一覧・エピソード一覧・GUI 設定のキャッシュを削除します。
+
 ## オプション
 
 - `url`: 番組 URL。省略時は GUI モード
@@ -124,6 +140,8 @@ downloads/
 
 GUI のテーマ、文字サイズ、検索履歴もキャッシュ配下に保存されます。
 
+package としてインストールして実行する場合は、キャッシュ保存先は OS 標準のユーザーキャッシュディレクトリに切り替わります。必要に応じて `NHK_RADIO_CACHE_DIR` で明示指定できます。
+
 番組 API の実装ベース仕様は `API.md` を参照してください。
 
 ## トラブルシューティング
@@ -148,6 +166,16 @@ radio/
 ├── API.md           # 番組 API の実装ベース仕様
 ├── nhk_radio_dl.py  # メインスクリプト
 ├── README.md        # このドキュメント
+├── requirements.txt # 実行時の Python 依存
+├── src/
+│   └── nhk_radio/   # アプリ本体 package
+│       ├── core.py
+│       ├── cache.py
+│       ├── downloads.py
+│       ├── text.py
+│       ├── tui.py
+│       └── gui/
+├── tests/           # unittest ベースの回帰テスト
 ├── .cache/          # 番組一覧・エピソード一覧・UI 設定キャッシュ
 └── downloads/       # ダウンロード保存先
 ```

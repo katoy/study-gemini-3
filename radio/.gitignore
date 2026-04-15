@@ -17,6 +17,10 @@ env/
 .coverage
 .coverage.*
 htmlcov/
+.eggs/
+*.egg-info/
+build/
+dist/
 .ipynb_checkpoints/
 
 # Project data

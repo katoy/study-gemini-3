@@ -1,11 +1,44 @@
 """Configuration and UI settings helpers for the NHK radio downloader."""
 
 import json
+import os
+import sys
 import unicodedata
 from pathlib import Path
 
 CACHE_TTL_SECONDS = 3600
-CACHE_ROOT_DIR = Path(__file__).resolve().parent / ".cache"
+
+
+def _default_user_cache_root() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "nhk_radio"
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base) / "nhk_radio"
+        return Path.home() / "AppData" / "Local" / "nhk_radio"
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "nhk_radio"
+
+
+def _find_project_root() -> Path | None:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists() and (parent / "nhk_radio_dl.py").exists() and (parent / "src" / "nhk_radio").is_dir():
+            return parent
+    return None
+
+
+def _resolve_cache_root_dir() -> Path:
+    configured = os.environ.get("NHK_RADIO_CACHE_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    project_root = _find_project_root()
+    if project_root is not None:
+        return project_root / ".cache"
+    return _default_user_cache_root()
+
+
+CACHE_ROOT_DIR = _resolve_cache_root_dir()
 PROGRAM_CACHE_DIR = CACHE_ROOT_DIR / "programs"
 EPISODE_CACHE_DIR = CACHE_ROOT_DIR / "episodes"
 UI_SETTINGS_PATH = CACHE_ROOT_DIR / "ui_settings.json"

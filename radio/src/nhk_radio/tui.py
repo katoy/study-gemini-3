@@ -1,6 +1,12 @@
 """Curses-based browser for NHK radio programs."""
 
-from .core import *  # noqa: F403
+import curses
+import time
+
+from .cache import clear_episode_cache, load_episode_cache
+from .config import CACHE_TTL_SECONDS
+from .core import get_episode_list
+from .text import _fit_text, _safe_addnstr
 
 
 class EpisodeBrowser:
@@ -109,7 +115,7 @@ class EpisodeBrowser:
         key = self.preview_key
         cached = self.episodes_cache.get(key)
         if not cached:
-            cached_episodes = _load_episode_cache(self.preview_program)
+            cached_episodes = load_episode_cache(self.preview_program)
             if cached_episodes is None:
                 return []
             self.episodes_cache[key] = (time.time(), cached_episodes)
@@ -117,7 +123,7 @@ class EpisodeBrowser:
         cached_at, episodes = cached
         if time.time() - cached_at > CACHE_TTL_SECONDS:
             self.episodes_cache.pop(key, None)
-            cached_episodes = _load_episode_cache(self.preview_program)
+            cached_episodes = load_episode_cache(self.preview_program)
             if cached_episodes is None:
                 return []
             self.episodes_cache[key] = (time.time(), cached_episodes)
@@ -369,3 +375,9 @@ class EpisodeBrowser:
             _safe_addnstr(self.stdscr, screen_y, x + 26, _fit_text(dur_text, 9), 9, attr)
             _safe_addnstr(self.stdscr, screen_y, x + 36, _fit_text(episode.get("display_title", episode["title"]), width - 36), width - 36, attr)
 
+
+def browse_programs_tui(programs: list[dict]) -> tuple[dict, list[dict]] | tuple[None, None]:
+    try:
+        return curses.wrapper(lambda stdscr: EpisodeBrowser(stdscr, programs).run())
+    except curses.error as e:
+        raise RuntimeError(str(e)) from e

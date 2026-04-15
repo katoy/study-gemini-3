@@ -1,7 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "radio"
 version = "0.1.0"
 description = "NHK ラジオ聞き逃し番組ダウンローダー"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ["yt-dlp"]
+
+[project.scripts]
+nhk-radio = "nhk_radio.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
