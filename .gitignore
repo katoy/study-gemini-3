@@ -28,12 +28,23 @@ venv/
 ENV/
 env/
 .env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
 
 # Project specific
 output/
 *.pdf
 *.png
 *.txt
+radio/downloads/
+radio/test_downloads/
 
 # Logs
 *.log
