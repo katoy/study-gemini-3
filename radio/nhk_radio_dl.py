@@ -22,6 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import unicodedata
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
@@ -197,6 +198,72 @@ def _format_duration(seconds) -> str:
         return f"{s}秒"
     except (ValueError, TypeError):
         return ""
+
+
+def _sortable_day_value(date_text: str) -> tuple[int, int]:
+    normalized = _normalize_text(date_text).replace("放送", "")
+    if not normalized:
+        return (0, 0)
+
+    if len(normalized) >= 8 and normalized[:8].isdigit():
+        try:
+            return (1, datetime.strptime(normalized[:8], "%Y%m%d").toordinal())
+        except ValueError:
+            pass
+
+    normalized_no_weekday = re.sub(r"\([月火水木金土日]\)", "", normalized)
+    for pattern in ("%Y年%m月%d日", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
+        try:
+            return (1, datetime.strptime(normalized_no_weekday, pattern).toordinal())
+        except ValueError:
+            continue
+
+    match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", normalized)
+    if match:
+        try:
+            return (1, datetime(int(match.group(1)), int(match.group(2)), int(match.group(3))).toordinal())
+        except ValueError:
+            pass
+
+    return (0, 0)
+
+
+def _sortable_timestamp_value(value) -> tuple[int, float]:
+    if value is None:
+        return (0, 0.0)
+
+    text = _normalize_text(str(value))
+    if not text:
+        return (0, 0.0)
+
+    try:
+        return (1, datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        pass
+
+    if text.isdigit() and len(text) >= 9:
+        try:
+            return (1, float(text))
+        except ValueError:
+            pass
+
+    return (0, 0.0)
+
+
+def _sortable_duration_value(duration_text: str) -> tuple[int, int]:
+    normalized = _normalize_text(duration_text)
+    if not normalized:
+        return (0, 0)
+
+    match = re.fullmatch(r"(?:(\d+)時間)?(?:(\d+)分)?(?:(\d+)秒)?", normalized)
+    if not match:
+        return (0, 0)
+
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2) or 0)
+    seconds = int(match.group(3) or 0)
+    total = hours * 3600 + minutes * 60 + seconds
+    return (1, total) if total > 0 else (0, 0)
 
 
 def _program_display_title(series_title: str, corner_name: str) -> str:
@@ -916,9 +983,19 @@ class EpisodeGuiBrowser:
         self.displayed_program: dict | None = None
         self.displayed_episodes: list[dict] = []
         self.displayed_episode_map: dict[str, dict] = {}
+        self.program_sort_column: str | None = None
+        self.program_sort_reverse = False
+        self.episode_sort_column: str | None = None
+        self.episode_sort_reverse = False
         self.saved_episode_buttons: dict[str, ttk.Button] = {}
         self.saved_button_refresh_pending = False
         self.saved_episode_popup: tk.Toplevel | None = None
+        self.tooltip_window: tk.Toplevel | None = None
+        self.tooltip_label: tk.Label | None = None
+        self.program_order_map = {
+            self._program_key(program): index
+            for index, program in enumerate(programs, 1)
+        }
 
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
@@ -931,8 +1008,12 @@ class EpisodeGuiBrowser:
         saved_ui_settings = _load_ui_settings()
         self.current_theme = saved_ui_settings.get("theme", self.current_theme)
         self.current_font_size = saved_ui_settings.get("font_size_pt", self.current_font_size)
+        self.saved_theme = self.current_theme
+        self.saved_font_size = self.current_font_size
+        self.settings_dirty = False
         self.program_search_history = list(saved_ui_settings.get("program_search_history", []))
         self.font_family = self._resolve_mono_font_family()
+        self.ui_font_family = self._resolve_ui_font_family()
 
         self.status_var = tk.StringVar(value="番組を選択してください。")
         self.selected_cell_meta_var = tk.StringVar(value="セルをクリックすると、ここで値を選択・コピーできます。")
@@ -943,11 +1024,11 @@ class EpisodeGuiBrowser:
         self.selected_program_meta_var = tk.StringVar(value="左の番組一覧から選択すると、ここに番組の概要が表示されます。")
         self.selected_program_stats_var = tk.StringVar(value="エピソード一覧は未取得です。")
         self.episode_message_var = tk.StringVar(value="一覧は未取得です。")
-        self.progress_var = tk.DoubleVar(value=0.0)
         self.progress_text_var = tk.StringVar(value="")
         self.settings_button_var = tk.StringVar()
         self.settings_summary_var = tk.StringVar()
         self.font_size_display_var = tk.StringVar()
+        self.settings_save_button_var = tk.StringVar()
         self.theme_var = tk.StringVar(value=self.current_theme)
         self.font_size_var = tk.IntVar(value=int(self.current_font_size))
         self.program_search_var.trace_add("write", self._on_program_search_change)
@@ -982,44 +1063,71 @@ class EpisodeGuiBrowser:
                 return family
         return "TkFixedFont"
 
+    def _resolve_ui_font_family(self) -> str:
+        candidates = (
+            "SF Pro Display",
+            "SF Pro Text",
+            ".SF NS Display",
+            ".SF NS Text",
+            "Helvetica Neue",
+            "Helvetica",
+            "Yu Gothic UI",
+            "Hiragino Sans",
+            "Noto Sans CJK JP",
+            "Arial",
+            "Segoe UI",
+        )
+        if tkfont is None:
+            return "Helvetica"
+        try:
+            available = set(tkfont.families(self.root))
+        except tk.TclError:
+            return "Helvetica"
+        for family in candidates:
+            if family in available:
+                return family
+        return "TkDefaultFont"
+
     def _theme_palette(self, theme_name: str) -> dict[str, str]:
         if theme_name == "dark":
             return {
-                "bg": "#0F1723",
-                "surface": "#162130",
-                "surface_alt": "#1C293B",
-                "accent": "#66A3FF",
-                "accent_dark": "#3D7CE0",
-                "accent_soft": "#233753",
-                "on_accent": "#F8FBFF",
-                "selected_fg": "#F3F7FF",
-                "text": "#E8EEF8",
-                "text_sub": "#A6B4CB",
-                "border": "#314257",
-                "border_strong": "#40546D",
-                "head_bg": "#223247",
-                "row_odd": "#1A2636",
-                "dl_even": "#183126",
-                "dl_odd": "#1C3B2E",
-                "input_bg": "#111C2A",
+                "bg": "#1C1C1E",
+                "surface": "#2C2C2E",
+                "surface_alt": "#3A3A3C",
+                "accent": "#0A84FF",
+                "accent_dark": "#0066CC",
+                "accent_soft": "#0A2744",
+                "on_accent": "#FFFFFF",
+                "selected_bg": "#3B9BFF",
+                "selected_fg": "#FFFFFF",
+                "text": "#F5F5F7",
+                "text_sub": "#98989D",
+                "border": "#3A3A3C",
+                "border_strong": "#48484A",
+                "head_bg": "#2C2C2E",
+                "row_odd": "#252527",
+                "dl_even": "#1C2E22",
+                "dl_odd": "#1F3326",
+                "input_bg": "#1C1C1E",
             }
         return {
-            "bg": "#EEF3F8",
+            "bg": "#F2F2F7",
             "surface": "#FFFFFF",
-            "surface_alt": "#F7FAFD",
-            "accent": "#2563D6",
-            "accent_dark": "#18489C",
-            "accent_soft": "#E8F0FF",
+            "surface_alt": "#F5F5F7",
+            "accent": "#007AFF",
+            "accent_dark": "#0055B3",
+            "accent_soft": "#E5F1FF",
             "on_accent": "#FFFFFF",
-            "selected_fg": "#12315F",
-            "text": "#172033",
-            "text_sub": "#61738D",
-            "border": "#D5DFEA",
-            "border_strong": "#C4D0DE",
-            "head_bg": "#EDF2F7",
-            "row_odd": "#F8FAFD",
-            "dl_even": "#EEF8F2",
-            "dl_odd": "#E5F4EC",
+            "selected_bg": "#007AFF",
+            "selected_fg": "#FFFFFF",
+            "text": "#1D1D1F",
+            "text_sub": "#6E6E73",
+            "border": "#E0E0E5",
+            "border_strong": "#C7C7CC",
+            "head_bg": "#F2F2F7",
+            "row_odd": "#F9F9FB",
+            "dl_even": "#F0FBF4",
+            "dl_odd": "#E5F7EC",
             "input_bg": "#FFFFFF",
         }
 
@@ -1028,16 +1136,21 @@ class EpisodeGuiBrowser:
             base = int(size_name)
         except ValueError:
             base = 11
+        ui = self.ui_font_family
+        mono = self.font_family
         return {
-            "mono_sm": (self.font_family, base),
-            "mono": (self.font_family, base + 1),
-            "mono_bold": (self.font_family, base + 1, "bold"),
-            "app_title": (self.font_family, base + 7, "bold"),
-            "heading": (self.font_family, base + 3, "bold"),
-            "card_title": (self.font_family, base + 2, "bold"),
-            "hero_title": (self.font_family, base + 5, "bold"),
-            "popup_title": (self.font_family, base + 2, "bold"),
-            "rowheight": base + 17,
+            "mono_sm": (mono, base),
+            "mono": (mono, base + 1),
+            "mono_bold": (mono, base + 1, "bold"),
+            "ui_small": (ui, base),
+            "ui_base": (ui, base + 1),
+            "ui_bold": (ui, base + 1, "bold"),
+            "app_title": (ui, base + 8, "bold"),
+            "heading": (ui, base + 3, "bold"),
+            "card_title": (ui, base + 2, "bold"),
+            "hero_title": (ui, base + 5, "bold"),
+            "popup_title": (ui, base + 2, "bold"),
+            "rowheight": base + 18,
         }
 
     def _load_font_profile(self):
@@ -1045,6 +1158,9 @@ class EpisodeGuiBrowser:
         self._mono_sm = profile["mono_sm"]
         self._mono = profile["mono"]
         self._mono_bold = profile["mono_bold"]
+        self._ui_small = profile["ui_small"]
+        self._ui_base = profile["ui_base"]
+        self._ui_bold = profile["ui_bold"]
         self._app_title_font = profile["app_title"]
         self._heading_font = profile["heading"]
         self._card_title_font = profile["card_title"]
@@ -1057,9 +1173,9 @@ class EpisodeGuiBrowser:
         self.root.configure(background=p["bg"])
 
         # 基本要素
-        self.style.configure(".", background=p["bg"], foreground=p["text"], font=self._mono_sm)
+        self.style.configure(".", background=p["bg"], foreground=p["text"], font=self._ui_base)
         self.style.configure("TFrame", background=p["bg"])
-        self.style.configure("TLabel", background=p["bg"], foreground=p["text"], font=self._mono_sm)
+        self.style.configure("TLabel", background=p["bg"], foreground=p["text"], font=self._ui_base)
         self.style.configure("Card.TFrame", background=p["surface"], relief="solid", borderwidth=1, bordercolor=p["border"])
         self.style.configure("CardInner.TFrame", background=p["surface"])
         self.style.configure("Sidebar.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"])
@@ -1067,7 +1183,7 @@ class EpisodeGuiBrowser:
         self.style.configure("Hero.TFrame", background=p["accent_soft"], relief="solid", borderwidth=1, bordercolor=p["border"])
         self.style.configure("HeroInner.TFrame", background=p["accent_soft"])
         self.style.configure("TLabelframe", background=p["surface"], bordercolor=p["border"], relief="solid", borderwidth=1)
-        self.style.configure("TLabelframe.Label", background=p["surface"], foreground=p["text_sub"], font=self._mono_sm)
+        self.style.configure("TLabelframe.Label", background=p["surface"], foreground=p["text_sub"], font=self._ui_small)
         self.style.configure("TSeparator", background=p["border"])
         self.style.configure(
             "TScrollbar",
@@ -1091,29 +1207,46 @@ class EpisodeGuiBrowser:
         )
         self.style.configure(
             "Treeview.Heading",
-            font=self._mono_bold,
-            background=p["head_bg"],
+            font=self._ui_bold,
+            background=p["surface_alt"],
             foreground=p["text"],
-            relief="flat",
-            padding=(10, 7),
+            relief="solid",
+            padding=(10, 9),
             bordercolor=p["border_strong"],
+            lightcolor=p["border_strong"],
+            darkcolor=p["border_strong"],
+            borderwidth=1,
         )
         self.style.map(
             "Treeview",
-            background=[("selected", p["accent_soft"])],
+            background=[("selected", p["selected_bg"])],
             foreground=[("selected", p["selected_fg"])],
         )
-        self.style.map("Treeview.Heading", background=[("active", p["border"])])
+        self.style.map(
+            "Treeview.Heading",
+            background=[("active", p["head_bg"])],
+            foreground=[("active", p["text"])],
+        )
 
         # ボタン / 入力
-        self.style.configure("TButton", font=self._mono_sm, padding=(10, 6))
+        use_tinted_secondary = self.current_theme == "light"
+        secondary_button_bg = p["accent_soft"] if use_tinted_secondary else p["surface_alt"]
+        secondary_button_fg = p["accent_dark"] if use_tinted_secondary else p["text"]
+        secondary_button_border = p["accent"] if use_tinted_secondary else p["border_strong"]
+        secondary_button_hover_bg = p["accent"] if use_tinted_secondary else p["head_bg"]
+        secondary_button_hover_fg = p["on_accent"] if use_tinted_secondary else p["text"]
+        secondary_button_relief = "solid" if use_tinted_secondary else "flat"
+        secondary_button_borderwidth = 1 if use_tinted_secondary else 0
+
+        self.style.configure("TButton", font=self._ui_base, padding=(14, 8), relief="flat")
         self.style.configure(
             "Accent.TButton",
-            font=self._mono_bold,
-            padding=(12, 7),
+            font=self._ui_bold,
+            padding=(16, 9),
             background=p["accent"],
             foreground=p["on_accent"],
             bordercolor=p["accent_dark"],
+            relief="flat",
         )
         self.style.map(
             "Accent.TButton",
@@ -1122,22 +1255,42 @@ class EpisodeGuiBrowser:
         )
         self.style.configure(
             "Quiet.TButton",
-            background=p["surface_alt"],
-            foreground=p["text"],
-            bordercolor=p["border_strong"],
+            font=self._ui_base,
+            padding=(14, 8),
+            background=secondary_button_bg,
+            foreground=secondary_button_fg,
+            bordercolor=secondary_button_border,
+            relief=secondary_button_relief,
+            borderwidth=secondary_button_borderwidth,
         )
         self.style.map(
             "Quiet.TButton",
-            background=[("active", p["head_bg"]), ("disabled", p["surface_alt"])],
-            foreground=[("disabled", p["text_sub"])],
+            background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+            foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
+        )
+        self.style.configure(
+            "RajiruLink.TButton",
+            font=self._ui_bold,
+            padding=(10, 5),
+            background=secondary_button_bg,
+            foreground=secondary_button_fg,
+            bordercolor=secondary_button_border,
+            relief=secondary_button_relief,
+            borderwidth=secondary_button_borderwidth,
+        )
+        self.style.map(
+            "RajiruLink.TButton",
+            background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+            foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
         )
         self.style.configure(
             "SavedCell.TButton",
-            font=self._mono_bold,
+            font=self._ui_bold,
             padding=(0, 0),
             background=p["accent"],
             foreground=p["on_accent"],
             bordercolor=p["accent_dark"],
+            relief="flat",
         )
         self.style.map(
             "SavedCell.TButton",
@@ -1146,22 +1299,24 @@ class EpisodeGuiBrowser:
         )
         self.style.configure(
             "Toggle.TButton",
-            font=self._mono_sm,
-            padding=(12, 5),
-            background=p["head_bg"],
-            foreground=p["text"],
-            bordercolor=p["border_strong"],
+            font=self._ui_base,
+            padding=(14, 8),
+            background=secondary_button_bg,
+            foreground=secondary_button_fg,
+            bordercolor=secondary_button_border,
+            relief=secondary_button_relief,
+            borderwidth=secondary_button_borderwidth,
         )
         self.style.map(
             "Toggle.TButton",
-            background=[("active", p["accent_soft"]), ("disabled", p["head_bg"])],
-            foreground=[("disabled", p["text_sub"])],
+            background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+            foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
         )
         self.style.configure(
             "Settings.TRadiobutton",
             background=p["surface"],
             foreground=p["text"],
-            font=self._mono_sm,
+            font=self._ui_base,
         )
         self.style.map(
             "Settings.TRadiobutton",
@@ -1174,6 +1329,37 @@ class EpisodeGuiBrowser:
             troughcolor=p["head_bg"],
             bordercolor=p["border_strong"],
         )
+        self.style.configure(
+            "FontStep.TButton",
+            font=self._ui_bold,
+            padding=(10, 6),
+            background=secondary_button_bg,
+            foreground=secondary_button_fg,
+            bordercolor=secondary_button_border,
+            relief=secondary_button_relief,
+            borderwidth=secondary_button_borderwidth,
+        )
+        self.style.map(
+            "FontStep.TButton",
+            background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+            foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
+        )
+        for preset in (9, 11, 13, 15):
+            self.style.configure(
+                f"FontPreset{preset}.TButton",
+                font=(self.ui_font_family, preset, "bold"),
+                padding=(10, 6),
+                background=secondary_button_bg,
+                foreground=secondary_button_fg,
+                bordercolor=secondary_button_border,
+                relief=secondary_button_relief,
+                borderwidth=secondary_button_borderwidth,
+            )
+            self.style.map(
+                f"FontPreset{preset}.TButton",
+                background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+                foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
+            )
         self.style.configure(
             "TEntry",
             fieldbackground=p["input_bg"],
@@ -1214,46 +1400,85 @@ class EpisodeGuiBrowser:
         # Progressbar
         self.style.configure("TProgressbar", background=p["accent"], troughcolor=p["head_bg"], bordercolor=p["border"])
 
-        # カスタムラベル
+        # カスタムラベル — UI フォント (サンセリフ) でモダンなヒエラルキーを実現
         self.style.configure("AppTitle.TLabel", font=self._app_title_font, foreground=p["text"], background=p["surface"])
-        self.style.configure("AppSub.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("SettingLabel.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["surface"])
+        self.style.configure("AppSub.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
+        self.style.configure("SettingLabel.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
         self.style.configure("Heading.TLabel", font=self._heading_font, foreground=p["accent"], background=p["bg"])
         self.style.configure("CardTitle.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface"])
         self.style.configure("CardTitleAlt.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface_alt"])
-        self.style.configure("CardMeta.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("CardMetaAlt.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["surface_alt"])
-        self.style.configure("HeroTitle.TLabel", font=self._hero_title_font, foreground=p["text"], background=p["accent_soft"])
-        self.style.configure("HeroMeta.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["accent_soft"])
-        self.style.configure("HeroStats.TLabel", font=self._mono_bold, foreground=p["accent"], background=p["accent_soft"])
-        self.style.configure("Status.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["bg"])
-        self.style.configure("PopupTitle.TLabel", font=self._popup_title_font, foreground=p["text"], background=p["surface"])
-        self.style.configure("PopupLabel.TLabel", font=self._mono_bold, foreground=p["text"], background=p["surface"])
-        self.style.configure("PopupValue.TLabel", font=self._mono_sm, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("SettingsValue.TLabel", font=self._mono_bold, foreground=p["accent"], background=p["surface"])
-        self.style.configure("SettingsPreview.TLabel", font=self._mono_sm, foreground=p["text"], background=p["surface"])
+        self.style.configure("CardMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
+        self.style.configure("CardMetaAlt.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface_alt"])
         self.style.configure(
-            "FontScaleMin.TLabel",
-            font=(self.font_family, max(int(self.current_font_size) - 1, 9), "bold"),
-            foreground=p["text_sub"],
-            background=p["surface"],
+            "DownloadJob.TFrame",
+            background=p["surface_alt"],
+            relief="solid",
+            borderwidth=1,
+            bordercolor=p["border"],
         )
         self.style.configure(
-            "FontScaleMax.TLabel",
-            font=(self.font_family, int(self.current_font_size) + 5, "bold"),
+            "DownloadJobTitle.TLabel",
+            font=self._ui_bold,
             foreground=p["text"],
-            background=p["surface"],
+            background=p["surface_alt"],
         )
+        self.style.configure(
+            "DownloadJobMeta.TLabel",
+            font=self._ui_small,
+            foreground=p["text_sub"],
+            background=p["surface_alt"],
+        )
+        self.style.configure(
+            "DownloadJobStatus.TLabel",
+            font=self._ui_bold,
+            foreground=p["accent"],
+            background=p["surface_alt"],
+        )
+        self.style.configure(
+            "DownloadJobAction.TButton",
+            font=self._ui_base,
+            padding=(12, 6),
+            background=secondary_button_bg,
+            foreground=secondary_button_fg,
+            bordercolor=secondary_button_border,
+            relief=secondary_button_relief,
+            borderwidth=secondary_button_borderwidth,
+        )
+        self.style.map(
+            "DownloadJobAction.TButton",
+            background=[("active", secondary_button_hover_bg), ("disabled", p["surface_alt"])],
+            foreground=[("active", secondary_button_hover_fg), ("disabled", p["text_sub"])],
+        )
+        self.style.configure("HeroTitle.TLabel", font=self._hero_title_font, foreground=p["text"], background=p["accent_soft"])
+        self.style.configure("HeroMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["accent_soft"])
+        self.style.configure("HeroStats.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["accent_soft"])
+        self.style.configure("Status.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["bg"])
+        self.style.configure("PopupTitle.TLabel", font=self._popup_title_font, foreground=p["text"], background=p["surface"])
+        self.style.configure("PopupLabel.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface"])
+        self.style.configure("PopupValue.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
+        self.style.configure("SettingsValue.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["surface"])
+        self.style.configure("SettingsPreview.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface"])
         self.style.configure("FontPreview.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"])
-        self.style.configure("FontPreviewTitle.TLabel", font=self._mono_bold, foreground=p["text"], background=p["surface_alt"])
-        self.style.configure("FontPreviewBody.TLabel", font=self._mono_sm, foreground=p["text"], background=p["surface_alt"])
-        self.style.configure("ScaleTick.TLabel", font=(self.font_family, 9), foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("ScaleMark.TLabel", font=(self.font_family, 9), foreground=p["border_strong"], background=p["surface"])
+        self.style.configure("FontPreviewTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"])
+        self.style.configure("FontPreviewBody.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface_alt"])
         if hasattr(self, "download_jobs_canvas"):
             self.download_jobs_canvas.configure(
                 background=p["surface"],
                 highlightbackground=p["border"],
                 highlightcolor=p["border"],
+            )
+        if hasattr(self, "settings_canvas"):
+            self.settings_canvas.configure(
+                background=p["surface"],
+                highlightbackground=p["border"],
+                highlightcolor=p["border"],
+            )
+        if self.tooltip_window is not None and self.tooltip_window.winfo_exists():
+            self.tooltip_window.configure(background=p["border_strong"])
+        if self.tooltip_label is not None and self.tooltip_label.winfo_exists():
+            self.tooltip_label.configure(
+                background=p["surface_alt"],
+                foreground=p["text"],
             )
 
     def _refresh_treeview_theme(self):
@@ -1270,22 +1495,82 @@ class EpisodeGuiBrowser:
         theme_label = "ダーク" if self.current_theme == "dark" else "ライト"
         self.settings_summary_var.set(f"{theme_label} / 文字 {self.current_font_size}pt")
         self.font_size_display_var.set(f"{self.current_font_size} pt")
-        self.settings_button_var.set("ブラウザに戻る" if self.current_screen == "settings" else "表示設定")
+        self.settings_button_var.set("番組一覧" if self.current_screen == "settings" else "表示設定")
+        self.settings_save_button_var.set("保存済み" if not self.settings_dirty else "保存")
         self.theme_var.set(self.current_theme)
         self.font_size_var.set(int(self.current_font_size))
+        if hasattr(self, "settings_save_button"):
+            if self.settings_dirty:
+                self.settings_save_button.state(["!disabled"])
+            else:
+                self.settings_save_button.state(["disabled"])
+        if hasattr(self, "clear_button"):
+            if self.current_screen == "settings":
+                self.clear_button.grid_remove()
+            else:
+                self.clear_button.grid()
+
+    def _mark_settings_dirty(self):
+        self.settings_dirty = (
+            self.current_theme != self.saved_theme or self.current_font_size != self.saved_font_size
+        )
+        self._update_settings_ui()
+
+    def _discard_unsaved_settings(self):
+        if not self.settings_dirty:
+            return False
+        self.current_theme = self.saved_theme
+        self.current_font_size = self.saved_font_size
+        self._palette = self._theme_palette(self.current_theme)
+        self._load_font_profile()
+        self._configure_theme_styles()
+        self._refresh_treeview_theme()
+        if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
+            self.saved_episode_popup.configure(background=self._palette["surface"])
+        self.settings_dirty = False
+        self._update_settings_ui()
+        return True
+
+    def _save_ui_settings_from_screen(self):
+        self.saved_theme = self.current_theme
+        self.saved_font_size = self.current_font_size
+        self.settings_dirty = False
+        self._persist_ui_settings()
+        self._update_settings_ui()
+        self.status_var.set("表示設定を保存しました。")
+
+    def _update_selected_cell_ui(self):
+        if self.current_screen == "settings":
+            self.selected_cell_area.grid_remove()
+            return
+
+        self.selected_cell_area.grid()
+        if self.selected_cell_value_var.get():
+            self.copy_cell_button.state(["!disabled"])
+        else:
+            self.copy_cell_button.state(["disabled"])
 
     def _show_screen(self, screen_name: str, announce: bool = True):
+        previous_screen = self.current_screen
+        discarded_settings = False
+        if previous_screen == "settings" and screen_name != "settings":
+            discarded_settings = self._discard_unsaved_settings()
         self.current_screen = screen_name
         if screen_name == "settings":
             self.browser_screen.grid_remove()
             self.settings_screen.grid()
+            self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
             if announce:
                 self.status_var.set("表示設定画面を開きました。")
         else:
             self.settings_screen.grid_remove()
             self.browser_screen.grid()
             if announce:
-                self.status_var.set("ブラウザ画面に戻りました。")
+                if discarded_settings:
+                    self.status_var.set("未保存の表示設定を破棄してブラウザ画面に戻りました。")
+                else:
+                    self.status_var.set("ブラウザ画面に戻りました。")
+        self._update_selected_cell_ui()
         self._update_settings_ui()
 
     def _toggle_settings_screen(self):
@@ -1300,8 +1585,7 @@ class EpisodeGuiBrowser:
         self._palette = self._theme_palette(theme_name)
         self._configure_theme_styles()
         self._refresh_treeview_theme()
-        self._update_settings_ui()
-        self._persist_ui_settings()
+        self._mark_settings_dirty()
         if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
             self.saved_episode_popup.configure(background=self._palette["surface"])
         if announce:
@@ -1313,23 +1597,25 @@ class EpisodeGuiBrowser:
         self._load_font_profile()
         self._configure_theme_styles()
         self._refresh_treeview_theme()
-        self._update_settings_ui()
-        self._persist_ui_settings()
+        self._mark_settings_dirty()
         if announce:
             self.status_var.set(f"文字サイズを {size_name}pt に変更しました。")
 
-    def _on_font_size_scale(self, value):
-        size_pt = str(int(round(float(value))))
-        if size_pt == self.current_font_size:
-            self.font_size_display_var.set(f"{size_pt} pt")
+    def _set_font_size_value(self, size_pt: int, announce: bool = False):
+        normalized = min(max(size_pt, 9), 18)
+        normalized_text = str(normalized)
+        self.font_size_var.set(normalized)
+        if normalized_text == self.current_font_size:
+            self.font_size_display_var.set(f"{normalized_text} pt")
             return
-        self._apply_font_size(size_pt, announce=False)
+        self._apply_font_size(normalized_text, announce=announce)
+
+    def _on_font_size_scale(self, value):
+        self._set_font_size_value(int(round(float(value))), announce=False)
 
     def _adjust_font_size_scale(self, delta: int):
         current = int(round(float(self.font_size_var.get())))
-        next_value = min(max(current + delta, 9), 18)
-        self.font_size_var.set(next_value)
-        self._on_font_size_scale(str(next_value))
+        self._set_font_size_value(current + delta, announce=False)
 
     def _on_font_size_scale_left(self, _event=None):
         self._adjust_font_size_scale(-1)
@@ -1340,19 +1626,29 @@ class EpisodeGuiBrowser:
         return "break"
 
     def _on_font_size_scale_home(self, _event=None):
-        self.font_size_var.set(9)
-        self._on_font_size_scale("9")
+        self._set_font_size_value(9, announce=False)
         return "break"
 
     def _on_font_size_scale_end(self, _event=None):
-        self.font_size_var.set(18)
-        self._on_font_size_scale("18")
+        self._set_font_size_value(18, announce=False)
         return "break"
+
+    def _decrease_font_size(self):
+        self._adjust_font_size_scale(-1)
+
+    def _increase_font_size(self):
+        self._adjust_font_size_scale(1)
+
+    def _apply_font_size_preset(self, size_pt: int):
+        self._set_font_size_value(size_pt, announce=False)
 
     def _reset_ui_settings(self):
         self._apply_theme(DEFAULT_UI_THEME, announce=False)
         self._apply_font_size(DEFAULT_UI_FONT_SIZE_PT, announce=False)
-        self.status_var.set("表示設定を規定値にリセットしました。")
+        if self.settings_dirty:
+            self.status_var.set("表示設定を規定値に戻しました。保存すると次回起動時にも反映されます。")
+        else:
+            self.status_var.set("表示設定を規定値に戻しました。")
 
     def _build_widgets(self):
         # ── フォント ────────────────────────────────────────────
@@ -1379,17 +1675,15 @@ class EpisodeGuiBrowser:
 
         header_actions = ttk.Frame(header_right, style="CardInner.TFrame")
         header_actions.grid(row=0, column=0, sticky="e")
+        self.clear_button = ttk.Button(header_actions, text="キャッシュを全削除", command=self._clear_cache, style="Quiet.TButton")
+        self.clear_button.grid(row=0, column=0, padx=(0, 8))
         self.settings_button = ttk.Button(
             header_actions,
             textvariable=self.settings_button_var,
             command=self._toggle_settings_screen,
             style="Toggle.TButton",
         )
-        self.settings_button.grid(row=0, column=0, padx=(0, 8))
-        self.clear_button = ttk.Button(header_actions, text="キャッシュを全削除", command=self._clear_cache, style="Quiet.TButton")
-        self.clear_button.grid(row=0, column=1, padx=(0, 8))
-        self.cancel_button = ttk.Button(header_actions, text="閉じる", command=self._cancel)
-        self.cancel_button.grid(row=0, column=2)
+        self.settings_button.grid(row=0, column=1)
 
         self.screen_container = ttk.Frame(main)
         self.screen_container.grid(row=1, column=0, sticky="nsew")
@@ -1407,14 +1701,28 @@ class EpisodeGuiBrowser:
         sidebar = ttk.Frame(self.browser_panes, style="Sidebar.TFrame", padding=16, width=430)
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(2, weight=1)
-        ttk.Label(sidebar, text="番組一覧", style="CardTitleAlt.TLabel").grid(row=0, column=0, sticky="w")
+        sidebar_header = ttk.Frame(sidebar, style="SidebarInner.TFrame")
+        sidebar_header.grid(row=0, column=0, sticky="ew")
+        sidebar_header.columnconfigure(0, weight=1)
+        ttk.Label(sidebar_header, text="番組一覧", style="CardTitleAlt.TLabel").grid(row=0, column=0, sticky="w")
+        self.ondemand_link_button = ttk.Button(
+            sidebar_header,
+            text="らじる★らじる",
+            command=self._open_ondemand_site,
+            style="RajiruLink.TButton",
+            cursor="hand2",
+        )
+        self.ondemand_link_button.grid(row=0, column=1, sticky="e")
+        self._bind_tooltip(self.ondemand_link_button, "聞き逃し検索の公式サイト")
         sidebar_actions = ttk.Frame(sidebar, style="SidebarInner.TFrame")
         sidebar_actions.grid(row=1, column=0, sticky="ew", pady=(8, 12))
         sidebar_actions.columnconfigure(0, weight=1)
         ttk.Label(
             sidebar_actions,
-            text="Enter またはダブルクリックで選択番組のエピソード一覧を取得",
+            text="Enter・ダブルクリック・右側の「一覧を取得」でエピソード一覧を更新",
             style="CardMetaAlt.TLabel",
+            wraplength=360,
+            justify="left",
         ).grid(row=0, column=0, sticky="w")
         search_row = ttk.Frame(sidebar_actions, style="SidebarInner.TFrame")
         search_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
@@ -1446,12 +1754,13 @@ class EpisodeGuiBrowser:
             show="headings",
             selectmode="browse",
         )
-        self.program_tree.heading("no", text="No.")
-        self.program_tree.heading("date", text="更新日")
-        self.program_tree.heading("title", text="番組")
-        self.program_tree.column("no", width=50, anchor="e", stretch=False)
+        self.program_tree.heading("no", text="No.", anchor="e", command=lambda: self._toggle_program_sort("no"))
+        self.program_tree.heading("date", text="更新日", anchor="w", command=lambda: self._toggle_program_sort("date"))
+        self.program_tree.heading("title", text="番組", anchor="w", command=lambda: self._toggle_program_sort("title"))
+        self.program_tree.column("no", width=60, anchor="e", stretch=False)
         self.program_tree.column("date", width=140, anchor="w", stretch=False)
         self.program_tree.column("title", width=360, anchor="w")
+        self._update_program_tree_headings()
         program_scroll = ttk.Scrollbar(sidebar, orient="vertical", command=self.program_tree.yview)
         self.program_tree.configure(yscrollcommand=program_scroll.set)
         self.program_tree.grid(row=2, column=0, sticky="nsew")
@@ -1469,24 +1778,35 @@ class EpisodeGuiBrowser:
         hero.grid(row=0, column=0, sticky="ew")
         hero.columnconfigure(0, weight=1)
         ttk.Label(hero, textvariable=self.selected_program_title_var, style="HeroTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(hero, textvariable=self.selected_program_meta_var, style="HeroMeta.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(8, 0)
+        )
         ttk.Label(hero, textvariable=self.selected_program_stats_var, style="HeroStats.TLabel").grid(
-            row=1, column=0, sticky="w", pady=(10, 0)
+            row=2, column=0, sticky="w", pady=(10, 0)
         )
         hero_actions = ttk.Frame(hero, style="HeroInner.TFrame")
-        hero_actions.grid(row=0, column=1, rowspan=2, sticky="ne", padx=(18, 0))
+        hero_actions.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(18, 0))
+        self.fetch_button = ttk.Button(
+            hero_actions,
+            text="一覧を取得",
+            command=self._start_fetch_selected,
+            style="Quiet.TButton",
+        )
+        self.fetch_button.grid(row=0, column=0, sticky="e")
         self.download_button = ttk.Button(
             hero_actions,
             text="選択エピソードをダウンロード",
             command=self._start_download_selected,
             style="Accent.TButton",
         )
-        self.download_button.grid(row=0, column=0)
+        self.download_button.grid(row=1, column=0, sticky="e", pady=(8, 0))
 
         self.episode_title_var = tk.StringVar(value="エピソード一覧")
         section = ttk.Frame(detail, style="CardInner.TFrame")
         section.grid(row=1, column=0, sticky="ew", pady=(16, 10))
         section.columnconfigure(0, weight=1)
         ttk.Label(section, textvariable=self.episode_title_var, style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(section, textvariable=self.episode_message_var, style="CardMeta.TLabel").grid(row=0, column=1, sticky="e")
 
         self.episode_tree = ttk.Treeview(
             detail,
@@ -1494,30 +1814,29 @@ class EpisodeGuiBrowser:
             show="headings",
             selectmode="extended",
         )
-        self.episode_tree.heading("saved", text="DL")
-        self.episode_tree.heading("date", text="放送日時")
-        self.episode_tree.heading("duration", text="長さ")
-        self.episode_tree.heading("title", text="タイトル")
+        self.episode_tree.heading("saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved"))
+        self.episode_tree.heading("date", text="放送日時", anchor="w", command=lambda: self._toggle_episode_sort("date"))
+        self.episode_tree.heading("duration", text="長さ", anchor="e", command=lambda: self._toggle_episode_sort("duration"))
+        self.episode_tree.heading("title", text="タイトル", anchor="w", command=lambda: self._toggle_episode_sort("title"))
         self.episode_tree.column("saved", width=82, anchor="center", stretch=False)
         self.episode_tree.column("date", width=190, anchor="w", stretch=False)
         self.episode_tree.column("duration", width=100, anchor="e", stretch=False)
         self.episode_tree.column("title", width=560, anchor="w")
+        self._update_episode_tree_headings()
         self.episode_scroll = ttk.Scrollbar(detail, orient="vertical", command=self._on_episode_tree_scroll)
         self.episode_tree.configure(yscrollcommand=self._on_episode_tree_yscroll)
         self.episode_tree.grid(row=2, column=0, sticky="nsew")
         self.episode_scroll.grid(row=2, column=1, sticky="ns")
         right_panes.add(detail, weight=5)
 
-        activity = ttk.Frame(right_panes, style="Card.TFrame", padding=16, height=220)
+        activity = ttk.Frame(right_panes, style="Card.TFrame", padding=14, height=180)
         activity.columnconfigure(0, weight=1)
-        activity.rowconfigure(3, weight=1)
+        activity.rowconfigure(2, weight=1)
         ttk.Label(activity, text="ダウンロード状況", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
-        self.progress = ttk.Progressbar(activity, orient="horizontal", mode="determinate", variable=self.progress_var, maximum=1)
-        self.progress.grid(row=1, column=0, sticky="ew", pady=(10, 0))
         self.progress_label = ttk.Label(activity, textvariable=self.progress_text_var, anchor="w", style="CardMeta.TLabel")
-        self.progress_label.grid(row=2, column=0, sticky="ew", pady=(6, 10))
+        self.progress_label.grid(row=1, column=0, sticky="ew", pady=(4, 8))
         self.download_jobs_frame = ttk.LabelFrame(activity, text="ジョブ一覧", padding=10)
-        self.download_jobs_frame.grid(row=3, column=0, sticky="nsew")
+        self.download_jobs_frame.grid(row=2, column=0, sticky="nsew")
         self.download_jobs_frame.columnconfigure(0, weight=1)
         self.download_jobs_frame.rowconfigure(0, weight=1)
         self.download_jobs_canvas = tk.Canvas(
@@ -1550,20 +1869,62 @@ class EpisodeGuiBrowser:
         self.download_jobs_empty.grid(row=0, column=0, sticky="w")
         right_panes.add(activity, weight=2)
 
-        self.settings_screen = ttk.Frame(self.screen_container, style="Card.TFrame", padding=24)
+        self.settings_screen = ttk.Frame(self.screen_container, style="Card.TFrame")
         self.settings_screen.grid(row=0, column=0, sticky="nsew")
         self.settings_screen.columnconfigure(0, weight=1)
-
-        ttk.Label(self.settings_screen, text="表示設定", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
+        self.settings_screen.rowconfigure(0, weight=1)
+        self.settings_canvas = tk.Canvas(
             self.settings_screen,
-            text="テーマと文字サイズはこの画面でまとめて変更できます。選択内容はその場でブラウザ画面に反映されます。",
+            background=self._palette["surface"],
+            highlightthickness=1,
+            bd=0,
+            relief="flat",
+        )
+        self.settings_canvas.grid(row=0, column=0, sticky="nsew")
+        self.settings_scrollbar = ttk.Scrollbar(
+            self.settings_screen,
+            orient="vertical",
+            command=self.settings_canvas.yview,
+        )
+        self.settings_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.settings_canvas.configure(yscrollcommand=self.settings_scrollbar.set)
+        self.settings_inner = ttk.Frame(self.settings_canvas, style="Card.TFrame", padding=24)
+        self.settings_window = self.settings_canvas.create_window((0, 0), window=self.settings_inner, anchor="nw")
+        self.settings_inner.columnconfigure(0, weight=1)
+        self.settings_inner.bind("<Configure>", self._on_settings_inner_configure)
+        self.settings_canvas.bind("<Configure>", self._on_settings_canvas_configure)
+        self.settings_canvas.bind("<MouseWheel>", self._on_settings_mousewheel)
+        self.settings_canvas.bind("<Button-4>", self._on_settings_mousewheel)
+        self.settings_canvas.bind("<Button-5>", self._on_settings_mousewheel)
+        self.settings_inner.bind("<MouseWheel>", self._on_settings_mousewheel)
+        self.settings_inner.bind("<Button-4>", self._on_settings_mousewheel)
+        self.settings_inner.bind("<Button-5>", self._on_settings_mousewheel)
+
+        settings_header = ttk.Frame(self.settings_inner, style="CardInner.TFrame")
+        settings_header.grid(row=0, column=0, sticky="ew")
+        settings_header.columnconfigure(0, weight=1)
+        ttk.Label(settings_header, text="表示設定", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
+        settings_actions = ttk.Frame(settings_header, style="CardInner.TFrame")
+        settings_actions.grid(row=0, column=1, sticky="e")
+        ttk.Button(settings_actions, text="規定値にリセット", command=self._reset_ui_settings, style="Quiet.TButton").grid(
+            row=0, column=0, padx=(0, 8)
+        )
+        self.settings_save_button = ttk.Button(
+            settings_actions,
+            textvariable=self.settings_save_button_var,
+            command=self._save_ui_settings_from_screen,
+            style="Accent.TButton",
+        )
+        self.settings_save_button.grid(row=0, column=1)
+        ttk.Label(
+            self.settings_inner,
+            text="テーマと文字サイズはこの画面でまとめて変更できます。選択内容はその場で反映され、保存すると次回起動時にも引き継がれます。",
             style="AppSub.TLabel",
             wraplength=880,
             justify="left",
         ).grid(row=1, column=0, sticky="w", pady=(8, 18))
 
-        settings_body = ttk.Frame(self.settings_screen, style="CardInner.TFrame")
+        settings_body = ttk.Frame(self.settings_inner, style="CardInner.TFrame")
         settings_body.grid(row=2, column=0, sticky="nsew")
         settings_body.columnconfigure(0, weight=1)
         settings_body.columnconfigure(1, weight=1)
@@ -1597,10 +1958,35 @@ class EpisodeGuiBrowser:
         ttk.Label(font_group, text="一覧、カード、設定ラベルの文字サイズを変更します。", style="CardMeta.TLabel").grid(
             row=0, column=0, sticky="w", pady=(0, 12)
         )
+        font_quick_actions = ttk.Frame(font_group, style="CardInner.TFrame")
+        font_quick_actions.grid(row=1, column=0, sticky="ew")
+        font_quick_actions.columnconfigure(1, weight=1)
+        ttk.Button(font_quick_actions, text="小さく", command=self._decrease_font_size, style="FontStep.TButton").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(font_quick_actions, textvariable=self.font_size_display_var, style="SettingsValue.TLabel").grid(
+            row=0, column=1
+        )
+        ttk.Button(font_quick_actions, text="大きく", command=self._increase_font_size, style="FontStep.TButton").grid(
+            row=0, column=2, sticky="e"
+        )
+
+        preset_row = ttk.Frame(font_group, style="CardInner.TFrame")
+        preset_row.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+        ttk.Label(preset_row, text="よく使うサイズ", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        for index, preset in enumerate((9, 11, 13, 15), start=1):
+            ttk.Button(
+                preset_row,
+                text=f"{preset} pt",
+                command=lambda value=preset: self._apply_font_size_preset(value),
+                style=f"FontPreset{preset}.TButton",
+                width=5,
+            ).grid(row=0, column=index, padx=(0, 8))
+
         font_control = ttk.Frame(font_group, style="CardInner.TFrame")
-        font_control.grid(row=1, column=0, sticky="ew")
+        font_control.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         font_control.columnconfigure(1, weight=1)
-        ttk.Label(font_control, text="A", style="FontScaleMin.TLabel").grid(row=0, column=0, sticky="sw", padx=(0, 12))
+        ttk.Label(font_control, text="小", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 12))
         self.font_size_scale = ttk.Scale(
             font_control,
             from_=9,
@@ -1615,37 +2001,28 @@ class EpisodeGuiBrowser:
         self.font_size_scale.bind("<Right>", self._on_font_size_scale_right)
         self.font_size_scale.bind("<Home>", self._on_font_size_scale_home)
         self.font_size_scale.bind("<End>", self._on_font_size_scale_end)
-        ttk.Label(font_control, text="A", style="FontScaleMax.TLabel").grid(row=0, column=2, sticky="se", padx=(12, 0))
-
-        scale_meta = ttk.Frame(font_group, style="CardInner.TFrame")
-        scale_meta.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        scale_meta.columnconfigure(1, weight=1)
-        ttk.Label(scale_meta, text="9 pt", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(scale_meta, textvariable=self.font_size_display_var, style="SettingsValue.TLabel").grid(row=0, column=1)
-        ttk.Label(scale_meta, text="18 pt", style="CardMeta.TLabel").grid(row=0, column=2, sticky="e")
-
-        scale_ticks = ttk.Frame(font_group, style="CardInner.TFrame")
-        scale_ticks.grid(row=3, column=0, sticky="ew", pady=(6, 0))
-        for column in range(10):
-            scale_ticks.columnconfigure(column, weight=1)
-        for value in range(9, 19):
-            col = value - 9
-            ttk.Label(scale_ticks, text="|", style="ScaleMark.TLabel").grid(row=0, column=col)
-            ttk.Label(scale_ticks, text=str(value), style="ScaleTick.TLabel").grid(row=1, column=col)
+        ttk.Label(font_control, text="大", style="CardMeta.TLabel").grid(row=0, column=2, sticky="e", padx=(12, 0))
+        ttk.Label(
+            font_group,
+            text="細かい調整はスライダー、すばやい変更はボタンで行えます。左右キーでも 1pt ずつ調整できます。",
+            style="CardMeta.TLabel",
+            wraplength=380,
+            justify="left",
+        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
 
         font_preview = ttk.Frame(font_group, style="FontPreview.TFrame", padding=14)
-        font_preview.grid(row=4, column=0, sticky="ew", pady=(14, 0))
+        font_preview.grid(row=5, column=0, sticky="ew", pady=(14, 0))
         font_preview.columnconfigure(0, weight=1)
         ttk.Label(font_preview, text="プレビュー", style="FontPreviewTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             font_preview,
-            text="ラジオ英会話を、いま選んだ文字サイズで読むイメージです。",
+            text="番組一覧、詳細カード、設定ラベルにこのサイズがそのまま反映されます。",
             style="FontPreviewBody.TLabel",
             wraplength=380,
             justify="left",
         ).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        preview_group = ttk.LabelFrame(self.settings_screen, text="プレビュー", padding=16)
+        preview_group = ttk.LabelFrame(self.settings_inner, text="プレビュー", padding=16)
         preview_group.grid(row=3, column=0, sticky="ew", pady=(18, 0))
         preview_group.columnconfigure(0, weight=1)
         ttk.Label(preview_group, textvariable=self.settings_summary_var, style="SettingsValue.TLabel").grid(
@@ -1657,15 +2034,6 @@ class EpisodeGuiBrowser:
             style="SettingsPreview.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(10, 0))
 
-        settings_actions = ttk.Frame(self.settings_screen, style="CardInner.TFrame")
-        settings_actions.grid(row=4, column=0, sticky="e", pady=(18, 0))
-        ttk.Button(settings_actions, text="規定値にリセット", command=self._reset_ui_settings, style="Quiet.TButton").grid(
-            row=0, column=0, padx=(0, 8)
-        )
-        ttk.Button(settings_actions, text="ブラウザに戻る", command=lambda: self._show_screen("browser"), style="Accent.TButton").grid(
-            row=0, column=1
-        )
-
         status_area = ttk.Frame(main)
         status_area.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         status_area.columnconfigure(1, weight=1)
@@ -1673,19 +2041,22 @@ class EpisodeGuiBrowser:
         ttk.Label(status_area, textvariable=self.status_var, anchor="w", style="Status.TLabel").grid(
             row=0, column=0, columnspan=3, sticky="ew"
         )
-        ttk.Label(status_area, textvariable=self.selected_cell_meta_var, style="Status.TLabel").grid(
-            row=1, column=0, sticky="w", pady=(8, 0), padx=(0, 12)
+        self.selected_cell_area = ttk.Frame(status_area)
+        self.selected_cell_area.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        self.selected_cell_area.columnconfigure(1, weight=1)
+        ttk.Label(self.selected_cell_area, textvariable=self.selected_cell_meta_var, style="Status.TLabel").grid(
+            row=0, column=0, sticky="w", padx=(0, 12)
         )
-        self.selected_cell_entry = ttk.Entry(status_area, textvariable=self.selected_cell_value_var)
-        self.selected_cell_entry.grid(row=1, column=1, sticky="ew", pady=(8, 0))
+        self.selected_cell_entry = ttk.Entry(self.selected_cell_area, textvariable=self.selected_cell_value_var)
+        self.selected_cell_entry.grid(row=0, column=1, sticky="ew")
         self.selected_cell_entry.state(["readonly"])
         self.copy_cell_button = ttk.Button(
-            status_area,
+            self.selected_cell_area,
             text="セル値をコピー",
             command=self._copy_selected_cell_to_clipboard,
             style="Quiet.TButton",
         )
-        self.copy_cell_button.grid(row=1, column=2, sticky="e", pady=(8, 0), padx=(8, 0))
+        self.copy_cell_button.grid(row=0, column=2, sticky="e", padx=(8, 0))
         self.copy_cell_button.state(["disabled"])
 
         self.program_tree.bind("<<TreeviewSelect>>", self._on_program_select)
@@ -1708,17 +2079,18 @@ class EpisodeGuiBrowser:
         self._update_settings_ui()
         self._show_screen("browser", announce=False)
 
-    def _populate_programs(self):
+    def _populate_programs(self, preserve_selection: bool = True):
         p = self._palette
         self.program_tree.tag_configure("even", background=p["surface"])
         self.program_tree.tag_configure("odd",  background=p["row_odd"])
-        current_program = self._selected_program() or self.displayed_program
+        current_program = self._selected_program() or self.displayed_program if preserve_selection else None
         current_key = self._program_key(current_program) if current_program is not None else None
+        programs = self._sorted_programs(self.filtered_programs)
         self.program_tree_programs.clear()
         for item_id in self.program_tree.get_children():
             self.program_tree.delete(item_id)
         selected_item_id = ""
-        for index, program in enumerate(self.filtered_programs, 1):
+        for index, program in enumerate(programs, 1):
             item_id = f"program-{index - 1}"
             tag = "odd" if index % 2 == 1 else "even"
             self.program_tree.insert(
@@ -1726,13 +2098,20 @@ class EpisodeGuiBrowser:
                 "end",
                 iid=item_id,
                 tags=(tag,),
-                values=(index, program.get("display_date", "----"), program.get("display_title", program["title"])),
+                values=(
+                    self.program_order_map.get(self._program_key(program), index),
+                    program.get("display_date", "----"),
+                    program.get("display_title", program["title"]),
+                ),
             )
             self.program_tree_programs[item_id] = program
             if current_key is not None and self._program_key(program) == current_key:
                 selected_item_id = item_id
-        if self.filtered_programs:
-            self._select_program_item(selected_item_id or "program-0")
+        if programs and selected_item_id:
+            self._select_program_item(selected_item_id)
+            self._on_program_select()
+        elif programs and preserve_selection:
+            self._select_program_item("program-0")
             self._on_program_select()
         else:
             self._clear_program_selection()
@@ -1759,6 +2138,92 @@ class EpisodeGuiBrowser:
         if program is None:
             return None
         return program["site_id"], program["corner_id"]
+
+    def _heading_text(self, label: str, active_column: str | None, column: str, reverse: bool) -> str:
+        if active_column != column:
+            return label
+        return f"{label}{'▼' if reverse else '▲'}"
+
+    def _update_program_tree_headings(self):
+        self.program_tree.heading(
+            "no",
+            text=self._heading_text("No.", self.program_sort_column, "no", self.program_sort_reverse),
+            anchor="e",
+            command=lambda: self._toggle_program_sort("no"),
+        )
+        self.program_tree.heading(
+            "date",
+            text=self._heading_text("更新日", self.program_sort_column, "date", self.program_sort_reverse),
+            anchor="w",
+            command=lambda: self._toggle_program_sort("date"),
+        )
+        self.program_tree.heading(
+            "title",
+            text=self._heading_text("番組", self.program_sort_column, "title", self.program_sort_reverse),
+            anchor="w",
+            command=lambda: self._toggle_program_sort("title"),
+        )
+
+    def _update_episode_tree_headings(self):
+        self.episode_tree.heading(
+            "saved",
+            text=self._heading_text("DL", self.episode_sort_column, "saved", self.episode_sort_reverse),
+            anchor="center",
+            command=lambda: self._toggle_episode_sort("saved"),
+        )
+        self.episode_tree.heading(
+            "date",
+            text=self._heading_text("放送日時", self.episode_sort_column, "date", self.episode_sort_reverse),
+            anchor="w",
+            command=lambda: self._toggle_episode_sort("date"),
+        )
+        self.episode_tree.heading(
+            "duration",
+            text=self._heading_text("長さ", self.episode_sort_column, "duration", self.episode_sort_reverse),
+            anchor="e",
+            command=lambda: self._toggle_episode_sort("duration"),
+        )
+        self.episode_tree.heading(
+            "title",
+            text=self._heading_text("タイトル", self.episode_sort_column, "title", self.episode_sort_reverse),
+            anchor="w",
+            command=lambda: self._toggle_episode_sort("title"),
+        )
+
+    def _toggle_program_sort(self, column: str):
+        if self.program_sort_column == column:
+            self.program_sort_reverse = not self.program_sort_reverse
+        else:
+            self.program_sort_column = column
+            self.program_sort_reverse = False
+        self._update_program_tree_headings()
+        self._populate_programs(preserve_selection=False)
+
+    def _toggle_episode_sort(self, column: str):
+        if self.episode_sort_column == column:
+            self.episode_sort_reverse = not self.episode_sort_reverse
+        else:
+            self.episode_sort_column = column
+            self.episode_sort_reverse = False
+        self._update_episode_tree_headings()
+        self._rerender_displayed_episodes()
+
+    def _sorted_programs(self, programs: list[dict]) -> list[dict]:
+        if self.program_sort_column is None:
+            return list(programs)
+        return sorted(programs, key=self._program_sort_key, reverse=self.program_sort_reverse)
+
+    def _program_sort_key(self, program: dict):
+        program_key = self._program_key(program)
+        original_index = self.program_order_map.get(program_key, 10**9)
+        display_title = self._normalized_search_text(program.get("display_title", program.get("title", "")))
+        if self.program_sort_column == "no":
+            return (original_index, display_title)
+        if self.program_sort_column == "date":
+            started_at = _sortable_timestamp_value(program.get("started_at"))
+            day = _sortable_day_value(str(program.get("onair_date") or program.get("display_date") or ""))
+            return (started_at, day, display_title, original_index)
+        return (display_title, original_index)
 
     def _normalized_search_text(self, text: str) -> str:
         normalized = unicodedata.normalize("NFKC", _normalize_text(text))
@@ -1832,7 +2297,12 @@ class EpisodeGuiBrowser:
             row["status_var"].set(status_text)
 
     def _update_fetch_button_state(self):
-        return
+        if not hasattr(self, "fetch_button"):
+            return
+        if self.loading or self._selected_program() is None:
+            self.fetch_button.state(["disabled"])
+        else:
+            self.fetch_button.state(["!disabled"])
 
     def _clear_program_selection(self):
         self.program_tree.selection_remove(self.program_tree.selection())
@@ -1845,6 +2315,7 @@ class EpisodeGuiBrowser:
         self.episode_title_var.set("エピソード一覧")
         self.episode_message_var.set("一覧は未取得です。")
         self.download_button.state(["disabled"])
+        self._update_fetch_button_state()
         self._schedule_saved_button_refresh()
 
         search_text = _normalize_text(self.program_search_var.get())
@@ -1957,6 +2428,7 @@ class EpisodeGuiBrowser:
 
         self.status_var.set("")
         episodes = self._cached_episodes_for(program)
+        self._update_fetch_button_state()
         if episodes:
             self._update_program_overview(program, episodes, "キャッシュ表示")
             self._show_episodes(program, episodes, message=f"キャッシュを表示中 ({len(episodes)} 件)")
@@ -1984,6 +2456,49 @@ class EpisodeGuiBrowser:
         if tree is self.episode_tree:
             return "エピソード一覧"
         return "一覧"
+
+    def _bind_tooltip(self, widget, text: str):
+        widget.bind("<Enter>", lambda event: self._show_tooltip(event, text), add="+")
+        widget.bind("<Motion>", self._move_tooltip, add="+")
+        widget.bind("<Leave>", lambda _event: self._hide_tooltip(), add="+")
+        widget.bind("<ButtonPress>", lambda _event: self._hide_tooltip(), add="+")
+
+    def _show_tooltip(self, event, text: str):
+        self._hide_tooltip()
+        tooltip = tk.Toplevel(self.root)
+        tooltip.wm_overrideredirect(True)
+        tooltip.attributes("-topmost", True)
+        tooltip.configure(background=self._palette["border_strong"])
+
+        label = tk.Label(
+            tooltip,
+            text=text,
+            justify="left",
+            padx=8,
+            pady=5,
+            background=self._palette["surface_alt"],
+            foreground=self._palette["text"],
+            font=self._ui_small,
+            borderwidth=0,
+        )
+        label.pack(padx=1, pady=1)
+
+        self.tooltip_window = tooltip
+        self.tooltip_label = label
+        self._move_tooltip(event)
+
+    def _move_tooltip(self, event):
+        if self.tooltip_window is None or not self.tooltip_window.winfo_exists():
+            return
+        x = event.x_root + 14
+        y = event.y_root + 18
+        self.tooltip_window.geometry(f"+{x}+{y}")
+
+    def _hide_tooltip(self):
+        if self.tooltip_window is not None and self.tooltip_window.winfo_exists():
+            self.tooltip_window.destroy()
+        self.tooltip_window = None
+        self.tooltip_label = None
 
     def _tree_cell_from_event(self, tree: ttk.Treeview, event) -> tuple[str, str, str] | None:
         if tree.identify("region", event.x, event.y) != "cell":
@@ -2018,10 +2533,7 @@ class EpisodeGuiBrowser:
         self.selected_cell_meta_var.set(f"{self._tree_label(tree)} / {heading}")
         self.selected_cell_value_var.set(value)
         self.selected_cell_entry.xview_moveto(0)
-        if value:
-            self.copy_cell_button.state(["!disabled"])
-        else:
-            self.copy_cell_button.state(["disabled"])
+        self._update_selected_cell_ui()
 
     def _on_program_tree_click(self, event):
         cell = self._tree_cell_from_event(self.program_tree, event)
@@ -2035,10 +2547,36 @@ class EpisodeGuiBrowser:
     def _show_episodes(self, program: dict, episodes: list[dict], message: str):
         self.displayed_program = program
         self.displayed_episodes = list(episodes)
-        self.displayed_episode_map.clear()
         self.episode_title_var.set(f"エピソード一覧: {program.get('display_title', program['title'])}")
         self.episode_message_var.set(message)
+        self._render_episode_rows(program, episodes, clear_selection=False)
 
+    def _sorted_episodes(self, episodes: list[dict]) -> list[dict]:
+        if self.episode_sort_column is None:
+            return list(episodes)
+
+        order_map = {_episode_key(episode): index for index, episode in enumerate(episodes)}
+
+        def sort_key(episode: dict):
+            original_index = order_map.get(_episode_key(episode), 10**9)
+            title = self._normalized_search_text(episode.get("display_title", episode.get("title", "")))
+            if self.episode_sort_column == "saved":
+                saved = is_episode_downloaded(self.output_dir, self.displayed_program or {}, episode) if self.displayed_program else False
+                return (saved, title, original_index)
+            if self.episode_sort_column == "date":
+                timestamp = _sortable_timestamp_value(episode.get("date"))
+                day = _sortable_day_value(str(episode.get("date") or episode.get("display_date") or ""))
+                time_text = _normalize_text(episode.get("broadcast_time", ""))
+                return (timestamp, day, time_text, title, original_index)
+            if self.episode_sort_column == "duration":
+                duration = _sortable_duration_value(str(episode.get("duration_str") or ""))
+                return (duration, title, original_index)
+            return (title, original_index)
+
+        return sorted(episodes, key=sort_key, reverse=self.episode_sort_reverse)
+
+    def _render_episode_rows(self, program: dict, episodes: list[dict], clear_selection: bool):
+        self.displayed_episode_map.clear()
         for item in self.episode_tree.get_children():
             self.episode_tree.delete(item)
 
@@ -2047,7 +2585,8 @@ class EpisodeGuiBrowser:
         self.episode_tree.tag_configure("odd",     background=p["row_odd"])
         self.episode_tree.tag_configure("dl_even", background=p["dl_even"])
         self.episode_tree.tag_configure("dl_odd",  background=p["dl_odd"])
-        for index, episode in enumerate(episodes):
+        rendered = self._sorted_episodes(episodes)
+        for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
             is_dl = is_episode_downloaded(self.output_dir, program, episode)
@@ -2069,15 +2608,26 @@ class EpisodeGuiBrowser:
                 values=(saved, date_time, dur, episode.get("display_title", episode["title"])),
             )
 
-        if episodes:
-            first = next(iter(self.displayed_episode_map))
-            self.episode_tree.selection_set(first)
-            self.episode_tree.focus(first)
-            self.episode_tree.see(first)
+        if rendered:
+            if clear_selection:
+                self.episode_tree.selection_remove(self.episode_tree.selection())
+                self.episode_tree.focus("")
+            else:
+                first = next(iter(self.displayed_episode_map))
+                self.episode_tree.selection_set(first)
+                self.episode_tree.focus(first)
+                self.episode_tree.see(first)
             self.download_button.state(["!disabled"])
         else:
+            self.episode_tree.selection_remove(self.episode_tree.selection())
+            self.episode_tree.focus("")
             self.download_button.state(["disabled"])
         self._schedule_saved_button_refresh()
+
+    def _rerender_displayed_episodes(self):
+        if self.displayed_program is None:
+            return
+        self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=True)
 
     def _refresh_downloaded_column(self, program: dict):
         if self.displayed_program is None:
@@ -2329,11 +2879,22 @@ class EpisodeGuiBrowser:
         self.root.configure(cursor="watch" if loading else "")
         self.root.update_idletasks()
 
+    def _open_ondemand_site(self):
+        try:
+            webbrowser.open_new_tab(NHK_ONDEMAND_URL)
+        except webbrowser.Error:
+            self.status_var.set(f"ブラウザで開けませんでした: {NHK_ONDEMAND_URL}")
+            return
+        self.status_var.set("NHK ラジオ らじる★らじる 聞き逃しをブラウザで開きました。")
+
     def _set_progress(self, current: int, total: int, text: str = ""):
         total = max(total, 1)
-        self.progress.configure(maximum=total)
-        self.progress_var.set(current)
-        self.progress_text_var.set(text)
+        if text:
+            self.progress_text_var.set(text)
+        elif total <= 1 and current <= 0:
+            self.progress_text_var.set("")
+        else:
+            self.progress_text_var.set(f"処理済: {current} 件 / 開始 {total} 件")
 
     def _show_progress_window(self):
         self.download_jobs_canvas.focus_set()
@@ -2348,6 +2909,7 @@ class EpisodeGuiBrowser:
     def _on_download_jobs_canvas_configure(self, event):
         self.download_jobs_canvas.itemconfigure(self.download_jobs_window, width=event.width)
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
+        self._update_download_job_title_wrap(event.width)
 
     def _on_download_jobs_mousewheel(self, event):
         if not self.active_download_rows:
@@ -2365,6 +2927,32 @@ class EpisodeGuiBrowser:
         self.download_jobs_canvas.yview_scroll(step, "units")
         return "break"
 
+    def _on_settings_inner_configure(self, _event=None):
+        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+
+    def _on_settings_canvas_configure(self, event):
+        self.settings_canvas.itemconfigure(self.settings_window, width=event.width)
+        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+
+    def _on_settings_mousewheel(self, event):
+        bbox = self.settings_canvas.bbox("all")
+        if not bbox:
+            return None
+        if bbox[3] - bbox[1] <= self.settings_canvas.winfo_height():
+            return None
+
+        if hasattr(event, "delta") and event.delta:
+            step = -1 if event.delta > 0 else 1
+        elif getattr(event, "num", None) == 4:
+            step = -1
+        elif getattr(event, "num", None) == 5:
+            step = 1
+        else:
+            return None
+
+        self.settings_canvas.yview_scroll(step, "units")
+        return "break"
+
     def _reflow_download_rows(self):
         for row_index, row in enumerate(self.active_download_rows.values()):
             row["frame"].grid_configure(row=row_index)
@@ -2373,6 +2961,18 @@ class EpisodeGuiBrowser:
         else:
             self.download_jobs_empty.grid(row=0, column=0, sticky="w")
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
+
+    def _update_download_job_title_wrap(self, width: int | None = None):
+        if width is None:
+            width = self.download_jobs_canvas.winfo_width()
+        if width <= 1:
+            return
+
+        wraplength = max(width - 220, 260)
+        for row in self.active_download_rows.values():
+            title_label = row.get("title_label")
+            if title_label is not None:
+                title_label.configure(wraplength=wraplength)
 
     def _remove_download_row(self, episode_key: str):
         row = self.active_download_rows.get(episode_key)
@@ -2421,23 +3021,46 @@ class EpisodeGuiBrowser:
         self._show_progress_window()
         self.download_jobs_empty.grid_remove()
         row_index = len(self.active_download_rows)
-        frame = ttk.Frame(self.download_jobs_inner, style="CardInner.TFrame")
+        frame = ttk.Frame(self.download_jobs_inner, style="DownloadJob.TFrame", padding=(12, 10))
         frame.grid(row=row_index, column=0, sticky="ew", pady=2)
         frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=0)
+        frame.rowconfigure(1, weight=0)
+        frame.rowconfigure(2, weight=0)
 
-        title = ttk.Label(frame, text=episode.get("display_title", episode["title"]), anchor="w")
-        title.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        title = ttk.Label(
+            frame,
+            text=episode.get("display_title", episode["title"]),
+            anchor="w",
+            justify="left",
+            style="DownloadJobTitle.TLabel",
+        )
+        title.grid(row=0, column=0, sticky="ew", padx=(0, 12))
         status_var = tk.StringVar(value="待機中...")
-        status_label = ttk.Label(frame, textvariable=status_var, width=12, anchor="w")
-        status_label.grid(row=0, column=1, sticky="w", padx=(0, 8))
-        action_button = ttk.Button(frame, text="中断", command=lambda key=episode_key: self._cancel_download_job(key))
-        action_button.grid(row=0, column=2, rowspan=2, sticky="ne")
+        action_button = ttk.Button(
+            frame,
+            text="中断",
+            style="DownloadJobAction.TButton",
+            command=lambda key=episode_key: self._cancel_download_job(key),
+            width=6,
+        )
+        action_button.grid(row=0, column=1, rowspan=3, sticky="ns")
         progress = ttk.Progressbar(frame, orient="horizontal", mode="indeterminate")
-        progress.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(4, 0))
+        progress.grid(row=1, column=0, sticky="ew", padx=(0, 12), pady=(8, 0))
         percent_var = tk.StringVar(value="--%")
         progress_meta_var = tk.StringVar(value=f"{percent_var.get()} / {_format_download_eta(None)}")
-        progress_meta_label = ttk.Label(frame, textvariable=progress_meta_var, width=18, anchor="w")
-        progress_meta_label.grid(row=1, column=1, sticky="w", padx=(0, 8), pady=(4, 0))
+        meta_row = ttk.Frame(frame, style="DownloadJob.TFrame")
+        meta_row.grid(row=2, column=0, sticky="ew", padx=(0, 12), pady=(6, 0))
+        meta_row.columnconfigure(1, weight=1)
+        status_label = ttk.Label(meta_row, textvariable=status_var, anchor="w", style="DownloadJobStatus.TLabel")
+        status_label.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        progress_meta_label = ttk.Label(
+            meta_row,
+            textvariable=progress_meta_var,
+            anchor="e",
+            style="DownloadJobMeta.TLabel",
+        )
+        progress_meta_label.grid(row=0, column=1, sticky="e")
         progress.start(12)
         status_var.set("ダウンロード中...")
 
@@ -2448,11 +3071,13 @@ class EpisodeGuiBrowser:
             "progress_meta_var": progress_meta_var,
             "status_var": status_var,
             "action_button": action_button,
+            "title_label": title,
             "state": "running",
         }
         self.active_download_meta[episode_key] = (program, episode)
         self.download_started_count += 1
         self._update_download_summary()
+        self._update_download_job_title_wrap()
         self.download_jobs_canvas.update_idletasks()
         self.download_jobs_canvas.yview_moveto(1.0)
         return episode_key
