@@ -1,4 +1,5 @@
 import unittest
+import subprocess
 from unittest.mock import patch
 
 from tests import _support  # noqa: F401
@@ -64,6 +65,18 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(fetch_mock.call_count, 2)
         sleep_mock.assert_called_once_with(0.25)
         save_cache_mock.assert_called_once_with(program, expected)
+
+    def test_fetch_episodes_raises_on_nonzero_exit(self):
+        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
+        failed = subprocess.CompletedProcess(
+            args=["yt-dlp"],
+            returncode=1,
+            stdout="",
+            stderr="ERROR: failed to fetch playlist\n",
+        )
+        with patch.object(core.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "failed to fetch playlist"):
+                core.fetch_episodes(program, verbose=False)
 
 
 if __name__ == "__main__":

@@ -195,6 +195,18 @@ class GuiDownloadsMixin:
         self.download_jobs_canvas.update_idletasks()
         self.download_jobs_canvas.yview_moveto(1.0)
         return episode_key
+    def _reset_download_row(self, episode_key: str):
+        row = self.active_download_rows.get(episode_key)
+        if row is None:
+            return
+        if row["state"] == "running":
+            return
+        row["frame"].destroy()
+        self.active_download_rows.pop(episode_key, None)
+        self.active_download_meta.pop(episode_key, None)
+        self.download_cancel_events.pop(episode_key, None)
+        self._reflow_download_rows()
+        self._update_download_summary()
     def _create_download_job_widgets(self, row_index: int, episode: dict, episode_key: str) -> dict:
         """ダウンロードジョブ行のウィジェットを生成して辞書で返す。"""
         frame = ttk.Frame(self.download_jobs_inner, style="DownloadJob.TFrame", padding=(12, 10))
@@ -376,6 +388,7 @@ class GuiDownloadsMixin:
             if episode_key in self.active_download_rows and self.active_download_rows[episode_key]["state"] == "running":
                 duplicate_count += 1
                 continue
+            self._reset_download_row(episode_key)
             self.download_cancel_events[episode_key] = threading.Event()
             self._add_download_row(program, episode)
             new_jobs.append((episode_key, episode))
@@ -507,14 +520,12 @@ class GuiDownloadsMixin:
         if not self.download_polling:
             return
 
-        processed = False
         while True:
             try:
                 event = self.download_result_queue.get_nowait()
             except queue.Empty:
                 break
 
-            processed = True
             kind = event[0]
             if kind == "progress_one":
                 _, episode_key, percent, eta, status_text = event

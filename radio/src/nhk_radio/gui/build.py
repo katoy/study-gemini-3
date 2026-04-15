@@ -1,5 +1,6 @@
 """Widget construction helpers for EpisodeGuiBrowser."""
 
+from .logo import create_brand_logo
 from .toolkit import tk, ttk
 
 
@@ -51,7 +52,15 @@ class GuiBuildMixin:
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         header.columnconfigure(0, weight=1)
         header.columnconfigure(1, weight=0)
-        ttk.Label(header, text="NHK ラジオ 聞き逃し", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
+        header_left = ttk.Frame(header, style="CardInner.TFrame")
+        header_left.grid(row=0, column=0, sticky="nw")
+        header_left.columnconfigure(1, weight=1)
+        self.logo_canvas = create_brand_logo(header_left, self._palette, size=60)
+        self.logo_canvas.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 14))
+        ttk.Label(header_left, text="NHK ラジオ 聞き逃し", style="AppTitle.TLabel").grid(row=0, column=1, sticky="w")
+        ttk.Label(header_left, textvariable=self.header_subtitle_var, style="AppSub.TLabel", wraplength=620, justify="left").grid(
+            row=1, column=1, sticky="w", pady=(6, 0)
+        )
 
         header_right = ttk.Frame(header, style="CardInner.TFrame")
         header_right.grid(row=0, column=1, sticky="ne")
@@ -59,15 +68,16 @@ class GuiBuildMixin:
 
         header_actions = ttk.Frame(header_right, style="CardInner.TFrame")
         header_actions.grid(row=0, column=0, sticky="e")
+        ttk.Button(header_actions, text="ヘルプ", command=self._show_help_dialog, style="Quiet.TButton").grid(row=0, column=0, padx=(0, 8))
         self.clear_button = ttk.Button(header_actions, text="キャッシュを全削除", command=self._clear_cache, style="Quiet.TButton")
-        self.clear_button.grid(row=0, column=0, padx=(0, 8))
+        self.clear_button.grid(row=0, column=1, padx=(0, 8))
         self.settings_button = ttk.Button(
             header_actions,
             textvariable=self.settings_button_var,
             command=self._toggle_settings_screen,
             style="Toggle.TButton",
         )
-        self.settings_button.grid(row=0, column=1)
+        self.settings_button.grid(row=0, column=2)
     def _build_sidebar(self) -> None:
         sidebar = ttk.Frame(self.browser_panes, style="Sidebar.TFrame", padding=16, width=430)
         sidebar.columnconfigure(0, weight=1)
@@ -96,15 +106,27 @@ class GuiBuildMixin:
         sidebar_actions.columnconfigure(0, weight=1)
         ttk.Label(
             sidebar_actions,
-            text="Enter・ダブルクリック・右側の「一覧を取得」でエピソード一覧を更新",
+            text="番組検索とジャンル絞り込みで対象をすばやく絞れます。Enter・ダブルクリック・右側の「一覧を取得」でエピソード一覧を更新します。",
             style="CardMetaAlt.TLabel",
             wraplength=360,
             justify="left",
         ).grid(row=0, column=0, sticky="w")
+        filter_row = ttk.Frame(sidebar_actions, style="SidebarInner.TFrame")
+        filter_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        filter_row.columnconfigure(1, weight=1)
+        ttk.Label(filter_row, text="ジャンル", style="CardMetaAlt.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.program_genre_filter_combo = ttk.Combobox(
+            filter_row,
+            textvariable=self.program_genre_filter_var,
+            values=self._program_genre_filter_values(),
+            state="readonly",
+            style="Search.TCombobox",
+        )
+        self.program_genre_filter_combo.grid(row=0, column=1, sticky="ew")
         search_row = ttk.Frame(sidebar_actions, style="SidebarInner.TFrame")
-        search_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        search_row.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         search_row.columnconfigure(1, weight=1)
-        ttk.Label(search_row, text="検索", style="CardMetaAlt.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Label(search_row, text="番組検索", style="CardMetaAlt.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 8))
         self.program_search_entry = ttk.Combobox(
             search_row,
             textvariable=self.program_search_var,
@@ -122,7 +144,7 @@ class GuiBuildMixin:
             row=0, column=2, padx=(8, 0)
         )
         ttk.Label(sidebar_actions, textvariable=self.program_list_summary_var, style="CardMetaAlt.TLabel").grid(
-            row=2, column=0, sticky="w", pady=(8, 0)
+            row=3, column=0, sticky="w", pady=(8, 0)
         )
     def _build_program_tree(self, sidebar: "ttk.Frame") -> None:
         self.program_tree = ttk.Treeview(
@@ -183,6 +205,26 @@ class GuiBuildMixin:
         section.columnconfigure(0, weight=1)
         ttk.Label(section, textvariable=self.episode_title_var, style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(section, textvariable=self.episode_message_var, style="CardMeta.TLabel").grid(row=0, column=1, sticky="e")
+        tools = ttk.Frame(section, style="CardInner.TFrame")
+        tools.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        tools.columnconfigure(1, weight=1)
+        ttk.Label(tools, text="絞り込み", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.episode_search_entry = ttk.Entry(tools, textvariable=self.episode_search_var)
+        self.episode_search_entry.grid(row=0, column=1, sticky="ew")
+        self.episode_search_entry.bind("<Escape>", self._clear_episode_search)
+        ttk.Button(tools, text="クリア", command=self._clear_episode_search, style="Quiet.TButton").grid(row=0, column=2, padx=(8, 0))
+        self.episode_saved_only_check = ttk.Checkbutton(
+            tools,
+            text="保存済みのみ",
+            variable=self.episode_saved_only_var,
+            style="Filter.TCheckbutton",
+        )
+        self.episode_saved_only_check.grid(row=0, column=3, padx=(12, 0))
+        filter_summary = ttk.Frame(section, style="CardInner.TFrame")
+        filter_summary.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        filter_summary.columnconfigure(0, weight=1)
+        ttk.Label(filter_summary, textvariable=self.episode_filter_summary_var, style="CardMeta.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(filter_summary, textvariable=self.episode_selection_summary_var, style="CardMeta.TLabel").grid(row=0, column=1, sticky="e")
         self.episode_tree = ttk.Treeview(
             detail,
             columns=("saved", "date", "duration", "title"),
@@ -200,8 +242,8 @@ class GuiBuildMixin:
         self._update_episode_tree_headings()
         self.episode_scroll = ttk.Scrollbar(detail, orient="vertical", command=self._on_episode_tree_scroll)
         self.episode_tree.configure(yscrollcommand=self._on_episode_tree_yscroll)
-        self.episode_tree.grid(row=2, column=0, sticky="nsew")
-        self.episode_scroll.grid(row=2, column=1, sticky="ns")
+        self.episode_tree.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        self.episode_scroll.grid(row=2, column=1, sticky="ns", pady=(8, 0))
     def _build_activity_panel(self, right_panes: "ttk.Panedwindow") -> None:
         activity = ttk.Frame(right_panes, style="Card.TFrame", padding=14, height=180)
         activity.columnconfigure(0, weight=1)
@@ -419,10 +461,17 @@ class GuiBuildMixin:
         status_area = ttk.Frame(main)
         status_area.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         status_area.columnconfigure(1, weight=1)
+        status_area.columnconfigure(2, weight=0)
 
         ttk.Label(status_area, textvariable=self.status_var, anchor="w", style="Status.TLabel").grid(
-            row=0, column=0, columnspan=3, sticky="ew"
+            row=0, column=0, columnspan=2, sticky="ew"
         )
+        ttk.Label(
+            status_area,
+            text="Ctrl/Cmd+F: 番組検索  Ctrl/Cmd+L: エピソード検索  F: 一覧取得  D: DL  F1: ヘルプ",
+            style="StatusHint.TLabel",
+            anchor="e",
+        ).grid(row=0, column=2, sticky="e", padx=(12, 0))
         self.selected_cell_area = ttk.Frame(status_area)
         self.selected_cell_area.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
         self.selected_cell_area.columnconfigure(1, weight=1)
@@ -453,7 +502,15 @@ class GuiBuildMixin:
         self.episode_tree.bind("<Configure>", self._on_episode_tree_configure)
         self.episode_tree.bind("<Double-1>", self._start_download_selected)
         self.episode_tree.bind("<Return>", self._start_download_selected)
+        self.episode_tree.bind("<<TreeviewSelect>>", self._on_episode_selection_change)
         self.episode_tree.bind("<Control-c>", self._copy_selected_cell_to_clipboard)
         self.episode_tree.bind("<Command-c>", self._copy_selected_cell_to_clipboard)
+        self.root.bind_all("<Control-f>", self._focus_program_search, add="+")
+        self.root.bind_all("<Command-f>", self._focus_program_search, add="+")
+        self.root.bind_all("<Control-l>", self._focus_episode_search, add="+")
+        self.root.bind_all("<Command-l>", self._focus_episode_search, add="+")
+        self.root.bind_all("<F1>", self._show_help_dialog, add="+")
+        self.root.bind_all("<Escape>", self._handle_escape, add="+")
+        self.root.bind_all("<KeyPress>", self._handle_browser_shortcut, add="+")
 
 __all__ = ['GuiBuildMixin']

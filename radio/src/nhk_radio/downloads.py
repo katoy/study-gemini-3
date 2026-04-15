@@ -13,24 +13,69 @@ _MANIFEST_LOCKS_GUARD = threading.Lock()
 
 
 def _program_output_dir(output_dir: Path, program: dict) -> Path:
-    genre_dir = _safe_name(program.get("genre_label") or _genre_label(program.get("genre")))
-    title_dir = _safe_name(_program_storage_title(program))
-    return output_dir / genre_dir / title_dir
+    return output_dir / _program_storage_id(program)
+
+
+def _program_storage_id(program: dict) -> str:
+    site_id = str(program.get("site_id") or "").strip()
+    corner_id = str(program.get("corner_id") or "").strip()
+    if site_id and corner_id:
+        return f"{site_id}_{corner_id}"
+    return _safe_name(_program_storage_title(program))
 
 
 def _program_storage_title(program: dict) -> str:
     return str(program.get("title") or program.get("display_title") or "unknown")
 
 
+def _program_storage_titles(program: dict) -> list[str]:
+    titles: list[str] = []
+    for value in (
+        program.get("title"),
+        program.get("display_title"),
+        f"{program.get('site_id', '')}_{program.get('corner_id', '')}".strip("_"),
+    ):
+        normalized = _safe_name(str(value or ""))
+        if normalized and normalized not in titles:
+            titles.append(normalized)
+    return titles or ["unknown"]
+
+
+def _legacy_program_output_dirs(output_dir: Path, program: dict) -> list[Path]:
+    genre_labels = [_safe_name(program.get("genre_label") or _genre_label(program.get("genre")))]
+    if program.get("genre"):
+        genre_labels.append(_safe_name(_genre_label(program.get("genre"))))
+
+    dirs: list[Path] = []
+    seen: set[Path] = set()
+    for genre_dir in genre_labels:
+        for title_dir in _program_storage_titles(program):
+            candidate = output_dir / genre_dir / title_dir
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            dirs.append(candidate)
+    return dirs
+
+
+def _program_search_dirs(output_dir: Path, program: dict) -> list[Path]:
+    primary = _program_output_dir(output_dir, program)
+    dirs = [primary]
+    for candidate in _legacy_program_output_dirs(output_dir, program):
+        if candidate not in dirs:
+            dirs.append(candidate)
+    return dirs
+
+
 def _episode_storage_title(episode: dict) -> str:
     return str(episode.get("title") or episode.get("display_title") or "unknown")
 
 
-def _episode_output_identity(program: dict, episode: dict) -> tuple[str, str, str]:
-    program_title = _safe_name(_program_storage_title(program))
+def _episode_output_identity(program: dict, episode: dict) -> tuple[list[str], str, str]:
+    program_titles = _program_storage_titles(program)
     episode_title = _safe_name(_episode_storage_title(episode))
     episode_date = str(episode.get("date") or "").strip()
-    return program_title, episode_title, episode_date
+    return program_titles, episode_title, episode_date
 
 
 def _program_filename_template(program: dict, max_items: bool = False) -> str:
@@ -62,25 +107,32 @@ def _download_manifest_lock(program: dict, output_dir: Path) -> threading.RLock:
 
 
 def _load_download_manifest(program: dict, output_dir: Path) -> tuple[set[str], dict[str, str]]:
-    manifest_path = _download_manifest_path(program, output_dir)
-    if not manifest_path.exists():
-        return set(), {}
+    downloaded_items: set[str] = set()
+    saved_paths: dict[str, str] = {}
+    manifest_paths = [_download_manifest_path(program, output_dir)]
+    for legacy_dir in _legacy_program_output_dirs(output_dir, program):
+        manifest_path = legacy_dir / ".downloaded.json"
+        if manifest_path not in manifest_paths:
+            manifest_paths.append(manifest_path)
 
-    try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return set(), {}
+    for manifest_path in manifest_paths:
+        if not manifest_path.exists():
+            continue
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
 
-    downloaded = payload.get("downloaded")
-    if not isinstance(downloaded, list):
-        downloaded_items = set()
-    else:
-        downloaded_items = {str(item) for item in downloaded}
+        downloaded = payload.get("downloaded")
+        if isinstance(downloaded, list):
+            downloaded_items.update(str(item) for item in downloaded)
 
-    paths = payload.get("paths")
-    if not isinstance(paths, dict):
-        return downloaded_items, {}
-    return downloaded_items, {str(key): str(value) for key, value in paths.items()}
+        paths = payload.get("paths")
+        if isinstance(paths, dict):
+            for key, value in paths.items():
+                saved_paths[str(key)] = str(value)
+
+    return downloaded_items, saved_paths
 
 
 def _save_download_manifest(program: dict, output_dir: Path, downloaded: set[str], paths: dict[str, str]):
@@ -90,14 +142,15 @@ def _save_download_manifest(program: dict, output_dir: Path, downloaded: set[str
 
 
 def _episode_output_patterns(program: dict, episode: dict) -> list[str]:
-    program_title, episode_title, episode_date = _episode_output_identity(program, episode)
+    program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
     patterns: list[str] = []
-    if episode_date:
-        patterns.append(f"{episode_date}_{program_title}_{episode_title}.*")
-        patterns.append(f"*_{episode_date}_{program_title}_{episode_title}.*")
-    else:
-        patterns.append(f"{program_title}_{episode_title}.*")
-        patterns.append(f"*_{program_title}_{episode_title}.*")
+    for program_title in program_titles:
+        if episode_date:
+            patterns.append(f"{episode_date}_{program_title}_{episode_title}.*")
+            patterns.append(f"*_{episode_date}_{program_title}_{episode_title}.*")
+        else:
+            patterns.append(f"{program_title}_{episode_title}.*")
+            patterns.append(f"*_{program_title}_{episode_title}.*")
     return patterns
 
 
@@ -105,21 +158,27 @@ def _episode_output_matches(path: Path, program: dict, episode: dict) -> bool:
     if not path.is_file() or path.name == ".downloaded.json" or path.suffix in {".part", ".ytdl"}:
         return False
 
-    program_title, episode_title, episode_date = _episode_output_identity(program, episode)
+    program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
     stem = path.stem
 
     if episode_date:
-        expected = f"{episode_date}_{program_title}_{episode_title}"
-        return stem == expected or stem.endswith(f"_{expected}")
+        for program_title in program_titles:
+            expected = f"{episode_date}_{program_title}_{episode_title}"
+            if stem == expected or stem.endswith(f"_{expected}"):
+                return True
+        return False
 
-    expected = f"{program_title}_{episode_title}"
-    return stem == expected or stem.endswith(f"_{expected}")
+    for program_title in program_titles:
+        expected = f"{program_title}_{episode_title}"
+        if stem == expected or stem.endswith(f"_{expected}"):
+            return True
+    return False
 
 
 def _episode_output_candidates(program_dir: Path, program: dict, episode: dict) -> list[Path]:
     candidates: list[Path] = []
     seen: set[Path] = set()
-    program_title, episode_title, episode_date = _episode_output_identity(program, episode)
+    program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
     for pattern in _episode_output_patterns(program, episode):
         for path in program_dir.glob(pattern):
             if not _episode_output_matches(path, program, episode):
@@ -137,7 +196,7 @@ def _episode_output_candidates(program_dir: Path, program: dict, episode: dict) 
     }
     candidates.sort(
         key=lambda path: (
-            0 if episode_date and path.name.startswith(f"{episode_date}_{program_title}_") else 1,
+            0 if episode_date and any(path.name.startswith(f"{episode_date}_{program_title}_") for program_title in program_titles) else 1,
             0 if episode_title and f"_{episode_title}." in path.name else 1,
             suffix_priority.get(path.suffix.lower(), 99),
             -path.stat().st_mtime,
@@ -164,30 +223,31 @@ def is_episode_downloaded(output_dir: Path, program: dict, episode: dict) -> boo
     downloaded, _ = _load_download_manifest(program, output_dir)
     if _episode_key(episode) in downloaded:
         return True
-    program_dir = _program_output_dir(output_dir, program)
-    if not program_dir.exists():
-        return False
-    return bool(_episode_output_candidates(program_dir, program, episode))
+    for program_dir in _program_search_dirs(output_dir, program):
+        if program_dir.exists() and _episode_output_candidates(program_dir, program, episode):
+            return True
+    return False
 
 
 def resolve_episode_downloaded_path(output_dir: Path, program: dict, episode: dict) -> Path | None:
-    program_dir = _program_output_dir(output_dir, program)
-    if not program_dir.exists():
-        return None
-
     downloaded, saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
-    candidates = _episode_output_candidates(program_dir, program, episode)
-    if candidates:
-        if saved_paths.get(episode_key) != str(candidates[0].relative_to(program_dir)):
-            mark_episode_downloaded(output_dir, program, episode, candidates[0])
-        return candidates[0]
+    for program_dir in _program_search_dirs(output_dir, program):
+        if not program_dir.exists():
+            continue
+        candidates = _episode_output_candidates(program_dir, program, episode)
+        if candidates:
+            if program_dir == _program_output_dir(output_dir, program):
+                relative_candidate = str(candidates[0].relative_to(program_dir))
+                if saved_paths.get(episode_key) != relative_candidate:
+                    mark_episode_downloaded(output_dir, program, episode, candidates[0])
+            return candidates[0]
 
     saved_path = saved_paths.get(episode_key)
     if saved_path:
         resolved = Path(saved_path)
         if not resolved.is_absolute():
-            resolved = program_dir / resolved
+            resolved = _program_output_dir(output_dir, program) / resolved
         if resolved.exists():
             return resolved
 
@@ -197,13 +257,13 @@ def resolve_episode_downloaded_path(output_dir: Path, program: dict, episode: di
 
 
 def cleanup_partial_episode_files(output_dir: Path, program: dict, episode: dict):
-    program_dir = _program_output_dir(output_dir, program)
-    if not program_dir.exists():
-        return
-    for pattern in _episode_output_patterns(program, episode):
-        for path in program_dir.glob(pattern):
-            if path.is_file() and path.suffix in {".part", ".ytdl"}:
-                path.unlink()
+    for program_dir in _program_search_dirs(output_dir, program):
+        if not program_dir.exists():
+            continue
+        for pattern in _episode_output_patterns(program, episode):
+            for path in program_dir.glob(pattern):
+                if path.is_file() and path.suffix in {".part", ".ytdl"}:
+                    path.unlink()
 
 
 def _format_download_percent(percent: float | None) -> str:

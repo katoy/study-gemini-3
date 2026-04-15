@@ -1,7 +1,9 @@
 """Styling and settings helpers for EpisodeGuiBrowser."""
 
+from .help_markdown import render_help_markdown
+from .logo import update_brand_logo
 from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _save_ui_settings
-from .toolkit import tk, tkfont, ttk
+from .toolkit import tk, tkfont
 
 
 class GuiStylingMixin:
@@ -355,6 +357,7 @@ class GuiStylingMixin:
         self.style.configure("HeroMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["accent_soft"])
         self.style.configure("HeroStats.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["accent_soft"])
         self.style.configure("Status.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["bg"])
+        self.style.configure("StatusHint.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["bg"])
         self.style.configure("PopupTitle.TLabel", font=self._popup_title_font, foreground=p["text"], background=p["surface"])
         self.style.configure("PopupLabel.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface"])
         self.style.configure("PopupValue.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
@@ -363,6 +366,12 @@ class GuiStylingMixin:
         self.style.configure("FontPreview.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"])
         self.style.configure("FontPreviewTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"])
         self.style.configure("FontPreviewBody.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface_alt"])
+        self.style.configure("Filter.TCheckbutton", background=p["surface"], foreground=p["text"], font=self._ui_small)
+        self.style.map(
+            "Filter.TCheckbutton",
+            background=[("active", p["surface"])],
+            foreground=[("disabled", p["text_sub"])],
+        )
     def _configure_live_widget_styles(self, p: dict) -> None:
         if hasattr(self, "download_jobs_canvas"):
             self.download_jobs_canvas.configure(
@@ -376,12 +385,23 @@ class GuiStylingMixin:
                 highlightbackground=p["border"],
                 highlightcolor=p["border"],
             )
+        if hasattr(self, "logo_canvas"):
+            update_brand_logo(self.logo_canvas, p)
         if self.tooltip_window is not None and self.tooltip_window.winfo_exists():
             self.tooltip_window.configure(background=p["border_strong"])
         if self.tooltip_label is not None and self.tooltip_label.winfo_exists():
             self.tooltip_label.configure(
                 background=p["surface_alt"],
                 foreground=p["text"],
+            )
+        if hasattr(self, "help_popup") and self.help_popup is not None and self.help_popup.winfo_exists():
+            self.help_popup.configure(background=p["surface"])
+        if hasattr(self, "help_text") and self.help_text is not None and self.help_text.winfo_exists():
+            render_help_markdown(
+                self.help_text,
+                self.help_markdown_content or "",
+                p,
+                self._help_markdown_fonts(),
             )
     def _refresh_treeview_theme(self):
         p = self._palette
@@ -539,6 +559,9 @@ class GuiStylingMixin:
         self.program_search_history = []
         self.settings_dirty = False
         self.program_search_var.set("")
+        self.program_genre_filter_var.set("すべて")
+        self.episode_search_var.set("")
+        self.episode_saved_only_var.set(False)
         self._palette = self._theme_palette(self.current_theme)
         self._load_font_profile()
         self._configure_theme_styles()

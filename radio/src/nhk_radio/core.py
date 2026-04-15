@@ -18,10 +18,16 @@ import urllib.parse
 import urllib.request
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
-from .config import CACHE_TTL_SECONDS
-from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_API_SERIES, NHK_DETAIL_TMPL, NHK_EPISODE_TMPL, NHK_GENRES, _HEADERS
-from .downloads import _episode_key
-from .text import _format_broadcast_time, _format_duration, _format_onair_date, _genre_label, _normalize_text, _program_display_title
+from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_EPISODE_TMPL, NHK_GENRES, _HEADERS
+from .text import (
+    _format_broadcast_time,
+    _format_duration,
+    _format_episode_date,
+    _format_onair_date,
+    _genre_label,
+    _normalize_text,
+    _program_display_title,
+)
 
 
 def http_get_json(url: str, timeout: int = 15) -> dict | list:
@@ -286,6 +292,11 @@ def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
         except json.JSONDecodeError:
             continue
         episodes.append(_parse_episode_info(info, program))
+    if result.returncode != 0:
+        detail = result.stderr.strip()
+        if detail:
+            raise RuntimeError(detail.splitlines()[-1])
+        raise RuntimeError(f"yt-dlp exited with code {result.returncode}")
     _report_fetch_result(episodes, result.stderr, verbose)
     return episodes
 

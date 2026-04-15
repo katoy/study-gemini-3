@@ -16,5 +16,8 @@ nhk-radio = "nhk_radio.cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+nhk_radio = ["help.md"]
+
 [tool.setuptools.packages.find]
 where = ["src"]

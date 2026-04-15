@@ -1,5 +1,4 @@
 import tempfile
-import threading
 import unittest
 from pathlib import Path
 
@@ -13,6 +12,8 @@ PROGRAM = {
     "display_title": "番組A",
     "genre": "language",
     "genre_label": "語学",
+    "site_id": "SITE",
+    "corner_id": "01",
 }
 
 EPISODE = {
@@ -24,6 +25,10 @@ EPISODE = {
 
 
 class DownloadHelpersTest(unittest.TestCase):
+    def test_program_output_dir_uses_stable_program_id(self):
+        output_dir = Path("/tmp/output")
+        self.assertEqual(downloads._program_output_dir(output_dir, PROGRAM), output_dir / "SITE_01")
+
     def test_program_filename_template(self):
         self.assertEqual(
             downloads._program_filename_template(PROGRAM),
@@ -62,6 +67,18 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertIs(lock_a, lock_b)
         self.assertTrue(hasattr(lock_a, "acquire"))
         self.assertTrue(hasattr(lock_a, "release"))
+
+    def test_resolve_episode_downloaded_path_supports_legacy_title_based_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            legacy_dir = output_dir / "語学" / "番組A"
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            legacy_file = legacy_dir / "20240415_番組A_第1回.mp3"
+            legacy_file.write_text("dummy", encoding="utf-8")
+
+            resolved = downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE)
+
+        self.assertEqual(resolved, legacy_file)
 
 
 if __name__ == "__main__":

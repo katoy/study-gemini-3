@@ -15,6 +15,36 @@ from .toolkit import tk, ttk
 
 
 class GuiListingMixin:
+    def _program_genre_filter_values(self) -> list[str]:
+        labels = sorted(
+            {
+                program.get("genre_label") or _genre_label(program.get("genre"))
+                for program in self.programs
+            }
+        )
+        return ["すべて", *[label for label in labels if label]]
+
+    def _on_program_filter_change(self, *_args):
+        if not hasattr(self, "program_tree"):
+            return
+        self._apply_program_filters()
+
+    def _apply_program_filters(self):
+        needle = self._normalized_search_text(self.program_search_var.get())
+        genre_filter = self.program_genre_filter_var.get()
+        filtered = list(self.programs)
+        if genre_filter and genre_filter != "すべて":
+            filtered = [
+                program
+                for program in filtered
+                if (program.get("genre_label") or _genre_label(program.get("genre"))) == genre_filter
+            ]
+        if needle:
+            filtered = [program for program in filtered if needle in self._program_search_target(program)]
+        self.filtered_programs = filtered
+        self._update_program_search_history_values()
+        self._populate_programs()
+
     def _populate_programs(self, preserve_selection: bool = True):
         p = self._palette
         self.program_tree.tag_configure("even", background=p["surface"])
@@ -166,8 +196,13 @@ class GuiListingMixin:
     def _program_list_summary_text(self) -> str:
         total = len(self.programs)
         visible = len(self.filtered_programs)
+        filters: list[str] = []
+        if self.program_genre_filter_var.get() and self.program_genre_filter_var.get() != "すべて":
+            filters.append(self.program_genre_filter_var.get())
         if self._normalized_search_text(self.program_search_var.get()):
-            return f"{visible} / {total} 番組"
+            filters.append("検索中")
+        if filters:
+            return f"{visible} / {total} 番組 ({' / '.join(filters)})"
         return f"{total} 番組"
     def _program_search_history_values(self) -> list[str]:
         needle = self._normalized_search_text(self.program_search_var.get())
@@ -214,13 +249,7 @@ class GuiListingMixin:
             self.selected_program_meta_var.set("左の番組一覧から選択すると、ここに番組の概要が表示されます。")
             self.selected_program_stats_var.set("エピソード一覧は未取得です。")
     def _on_program_search_change(self, *_args):
-        needle = self._normalized_search_text(self.program_search_var.get())
-        if needle:
-            self.filtered_programs = [program for program in self.programs if needle in self._program_search_target(program)]
-        else:
-            self.filtered_programs = list(self.programs)
-        self._update_program_search_history_values()
-        self._populate_programs()
+        self._apply_program_filters()
     def _clear_program_search(self, _event=None):
         self.program_search_var.set("")
         self.program_search_entry.focus_set()
@@ -415,6 +444,61 @@ class GuiListingMixin:
         self.episode_title_var.set(f"エピソード一覧: {program.get('display_title', program['title'])}")
         self.episode_message_var.set(message)
         self._render_episode_rows(program, episodes, clear_selection=False)
+
+    def _episode_search_target(self, episode: dict) -> str:
+        return self._normalized_search_text(
+            " ".join(
+                part
+                for part in (
+                    episode.get("display_title", ""),
+                    episode.get("title", ""),
+                    episode.get("display_date", ""),
+                    episode.get("broadcast_time", ""),
+                    episode.get("duration_str", ""),
+                )
+                if part
+            )
+        )
+
+    def _filtered_episode_rows(self, program: dict, episodes: list[dict]) -> list[dict]:
+        needle = self._normalized_search_text(self.episode_search_var.get())
+        saved_only = self.episode_saved_only_var.get()
+        filtered = list(episodes)
+        if needle:
+            filtered = [episode for episode in filtered if needle in self._episode_search_target(episode)]
+        if saved_only:
+            filtered = [episode for episode in filtered if is_episode_downloaded(self.output_dir, program, episode)]
+        return filtered
+
+    def _update_episode_filter_summary(self, visible_count: int, total_count: int):
+        filters: list[str] = []
+        if self._normalized_search_text(self.episode_search_var.get()):
+            filters.append("検索中")
+        if self.episode_saved_only_var.get():
+            filters.append("保存済みのみ")
+        suffix = f" ({' / '.join(filters)})" if filters else ""
+        self.episode_filter_summary_var.set(f"表示 {visible_count} / 全 {total_count} 件{suffix}")
+
+    def _update_episode_selection_summary(self):
+        selection_count = len(self.episode_tree.selection()) if hasattr(self, "episode_tree") else 0
+        self.episode_selection_summary_var.set(f"選択 {selection_count} 件")
+
+    def _on_episode_selection_change(self, _event=None):
+        self._update_episode_selection_summary()
+        return None
+
+    def _on_episode_filter_change(self, *_args):
+        if self.displayed_program is None:
+            self._update_episode_filter_summary(0, 0)
+            self._update_episode_selection_summary()
+            return
+        self._rerender_displayed_episodes()
+
+    def _clear_episode_search(self, _event=None):
+        self.episode_search_var.set("")
+        if hasattr(self, "episode_search_entry"):
+            self.episode_search_entry.focus_set()
+        return "break"
     def _sorted_episodes(self, episodes: list[dict]) -> list[dict]:
         if self.episode_sort_column is None:
             return list(episodes)
@@ -448,7 +532,7 @@ class GuiListingMixin:
         self.episode_tree.tag_configure("odd",     background=p["row_odd"])
         self.episode_tree.tag_configure("dl_even", background=p["dl_even"])
         self.episode_tree.tag_configure("dl_odd",  background=p["dl_odd"])
-        rendered = self._sorted_episodes(episodes)
+        rendered = self._sorted_episodes(self._filtered_episode_rows(program, episodes))
         for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
@@ -485,6 +569,8 @@ class GuiListingMixin:
             self.episode_tree.selection_remove(self.episode_tree.selection())
             self.episode_tree.focus("")
             self.download_button.state(["disabled"])
+        self._update_episode_filter_summary(len(rendered), len(episodes))
+        self._update_episode_selection_summary()
         self._schedule_saved_button_refresh()
     def _rerender_displayed_episodes(self):
         if self.displayed_program is None:

@@ -10,7 +10,10 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from nhk_radio.cli import main
+def main() -> None:
+    from nhk_radio.cli import main as cli_main
+
+    cli_main()
 
 
 if __name__ == "__main__":
