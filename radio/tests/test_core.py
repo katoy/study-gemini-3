@@ -135,8 +135,9 @@ class CoreHelpersTest(unittest.TestCase):
         program = {"site_id": "SITE", "corner_id": "01"}
         parsed = core._parse_episode_info({"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}, program)
         self.assertIn("ep1", parsed["url"])
+        # ep_id がある場合は stream URL より NHK プレイヤー URL を優先する（期限切れ防止）
         parsed_absolute = core._parse_episode_info({"id": "ep1", "url": "https://example.com"}, program)
-        self.assertEqual(parsed_absolute["url"], "https://example.com")
+        self.assertEqual(parsed_absolute["url"], "https://www.nhk.or.jp/radio/player/ondemand.html?p=ep1")
 
         with patch("builtins.print") as print_mock:
             core._report_fetch_result([{"id": "ep"}], "", verbose=True)
@@ -220,6 +221,54 @@ class CoreHelpersTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "timeout"):
                 core.refresh_episode_list(program)
+
+
+class EpisodeUrlRegressionTest(unittest.TestCase):
+    """
+    エピソード URL が期限付き m3u8 ストリーム URL になるバグの再発防止テスト。
+
+    修正前: info["url"] (vod-stream.nhk.jp の m3u8) をそのまま保存 → キャッシュ後に期限切れ
+    修正後: ep_id がある場合は常に NHK プレイヤー URL を使用 → yt-dlp がダウンロード時に最新 URL を取得
+    """
+
+    PROGRAM = {"site_id": "M65G6QLKMY", "corner_id": "01"}
+    STREAM_URL = (
+        "https://vod-stream.nhk.jp/radioondemand/r/M65G6QLKMY/s/"
+        "stream_M65G6QLKMY_abc123/index_48k.m3u8"
+    )
+
+    def test_episode_url_is_nhk_player_not_stream_when_ep_id_present(self):
+        """ep_id がある場合、期限付きストリーム URL ではなく NHK プレイヤー URL を使う。"""
+        info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
+        parsed = core._parse_episode_info(info, self.PROGRAM)
+        self.assertNotIn("vod-stream.nhk.jp", parsed["url"], "ストリーム URL が保存されている（期限切れバグ再発）")
+        self.assertIn("nhk.or.jp/radio/player", parsed["url"])
+        self.assertIn("M65G6QLKMY_01_4311868", parsed["url"])
+
+    def test_episode_player_url_format(self):
+        """生成される URL が NHK プレイヤーの正しい形式になっている。"""
+        info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
+        parsed = core._parse_episode_info(info, self.PROGRAM)
+        expected = "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01_4311868"
+        self.assertEqual(parsed["url"], expected)
+
+    def test_episode_id_not_duplicated_in_url(self):
+        """ep_id が URL 内で二重になっていない（旧バグ: ?p=M65G6QLKMY_01_M65G6QLKMY_01_4311868）。"""
+        info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
+        parsed = core._parse_episode_info(info, self.PROGRAM)
+        self.assertNotIn("M65G6QLKMY_01_M65G6QLKMY_01", parsed["url"], "ep_id が二重になっている（テンプレートバグ再発）")
+
+    def test_fallback_to_webpage_url_when_no_ep_id(self):
+        """ep_id がない場合は webpage_url にフォールバックする。"""
+        info = {"url": self.STREAM_URL, "webpage_url": "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01"}
+        parsed = core._parse_episode_info(info, self.PROGRAM)
+        self.assertEqual(parsed["url"], "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01")
+
+    def test_fallback_to_stream_url_when_no_ep_id_and_no_webpage_url(self):
+        """ep_id も webpage_url もない場合は url にフォールバックする。"""
+        info = {"url": self.STREAM_URL}
+        parsed = core._parse_episode_info(info, self.PROGRAM)
+        self.assertEqual(parsed["url"], self.STREAM_URL)
 
 
 if __name__ == "__main__":

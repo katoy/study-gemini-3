@@ -254,6 +254,9 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertIn("--newline", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
         self.assertIn("--playlist-end", downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=False, max_items=3))
         self.assertIn("--no-playlist", downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=True))
+        # AES-128 暗号化 HLS の ffmpeg muxer 失敗を防ぐため --hls-use-mpegts が必須
+        self.assertIn("--hls-use-mpegts", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
+        self.assertIn("--hls-use-mpegts", downloads._yt_dlp_command("https://e", "x", audio_only=True, no_playlist=True))
 
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:

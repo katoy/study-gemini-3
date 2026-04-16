@@ -242,13 +242,13 @@ def _parse_episode_info(info: dict, program: dict) -> dict:
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
     date = upload_date or (str(int(timestamp)) if timestamp else "")
-    ep_url = info.get("url") or info.get("webpage_url") or ""
-    if ep_id and not ep_url.startswith("http"):
-        ep_url = NHK_EPISODE_TMPL.format(
-            site_id=program["site_id"],
-            corner_id=program["corner_id"],
-            episode_id=ep_id,
-        )
+    # ep_id がある場合は NHK プレイヤー URL を使う。
+    # info["url"] は期限付き m3u8 ストリーム URL のためキャッシュ後に期限切れになる。
+    # ep_id は "M65G6QLKMY_01_4311868" 形式で ?p= の値そのもの。
+    if ep_id:
+        ep_url = f"https://www.nhk.or.jp/radio/player/ondemand.html?p={ep_id}"
+    else:
+        ep_url = info.get("webpage_url") or info.get("url") or ""
     return {
         "id": ep_id,
         "title": title,

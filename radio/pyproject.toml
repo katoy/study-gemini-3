@@ -8,7 +8,10 @@ version = "0.1.0"
 description = "NHK ラジオ聞き逃し番組ダウンローダー"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["yt-dlp"]
+dependencies = [
+    "pycryptodomex>=3.23.0",
+    "yt-dlp",
+]
 
 [project.scripts]
 nhk-radio = "nhk_radio.cli:main"

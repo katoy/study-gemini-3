@@ -321,6 +321,8 @@ def _yt_dlp_command(
     cmd = ["yt-dlp"]
     if newline:
         cmd.append("--newline")
+    # AES-128 暗号化 HLS ストリームで ffmpeg が aac_adtstoasc フィルタに失敗するのを防ぐ
+    cmd.append("--hls-use-mpegts")
     if audio_only:
         cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
     cmd += ["-o", output_template]
