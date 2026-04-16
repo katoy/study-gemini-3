@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings
+from ..types import Episode, Program
 from .build import GuiBuildMixin
 from .downloads import GuiDownloadsMixin
 from .help_markdown import build_help_markdown, render_help_markdown
@@ -15,7 +16,7 @@ from .toolkit import messagebox, tk, ttk
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
-    def __init__(self, programs: list[dict], output_dir: Path, *, audio_only: bool = True):
+    def __init__(self, programs: list[Program], output_dir: Path, *, audio_only: bool = True):
         if tk is None or ttk is None:
             raise RuntimeError("tkinter が利用できません")
 
@@ -29,8 +30,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self._build_widgets()
         self._populate_programs()
 
-    def _initialize_runtime_state(self, programs: list[dict]) -> None:
-        self.result: tuple[dict, list[dict]] | tuple[None, None] = (None, None)
+    def _initialize_runtime_state(self, programs: list[Program]) -> None:
+        self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
         self.fetch_result_queue: queue.Queue | None = None
         self.download_result_queue: queue.Queue = queue.Queue()
@@ -39,15 +40,15 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.download_processes: dict[str, subprocess.Popen] = {}
         self.download_process_lock = threading.Lock()
         self.active_download_rows: dict[str, dict] = {}
-        self.active_download_meta: dict[str, tuple[dict, dict]] = {}
+        self.active_download_meta: dict[str, tuple[Program, Episode]] = {}
         self.download_started_count = 0
         self.download_finished_count = 0
-        self.episodes_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+        self.episodes_cache: dict[tuple[str, str], tuple[float, list[Episode]]] = {}
         self.filtered_programs = list(programs)
-        self.program_tree_programs: dict[str, dict] = {}
-        self.displayed_program: dict | None = None
-        self.displayed_episodes: list[dict] = []
-        self.displayed_episode_map: dict[str, dict] = {}
+        self.program_tree_programs: dict[str, Program] = {}
+        self.displayed_program: Program | None = None
+        self.displayed_episodes: list[Episode] = []
+        self.displayed_episode_map: dict[str, Episode] = {}
         self.program_sort_column: str | None = None
         self.program_sort_reverse = False
         self.episode_sort_column: str | None = None
@@ -271,12 +272,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
 
 def browse_programs(
-    programs: list[dict], output_dir: Path, *, audio_only: bool = True
-) -> tuple[dict, list[dict]] | tuple[None, None]:
+    programs: list[Program], output_dir: Path, *, audio_only: bool = True
+) -> tuple[Program, list[Episode]] | tuple[None, None]:
     try:
         return EpisodeGuiBrowser(programs, output_dir, audio_only=audio_only).run()
     except tk.TclError as e:
         raise RuntimeError(str(e)) from e
+
 
 
 # ──────────────────────────────────────────────────────

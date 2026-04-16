@@ -33,20 +33,23 @@ class GuiDownloadsMixin:
         eta: str | None = None,
         status_text: str | None = None,
     ):
-        row = self.active_download_rows.get(episode_key)
-        if row is None or row["state"] != "running":
-            return
+        def _update():
+            row = self.active_download_rows.get(episode_key)
+            if row is None or row["state"] != "running":
+                return
 
-        if percent is not None:
-            row["percent_var"].set(_format_download_percent(percent))
-            row["progress"].stop()
-            row["progress"].configure(mode="determinate", maximum=100, value=min(max(percent, 0.0), 100.0))
-            row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
-        elif eta is not None:
-            row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
+            if percent is not None:
+                row["percent_var"].set(_format_download_percent(percent))
+                row["progress"].stop()
+                row["progress"].configure(mode="determinate", maximum=100, value=min(max(percent, 0.0), 100.0))
+                row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
+            elif eta is not None:
+                row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
 
-        if status_text is not None:
-            row["status_var"].set(status_text)
+            if status_text is not None:
+                row["status_var"].set(status_text)
+
+        self.root.after(0, _update)
 
     def _update_fetch_button_state(self):
         if not hasattr(self, "fetch_button"):
@@ -57,20 +60,23 @@ class GuiDownloadsMixin:
             self.fetch_button.state(["!disabled"])
 
     def _set_loading(self, loading: bool, allow_cancel: bool = False):
-        self.loading = loading
-        if loading:
-            self.clear_button.state(["disabled"])
-            self.program_search_entry.state(["disabled"])
-        else:
-            self.clear_button.state(["!disabled"])
-            self.program_search_entry.state(["!disabled"])
-            self._update_fetch_button_state()
-        if not self.displayed_episode_map or loading:
-            self.download_button.state(["disabled"])
-        else:
-            self.download_button.state(["!disabled"])
-        self.root.configure(cursor="watch" if loading else "")
-        self.root.update_idletasks()
+        def _update():
+            self.loading = loading
+            if loading:
+                self.clear_button.state(["disabled"])
+                self.program_search_entry.state(["disabled"])
+            else:
+                self.clear_button.state(["!disabled"])
+                self.program_search_entry.state(["!disabled"])
+                self._update_fetch_button_state()
+            if not self.displayed_episode_map or loading:
+                self.download_button.state(["disabled"])
+            else:
+                self.download_button.state(["!disabled"])
+            self.root.configure(cursor="watch" if loading else "")
+            self.root.update_idletasks()
+
+        self.root.after(0, _update)
 
     def _open_ondemand_site(self):
         try:
@@ -81,13 +87,17 @@ class GuiDownloadsMixin:
         self.status_var.set("NHK ラジオ らじる★らじる 聞き逃しをブラウザで開きました。")
 
     def _set_progress(self, current: int, total: int, text: str = ""):
-        total = max(total, 1)
-        if text:
-            self.progress_text_var.set(text)
-        elif total <= 1 and current <= 0:
-            self.progress_text_var.set("")
-        else:
-            self.progress_text_var.set(f"処理済: {current} 件 / 開始 {total} 件")
+        def _update():
+            nonlocal total
+            total = max(total, 1)
+            if text:
+                self.progress_text_var.set(text)
+            elif total <= 1 and current <= 0:
+                self.progress_text_var.set("")
+            else:
+                self.progress_text_var.set(f"処理済: {current} 件 / 開始 {total} 件")
+
+        self.root.after(0, _update)
 
     def _show_progress_window(self):
         self.download_jobs_canvas.focus_set()

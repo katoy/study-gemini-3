@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import time
+from collections.abc import Sequence
 
 import httpx
 
@@ -28,6 +29,7 @@ from .text import (
     _normalize_text,
     _program_display_title,
 )
+from .types import Episode, Program
 
 
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 15) -> dict | list:
@@ -51,28 +53,29 @@ def http_get_text(url: str, timeout: int = 20) -> str:
         return resp.text
 
 
-def fetch_program_list(genre: str | None = None) -> list[dict]:
+def fetch_program_list(genre: str | None = None) -> list[Program]:
     """
-    NHK ラジオ聞き逃し番組一覧を API から取得する。
+    NHK ラジオ聞き逃し番組一覧を同期的に取得する。
+    """
+    return asyncio.run(fetch_program_list_async(genre))
 
-    genre=None  → 全番組 (corners/new_arrivals + 全ジャンル合算)
-    genre=str   → 指定ジャンルのみ (例: "language", "music")
 
-    Returns:
-        [{"title": str, "site_id": str, "corner_id": str, "url": str}, ...]
+async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
+    """
+    NHK ラジオ聞き逃し番組一覧を非同期に取得する。
     """
     cached = load_program_cache(genre)
     if cached is not None:
-        return cached
+        return cached  # type: ignore
 
-    programs = asyncio.run(_fetch_by_genre_async(genre)) if genre else asyncio.run(_fetch_all_async())
+    programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
 
     if programs:
         save_program_cache(genre, programs)
         return programs
 
     stale = load_program_cache(genre, ttl_seconds=10**12)
-    return stale or programs
+    return stale or programs  # type: ignore
 
 
 # ──────────────────────────────────────────────────────
@@ -80,7 +83,7 @@ def fetch_program_list(genre: str | None = None) -> list[dict]:
 # ──────────────────────────────────────────────────────
 
 
-def _url_to_program(url: str) -> dict | None:
+def _url_to_program(url: str) -> Program | None:
     match = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
     if not match:
         return None
@@ -97,7 +100,7 @@ def _url_to_program(url: str) -> dict | None:
     }
 
 
-def _resolve_program_from_url(url: str, genre: str | None = None) -> dict | None:
+def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | None:
     program = _url_to_program(url)
     if program is None:
         return None
@@ -108,14 +111,14 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> dict | None
 
     for candidate in cached_programs or []:
         if candidate["site_id"] == program["site_id"] and candidate["corner_id"] == program["corner_id"]:
-            return candidate
+            return candidate  # type: ignore
     if genre:
         program["genre"] = genre
         program["genre_label"] = _genre_label(genre)
     return program
 
 
-def _make_entry(s: dict, genre: str | None = None) -> dict:
+def _make_entry(s: dict, genre: str | None = None) -> Program:
     site_id = s.get("series_site_id") or s.get("site_id", "")
     corner_id = s.get("corner_site_id") or s.get("corner_id", "01")
     title = s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}"
@@ -136,29 +139,30 @@ def _make_entry(s: dict, genre: str | None = None) -> dict:
     }
 
 
-async def _fetch_all_async() -> list[dict]:
+async def _fetch_all_async() -> list[Program]:
     """全ジャンルの番組を取得してまとめる (非同期・並列版)"""
     print("番組一覧を取得中...", end="", flush=True)
-    seen: set[str] = set()
-    programs: list[dict] = []
-    program_map: dict[tuple[str, str], dict] = {}
+    seen: set[tuple[str, str]] = set()
+    programs: list[Program] = []
+    program_map: dict[tuple[str, str], Program] = {}
 
     async with httpx.AsyncClient(headers=_HEADERS) as client:
         # 1) corners/new_arrivals (最新追加・最多)
         try:
             data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
-            for s in data.get("corners", []):
-                key = (s.get("series_site_id"), s.get("corner_site_id"))
-                if key not in seen:
-                    seen.add(key)
-                    entry = _make_entry(s)
-                    programs.append(entry)
-                    program_map[key] = entry
+            if isinstance(data, dict):
+                for s in data.get("corners", []):
+                    key = (s.get("series_site_id"), s.get("corner_site_id"))
+                    if key not in seen:
+                        seen.add(key)
+                        entry = _make_entry(s)
+                        programs.append(entry)
+                        program_map[key] = entry
         except Exception:
             pass
 
         # 2) 各ジャンルを追加 (並列取得して補完)
-        async def fetch_genre(g: str) -> tuple[str, dict | None]:
+        async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
             try:
                 data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
                 return g, data
@@ -169,7 +173,7 @@ async def _fetch_all_async() -> list[dict]:
         results = await asyncio.gather(*tasks)
 
         for g, data in results:
-            if not data:
+            if not isinstance(data, dict):
                 continue
             for s in data.get("series", []):
                 key = (s.get("series_site_id"), s.get("corner_site_id"))
@@ -192,7 +196,7 @@ async def _fetch_all_async() -> list[dict]:
     return _fallback_program_list()
 
 
-async def _fetch_by_genre_async(genre: str) -> list[dict]:
+async def _fetch_by_genre_async(genre: str) -> list[Program]:
     """指定ジャンルの番組一覧を取得する (非同期版)"""
     label = {
         "language": "語学講座",
@@ -207,15 +211,17 @@ async def _fetch_by_genre_async(genre: str) -> list[dict]:
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
             data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
-        programs = [_make_entry(s, genre=genre) for s in data.get("series", [])]
-        print(f" {len(programs)} 件")
-        return programs
+        if isinstance(data, dict):
+            programs = [_make_entry(s, genre=genre) for s in data.get("series", [])]
+            print(f" {len(programs)} 件")
+            return programs
+        return []
     except Exception as e:
         print(f" 失敗: {e}")
         return _fallback_program_list() if genre == "language" else []
 
 
-def _fallback_program_list() -> list[dict]:
+def _fallback_program_list() -> list[Program]:
     """
     API 取得失敗時のフォールバック。
     2026年4月時点の正確な ID。
@@ -258,7 +264,7 @@ def _fallback_program_list() -> list[dict]:
 # ──────────────────────────────────────────────────────
 
 
-def _parse_episode_info(info: dict, program: dict) -> dict:
+def _parse_episode_info(info: dict, program: Program) -> Episode:
     """yt-dlp の JSON 行 1 件をエピソード辞書に変換する。"""
     ep_id = str(info.get("id", ""))
     title = info.get("title") or ep_id
@@ -285,7 +291,7 @@ def _parse_episode_info(info: dict, program: dict) -> dict:
     }
 
 
-def _report_fetch_result(episodes: list[dict], stderr: str, verbose: bool) -> None:
+def _report_fetch_result(episodes: Sequence[Episode], stderr: str, verbose: bool) -> None:
     if not verbose:
         return
     if episodes:
@@ -298,7 +304,7 @@ def _report_fetch_result(episodes: list[dict], stderr: str, verbose: bool) -> No
             print(" 0件 (エピソードが見つからないか期限切れの可能性があります)")
 
 
-def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
+def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
     """yt-dlp --flat-playlist を使って番組のエピソード一覧を取得する。"""
     if verbose:
         print(f"\n「{program['title']}」のエピソードを取得中...", end="", flush=True)
@@ -308,7 +314,7 @@ def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
         text=True,
         timeout=30,
     )
-    episodes = []
+    episodes: list[Episode] = []
     for line in result.stdout.splitlines():
         line = line.strip()
         if not line:
@@ -328,22 +334,22 @@ def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
 
 
 def get_episode_list(
-    program: dict,
+    program: Program,
     retry_delay: float = 1.0,
     use_cache: bool = True,
-) -> tuple[list[dict], str]:
+) -> tuple[list[Episode], str]:
     if use_cache:
         cached = load_episode_cache(program)
         if cached is not None:
-            return cached, "cache"
+            return cached, "cache"  # type: ignore
 
     return refresh_episode_list(program, retry_delay=retry_delay)
 
 
 def refresh_episode_list(
-    program: dict,
+    program: Program,
     retry_delay: float = 1.0,
-) -> tuple[list[dict], str]:
+) -> tuple[list[Episode], str]:
     last_error = ""
     for attempt in range(2):
         try:
@@ -358,6 +364,6 @@ def refresh_episode_list(
 
     stale = load_episode_cache(program, ttl_seconds=10**12)
     if stale is not None:
-        return stale, "stale-cache"
+        return stale, "stale-cache"  # type: ignore
 
     raise RuntimeError(last_error or "エピソード一覧を取得できませんでした")
