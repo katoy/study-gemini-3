@@ -20,7 +20,9 @@ def run_coverage() -> dict:
     """pytest --cov を実行して coverage.json を生成し、読み込む。"""
     subprocess.run(
         [
-            "uv", "run", "pytest",
+            "uv",
+            "run",
+            "pytest",
             "tests/",
             "--cov=src/nhk_radio",
             "--cov-report=json",
@@ -80,11 +82,7 @@ def update_readme(table: str) -> None:
         if insert_at == -1:
             updated = text + f"\n\n## テストカバレッジ\n\n{new_section}\n"
         else:
-            updated = (
-                text[:insert_at]
-                + f"\n\n## テストカバレッジ\n\n{new_section}"
-                + text[insert_at:]
-            )
+            updated = text[:insert_at] + f"\n\n## テストカバレッジ\n\n{new_section}" + text[insert_at:]
 
     README.write_text(updated)
     print(f"README.md を更新しました（カバレッジ {table.splitlines()[-1]}）")
