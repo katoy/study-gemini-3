@@ -6,9 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import config
+from tests import _support  # noqa: F401
 
 
 class _FakePath(pathlib.PurePosixPath):
@@ -46,9 +45,8 @@ class ConfigHelpersTest(unittest.TestCase):
             self.assertEqual(config._default_user_cache_root(), Path("/tmp/cache/nhk_radio"))
 
     def test_resolve_cache_root_uses_explicit_env(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict(os.environ, {"NHK_RADIO_CACHE_DIR": tmp}, clear=False):
-                self.assertEqual(config._resolve_cache_root_dir(), Path(tmp))
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"NHK_RADIO_CACHE_DIR": tmp}, clear=False):
+            self.assertEqual(config._resolve_cache_root_dir(), Path(tmp))
 
     def test_resolve_cache_root_uses_project_root_or_default_user_cache(self):
         with patch.object(config, "_find_project_root", return_value=Path("/repo")):

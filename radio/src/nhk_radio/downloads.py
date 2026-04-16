@@ -196,7 +196,10 @@ def _episode_output_candidates(program_dir: Path, program: dict, episode: dict) 
     }
     candidates.sort(
         key=lambda path: (
-            0 if episode_date and any(path.name.startswith(f"{episode_date}_{program_title}_") for program_title in program_titles) else 1,
+            0
+            if episode_date
+            and any(path.name.startswith(f"{episode_date}_{program_title}_") for program_title in program_titles)
+            else 1,
             0 if episode_title and f"_{episode_title}." in path.name else 1,
             suffix_priority.get(path.suffix.lower(), 99),
             -path.stat().st_mtime,

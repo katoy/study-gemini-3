@@ -14,7 +14,6 @@ from .styling import GuiStylingMixin
 from .toolkit import messagebox, tk, ttk
 
 
-
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
     def __init__(self, programs: list[dict], output_dir: Path, *, audio_only: bool = True):
         if tk is None or ttk is None:
@@ -61,10 +60,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.help_markdown_content: str | None = None
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
-        self.program_order_map = {
-            self._program_key(program): index
-            for index, program in enumerate(programs, 1)
-        }
+        self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
@@ -95,7 +91,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.program_search_var = tk.StringVar()
         self.program_genre_filter_var = tk.StringVar(value="すべて")
         self.selected_program_title_var = tk.StringVar(value="番組を選択してください")
-        self.selected_program_meta_var = tk.StringVar(value="左の番組一覧から選択すると、ここに番組の概要が表示されます。")
+        self.selected_program_meta_var = tk.StringVar(
+            value="左の番組一覧から選択すると、ここに番組の概要が表示されます。"
+        )
         self.selected_program_stats_var = tk.StringVar(value="エピソード一覧は未取得です。")
         self.episode_message_var = tk.StringVar(value="一覧は未取得です。")
         self.episode_filter_summary_var = tk.StringVar(value="表示中 0 件")
@@ -126,7 +124,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             self.saved_episode_popup.destroy()
             return
         if self.current_screen == "settings" and self.settings_dirty:
-            if messagebox is None or not messagebox.askyesno("未保存の表示設定", "未保存の表示設定を破棄して終了しますか？", parent=self.root):
+            if messagebox is None or not messagebox.askyesno(
+                "未保存の表示設定", "未保存の表示設定を破棄して終了しますか？", parent=self.root
+            ):
                 return
             self._discard_unsaved_settings()
         has_running_download = any(row["state"] == "running" for row in self.active_download_rows.values())
@@ -270,7 +270,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         return None
 
 
-def browse_programs(programs: list[dict], output_dir: Path, *, audio_only: bool = True) -> tuple[dict, list[dict]] | tuple[None, None]:
+def browse_programs(
+    programs: list[dict], output_dir: Path, *, audio_only: bool = True
+) -> tuple[dict, list[dict]] | tuple[None, None]:
     try:
         return EpisodeGuiBrowser(programs, output_dir, audio_only=audio_only).run()
     except tk.TclError as e:

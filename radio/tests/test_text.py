@@ -2,9 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import text
+from tests import _support  # noqa: F401
 
 
 class TextHelpersTest(unittest.TestCase):
@@ -72,6 +71,7 @@ class TextHelpersTest(unittest.TestCase):
         self.assertEqual(text._genre_label("unknown"), "未分類")
         self.assertEqual(text._char_width("あ"), 2)
         self.assertEqual(text._display_width("abあ"), 4)
+
 
 if __name__ == "__main__":
     unittest.main()

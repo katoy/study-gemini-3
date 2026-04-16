@@ -3,9 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import cli
+from tests import _support  # noqa: F401
 
 
 class CliHelpersTest(unittest.TestCase):
@@ -18,7 +17,10 @@ class CliHelpersTest(unittest.TestCase):
             selected = cli.select_program(programs)
         self.assertEqual(selected["site_id"], "SITE")
 
-        with patch("builtins.input", side_effect=["u", "https://example.com/invalid"]), patch("builtins.print") as mock_print:
+        with (
+            patch("builtins.input", side_effect=["u", "https://example.com/invalid"]),
+            patch("builtins.print") as mock_print,
+        ):
             result = cli.select_program(programs)
         self.assertIsNone(result)
         mock_print.assert_any_call("  URL の形式が正しくありません: https://example.com/invalid")
@@ -35,7 +37,14 @@ class CliHelpersTest(unittest.TestCase):
 
         episodes = [
             {"id": "ep1", "title": "第1回", "date": "20240415", "display_date": "2024-04-15(月)"},
-            {"id": "ep2", "title": "第2回", "date": "20240416", "display_date": "2024-04-16(火)", "broadcast_time": "07:00", "duration_str": "5分0秒"},
+            {
+                "id": "ep2",
+                "title": "第2回",
+                "date": "20240416",
+                "display_date": "2024-04-16(火)",
+                "broadcast_time": "07:00",
+                "duration_str": "5分0秒",
+            },
         ]
         self.assertIsNone(cli.select_episodes([]))
         with patch("builtins.input", side_effect=["0"]):
@@ -50,7 +59,9 @@ class CliHelpersTest(unittest.TestCase):
     def test_download_episode_passes_audio_only_flag(self):
         with (
             patch.object(cli, "_download_episode_command", return_value=["yt-dlp"]) as command_mock,
-            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)),
+            patch.object(
+                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)
+            ),
             patch("builtins.print") as print_mock,
         ):
             success = cli.download_episode(
@@ -81,7 +92,9 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out/SITE_01")),
             patch.object(cli, "_program_filename_template", return_value="%(title)s.%(ext)s"),
             patch.object(cli, "_yt_dlp_command", return_value=["yt-dlp"]) as cmd_mock,
-            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)),
+            patch.object(
+                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)
+            ),
         ):
             cli.download_url_direct("https://example.com", Path("/tmp/out"), 3, False, genre="music")
         cmd_mock.assert_called_once()
@@ -91,7 +104,9 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out/SITE_01")),
             patch.object(cli, "_program_filename_template", return_value="%(title)s.%(ext)s"),
             patch.object(cli, "_yt_dlp_command", return_value=["yt-dlp"]),
-            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=9)),
+            patch.object(
+                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=9)
+            ),
         ):
             with self.assertRaises(SystemExit) as ctx:
                 cli.download_url_direct("https://example.com", Path("/tmp/out"), None, True)
@@ -178,7 +193,9 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "download_url_direct") as direct_mock,
         ):
             cli.main()
-        direct_mock.assert_called_once_with("https://example.com", Path("./downloads"), None, audio_only=False, genre="music")
+        direct_mock.assert_called_once_with(
+            "https://example.com", Path("./downloads"), None, audio_only=False, genre="music"
+        )
 
         with (
             patch("sys.argv", ["nhk-radio", "-o", "~/out"]),

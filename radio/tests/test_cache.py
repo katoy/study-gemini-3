@@ -4,9 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import cache
+from tests import _support  # noqa: F401
 
 
 class CacheHelpersTest(unittest.TestCase):

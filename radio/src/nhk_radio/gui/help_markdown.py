@@ -1,7 +1,7 @@
 """Markdown-backed help loading and Tk rendering helpers."""
 
-from importlib import resources
 import re
+from importlib import resources
 
 from ..constants import GENRE_LABELS, NHK_GENRES
 from ..text import _normalize_text
@@ -9,9 +9,8 @@ from ..text import _normalize_text
 
 def build_help_markdown(programs: list[dict]) -> str:
     template = resources.files("nhk_radio").joinpath("help.md").read_text(encoding="utf-8")
-    return (
-        template.replace("{{GENRE_LIST}}", _render_genre_list_markdown())
-        .replace("{{CORNER_LIST}}", _render_corner_list_markdown(programs))
+    return template.replace("{{GENRE_LIST}}", _render_genre_list_markdown()).replace(
+        "{{CORNER_LIST}}", _render_corner_list_markdown(programs)
     )
 
 
@@ -22,7 +21,14 @@ def _render_genre_list_markdown() -> str:
 def _render_corner_list_markdown(programs: list[dict]) -> str:
     lines: list[str] = []
     seen: set[str] = set()
-    for program in sorted(programs, key=lambda item: (_normalize_text(item.get("corner_name", "")), str(item.get("site_id", "")), str(item.get("corner_id", "")))):
+    for program in sorted(
+        programs,
+        key=lambda item: (
+            _normalize_text(item.get("corner_name", "")),
+            str(item.get("site_id", "")),
+            str(item.get("corner_id", "")),
+        ),
+    ):
         site_id = str(program.get("site_id") or "").strip()
         corner_id = str(program.get("corner_id") or "").strip()
         corner_name = _normalize_text(program.get("corner_name", ""))
@@ -128,22 +134,45 @@ def _configure_help_tags(text_widget, palette: dict[str, str], fonts: dict[str, 
         spacing3=0,
         cursor="arrow",
     )
-    text_widget.tag_configure("body", font=fonts["body"], foreground=palette["text"], lmargin1=0, lmargin2=0, spacing3=6)
+    text_widget.tag_configure(
+        "body", font=fonts["body"], foreground=palette["text"], lmargin1=0, lmargin2=0, spacing3=6
+    )
     text_widget.tag_configure("strong", font=fonts["strong"], foreground=palette["text"])
-    text_widget.tag_configure("inline_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"])
+    text_widget.tag_configure(
+        "inline_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"]
+    )
     text_widget.tag_configure("h1", font=fonts["h1"], foreground=palette["text"], spacing1=6, spacing3=8)
     text_widget.tag_configure("h2", font=fonts["h2"], foreground=palette["accent"], spacing1=6, spacing3=6)
     text_widget.tag_configure("h3", font=fonts["h3"], foreground=palette["text"], spacing1=4, spacing3=4)
     text_widget.tag_configure("h1_strong", font=fonts["h1"], foreground=palette["text"])
     text_widget.tag_configure("h2_strong", font=fonts["h2"], foreground=palette["accent"])
     text_widget.tag_configure("h3_strong", font=fonts["h3"], foreground=palette["text"])
-    text_widget.tag_configure("h1_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"])
-    text_widget.tag_configure("h2_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"])
-    text_widget.tag_configure("h3_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"])
-    text_widget.tag_configure("bullet", font=fonts["body"], foreground=palette["text"], lmargin1=24, lmargin2=24, spacing1=2, spacing3=2)
-    text_widget.tag_configure("bullet_strong", font=fonts["strong"], foreground=palette["text"], lmargin1=24, lmargin2=24)
-    text_widget.tag_configure("bullet_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"], lmargin1=24, lmargin2=24)
-    text_widget.tag_configure("bullet_marker", font=fonts["strong"], foreground=palette["accent"], lmargin1=8, lmargin2=24)
+    text_widget.tag_configure(
+        "h1_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"]
+    )
+    text_widget.tag_configure(
+        "h2_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"]
+    )
+    text_widget.tag_configure(
+        "h3_code", font=fonts["mono"], foreground=palette["accent_dark"], background=palette["accent_soft"]
+    )
+    text_widget.tag_configure(
+        "bullet", font=fonts["body"], foreground=palette["text"], lmargin1=24, lmargin2=24, spacing1=2, spacing3=2
+    )
+    text_widget.tag_configure(
+        "bullet_strong", font=fonts["strong"], foreground=palette["text"], lmargin1=24, lmargin2=24
+    )
+    text_widget.tag_configure(
+        "bullet_code",
+        font=fonts["mono"],
+        foreground=palette["accent_dark"],
+        background=palette["accent_soft"],
+        lmargin1=24,
+        lmargin2=24,
+    )
+    text_widget.tag_configure(
+        "bullet_marker", font=fonts["strong"], foreground=palette["accent"], lmargin1=8, lmargin2=24
+    )
     text_widget.tag_configure(
         "codeblock",
         font=fonts["mono"],

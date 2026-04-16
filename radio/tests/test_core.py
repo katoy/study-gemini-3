@@ -1,13 +1,10 @@
 import asyncio
-import io
-import json
 import subprocess
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import core
+from tests import _support  # noqa: F401
 
 
 class CoreHelpersTest(unittest.TestCase):
@@ -79,7 +76,9 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(load_cache_mock.call_count, 2)
 
     def test_make_entry_and_fallback_program_list(self):
-        entry = core._make_entry({"series_site_id": "SITE", "corner_site_id": "01", "corner_name": "コーナー"}, genre="language")
+        entry = core._make_entry(
+            {"series_site_id": "SITE", "corner_site_id": "01", "corner_name": "コーナー"}, genre="language"
+        )
         self.assertEqual(entry["title"], "コーナー")
         self.assertEqual(entry["display_title"], "コーナー")
         fallback = core._fallback_program_list()
@@ -113,7 +112,12 @@ class CoreHelpersTest(unittest.TestCase):
             self.assertEqual(asyncio.run(core._fetch_all_async()), [{"title": "fallback"}])
 
     def test_fetch_by_genre_success_and_failure_paths(self):
-        with patch.object(core, "http_get_json_async", new_callable=AsyncMock, return_value={"series": [{"site_id": "SITE", "title": "番組A"}]}):
+        with patch.object(
+            core,
+            "http_get_json_async",
+            new_callable=AsyncMock,
+            return_value={"series": [{"site_id": "SITE", "title": "番組A"}]},
+        ):
             programs = asyncio.run(core._fetch_by_genre_async("music"))
         self.assertEqual(len(programs), 1)
 
@@ -128,7 +132,9 @@ class CoreHelpersTest(unittest.TestCase):
 
     def test_parse_episode_info_and_report_fetch_result(self):
         program = {"site_id": "SITE", "corner_id": "01"}
-        parsed = core._parse_episode_info({"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}, program)
+        parsed = core._parse_episode_info(
+            {"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}, program
+        )
         self.assertIn("ep1", parsed["url"])
         # ep_id がある場合は stream URL より NHK プレイヤー URL を優先する（期限切れ防止）
         parsed_absolute = core._parse_episode_info({"id": "ep1", "url": "https://example.com"}, program)
@@ -158,18 +164,25 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(len(episodes), 1)
 
         failed = subprocess.CompletedProcess(args=["yt-dlp"], returncode=1, stdout="", stderr="")
-        with patch.object(core.subprocess, "run", return_value=failed):
-            with self.assertRaisesRegex(RuntimeError, "yt-dlp exited with code 1"):
-                core.fetch_episodes(program, verbose=False)
+        with (
+            patch.object(core.subprocess, "run", return_value=failed),
+            self.assertRaisesRegex(RuntimeError, "yt-dlp exited with code 1"),
+        ):
+            core.fetch_episodes(program, verbose=False)
 
-        failed_with_detail = subprocess.CompletedProcess(args=["yt-dlp"], returncode=1, stdout="", stderr="ERROR: failed to fetch\n")
-        with patch.object(core.subprocess, "run", return_value=failed_with_detail):
-            with self.assertRaisesRegex(RuntimeError, "failed to fetch"):
-                core.fetch_episodes(program, verbose=False)
+        failed_with_detail = subprocess.CompletedProcess(
+            args=["yt-dlp"], returncode=1, stdout="", stderr="ERROR: failed to fetch\n"
+        )
+        with (
+            patch.object(core.subprocess, "run", return_value=failed_with_detail),
+            self.assertRaisesRegex(RuntimeError, "failed to fetch"),
+        ):
+            core.fetch_episodes(program, verbose=False)
 
         # returncode != 0 でも stdout にエピソードがあれば返す（一部期限切れのケース）
         partial = subprocess.CompletedProcess(
-            args=["yt-dlp"], returncode=1,
+            args=["yt-dlp"],
+            returncode=1,
             stdout='{"id":"ep-1","title":"第1回","url":"https://example.com/ep1"}\n',
             stderr="ERROR: some episodes expired\n",
         )
@@ -187,7 +200,10 @@ class CoreHelpersTest(unittest.TestCase):
             self.assertEqual(core.get_episode_list(program, use_cache=False), ([], "network"))
             refresh_mock.assert_called_once_with(program, retry_delay=1.0)
 
-        with patch.object(core, "load_episode_cache", return_value=None), patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock:
+        with (
+            patch.object(core, "load_episode_cache", return_value=None),
+            patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock,
+        ):
             self.assertEqual(core.get_episode_list(program), ([], "network"))
             refresh_mock.assert_called_once_with(program, retry_delay=1.0)
 
@@ -223,9 +239,9 @@ class CoreHelpersTest(unittest.TestCase):
             patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout")]),
             patch.object(core, "load_episode_cache", return_value=None),
             patch.object(core.time, "sleep"),
+            self.assertRaisesRegex(RuntimeError, "timeout"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "timeout"):
-                core.refresh_episode_list(program)
+            core.refresh_episode_list(program)
 
 
 class EpisodeUrlRegressionTest(unittest.TestCase):
@@ -237,10 +253,7 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
     """
 
     PROGRAM = {"site_id": "M65G6QLKMY", "corner_id": "01"}
-    STREAM_URL = (
-        "https://vod-stream.nhk.jp/radioondemand/r/M65G6QLKMY/s/"
-        "stream_M65G6QLKMY_abc123/index_48k.m3u8"
-    )
+    STREAM_URL = "https://vod-stream.nhk.jp/radioondemand/r/M65G6QLKMY/s/stream_M65G6QLKMY_abc123/index_48k.m3u8"
 
     def test_episode_url_is_nhk_player_not_stream_when_ep_id_present(self):
         """ep_id がある場合、期限付きストリーム URL ではなく NHK プレイヤー URL を使う。"""
@@ -261,11 +274,16 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
         """ep_id が URL 内で二重になっていない（旧バグ: ?p=M65G6QLKMY_01_M65G6QLKMY_01_4311868）。"""
         info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
         parsed = core._parse_episode_info(info, self.PROGRAM)
-        self.assertNotIn("M65G6QLKMY_01_M65G6QLKMY_01", parsed["url"], "ep_id が二重になっている（テンプレートバグ再発）")
+        self.assertNotIn(
+            "M65G6QLKMY_01_M65G6QLKMY_01", parsed["url"], "ep_id が二重になっている（テンプレートバグ再発）"
+        )
 
     def test_fallback_to_webpage_url_when_no_ep_id(self):
         """ep_id がない場合は webpage_url にフォールバックする。"""
-        info = {"url": self.STREAM_URL, "webpage_url": "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01"}
+        info = {
+            "url": self.STREAM_URL,
+            "webpage_url": "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01",
+        }
         parsed = core._parse_episode_info(info, self.PROGRAM)
         self.assertEqual(parsed["url"], "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01")
 

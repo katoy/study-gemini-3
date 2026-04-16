@@ -1,5 +1,6 @@
 """Fetch and download helpers for EpisodeGuiBrowser."""
 
+import contextlib
 import queue
 import subprocess
 import threading
@@ -8,8 +9,19 @@ import webbrowser
 
 from ..cache import clear_all_cache
 from ..constants import NHK_ONDEMAND_URL
-from ..downloads import _download_episode_command, _episode_key, _format_download_eta, _format_download_percent, _parse_yt_dlp_progress, _program_filename_template, _program_output_dir, cleanup_partial_episode_files, mark_episode_downloaded, resolve_episode_downloaded_path
 from ..core import refresh_episode_list
+from ..downloads import (
+    _download_episode_command,
+    _episode_key,
+    _format_download_eta,
+    _format_download_percent,
+    _parse_yt_dlp_progress,
+    _program_filename_template,
+    _program_output_dir,
+    cleanup_partial_episode_files,
+    mark_episode_downloaded,
+    resolve_episode_downloaded_path,
+)
 from .toolkit import tk, ttk
 
 
@@ -35,6 +47,7 @@ class GuiDownloadsMixin:
 
         if status_text is not None:
             row["status_var"].set(status_text)
+
     def _update_fetch_button_state(self):
         if not hasattr(self, "fetch_button"):
             return
@@ -42,6 +55,7 @@ class GuiDownloadsMixin:
             self.fetch_button.state(["disabled"])
         else:
             self.fetch_button.state(["!disabled"])
+
     def _set_loading(self, loading: bool, allow_cancel: bool = False):
         self.loading = loading
         if loading:
@@ -57,6 +71,7 @@ class GuiDownloadsMixin:
             self.download_button.state(["!disabled"])
         self.root.configure(cursor="watch" if loading else "")
         self.root.update_idletasks()
+
     def _open_ondemand_site(self):
         try:
             webbrowser.open_new_tab(NHK_ONDEMAND_URL)
@@ -64,6 +79,7 @@ class GuiDownloadsMixin:
             self.status_var.set(f"ブラウザで開けませんでした: {NHK_ONDEMAND_URL}")
             return
         self.status_var.set("NHK ラジオ らじる★らじる 聞き逃しをブラウザで開きました。")
+
     def _set_progress(self, current: int, total: int, text: str = ""):
         total = max(total, 1)
         if text:
@@ -72,17 +88,22 @@ class GuiDownloadsMixin:
             self.progress_text_var.set("")
         else:
             self.progress_text_var.set(f"処理済: {current} 件 / 開始 {total} 件")
+
     def _show_progress_window(self):
         self.download_jobs_canvas.focus_set()
         self.status_var.set("下部のダウンロード状況を確認してください。")
+
     def _hide_progress_window(self):
         return
+
     def _on_download_jobs_inner_configure(self, _event=None):
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
+
     def _on_download_jobs_canvas_configure(self, event):
         self.download_jobs_canvas.itemconfigure(self.download_jobs_window, width=event.width)
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
         self._update_download_job_title_wrap(event.width)
+
     def _on_download_jobs_mousewheel(self, event):
         if not self.active_download_rows:
             return "break"
@@ -98,11 +119,14 @@ class GuiDownloadsMixin:
 
         self.download_jobs_canvas.yview_scroll(step, "units")
         return "break"
+
     def _on_settings_inner_configure(self, _event=None):
         self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+
     def _on_settings_canvas_configure(self, event):
         self.settings_canvas.itemconfigure(self.settings_window, width=event.width)
         self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+
     def _on_settings_mousewheel(self, event):
         bbox = self.settings_canvas.bbox("all")
         if not bbox:
@@ -121,6 +145,7 @@ class GuiDownloadsMixin:
 
         self.settings_canvas.yview_scroll(step, "units")
         return "break"
+
     def _reflow_download_rows(self):
         for row_index, row in enumerate(self.active_download_rows.values()):
             row["frame"].grid_configure(row=row_index)
@@ -129,6 +154,7 @@ class GuiDownloadsMixin:
         else:
             self.download_jobs_empty.grid(row=0, column=0, sticky="w")
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
+
     def _update_download_job_title_wrap(self, width: int | None = None):
         if width is None:
             width = self.download_jobs_canvas.winfo_width()
@@ -140,6 +166,7 @@ class GuiDownloadsMixin:
             title_label = row.get("title_label")
             if title_label is not None:
                 title_label.configure(wraplength=wraplength)
+
     def _remove_download_row(self, episode_key: str):
         row = self.active_download_rows.get(episode_key)
         if row is None or row["state"] == "running":
@@ -150,6 +177,7 @@ class GuiDownloadsMixin:
         self.download_cancel_events.pop(episode_key, None)
         self._reflow_download_rows()
         self._update_download_summary()
+
     def _update_download_summary(self):
         active = 0
         for row in self.active_download_rows.values():
@@ -177,6 +205,7 @@ class GuiDownloadsMixin:
                 self.download_button.state(["!disabled"])
             else:
                 self.download_button.state(["disabled"])
+
     def _add_download_row(self, program: dict, episode: dict):
         episode_key = _episode_key(episode)
         if episode_key in self.active_download_rows:
@@ -195,6 +224,7 @@ class GuiDownloadsMixin:
         self.download_jobs_canvas.update_idletasks()
         self.download_jobs_canvas.yview_moveto(1.0)
         return episode_key
+
     def _reset_download_row(self, episode_key: str):
         row = self.active_download_rows.get(episode_key)
         if row is None:
@@ -207,6 +237,7 @@ class GuiDownloadsMixin:
         self.download_cancel_events.pop(episode_key, None)
         self._reflow_download_rows()
         self._update_download_summary()
+
     def _create_download_job_widgets(self, row_index: int, episode: dict, episode_key: str) -> dict:
         """ダウンロードジョブ行のウィジェットを生成して辞書で返す。"""
         frame = ttk.Frame(self.download_jobs_inner, style="DownloadJob.TFrame", padding=(12, 10))
@@ -256,6 +287,7 @@ class GuiDownloadsMixin:
             "action_button": action_button,
             "title_label": title,
         }
+
     def _finish_download_row(self, episode_key: str, status_text: str):
         row = self.active_download_rows.get(episode_key)
         if row is None:
@@ -275,6 +307,7 @@ class GuiDownloadsMixin:
         row["action_button"].configure(text="削除", command=lambda key=episode_key: self._remove_download_row(key))
         self.download_finished_count += 1
         self._update_download_summary()
+
     def _cancel_download_job(self, episode_key: str):
         cancel_event = self.download_cancel_events.get(episode_key)
         if cancel_event is None:
@@ -288,10 +321,9 @@ class GuiDownloadsMixin:
         with self.download_process_lock:
             process = self.download_processes.get(episode_key)
         if process is not None:
-            try:
+            with contextlib.suppress(Exception):
                 process.terminate()
-            except Exception:
-                pass
+
     def _start_fetch_selected(self, _event=None):
         if self.loading:
             return "break"
@@ -311,6 +343,7 @@ class GuiDownloadsMixin:
         worker.start()
         self.root.after(50, self._poll_fetch_result)
         return "break"
+
     def _fetch_worker(self, program: dict, result_queue: queue.Queue):
         try:
             episodes, source = refresh_episode_list(program)
@@ -320,6 +353,7 @@ class GuiDownloadsMixin:
             source = ""
             error = str(e)
         result_queue.put((program, episodes, source, error))
+
     def _poll_fetch_result(self):
         if self.fetch_result_queue is None:
             return
@@ -333,6 +367,7 @@ class GuiDownloadsMixin:
 
         self.fetch_result_queue = None
         self._finish_fetch(program, episodes, source, error)
+
     def _finish_fetch(self, program: dict, episodes: list[dict], source: str, error: str | None):
         self._set_loading(False)
         self._set_progress(0, 1, "")
@@ -343,7 +378,9 @@ class GuiDownloadsMixin:
             fallback = self._cached_episodes_for(program)
             if fallback:
                 self._update_program_overview(program, fallback, "キャッシュ表示")
-                self._show_episodes(program, fallback, message=f"最新取得に失敗したためキャッシュを表示中 ({len(fallback)} 件)")
+                self._show_episodes(
+                    program, fallback, message=f"最新取得に失敗したためキャッシュを表示中 ({len(fallback)} 件)"
+                )
             else:
                 self._update_program_overview(program, None, "取得失敗")
                 self._show_episodes(program, [], message="一覧は未取得です。取得に失敗しました。")
@@ -356,6 +393,7 @@ class GuiDownloadsMixin:
         self._show_episodes(program, episodes, message=f"{source_label}で {len(episodes)} 件を表示中")
         if episodes:
             self.episode_tree.focus_set()
+
     def _clear_cache(self):
         if self.loading:
             return
@@ -364,6 +402,7 @@ class GuiDownloadsMixin:
         self._reset_ui_state_after_cache_clear()
         self.status_var.set(f"キャッシュを削除しました ({removed} 件)")
         self._on_program_select()
+
     def _start_download_selected(self, _event=None):
         if self.loading:
             return "break"
@@ -385,7 +424,10 @@ class GuiDownloadsMixin:
         duplicate_count = 0
         for episode in selected:
             episode_key = _episode_key(episode)
-            if episode_key in self.active_download_rows and self.active_download_rows[episode_key]["state"] == "running":
+            if (
+                episode_key in self.active_download_rows
+                and self.active_download_rows[episode_key]["state"] == "running"
+            ):
                 duplicate_count += 1
                 continue
             self._reset_download_row(episode_key)
@@ -399,7 +441,9 @@ class GuiDownloadsMixin:
 
         started = len(new_jobs)
         self.status_var.set(f"「{program.get('display_title', program['title'])}」のダウンロードを開始しました。")
-        self.episode_message_var.set(f"開始 {started} 件" + (f" / 既に実行中 {duplicate_count} 件" if duplicate_count else ""))
+        self.episode_message_var.set(
+            f"開始 {started} 件" + (f" / 既に実行中 {duplicate_count} 件" if duplicate_count else "")
+        )
         for episode_key, episode in new_jobs:
             worker = threading.Thread(
                 target=self._download_one_worker,
@@ -412,6 +456,7 @@ class GuiDownloadsMixin:
             self.download_polling = True
             self.root.after(100, self._poll_download_result)
         return "break"
+
     def _download_one_worker(
         self,
         program: dict,
@@ -448,6 +493,7 @@ class GuiDownloadsMixin:
         else:
             cleanup_partial_episode_files(self.output_dir, program, episode)
             self.download_result_queue.put(("failed_one", episode_key, program, episode))
+
     def _monitor_download_process(
         self,
         process: subprocess.Popen,
@@ -517,6 +563,7 @@ class GuiDownloadsMixin:
                 self.download_processes.pop(episode_key, None)
 
         return success, canceled
+
     def _poll_download_result(self):
         if not self.download_polling:
             return
@@ -563,4 +610,5 @@ class GuiDownloadsMixin:
         else:
             self.download_polling = False
 
-__all__ = ['GuiDownloadsMixin']
+
+__all__ = ["GuiDownloadsMixin"]

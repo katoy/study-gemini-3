@@ -23,7 +23,12 @@ def _default_user_cache_root() -> Path:
 def _find_project_root() -> Path | None:
     current = Path(__file__).resolve()
     for parent in current.parents:
-        if (parent / "pyproject.toml").exists() and (parent / "nhk_radio_dl.py").exists() and (parent / "src" / "nhk_radio").is_dir():
+        is_project_root = (
+            (parent / "pyproject.toml").exists()
+            and (parent / "nhk_radio_dl.py").exists()
+            and (parent / "src" / "nhk_radio").is_dir()
+        )
+        if is_project_root:
             return parent
     return None
 

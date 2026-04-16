@@ -175,5 +175,3 @@ def _char_width(ch: str) -> int:
 
 def _display_width(text: str) -> int:
     return sum(_char_width(ch) for ch in text)
-
-

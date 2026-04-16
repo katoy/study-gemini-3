@@ -1,8 +1,8 @@
 """Styling and settings helpers for EpisodeGuiBrowser."""
 
+from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _save_ui_settings
 from .help_markdown import render_help_markdown
 from .logo import update_brand_logo
-from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _save_ui_settings
 from .toolkit import tk, tkfont
 
 
@@ -33,6 +33,7 @@ class GuiStylingMixin:
             if family in available:
                 return family
         return "TkFixedFont"
+
     def _resolve_ui_font_family(self) -> str:
         candidates = (
             "SF Pro Display",
@@ -57,6 +58,7 @@ class GuiStylingMixin:
             if family in available:
                 return family
         return "TkDefaultFont"
+
     def _theme_palette(self, theme_name: str) -> dict[str, str]:
         if theme_name == "dark":
             return {
@@ -99,6 +101,7 @@ class GuiStylingMixin:
             "dl_odd": "#E5F7EC",
             "input_bg": "#FFFFFF",
         }
+
     def _font_profile(self, size_name: str) -> dict[str, tuple | int]:
         try:
             base = int(size_name)
@@ -120,6 +123,7 @@ class GuiStylingMixin:
             "popup_title": (ui, base + 2, "bold"),
             "rowheight": base + 18,
         }
+
     def _load_font_profile(self):
         profile = self._font_profile(self.current_font_size)
         self._mono_sm = profile["mono_sm"]
@@ -134,6 +138,7 @@ class GuiStylingMixin:
         self._hero_title_font = profile["hero_title"]
         self._popup_title_font = profile["popup_title"]
         self._tree_rowheight = profile["rowheight"]
+
     def _configure_theme_styles(self):
         p = self._palette
         self.root.configure(background=p["bg"])
@@ -143,6 +148,7 @@ class GuiStylingMixin:
         self._configure_button_styles(p, sec)
         self._configure_label_styles(p, sec)
         self._configure_live_widget_styles(p)
+
     def _secondary_button_props(self, p: dict) -> dict:
         tinted = self.current_theme == "light"
         return {
@@ -154,18 +160,29 @@ class GuiStylingMixin:
             "relief": "solid" if tinted else "flat",
             "borderwidth": 1 if tinted else 0,
         }
+
     def _configure_base_styles(self, p: dict) -> None:
         self.style.configure(".", background=p["bg"], foreground=p["text"], font=self._ui_base)
         self.style.configure("TFrame", background=p["bg"])
         self.style.configure("TLabel", background=p["bg"], foreground=p["text"], font=self._ui_base)
-        self.style.configure("Card.TFrame", background=p["surface"], relief="solid", borderwidth=1, bordercolor=p["border"])
+        self.style.configure(
+            "Card.TFrame", background=p["surface"], relief="solid", borderwidth=1, bordercolor=p["border"]
+        )
         self.style.configure("CardInner.TFrame", background=p["surface"])
-        self.style.configure("Sidebar.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"])
+        self.style.configure(
+            "Sidebar.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"]
+        )
         self.style.configure("SidebarInner.TFrame", background=p["surface_alt"])
-        self.style.configure("Hero.TFrame", background=p["accent_soft"], relief="solid", borderwidth=1, bordercolor=p["border"])
+        self.style.configure(
+            "Hero.TFrame", background=p["accent_soft"], relief="solid", borderwidth=1, bordercolor=p["border"]
+        )
         self.style.configure("HeroInner.TFrame", background=p["accent_soft"])
-        self.style.configure("TLabelframe", background=p["surface"], bordercolor=p["border"], relief="solid", borderwidth=1)
-        self.style.configure("TLabelframe.Label", background=p["surface"], foreground=p["text_sub"], font=self._ui_small)
+        self.style.configure(
+            "TLabelframe", background=p["surface"], bordercolor=p["border"], relief="solid", borderwidth=1
+        )
+        self.style.configure(
+            "TLabelframe.Label", background=p["surface"], foreground=p["text_sub"], font=self._ui_small
+        )
         self.style.configure("TSeparator", background=p["border"])
         self.style.configure(
             "TScrollbar",
@@ -174,6 +191,7 @@ class GuiStylingMixin:
             bordercolor=p["border"],
             arrowcolor=p["text_sub"],
         )
+
     def _configure_treeview_styles(self, p: dict) -> None:
         self.style.configure(
             "Treeview",
@@ -208,6 +226,7 @@ class GuiStylingMixin:
             background=[("active", p["head_bg"])],
             foreground=[("active", p["text"])],
         )
+
     def _configure_button_styles(self, p: dict, sec: dict) -> None:
         self.style.configure("TButton", font=self._ui_base, padding=(14, 8), relief="flat")
         self.style.configure(
@@ -262,6 +281,7 @@ class GuiStylingMixin:
         )
         self._configure_settings_controls(p, sec)
         self._configure_input_styles(p)
+
     def _configure_settings_controls(self, p: dict, sec: dict) -> None:
         self.style.configure(
             "Settings.TRadiobutton",
@@ -296,6 +316,7 @@ class GuiStylingMixin:
                 background=[("active", sec["hover_bg"]), ("disabled", p["surface_alt"])],
                 foreground=[("active", sec["hover_fg"]), ("disabled", p["text_sub"])],
             )
+
     def _configure_input_styles(self, p: dict) -> None:
         self.style.configure(
             "TEntry",
@@ -334,15 +355,26 @@ class GuiStylingMixin:
         self.root.option_add("*TCombobox*Listbox.selectBackground", p["accent"])
         self.root.option_add("*TCombobox*Listbox.selectForeground", p["on_accent"])
         self.style.configure("TProgressbar", background=p["accent"], troughcolor=p["head_bg"], bordercolor=p["border"])
+
     def _configure_label_styles(self, p: dict, sec: dict) -> None:  # noqa: ARG002
-        self.style.configure("AppTitle.TLabel", font=self._app_title_font, foreground=p["text"], background=p["surface"])
+        self.style.configure(
+            "AppTitle.TLabel", font=self._app_title_font, foreground=p["text"], background=p["surface"]
+        )
         self.style.configure("AppSub.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("SettingLabel.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
+        self.style.configure(
+            "SettingLabel.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"]
+        )
         self.style.configure("Heading.TLabel", font=self._heading_font, foreground=p["accent"], background=p["bg"])
-        self.style.configure("CardTitle.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface"])
-        self.style.configure("CardTitleAlt.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface_alt"])
+        self.style.configure(
+            "CardTitle.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface"]
+        )
+        self.style.configure(
+            "CardTitleAlt.TLabel", font=self._card_title_font, foreground=p["text"], background=p["surface_alt"]
+        )
         self.style.configure("CardMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("CardMetaAlt.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface_alt"])
+        self.style.configure(
+            "CardMetaAlt.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface_alt"]
+        )
         self.style.configure(
             "DownloadJob.TFrame",
             background=p["surface_alt"],
@@ -350,28 +382,55 @@ class GuiStylingMixin:
             borderwidth=1,
             bordercolor=p["border"],
         )
-        self.style.configure("DownloadJobTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"])
-        self.style.configure("DownloadJobMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface_alt"])
-        self.style.configure("DownloadJobStatus.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["surface_alt"])
-        self.style.configure("HeroTitle.TLabel", font=self._hero_title_font, foreground=p["text"], background=p["accent_soft"])
-        self.style.configure("HeroMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["accent_soft"])
-        self.style.configure("HeroStats.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["accent_soft"])
+        self.style.configure(
+            "DownloadJobTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"]
+        )
+        self.style.configure(
+            "DownloadJobMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface_alt"]
+        )
+        self.style.configure(
+            "DownloadJobStatus.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["surface_alt"]
+        )
+        self.style.configure(
+            "HeroTitle.TLabel", font=self._hero_title_font, foreground=p["text"], background=p["accent_soft"]
+        )
+        self.style.configure(
+            "HeroMeta.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["accent_soft"]
+        )
+        self.style.configure(
+            "HeroStats.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["accent_soft"]
+        )
         self.style.configure("Status.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["bg"])
         self.style.configure("StatusHint.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["bg"])
-        self.style.configure("PopupTitle.TLabel", font=self._popup_title_font, foreground=p["text"], background=p["surface"])
+        self.style.configure(
+            "PopupTitle.TLabel", font=self._popup_title_font, foreground=p["text"], background=p["surface"]
+        )
         self.style.configure("PopupLabel.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface"])
-        self.style.configure("PopupValue.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"])
-        self.style.configure("SettingsValue.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["surface"])
-        self.style.configure("SettingsPreview.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface"])
-        self.style.configure("FontPreview.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"])
-        self.style.configure("FontPreviewTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"])
-        self.style.configure("FontPreviewBody.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface_alt"])
+        self.style.configure(
+            "PopupValue.TLabel", font=self._ui_small, foreground=p["text_sub"], background=p["surface"]
+        )
+        self.style.configure(
+            "SettingsValue.TLabel", font=self._ui_bold, foreground=p["accent"], background=p["surface"]
+        )
+        self.style.configure(
+            "SettingsPreview.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface"]
+        )
+        self.style.configure(
+            "FontPreview.TFrame", background=p["surface_alt"], relief="solid", borderwidth=1, bordercolor=p["border"]
+        )
+        self.style.configure(
+            "FontPreviewTitle.TLabel", font=self._ui_bold, foreground=p["text"], background=p["surface_alt"]
+        )
+        self.style.configure(
+            "FontPreviewBody.TLabel", font=self._ui_base, foreground=p["text"], background=p["surface_alt"]
+        )
         self.style.configure("Filter.TCheckbutton", background=p["surface"], foreground=p["text"], font=self._ui_small)
         self.style.map(
             "Filter.TCheckbutton",
             background=[("active", p["surface"])],
             foreground=[("disabled", p["text_sub"])],
         )
+
     def _configure_live_widget_styles(self, p: dict) -> None:
         if hasattr(self, "download_jobs_canvas"):
             self.download_jobs_canvas.configure(
@@ -403,6 +462,7 @@ class GuiStylingMixin:
                 p,
                 self._help_markdown_fonts(),
             )
+
     def _refresh_treeview_theme(self):
         p = self._palette
         self.program_tree.tag_configure("even", background=p["surface"], foreground=p["text"])
@@ -412,6 +472,7 @@ class GuiStylingMixin:
         self.episode_tree.tag_configure("dl_even", background=p["dl_even"], foreground=p["text"])
         self.episode_tree.tag_configure("dl_odd", background=p["dl_odd"], foreground=p["text"])
         self._schedule_saved_button_refresh()
+
     def _update_settings_ui(self):
         theme_label = "ダーク" if self.current_theme == "dark" else "ライト"
         self.settings_summary_var.set(f"{theme_label} / 文字 {self.current_font_size}pt")
@@ -430,11 +491,11 @@ class GuiStylingMixin:
                 self.clear_button.grid_remove()
             else:
                 self.clear_button.grid()
+
     def _mark_settings_dirty(self):
-        self.settings_dirty = (
-            self.current_theme != self.saved_theme or self.current_font_size != self.saved_font_size
-        )
+        self.settings_dirty = self.current_theme != self.saved_theme or self.current_font_size != self.saved_font_size
         self._update_settings_ui()
+
     def _discard_unsaved_settings(self):
         if not self.settings_dirty:
             return False
@@ -449,6 +510,7 @@ class GuiStylingMixin:
         self.settings_dirty = False
         self._update_settings_ui()
         return True
+
     def _save_ui_settings_from_screen(self):
         self.saved_theme = self.current_theme
         self.saved_font_size = self.current_font_size
@@ -456,6 +518,7 @@ class GuiStylingMixin:
         self._persist_ui_settings()
         self._update_settings_ui()
         self.status_var.set("表示設定を保存しました。")
+
     def _update_selected_cell_ui(self):
         if self.current_screen == "settings":
             self.selected_cell_area.grid_remove()
@@ -466,6 +529,7 @@ class GuiStylingMixin:
             self.copy_cell_button.state(["!disabled"])
         else:
             self.copy_cell_button.state(["disabled"])
+
     def _show_screen(self, screen_name: str, announce: bool = True):
         previous_screen = self.current_screen
         discarded_settings = False
@@ -488,11 +552,14 @@ class GuiStylingMixin:
                     self.status_var.set("ブラウザ画面に戻りました。")
         self._update_selected_cell_ui()
         self._update_settings_ui()
+
     def _toggle_settings_screen(self):
         next_screen = "browser" if self.current_screen == "settings" else "settings"
         self._show_screen(next_screen)
+
     def _persist_ui_settings(self):
         _save_ui_settings(self.current_theme, self.current_font_size, self.program_search_history)
+
     def _apply_theme(self, theme_name: str, announce: bool = True):
         self.current_theme = theme_name
         self._palette = self._theme_palette(theme_name)
@@ -504,6 +571,7 @@ class GuiStylingMixin:
         if announce:
             theme_label = "ダーク" if theme_name == "dark" else "ライト"
             self.status_var.set(f"{theme_label}テーマに切り替えました。")
+
     def _apply_font_size(self, size_name: str, announce: bool = True):
         self.current_font_size = size_name
         self._load_font_profile()
@@ -512,6 +580,7 @@ class GuiStylingMixin:
         self._mark_settings_dirty()
         if announce:
             self.status_var.set(f"文字サイズを {size_name}pt に変更しました。")
+
     def _set_font_size_value(self, size_pt: int, announce: bool = False):
         normalized = min(max(size_pt, 9), 18)
         normalized_text = str(normalized)
@@ -520,29 +589,39 @@ class GuiStylingMixin:
             self.font_size_display_var.set(f"{normalized_text} pt")
             return
         self._apply_font_size(normalized_text, announce=announce)
+
     def _on_font_size_scale(self, value):
         self._set_font_size_value(int(round(float(value))), announce=False)
+
     def _adjust_font_size_scale(self, delta: int):
         current = int(round(float(self.font_size_var.get())))
         self._set_font_size_value(current + delta, announce=False)
+
     def _on_font_size_scale_left(self, _event=None):
         self._adjust_font_size_scale(-1)
         return "break"
+
     def _on_font_size_scale_right(self, _event=None):
         self._adjust_font_size_scale(1)
         return "break"
+
     def _on_font_size_scale_home(self, _event=None):
         self._set_font_size_value(9, announce=False)
         return "break"
+
     def _on_font_size_scale_end(self, _event=None):
         self._set_font_size_value(18, announce=False)
         return "break"
+
     def _decrease_font_size(self):
         self._adjust_font_size_scale(-1)
+
     def _increase_font_size(self):
         self._adjust_font_size_scale(1)
+
     def _apply_font_size_preset(self, size_pt: int):
         self._set_font_size_value(size_pt, announce=False)
+
     def _reset_ui_settings(self):
         self._apply_theme(DEFAULT_UI_THEME, announce=False)
         self._apply_font_size(DEFAULT_UI_FONT_SIZE_PT, announce=False)
@@ -566,4 +645,5 @@ class GuiStylingMixin:
             self.saved_episode_popup.configure(background=self._palette["surface"])
         self._update_settings_ui()
 
-__all__ = ['GuiStylingMixin']
+
+__all__ = ["GuiStylingMixin"]

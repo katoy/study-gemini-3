@@ -14,14 +14,11 @@ import json
 import re
 import subprocess
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 
 import httpx
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
-from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES, _HEADERS
+from .constants import _HEADERS, NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES
 from .text import (
     _format_broadcast_time,
     _format_duration,
@@ -68,10 +65,7 @@ def fetch_program_list(genre: str | None = None) -> list[dict]:
     if cached is not None:
         return cached
 
-    if genre:
-        programs = asyncio.run(_fetch_by_genre_async(genre))
-    else:
-        programs = asyncio.run(_fetch_all_async())
+    programs = asyncio.run(_fetch_by_genre_async(genre)) if genre else asyncio.run(_fetch_all_async())
 
     if programs:
         save_program_cache(genre, programs)
@@ -81,11 +75,10 @@ def fetch_program_list(genre: str | None = None) -> list[dict]:
     return stale or programs
 
 
-
-
 # ──────────────────────────────────────────────────────
 # API 番組取得ロジック
 # ──────────────────────────────────────────────────────
+
 
 def _url_to_program(url: str) -> dict | None:
     match = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
@@ -114,10 +107,7 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> dict | None
         cached_programs = load_program_cache(genre, ttl_seconds=10**12)
 
     for candidate in cached_programs or []:
-        if (
-            candidate["site_id"] == program["site_id"]
-            and candidate["corner_id"] == program["corner_id"]
-        ):
+        if candidate["site_id"] == program["site_id"] and candidate["corner_id"] == program["corner_id"]:
             return candidate
     if genre:
         program["genre"] = genre
@@ -126,23 +116,23 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> dict | None
 
 
 def _make_entry(s: dict, genre: str | None = None) -> dict:
-    site_id   = s.get("series_site_id") or s.get("site_id", "")
+    site_id = s.get("series_site_id") or s.get("site_id", "")
     corner_id = s.get("corner_site_id") or s.get("corner_id", "01")
-    title     = s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}"
+    title = s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}"
     corner_name = s.get("corner_name", "")
     onair_date = s.get("onair_date", "")
     return {
-        "title":     title,
+        "title": title,
         "corner_name": corner_name,
         "genre": genre,
         "genre_label": _genre_label(genre),
-        "site_id":   site_id,
+        "site_id": site_id,
         "corner_id": corner_id,
         "onair_date": onair_date,
         "display_date": _format_onair_date(onair_date),
         "display_title": _program_display_title(title, corner_name),
         "started_at": s.get("started_at", ""),
-        "url":       NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+        "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
     }
 
 
@@ -204,9 +194,15 @@ async def _fetch_all_async() -> list[dict]:
 
 async def _fetch_by_genre_async(genre: str) -> list[dict]:
     """指定ジャンルの番組一覧を取得する (非同期版)"""
-    label = {"language": "語学講座", "music": "音楽", "news": "ニュース",
-             "drama": "ドラマ", "sports": "スポーツ", "documentary": "ドキュメンタリー",
-             "variety": "バラエティ"}.get(genre, genre)
+    label = {
+        "language": "語学講座",
+        "music": "音楽",
+        "news": "ニュース",
+        "drama": "ドラマ",
+        "sports": "スポーツ",
+        "documentary": "ドキュメンタリー",
+        "variety": "バラエティ",
+    }.get(genre, genre)
     print(f"{label}一覧を取得中...", end="", flush=True)
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
@@ -225,33 +221,33 @@ def _fallback_program_list() -> list[dict]:
     2026年4月時点の正確な ID。
     """
     entries = [
-        ("ラジオ英会話",                    "PMMJ59J6N2", "01"),
-        ("基礎英語 レベル2",                "83RW6PK3GG",  "01"),
-        ("基礎英語 レベル1",                "148W8XX226",  "01"),
-        ("小学生の基礎英語",                "GGQY3M1929",  "01"),
+        ("ラジオ英会話", "PMMJ59J6N2", "01"),
+        ("基礎英語 レベル2", "83RW6PK3GG", "01"),
+        ("基礎英語 レベル1", "148W8XX226", "01"),
+        ("小学生の基礎英語", "GGQY3M1929", "01"),
         ("エンジョイ・シンプル・イングリッシュ", "BR8Z3NX7XM", "01"),
-        ("まいにちロシア語",                "YRLK72JZ7Q",  "01"),
-        ("まいにちイタリア語",              "LJWZP7XVMX",  "01"),
-        ("まいにちフランス語",              "XQ487ZM61K",  "01"),
-        ("まいにちスペイン語",              "NRZWXVGQ19",  "01"),
-        ("まいにちドイツ語",                "N8PZRZ9WQY",  "01"),
-        ("まいにち中国語",                  "983PKQPYN7",  "01"),
-        ("まいにちハングル講座",            "LR47WW9K14",  "01"),
-        ("ポルトガル語講座",                "N13V9K157Y",  "01"),
-        ("英会話タイムトライアル",          "8Z6XJ6J415",  "01"),
-        ("ニュースで学ぶ「現代英語」",      "77RQWQX1L6",  "01"),
-        ("ラジオビジネス英語",              "368315KKP8",  "01"),
+        ("まいにちロシア語", "YRLK72JZ7Q", "01"),
+        ("まいにちイタリア語", "LJWZP7XVMX", "01"),
+        ("まいにちフランス語", "XQ487ZM61K", "01"),
+        ("まいにちスペイン語", "NRZWXVGQ19", "01"),
+        ("まいにちドイツ語", "N8PZRZ9WQY", "01"),
+        ("まいにち中国語", "983PKQPYN7", "01"),
+        ("まいにちハングル講座", "LR47WW9K14", "01"),
+        ("ポルトガル語講座", "N13V9K157Y", "01"),
+        ("英会話タイムトライアル", "8Z6XJ6J415", "01"),
+        ("ニュースで学ぶ「現代英語」", "77RQWQX1L6", "01"),
+        ("ラジオビジネス英語", "368315KKP8", "01"),
     ]
     return [
         {
-            "title":     title,
+            "title": title,
             "display_title": title,
             "display_date": "----",
             "genre": "language",
             "genre_label": _genre_label("language"),
-            "site_id":   site_id,
+            "site_id": site_id,
             "corner_id": corner_id,
-            "url":       NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+            "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
         }
         for title, site_id, corner_id in entries
     ]
@@ -260,6 +256,7 @@ def _fallback_program_list() -> list[dict]:
 # ──────────────────────────────────────────────────────
 # エピソード取得 (yt-dlp 経由)
 # ──────────────────────────────────────────────────────
+
 
 def _parse_episode_info(info: dict, program: dict) -> dict:
     """yt-dlp の JSON 行 1 件をエピソード辞書に変換する。"""
@@ -307,7 +304,9 @@ def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
         print(f"\n「{program['title']}」のエピソードを取得中...", end="", flush=True)
     result = subprocess.run(
         ["yt-dlp", "--flat-playlist", "--dump-json", program["url"]],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     episodes = []
     for line in result.stdout.splitlines():

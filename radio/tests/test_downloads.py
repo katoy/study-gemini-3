@@ -4,10 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import _support  # noqa: F401
-
 from nhk_radio import downloads
-
+from tests import _support  # noqa: F401
 
 PROGRAM = {
     "title": "番組A",
@@ -32,7 +30,12 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertEqual(downloads._program_output_dir(output_dir, PROGRAM), output_dir / "SITE_01")
         self.assertEqual(downloads._program_storage_id({"title": "番/組"}), "番_組")
         self.assertEqual(downloads._program_storage_title({"display_title": "表示"}), "表示")
-        self.assertEqual(downloads._program_storage_titles({"title": "A", "display_title": "A", "site_id": "SITE", "corner_id": "01"}), ["A", "SITE_01"])
+        self.assertEqual(
+            downloads._program_storage_titles(
+                {"title": "A", "display_title": "A", "site_id": "SITE", "corner_id": "01"}
+            ),
+            ["A", "SITE_01"],
+        )
 
     def test_legacy_search_dirs(self):
         legacy_dirs = downloads._legacy_program_output_dirs(Path("/tmp/out"), PROGRAM)
@@ -41,7 +44,9 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertEqual(search_dirs[0], Path("/tmp/out/SITE_01"))
 
     def test_episode_identity_and_filename_templates(self):
-        self.assertEqual(downloads._episode_output_identity(PROGRAM, EPISODE), (["番組A", "SITE_01"], "第1回", "20240415"))
+        self.assertEqual(
+            downloads._episode_output_identity(PROGRAM, EPISODE), (["番組A", "SITE_01"], "第1回", "20240415")
+        )
         self.assertEqual(downloads._program_filename_template(PROGRAM), "%(upload_date)s_番組A_%(title)s.%(ext)s")
         self.assertEqual(
             downloads._program_filename_template(PROGRAM, max_items=True),
@@ -113,7 +118,9 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             manifest_dir = output_dir / "SITE_01"
             manifest_dir.mkdir(parents=True, exist_ok=True)
-            (manifest_dir / ".downloaded.json").write_text(json.dumps({"downloaded": ["ep-1"], "paths": {}}), encoding="utf-8")
+            (manifest_dir / ".downloaded.json").write_text(
+                json.dumps({"downloaded": ["ep-1"], "paths": {}}), encoding="utf-8"
+            )
             self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
             self.assertIsNone(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
 
@@ -252,11 +259,18 @@ class DownloadHelpersTest(unittest.TestCase):
         )
         self.assertEqual(downloads._parse_yt_dlp_progress("noise"), (None, None, None))
         self.assertIn("--newline", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
-        self.assertIn("--playlist-end", downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=False, max_items=3))
+        self.assertIn(
+            "--playlist-end",
+            downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=False, max_items=3),
+        )
         self.assertIn("--no-playlist", downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=True))
         # AES-128 暗号化 HLS の ffmpeg muxer 失敗を防ぐため --hls-use-mpegts が必須
-        self.assertIn("--hls-use-mpegts", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
-        self.assertIn("--hls-use-mpegts", downloads._yt_dlp_command("https://e", "x", audio_only=True, no_playlist=True))
+        self.assertIn(
+            "--hls-use-mpegts", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s")
+        )
+        self.assertIn(
+            "--hls-use-mpegts", downloads._yt_dlp_command("https://e", "x", audio_only=True, no_playlist=True)
+        )
 
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,8 +1,7 @@
 import unittest
 
-from tests import _support  # noqa: F401
-
 from nhk_radio.gui import help_markdown
+from tests import _support  # noqa: F401
 
 
 class HelpMarkdownTest(unittest.TestCase):

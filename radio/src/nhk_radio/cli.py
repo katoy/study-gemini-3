@@ -6,8 +6,22 @@ import sys
 from pathlib import Path
 
 from .cache import clear_all_cache
-from .core import NHK_DETAIL_TMPL, NHK_GENRES, _genre_label, _resolve_program_from_url, _url_to_program, fetch_program_list, get_episode_list
-from .downloads import _download_episode_command, _program_filename_template, _program_output_dir, _yt_dlp_command, is_episode_downloaded, mark_episode_downloaded, resolve_episode_downloaded_path
+from .core import (
+    NHK_GENRES,
+    _resolve_program_from_url,
+    _url_to_program,
+    fetch_program_list,
+    get_episode_list,
+)
+from .downloads import (
+    _download_episode_command,
+    _program_filename_template,
+    _program_output_dir,
+    _yt_dlp_command,
+    is_episode_downloaded,
+    mark_episode_downloaded,
+    resolve_episode_downloaded_path,
+)
 from .gui import browse_programs
 
 
@@ -229,10 +243,14 @@ def main():
         """,
     )
     parser.add_argument("url", nargs="?", help="番組 URL (省略すると GUI モード)")
-    parser.add_argument("--output-dir", "-o", default="./downloads", help="保存先ディレクトリ (デフォルト: ./downloads)")
+    parser.add_argument(
+        "--output-dir", "-o", default="./downloads", help="保存先ディレクトリ (デフォルト: ./downloads)"
+    )
     parser.add_argument("--max-items", "-n", type=int, default=None, help="最大ダウンロード件数")
     parser.add_argument("--keep-video", action="store_true", help="音声変換せず元ファイルを保持する")
-    parser.add_argument("--clear-cache", action="store_true", help="番組一覧・エピソード一覧のキャッシュを削除して終了する")
+    parser.add_argument(
+        "--clear-cache", action="store_true", help="番組一覧・エピソード一覧のキャッシュを削除して終了する"
+    )
     parser.add_argument(
         "--genre",
         "-g",
