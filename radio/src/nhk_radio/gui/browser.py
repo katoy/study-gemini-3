@@ -66,7 +66,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
-        self.root.geometry("1360x840")
+        # デモモード時は録画しやすいように位置を固定
+        import os
+
+        if os.environ.get("NHK_RADIO_DEMO_MODE"):
+            self.root.geometry("1360x840+0+0")
+        else:
+            self.root.geometry("1360x840")
         self.root.minsize(1040, 680)
         self.root.protocol("WM_DELETE_WINDOW", self._cancel)
 
