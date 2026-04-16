@@ -1,4 +1,3 @@
-import curses
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -6,22 +5,6 @@ from unittest.mock import patch
 from tests import _support  # noqa: F401
 
 from nhk_radio import text
-
-
-class _FakeWindow:
-    def __init__(self, height=5, width=10, fail=False):
-        self.height = height
-        self.width = width
-        self.fail = fail
-        self.calls = []
-
-    def getmaxyx(self):
-        return self.height, self.width
-
-    def addnstr(self, y, x, value, available, attr=0):
-        if self.fail:
-            raise curses.error("boom")
-        self.calls.append((y, x, value, available, attr))
 
 
 class TextHelpersTest(unittest.TestCase):
@@ -89,32 +72,6 @@ class TextHelpersTest(unittest.TestCase):
         self.assertEqual(text._genre_label("unknown"), "未分類")
         self.assertEqual(text._char_width("あ"), 2)
         self.assertEqual(text._display_width("abあ"), 4)
-
-    def test_fit_text_adds_ellipsis_and_padding(self):
-        self.assertEqual(text._fit_text("abcdefghijklmnopqrstuvwxyz", 8), "abcde...")
-        self.assertEqual(text._fit_text("abc", 0), "")
-        self.assertEqual(text._fit_text("abcdef", 2), "ab")
-        self.assertEqual(text._fit_text("abc", 5), "abc  ")
-
-    def test_safe_addnstr_bounds_bottom_row_and_curses_error(self):
-        win = _FakeWindow(height=3, width=6)
-        text._safe_addnstr(win, 2, 0, "abcdef", 6, 123)
-        self.assertEqual(win.calls[0], (2, 0, "abcdef", 5, 123))
-
-        text._safe_addnstr(win, -1, 0, "x", 1)
-        self.assertEqual(len(win.calls), 1)
-
-        text._safe_addnstr(win, 0, 10, "x", 1)
-        text._safe_addnstr(win, 0, 9, "x", 0)
-        self.assertEqual(len(win.calls), 1)
-
-        zero = _FakeWindow(height=3, width=3)
-        text._safe_addnstr(zero, 2, 2, "x", 1)
-        self.assertEqual(zero.calls, [])
-
-        failing = _FakeWindow(fail=True)
-        text._safe_addnstr(failing, 0, 0, "x", 1)
-
 
 if __name__ == "__main__":
     unittest.main()

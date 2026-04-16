@@ -1,6 +1,5 @@
 """Text and display formatting helpers."""
 
-import curses
 import re
 import unicodedata
 from datetime import datetime
@@ -178,42 +177,3 @@ def _display_width(text: str) -> int:
     return sum(_char_width(ch) for ch in text)
 
 
-def _fit_text(text: str, width: int) -> str:
-    if width <= 0:
-        return ""
-
-    normalized = _normalize_text(text)
-    current = []
-    used = 0
-    for ch in normalized:
-        w = _char_width(ch)
-        if used + w > width:
-            if width >= 3:
-                while current and used + 3 > width:
-                    used -= _char_width(current.pop())
-                current.extend("...")
-                used += 3
-            break
-        current.append(ch)
-        used += w
-
-    result = "".join(current)
-    return result + (" " * max(width - _display_width(result), 0))
-
-
-def _safe_addnstr(win, y: int, x: int, text: str, max_width: int, attr: int = 0):
-    height, width = win.getmaxyx()
-    if y < 0 or y >= height or x < 0 or x >= width:
-        return
-
-    available = width - x
-    if y == height - 1:
-        available -= 1
-    available = min(max_width, available)
-    if available <= 0:
-        return
-
-    try:
-        win.addnstr(y, x, text, available, attr)
-    except curses.error:
-        pass
