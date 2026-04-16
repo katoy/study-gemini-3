@@ -1,86 +1,113 @@
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
+import sys
 
-try:
-    import pyautogui
-except ImportError:
-    print("pyautogui is required. Run: uv add pyautogui")
-    exit(1)
-
+# プロジェクトルートをパスに追加
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from nhk_radio.core import fetch_program_list
+from nhk_radio.gui.browser import EpisodeGuiBrowser
+from nhk_radio.gui.toolkit import tk
+
 DEMO_PATH = PROJECT_ROOT / "demo.gif"
 VIDEO_TEMP = PROJECT_ROOT / "demo_temp.mov"
 
+def run_auto_commands(browser: EpisodeGuiBrowser):
+    """アプリのUIを自動操作するシナリオ"""
+    print("オートデモシナリオを開始します...")
+    
+    try:
+        # 1. 起動後の待機
+        time.sleep(3)
+        
+        # 2. ジャンルを選択 (例: 語学講座)
+        print("ジャンルを選択中...")
+        browser.program_genre_filter_var.set("語学講座")
+        # trace_add により自動的にフィルタが走る
+        time.sleep(2)
+        
+        # 3. 番組を検索
+        print("番組を検索中...")
+        browser.program_search_var.set("ラジオ英会話")
+        time.sleep(2)
+        
+        # 4. 番組一覧の最初を選択
+        print("番組を選択中...")
+        children = browser.program_tree.get_children()
+        if children:
+            browser._select_program_item(children[0])
+            browser._on_program_select()
+        time.sleep(2)
+        
+        # 5. エピソード一覧を取得 (「一覧を取得」ボタンを擬似クリック)
+        print("エピソード一覧を取得中...")
+        if hasattr(browser, "fetch_button"):
+            browser.fetch_button.invoke()
+        
+        # 取得完了まで待機 (5秒程度)
+        time.sleep(6)
+        
+        # 6. エピソードを選択
+        print("エピソードを選択中...")
+        ep_children = browser.episode_tree.get_children()
+        if ep_children:
+            browser.episode_tree.selection_set(ep_children[0])
+            browser.episode_tree.focus(ep_children[0])
+        time.sleep(3)
+        
+    except Exception as e:
+        print(f"オートデモ中にエラーが発生しました: {e}")
+    finally:
+        print("デモ終了。アプリを閉じます。")
+        browser.root.destroy()
+
 def run_demo():
-    # 1. 前回のファイルを削除
     if VIDEO_TEMP.exists():
         VIDEO_TEMP.unlink()
     
-    print("--- デモ動画の生成を開始します ---")
-    print("※ macOS のアクセシビリティと画面収録の許可が必要です。")
+    print("--- 高精度オートデモ動画の生成を開始します ---")
     
-    # 2. ffmpeg による画面録画の開始 (Mac の avfoundation を使用)
-    # 録画範囲: 左上から 1360x840 (アプリの geometry と一致させる)
-    # -i "1" は通常メインディスプレイ。
+    # 1. ffmpeg による画面録画の開始
+    # 1360x840 の範囲を録画
     ffmpeg_cmd = [
         "ffmpeg",
         "-y",
         "-f", "avfoundation",
         "-pix_fmt", "uyvy422",
-        "-i", "1",  # 画面インデックス 1
+        "-i", "1",  # 画面インデックス (環境に合わせて調整が必要な場合があります)
         "-video_size", "1360x840",
-        "-t", "20",  # 最大 20 秒
+        "-t", "30",
         str(VIDEO_TEMP)
     ]
     
-    print("録画を開始します (20秒間)...")
+    print("録画を開始します (ffmpeg)...")
     ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # 録画開始を待つ
     time.sleep(2)
     
-    # 3. アプリの起動 (デモモード)
-    env = os.environ.copy()
-    env["NHK_RADIO_DEMO_MODE"] = "1"
-    app_proc = subprocess.Popen(["python3", "nhk_radio_dl.py"], env=env)
+    # 2. アプリのセットアップ
+    os.environ["NHK_RADIO_DEMO_MODE"] = "1"
+    programs = fetch_program_list()
+    output_dir = PROJECT_ROOT / "downloads"
     
-    # 起動待ち
-    time.sleep(5)
+    browser = EpisodeGuiBrowser(programs, output_dir)
     
-    try:
-        # 4. pyautogui による操作のシミュレート
-        # ウィンドウが (0,0) にある前提
-        
-        # 検索窓をクリック (座標は 1360x840 の中央付近を想定 - 実際は試行錯誤が必要)
-        # サイドバー幅 430px の中の検索窓を狙う
-        print("操作を実行中...")
-        pyautogui.click(200, 150) # 検索窓あたり
-        time.sleep(1)
-        pyautogui.write("language", interval=0.1)
-        pyautogui.press("enter")
-        time.sleep(2)
-        
-        # 一覧から一つ選択
-        pyautogui.click(200, 300)
-        time.sleep(1)
-        
-        # 一覧取得ボタンをクリック (右側パネルの上部)
-        pyautogui.click(600, 200)
-        time.sleep(5)
-        
-    except Exception as e:
-        print(f"エラー発生: {e}")
-    finally:
-        # 5. アプリの終了
-        print("終了処理中...")
-        app_proc.terminate()
-        time.sleep(1)
-        ffmpeg_proc.terminate()
-        ffmpeg_proc.wait()
-
-    # 6. GIF への変換 (高品質パレット作成)
+    # 3. 自動操作スレッドの開始
+    # mainloop がブロックするため、別スレッドで操作を送る
+    threading.Thread(target=run_auto_commands, args=(browser,), daemon=True).start()
+    
+    # 4. アプリ起動 (メインループ)
+    print("アプリを起動しました。")
+    browser.run()
+    
+    # 5. 後処理
+    ffmpeg_proc.terminate()
+    ffmpeg_proc.wait()
+    
+    # 6. GIF 変換
     if VIDEO_TEMP.exists():
         print("GIF に変換中...")
         palette_path = Path("palette.png")
@@ -93,8 +120,6 @@ def run_demo():
         palette_path.unlink()
         VIDEO_TEMP.unlink()
         print(f"完了しました! 生成されたファイル: {DEMO_PATH}")
-    else:
-        print("録画ファイルが生成されませんでした。")
 
 if __name__ == "__main__":
     run_demo()
