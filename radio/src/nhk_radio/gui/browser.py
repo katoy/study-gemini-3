@@ -88,7 +88,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.selected_cell_meta_var = tk.StringVar(value="セルをクリックすると、ここで値を選択・コピーできます。")
         self.selected_cell_value_var = tk.StringVar(value="")
         self.program_list_summary_var = tk.StringVar(value=f"{len(programs)} 番組")
-        self.header_subtitle_var = tk.StringVar(value="番組を選んで一覧取得、複数選択してダウンロードできます。")
         self.program_search_var = tk.StringVar()
         self.program_genre_filter_var = tk.StringVar(value="すべて")
         self.selected_program_title_var = tk.StringVar(value="番組を選択してください")

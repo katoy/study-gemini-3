@@ -57,11 +57,8 @@ class GuiBuildMixin:
         header_left.grid(row=0, column=0, sticky="nw")
         header_left.columnconfigure(1, weight=1)
         self.logo_canvas = create_brand_logo(header_left, self._palette, size=60)
-        self.logo_canvas.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 14))
+        self.logo_canvas.grid(row=0, column=0, sticky="nw", padx=(0, 14))
         ttk.Label(header_left, text="NHK ラジオ 聞き逃し", style="AppTitle.TLabel").grid(row=0, column=1, sticky="w")
-        ttk.Label(
-            header_left, textvariable=self.header_subtitle_var, style="AppSub.TLabel", wraplength=620, justify="left"
-        ).grid(row=1, column=1, sticky="w", pady=(6, 0))
 
         header_right = ttk.Frame(header, style="CardInner.TFrame")
         header_right.grid(row=0, column=1, sticky="ne")
