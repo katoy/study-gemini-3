@@ -159,15 +159,6 @@ class CliHelpersTest(unittest.TestCase):
         with (
             patch.object(cli, "fetch_program_list", return_value=programs),
             patch.object(cli, "browse_programs", side_effect=RuntimeError("gui-fail")),
-            patch.object(cli, "browse_programs_tui", return_value=(programs[0], [{"id": "ep"}])),
-            patch.object(cli, "_download_selected_episodes", return_value=1),
-        ):
-            cli.interactive_mode(Path("/tmp/out"))
-
-        with (
-            patch.object(cli, "fetch_program_list", return_value=programs),
-            patch.object(cli, "browse_programs", side_effect=RuntimeError("gui-fail")),
-            patch.object(cli, "browse_programs_tui", side_effect=RuntimeError("tui-fail")),
             patch.object(cli, "_interactive_cli_fallback") as fallback_mock,
         ):
             cli.interactive_mode(Path("/tmp/out"))

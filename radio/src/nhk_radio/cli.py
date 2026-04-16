@@ -10,7 +10,6 @@ from .cache import clear_all_cache
 from .core import NHK_DETAIL_TMPL, NHK_GENRES, _genre_label, _resolve_program_from_url, fetch_program_list, get_episode_list
 from .downloads import _download_episode_command, _program_filename_template, _program_output_dir, _yt_dlp_command, is_episode_downloaded, mark_episode_downloaded, resolve_episode_downloaded_path
 from .gui import browse_programs
-from .tui import browse_programs_tui
 
 
 def select_program(programs: list[dict]) -> dict | None:
@@ -211,25 +210,13 @@ def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: 
         program, episodes = browse_programs(programs, output_dir, audio_only=audio_only)
     except RuntimeError as e:
         print(f"GUI を起動できませんでした: {e}")
-    else:
-        if program and episodes:
-            completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
-            print(f"完了: {completed} 件")
+        _interactive_cli_fallback(programs, output_dir, audio_only=audio_only)
         print("終了します。")
         return
 
-    try:
-        program, episodes = browse_programs_tui(programs)
-    except RuntimeError as e:
-        print(f"TUI を起動できませんでした: {e}")
-    else:
-        if program and episodes:
-            completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
-            print(f"完了: {completed} 件")
-        print("終了します。")
-        return
-
-    _interactive_cli_fallback(programs, output_dir, audio_only=audio_only)
+    if program and episodes:
+        completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
+        print(f"完了: {completed} 件")
     print("終了します。")
 
 
