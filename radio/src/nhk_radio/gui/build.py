@@ -134,11 +134,9 @@ class GuiBuildMixin:
         self.program_search_entry.bind("<<ComboboxSelected>>", self._on_program_search_history_selected)
         self.program_search_entry.bind("<FocusIn>", self._on_program_search_focus_in)
         self.program_search_entry.bind("<FocusOut>", self._on_program_search_focus_out)
-        ttk.Button(search_row, text="クリア", command=self._clear_program_search, style="Quiet.TButton").grid(
-            row=0, column=2, padx=(8, 0)
-        )
+
         ttk.Label(sidebar_actions, textvariable=self.program_list_summary_var, style="CardMetaAlt.TLabel").grid(
-            row=3, column=0, sticky="w", pady=(8, 0)
+            row=2, column=0, sticky="w", pady=(8, 0)
         )
 
     def _build_program_tree(self, sidebar: "ttk.Frame") -> None:
