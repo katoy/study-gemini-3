@@ -251,8 +251,6 @@ def resolve_episode_downloaded_path(output_dir: Path, program: dict, episode: di
         if resolved.exists():
             return resolved
 
-    if episode_key in downloaded:
-        return None
     return None
 
 

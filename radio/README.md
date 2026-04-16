@@ -199,7 +199,7 @@ radio/
 | `config.py` | 84 | 100% |
 | `constants.py` | 10 | 100% |
 | `core.py` | 168 | 100% |
-| `downloads.py` | 232 | 100% |
+| `downloads.py` | 230 | 100% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 215 | 12% |
 | `gui/build.py` | 333 | 8% |
@@ -210,7 +210,7 @@ radio/
 | `gui/styling.py` | 315 | 14% |
 | `gui/toolkit.py` | 10 | 50% |
 | `text.py` | 159 | 100% |
-| **合計** | **2964** | **39%** |
+| **合計** | **2962** | **39%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
