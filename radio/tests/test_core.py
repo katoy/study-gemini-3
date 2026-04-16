@@ -1,34 +1,27 @@
+import asyncio
 import io
 import json
 import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from tests import _support  # noqa: F401
 
 from nhk_radio import core
 
 
-class _FakeResponse:
-    def __init__(self, payload: bytes):
-        self.payload = payload
-
-    def read(self):
-        return self.payload
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-
 class CoreHelpersTest(unittest.TestCase):
     def test_http_get_helpers(self):
-        with patch.object(core.urllib.request, "urlopen", return_value=_FakeResponse(b'{"ok": true}')):
+        # http_get_json (sync) のテスト。httpx.Client をモック
+        mock_resp = unittest.mock.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.raise_for_status.return_value = None
+
+        with patch("httpx.Client.get", return_value=mock_resp):
             self.assertEqual(core.http_get_json("https://example.com"), {"ok": True})
 
-        with patch.object(core.urllib.request, "urlopen", return_value=_FakeResponse("hello".encode("utf-8"))):
+        mock_resp.text = "hello"
+        with patch("httpx.Client.get", return_value=mock_resp):
             self.assertEqual(core.http_get_text("https://example.com"), "hello")
 
     def test_fetch_program_list_prefers_cache_and_stale_cache(self):
@@ -39,7 +32,7 @@ class CoreHelpersTest(unittest.TestCase):
         fresh = [{"title": "fresh"}]
         with (
             patch.object(core, "load_program_cache", side_effect=[None]),
-            patch.object(core, "_fetch_by_genre", return_value=fresh),
+            patch.object(core, "_fetch_by_genre_async", new_callable=AsyncMock, return_value=fresh),
             patch.object(core, "save_program_cache") as save_mock,
         ):
             self.assertEqual(core.fetch_program_list("language"), fresh)
@@ -48,7 +41,7 @@ class CoreHelpersTest(unittest.TestCase):
         stale = [{"title": "stale"}]
         with (
             patch.object(core, "load_program_cache", side_effect=[None, stale]),
-            patch.object(core, "_fetch_all", return_value=[]),
+            patch.object(core, "_fetch_all_async", new_callable=AsyncMock, return_value=[]),
         ):
             self.assertEqual(core.fetch_program_list(None), stale)
 
@@ -93,11 +86,13 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(fallback[0]["genre"], "language")
 
     def test_fetch_all_merges_genres_and_falls_back(self):
+        # http_get_json_async をモック
         with (
             patch.object(core, "NHK_GENRES", ["language", "music"]),
             patch.object(
                 core,
-                "http_get_json",
+                "http_get_json_async",
+                new_callable=AsyncMock,
                 side_effect=[
                     {"corners": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
                     {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
@@ -105,31 +100,31 @@ class CoreHelpersTest(unittest.TestCase):
                 ],
             ),
         ):
-            programs = core._fetch_all()
+            programs = asyncio.run(core._fetch_all_async())
         self.assertEqual(len(programs), 2)
         self.assertEqual(programs[0]["genre"], "language")
         self.assertEqual(programs[1]["genre"], "music")
 
         with (
             patch.object(core, "NHK_GENRES", ["language"]),
-            patch.object(core, "http_get_json", side_effect=RuntimeError("x")),
+            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("x")),
             patch.object(core, "_fallback_program_list", return_value=[{"title": "fallback"}]),
         ):
-            self.assertEqual(core._fetch_all(), [{"title": "fallback"}])
+            self.assertEqual(asyncio.run(core._fetch_all_async()), [{"title": "fallback"}])
 
     def test_fetch_by_genre_success_and_failure_paths(self):
-        with patch.object(core, "http_get_json", return_value={"series": [{"site_id": "SITE", "title": "番組A"}]}):
-            programs = core._fetch_by_genre("music")
+        with patch.object(core, "http_get_json_async", new_callable=AsyncMock, return_value={"series": [{"site_id": "SITE", "title": "番組A"}]}):
+            programs = asyncio.run(core._fetch_by_genre_async("music"))
         self.assertEqual(len(programs), 1)
 
         with (
-            patch.object(core, "http_get_json", side_effect=RuntimeError("bad")),
+            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("bad")),
             patch.object(core, "_fallback_program_list", return_value=[{"title": "fallback"}]),
         ):
-            self.assertEqual(core._fetch_by_genre("language"), [{"title": "fallback"}])
+            self.assertEqual(asyncio.run(core._fetch_by_genre_async("language")), [{"title": "fallback"}])
 
-        with patch.object(core, "http_get_json", side_effect=RuntimeError("bad")):
-            self.assertEqual(core._fetch_by_genre("news"), [])
+        with patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("bad")):
+            self.assertEqual(asyncio.run(core._fetch_by_genre_async("news")), [])
 
     def test_parse_episode_info_and_report_fetch_result(self):
         program = {"site_id": "SITE", "corner_id": "01"}

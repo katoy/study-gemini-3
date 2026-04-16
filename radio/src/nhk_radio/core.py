@@ -9,6 +9,7 @@ NHK ラジオ 聞き逃し番組ダウンローダー
   python nhk_radio_dl.py <URL> -n 5   # 直近5件のみダウンロード
 """
 
+import asyncio
 import json
 import re
 import subprocess
@@ -16,6 +17,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import httpx
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
 from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES, _HEADERS
@@ -30,16 +33,26 @@ from .text import (
 )
 
 
+async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 15) -> dict | list:
+    resp = await client.get(url, timeout=timeout)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def http_get_json(url: str, timeout: int = 15) -> dict | list:
-    req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    """Synchronous fallback using httpx"""
+    with httpx.Client(headers=_HEADERS) as client:
+        resp = client.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
 
 
 def http_get_text(url: str, timeout: int = 20) -> str:
-    req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8")
+    with httpx.Client(headers=_HEADERS) as client:
+        resp = client.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.text
+
 
 def fetch_program_list(genre: str | None = None) -> list[dict]:
     """
@@ -55,7 +68,11 @@ def fetch_program_list(genre: str | None = None) -> list[dict]:
     if cached is not None:
         return cached
 
-    programs = _fetch_by_genre(genre) if genre else _fetch_all()
+    if genre:
+        programs = asyncio.run(_fetch_by_genre_async(genre))
+    else:
+        programs = asyncio.run(_fetch_all_async())
+
     if programs:
         save_program_cache(genre, programs)
         return programs
@@ -129,30 +146,41 @@ def _make_entry(s: dict, genre: str | None = None) -> dict:
     }
 
 
-def _fetch_all() -> list[dict]:
-    """全ジャンルの番組を取得してまとめる"""
+async def _fetch_all_async() -> list[dict]:
+    """全ジャンルの番組を取得してまとめる (非同期・並列版)"""
     print("番組一覧を取得中...", end="", flush=True)
     seen: set[str] = set()
     programs: list[dict] = []
     program_map: dict[tuple[str, str], dict] = {}
 
-    # 1) corners/new_arrivals (最新追加・最多)
-    try:
-        data = http_get_json(NHK_API_NEW_CORNERS)
-        for s in data.get("corners", []):
-            key = (s.get("series_site_id"), s.get("corner_site_id"))
-            if key not in seen:
-                seen.add(key)
-                entry = _make_entry(s)
-                programs.append(entry)
-                program_map[key] = entry
-    except Exception:
-        pass
-
-    # 2) 各ジャンルを追加 (new_arrivals に含まれない番組を補完)
-    for g in NHK_GENRES:
+    async with httpx.AsyncClient(headers=_HEADERS) as client:
+        # 1) corners/new_arrivals (最新追加・最多)
         try:
-            data = http_get_json(NHK_API_GENRE.format(genre=g))
+            data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
+            for s in data.get("corners", []):
+                key = (s.get("series_site_id"), s.get("corner_site_id"))
+                if key not in seen:
+                    seen.add(key)
+                    entry = _make_entry(s)
+                    programs.append(entry)
+                    program_map[key] = entry
+        except Exception:
+            pass
+
+        # 2) 各ジャンルを追加 (並列取得して補完)
+        async def fetch_genre(g: str) -> tuple[str, dict | None]:
+            try:
+                data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
+                return g, data
+            except Exception:
+                return g, None
+
+        tasks = [fetch_genre(g) for g in NHK_GENRES]
+        results = await asyncio.gather(*tasks)
+
+        for g, data in results:
+            if not data:
+                continue
             for s in data.get("series", []):
                 key = (s.get("series_site_id"), s.get("corner_site_id"))
                 if key not in seen:
@@ -165,8 +193,6 @@ def _fetch_all() -> list[dict]:
                     if existing is not None and not existing.get("genre"):
                         existing["genre"] = g
                         existing["genre_label"] = _genre_label(g)
-        except Exception:
-            pass
 
     if programs:
         print(f" {len(programs)} 件")
@@ -176,14 +202,15 @@ def _fetch_all() -> list[dict]:
     return _fallback_program_list()
 
 
-def _fetch_by_genre(genre: str) -> list[dict]:
-    """指定ジャンルの番組一覧を取得する"""
+async def _fetch_by_genre_async(genre: str) -> list[dict]:
+    """指定ジャンルの番組一覧を取得する (非同期版)"""
     label = {"language": "語学講座", "music": "音楽", "news": "ニュース",
              "drama": "ドラマ", "sports": "スポーツ", "documentary": "ドキュメンタリー",
              "variety": "バラエティ"}.get(genre, genre)
     print(f"{label}一覧を取得中...", end="", flush=True)
     try:
-        data = http_get_json(NHK_API_GENRE.format(genre=genre))
+        async with httpx.AsyncClient(headers=_HEADERS) as client:
+            data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
         programs = [_make_entry(s, genre=genre) for s in data.get("series", [])]
         print(f" {len(programs)} 件")
         return programs
