@@ -446,6 +446,7 @@ class GuiDownloadsMixin:
             mark_episode_downloaded(self.output_dir, program, episode, downloaded_path)
             self.download_result_queue.put(("done_one", episode_key, program, episode))
         else:
+            cleanup_partial_episode_files(self.output_dir, program, episode)
             self.download_result_queue.put(("failed_one", episode_key, program, episode))
     def _monitor_download_process(
         self,

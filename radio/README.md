@@ -203,14 +203,14 @@ radio/
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 215 | 12% |
 | `gui/build.py` | 333 | 8% |
-| `gui/downloads.py` | 429 | 10% |
+| `gui/downloads.py` | 430 | 10% |
 | `gui/help_markdown.py` | 133 | 33% |
 | `gui/listing.py` | 605 | 14% |
 | `gui/logo.py` | 32 | 12% |
 | `gui/styling.py` | 315 | 14% |
 | `gui/toolkit.py` | 10 | 50% |
 | `text.py` | 159 | 100% |
-| **合計** | **2969** | **39%** |
+| **合計** | **2970** | **39%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
