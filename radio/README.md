@@ -36,15 +36,15 @@ cd radio
 ### 2. 依存をインストール
 
 ```bash
-python3 -m pip install -r requirements.txt
+uv sync
 ```
 
-`requirements.txt` では Python パッケージ版の `yt-dlp` を入れます。
+`pyproject.toml` の依存を仮想環境に同期します。
 
 package として入れる場合は:
 
 ```bash
-python3 -m pip install -e .
+uv pip install -e .
 ```
 
 コマンドを直接入れたい場合は:
@@ -62,7 +62,7 @@ python3 nhk_radio_dl.py --help
 ### 4. テスト実行
 
 ```bash
-python3 -m unittest discover -s tests
+uv run python -m pytest tests/
 ```
 
 ## 使い方
@@ -110,7 +110,7 @@ python3 nhk_radio_dl.py -g language
 python3 nhk_radio_dl.py --clear-cache
 ```
 
-この操作では番組一覧・エピソード一覧・GUI 設定のキャッシュを削除します。
+この操作では番組一覧・エピソード一覧のキャッシュを削除します。GUI 設定（テーマ・フォントサイズ・検索履歴）は削除されません。
 
 ## オプション
 
@@ -118,7 +118,7 @@ python3 nhk_radio_dl.py --clear-cache
 - `--output-dir`, `-o`: 保存先ディレクトリ (デフォルト: `./downloads`)
 - `--max-items`, `-n`: 最大ダウンロード件数
 - `--keep-video`: 音声変換せず元ファイルを保持
-- `--clear-cache`: 番組一覧・エピソード一覧・GUI 設定キャッシュを削除して終了
+- `--clear-cache`: 番組一覧・エピソード一覧のキャッシュを削除して終了（GUI 設定は削除されません）
 - `--genre`, `-g`: `language`, `music`, `news`, `drama`, `sports`, `documentary`, `variety` のいずれかで絞り込み
 
 ## 保存先
@@ -177,7 +177,6 @@ radio/
 │       ├── cache.py
 │       ├── downloads.py
 │       ├── text.py
-│       ├── tui.py
 │       └── gui/
 ├── tests/           # unittest ベースの回帰テスト
 ├── .cache/          # 番組一覧・エピソード一覧・UI 設定キャッシュ

@@ -181,9 +181,6 @@ components:
 | `onair_date` | string | 放送日文字列 |
 | `started_at` | string | 開始日時 |
 
-#### 備考
-
-- コードには `GET /series` の定数もあるが、現状の番組一覧取得では未使用です。
 
 ## Normalization rules
 
