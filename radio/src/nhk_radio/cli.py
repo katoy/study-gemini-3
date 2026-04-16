@@ -249,7 +249,7 @@ def main():
   # 直近5件をダウンロード
   python nhk_radio_dl.py <URL> -n 5
 
-  # 番組一覧・エピソード一覧・UI 設定のキャッシュを削除
+  # 番組一覧・エピソード一覧のキャッシュを削除
   python nhk_radio_dl.py --clear-cache
 
   # 保存先ディレクトリを指定
@@ -262,7 +262,7 @@ def main():
     parser.add_argument("--output-dir", "-o", default="./downloads", help="保存先ディレクトリ (デフォルト: ./downloads)")
     parser.add_argument("--max-items", "-n", type=int, default=None, help="最大ダウンロード件数")
     parser.add_argument("--keep-video", action="store_true", help="音声変換せず元ファイルを保持する")
-    parser.add_argument("--clear-cache", action="store_true", help="番組一覧・エピソード一覧・UI 設定キャッシュを削除して終了する")
+    parser.add_argument("--clear-cache", action="store_true", help="番組一覧・エピソード一覧のキャッシュを削除して終了する")
     parser.add_argument(
         "--genre",
         "-g",

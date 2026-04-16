@@ -127,4 +127,4 @@ def clear_ui_settings() -> int:
 
 
 def clear_all_cache() -> int:
-    return clear_program_cache() + clear_episode_cache() + clear_ui_settings()
+    return clear_program_cache() + clear_episode_cache()

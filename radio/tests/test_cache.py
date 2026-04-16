@@ -86,20 +86,40 @@ class CacheHelpersTest(unittest.TestCase):
             self.assertEqual(cache._clear_cache_dir(cache_dir), 1)
             self.assertTrue((cache_dir / "b.txt").exists())
 
-    def test_clear_all_cache_removes_ui_settings_too(self):
+    def test_clear_all_cache_does_not_remove_ui_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             ui_settings = base / "ui_settings.json"
             ui_settings.write_text("{}", encoding="utf-8")
+            prog_dir = base / "programs"
+            ep_dir = base / "episodes"
+            prog_dir.mkdir()
+            ep_dir.mkdir()
+            (prog_dir / "p.json").write_text("{}", encoding="utf-8")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
-                patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch.object(cache, "PROGRAM_CACHE_DIR", prog_dir),
+                patch.object(cache, "EPISODE_CACHE_DIR", ep_dir),
                 patch.object(cache, "UI_SETTINGS_PATH", ui_settings),
             ):
                 removed = cache.clear_all_cache()
-                self.assertEqual(cache.clear_ui_settings(), 0)
-        self.assertEqual(removed, 1)
-        self.assertFalse(ui_settings.exists())
+            self.assertEqual(removed, 1)
+            self.assertTrue(ui_settings.exists())
+
+    def test_clear_ui_settings_removes_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ui_settings = Path(tmp) / "ui_settings.json"
+            ui_settings.write_text("{}", encoding="utf-8")
+            with patch.object(cache, "UI_SETTINGS_PATH", ui_settings):
+                removed = cache.clear_ui_settings()
+                self.assertEqual(removed, 1)
+                self.assertFalse(ui_settings.exists())
+
+    def test_clear_ui_settings_no_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ui_settings = Path(tmp) / "nonexistent.json"
+            with patch.object(cache, "UI_SETTINGS_PATH", ui_settings):
+                removed = cache.clear_ui_settings()
+            self.assertEqual(removed, 0)
 
     def test_clear_program_and_episode_cache_wrappers(self):
         with tempfile.TemporaryDirectory() as tmp:
