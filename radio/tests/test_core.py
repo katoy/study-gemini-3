@@ -172,6 +172,16 @@ class CoreHelpersTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "failed to fetch"):
                 core.fetch_episodes(program, verbose=False)
 
+        # returncode != 0 でも stdout にエピソードがあれば返す（一部期限切れのケース）
+        partial = subprocess.CompletedProcess(
+            args=["yt-dlp"], returncode=1,
+            stdout='{"id":"ep-1","title":"第1回","url":"https://example.com/ep1"}\n',
+            stderr="ERROR: some episodes expired\n",
+        )
+        with patch.object(core.subprocess, "run", return_value=partial):
+            episodes = core.fetch_episodes(program, verbose=False)
+        self.assertEqual(len(episodes), 1)
+
     def test_get_episode_list_and_refresh_episode_list_paths(self):
         program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
         cached = [{"id": "cached"}]

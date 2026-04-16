@@ -292,7 +292,7 @@ def fetch_episodes(program: dict, verbose: bool = True) -> list[dict]:
         except json.JSONDecodeError:
             continue
         episodes.append(_parse_episode_info(info, program))
-    if result.returncode != 0:
+    if result.returncode != 0 and not episodes:
         detail = result.stderr.strip()
         if detail:
             raise RuntimeError(detail.splitlines()[-1])
