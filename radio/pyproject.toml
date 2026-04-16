@@ -21,3 +21,19 @@ nhk_radio = ["help.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=src/nhk_radio --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/nhk_radio"]
+
+[tool.coverage.report]
+show_missing = true

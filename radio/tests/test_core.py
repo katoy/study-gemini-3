@@ -1,5 +1,7 @@
-import unittest
+import io
+import json
 import subprocess
+import unittest
 from unittest.mock import patch
 
 from tests import _support  # noqa: F401
@@ -7,8 +9,55 @@ from tests import _support  # noqa: F401
 from nhk_radio import core
 
 
+class _FakeResponse:
+    def __init__(self, payload: bytes):
+        self.payload = payload
+
+    def read(self):
+        return self.payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
 class CoreHelpersTest(unittest.TestCase):
-    def test_resolve_program_from_url_uses_cached_program_metadata_only(self):
+    def test_http_get_helpers(self):
+        with patch.object(core.urllib.request, "urlopen", return_value=_FakeResponse(b'{"ok": true}')):
+            self.assertEqual(core.http_get_json("https://example.com"), {"ok": True})
+
+        with patch.object(core.urllib.request, "urlopen", return_value=_FakeResponse("hello".encode("utf-8"))):
+            self.assertEqual(core.http_get_text("https://example.com"), "hello")
+
+    def test_fetch_program_list_prefers_cache_and_stale_cache(self):
+        cached = [{"title": "cached"}]
+        with patch.object(core, "load_program_cache", return_value=cached):
+            self.assertEqual(core.fetch_program_list("language"), cached)
+
+        fresh = [{"title": "fresh"}]
+        with (
+            patch.object(core, "load_program_cache", side_effect=[None]),
+            patch.object(core, "_fetch_by_genre", return_value=fresh),
+            patch.object(core, "save_program_cache") as save_mock,
+        ):
+            self.assertEqual(core.fetch_program_list("language"), fresh)
+            save_mock.assert_called_once_with("language", fresh)
+
+        stale = [{"title": "stale"}]
+        with (
+            patch.object(core, "load_program_cache", side_effect=[None, stale]),
+            patch.object(core, "_fetch_all", return_value=[]),
+        ):
+            self.assertEqual(core.fetch_program_list(None), stale)
+
+    def test_url_to_program_and_resolve_program_from_url(self):
+        self.assertIsNone(core._url_to_program("https://example.com"))
+        self.assertIsNone(core._resolve_program_from_url("https://example.com"))
+        parsed = core._url_to_program("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
+        self.assertEqual(parsed["site_id"], "SITE")
+
         cached_program = {
             "title": "番組A",
             "display_title": "番組A",
@@ -25,7 +74,6 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(resolved, cached_program)
         load_cache_mock.assert_called_once_with(None)
 
-    def test_resolve_program_from_url_falls_back_without_network_fetch(self):
         with patch.object(core, "load_program_cache", side_effect=[None, None]) as load_cache_mock:
             resolved = core._resolve_program_from_url(
                 "https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01",
@@ -37,21 +85,115 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(resolved["genre_label"], "音楽")
         self.assertEqual(load_cache_mock.call_count, 2)
 
-    def test_refresh_episode_list_caches_empty_results_without_retry(self):
+    def test_make_entry_and_fallback_program_list(self):
+        entry = core._make_entry({"series_site_id": "SITE", "corner_site_id": "01", "corner_name": "コーナー"}, genre="language")
+        self.assertEqual(entry["title"], "コーナー")
+        self.assertEqual(entry["display_title"], "コーナー")
+        fallback = core._fallback_program_list()
+        self.assertEqual(fallback[0]["genre"], "language")
+
+    def test_fetch_all_merges_genres_and_falls_back(self):
+        with (
+            patch.object(core, "NHK_GENRES", ["language", "music"]),
+            patch.object(
+                core,
+                "http_get_json",
+                side_effect=[
+                    {"corners": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
+                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
+                    {"series": [{"series_site_id": "S2", "corner_site_id": "02", "title": "番組B"}]},
+                ],
+            ),
+        ):
+            programs = core._fetch_all()
+        self.assertEqual(len(programs), 2)
+        self.assertEqual(programs[0]["genre"], "language")
+        self.assertEqual(programs[1]["genre"], "music")
+
+        with (
+            patch.object(core, "NHK_GENRES", ["language"]),
+            patch.object(core, "http_get_json", side_effect=RuntimeError("x")),
+            patch.object(core, "_fallback_program_list", return_value=[{"title": "fallback"}]),
+        ):
+            self.assertEqual(core._fetch_all(), [{"title": "fallback"}])
+
+    def test_fetch_by_genre_success_and_failure_paths(self):
+        with patch.object(core, "http_get_json", return_value={"series": [{"site_id": "SITE", "title": "番組A"}]}):
+            programs = core._fetch_by_genre("music")
+        self.assertEqual(len(programs), 1)
+
+        with (
+            patch.object(core, "http_get_json", side_effect=RuntimeError("bad")),
+            patch.object(core, "_fallback_program_list", return_value=[{"title": "fallback"}]),
+        ):
+            self.assertEqual(core._fetch_by_genre("language"), [{"title": "fallback"}])
+
+        with patch.object(core, "http_get_json", side_effect=RuntimeError("bad")):
+            self.assertEqual(core._fetch_by_genre("news"), [])
+
+    def test_parse_episode_info_and_report_fetch_result(self):
+        program = {"site_id": "SITE", "corner_id": "01"}
+        parsed = core._parse_episode_info({"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}, program)
+        self.assertIn("ep1", parsed["url"])
+        parsed_absolute = core._parse_episode_info({"id": "ep1", "url": "https://example.com"}, program)
+        self.assertEqual(parsed_absolute["url"], "https://example.com")
+
+        with patch("builtins.print") as print_mock:
+            core._report_fetch_result([{"id": "ep"}], "", verbose=True)
+            core._report_fetch_result([], "ERROR: failed\n", verbose=True)
+            core._report_fetch_result([], "", verbose=True)
+            core._report_fetch_result([], "", verbose=False)
+        self.assertGreaterEqual(print_mock.call_count, 3)
+
+    def test_fetch_episodes_success_and_failure(self):
         program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
+        success = subprocess.CompletedProcess(
+            args=["yt-dlp"],
+            returncode=0,
+            stdout='\n{"id":"ep-1","title":"第1回","url":"https://example.com/ep1"}\nnot-json\n',
+            stderr="",
+        )
+        with patch.object(core.subprocess, "run", return_value=success), patch("builtins.print") as print_mock:
+            core.fetch_episodes(program, verbose=True)
+        print_mock.assert_called()
+
+        with patch.object(core.subprocess, "run", return_value=success):
+            episodes = core.fetch_episodes(program, verbose=False)
+        self.assertEqual(len(episodes), 1)
+
+        failed = subprocess.CompletedProcess(args=["yt-dlp"], returncode=1, stdout="", stderr="")
+        with patch.object(core.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "yt-dlp exited with code 1"):
+                core.fetch_episodes(program, verbose=False)
+
+        failed_with_detail = subprocess.CompletedProcess(args=["yt-dlp"], returncode=1, stdout="", stderr="ERROR: failed to fetch\n")
+        with patch.object(core.subprocess, "run", return_value=failed_with_detail):
+            with self.assertRaisesRegex(RuntimeError, "failed to fetch"):
+                core.fetch_episodes(program, verbose=False)
+
+    def test_get_episode_list_and_refresh_episode_list_paths(self):
+        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
+        cached = [{"id": "cached"}]
+        with patch.object(core, "load_episode_cache", return_value=cached):
+            self.assertEqual(core.get_episode_list(program), (cached, "cache"))
+
+        with patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock:
+            self.assertEqual(core.get_episode_list(program, use_cache=False), ([], "network"))
+            refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+
+        with patch.object(core, "load_episode_cache", return_value=None), patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock:
+            self.assertEqual(core.get_episode_list(program), ([], "network"))
+            refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+
         with (
             patch.object(core, "fetch_episodes", return_value=[]) as fetch_mock,
             patch.object(core, "save_episode_cache") as save_cache_mock,
         ):
             episodes, source = core.refresh_episode_list(program)
-
-        self.assertEqual(episodes, [])
-        self.assertEqual(source, "network")
+        self.assertEqual((episodes, source), ([], "network"))
         fetch_mock.assert_called_once_with(program, verbose=False)
         save_cache_mock.assert_called_once_with(program, [])
 
-    def test_refresh_episode_list_retries_after_exception(self):
-        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
         expected = [{"id": "ep-1", "title": "第1回", "url": "https://example.com/ep1"}]
         with (
             patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), expected]) as fetch_mock,
@@ -59,24 +201,25 @@ class CoreHelpersTest(unittest.TestCase):
             patch.object(core.time, "sleep") as sleep_mock,
         ):
             episodes, source = core.refresh_episode_list(program, retry_delay=0.25)
-
-        self.assertEqual(episodes, expected)
-        self.assertEqual(source, "network")
+        self.assertEqual((episodes, source), (expected, "network"))
         self.assertEqual(fetch_mock.call_count, 2)
         sleep_mock.assert_called_once_with(0.25)
         save_cache_mock.assert_called_once_with(program, expected)
 
-    def test_fetch_episodes_raises_on_nonzero_exit(self):
-        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A", "url": "https://example.com/program"}
-        failed = subprocess.CompletedProcess(
-            args=["yt-dlp"],
-            returncode=1,
-            stdout="",
-            stderr="ERROR: failed to fetch playlist\n",
-        )
-        with patch.object(core.subprocess, "run", return_value=failed):
-            with self.assertRaisesRegex(RuntimeError, "failed to fetch playlist"):
-                core.fetch_episodes(program, verbose=False)
+        with (
+            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout")]),
+            patch.object(core, "load_episode_cache", return_value=[{"id": "stale"}]),
+            patch.object(core.time, "sleep"),
+        ):
+            self.assertEqual(core.refresh_episode_list(program), ([{"id": "stale"}], "stale-cache"))
+
+        with (
+            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout")]),
+            patch.object(core, "load_episode_cache", return_value=None),
+            patch.object(core.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "timeout"):
+                core.refresh_episode_list(program)
 
 
 if __name__ == "__main__":
