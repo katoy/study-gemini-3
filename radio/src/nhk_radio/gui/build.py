@@ -165,12 +165,12 @@ class GuiBuildMixin:
         self.program_tree.grid(row=2, column=0, sticky="nsew")
         program_scroll.grid(row=2, column=1, sticky="ns")
     def _build_detail_panel(self, right_panes: "ttk.Panedwindow") -> None:
-        detail = ttk.Frame(right_panes, style="Card.TFrame", padding=18, width=860, height=520)
+        detail = ttk.Frame(right_panes, style="Card.TFrame", padding=18, width=860, height=600)
         detail.columnconfigure(0, weight=1)
         detail.rowconfigure(2, weight=1)
         self._build_hero_section(detail)
         self._build_episode_tree(detail)
-        right_panes.add(detail, weight=5)
+        right_panes.add(detail, weight=7)
     def _build_hero_section(self, detail: "ttk.Frame") -> None:
         hero = ttk.Frame(detail, style="Hero.TFrame", padding=16)
         hero.grid(row=0, column=0, sticky="ew")
@@ -245,7 +245,7 @@ class GuiBuildMixin:
         self.episode_tree.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
         self.episode_scroll.grid(row=2, column=1, sticky="ns", pady=(8, 0))
     def _build_activity_panel(self, right_panes: "ttk.Panedwindow") -> None:
-        activity = ttk.Frame(right_panes, style="Card.TFrame", padding=14, height=180)
+        activity = ttk.Frame(right_panes, style="Card.TFrame", padding=14, height=120)
         activity.columnconfigure(0, weight=1)
         activity.rowconfigure(2, weight=1)
         ttk.Label(activity, text="ダウンロード状況", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w")
@@ -283,7 +283,7 @@ class GuiBuildMixin:
         self.download_jobs_inner.bind("<Button-5>", self._on_download_jobs_mousewheel)
         self.download_jobs_empty = ttk.Label(self.download_jobs_inner, text="実行中のダウンロードはありません。", style="CardMeta.TLabel")
         self.download_jobs_empty.grid(row=0, column=0, sticky="w")
-        right_panes.add(activity, weight=2)
+        right_panes.add(activity, weight=1)
     def _build_settings_screen(self) -> None:
         self._build_settings_canvas_frame()
         self._build_settings_header()
