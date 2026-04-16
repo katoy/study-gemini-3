@@ -552,12 +552,7 @@ class GuiStylingMixin:
             self.status_var.set("表示設定を規定値に戻しました。")
 
     def _reset_ui_state_after_cache_clear(self):
-        self.current_theme = DEFAULT_UI_THEME
-        self.current_font_size = DEFAULT_UI_FONT_SIZE_PT
-        self.saved_theme = DEFAULT_UI_THEME
-        self.saved_font_size = DEFAULT_UI_FONT_SIZE_PT
         self.program_search_history = []
-        self.settings_dirty = False
         self.program_search_var.set("")
         self.program_genre_filter_var.set("すべて")
         self.episode_search_var.set("")

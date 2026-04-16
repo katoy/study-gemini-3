@@ -206,10 +206,10 @@ radio/
 | `gui/help_markdown.py` | 133 | 33% |
 | `gui/listing.py` | 605 | 14% |
 | `gui/logo.py` | 32 | 12% |
-| `gui/styling.py` | 315 | 14% |
+| `gui/styling.py` | 310 | 14% |
 | `gui/toolkit.py` | 10 | 50% |
 | `text.py` | 125 | 100% |
-| **合計** | **2928** | **38%** |
+| **合計** | **2923** | **39%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
