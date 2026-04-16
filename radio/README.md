@@ -195,7 +195,7 @@ radio/
 | `__init__.py` | 0 | 100% |
 | `__main__.py` | 3 | 100% |
 | `cache.py` | 68 | 100% |
-| `cli.py` | 165 | 99% |
+| `cli.py` | 165 | 100% |
 | `config.py` | 84 | 100% |
 | `constants.py` | 11 | 100% |
 | `core.py` | 168 | 100% |

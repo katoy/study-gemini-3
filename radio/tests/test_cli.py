@@ -18,6 +18,11 @@ class CliHelpersTest(unittest.TestCase):
             selected = cli.select_program(programs)
         self.assertEqual(selected["site_id"], "SITE")
 
+        with patch("builtins.input", side_effect=["u", "https://example.com/invalid"]), patch("builtins.print") as mock_print:
+            result = cli.select_program(programs)
+        self.assertIsNone(result)
+        mock_print.assert_any_call("  URL の形式が正しくありません: https://example.com/invalid")
+
         with patch("builtins.input", side_effect=["bad", "2", "1"]):
             self.assertEqual(cli.select_program(programs), programs[0])
 
