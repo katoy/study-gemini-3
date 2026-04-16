@@ -107,42 +107,27 @@ class GuiBuildMixin:
 
     def _build_sidebar_search(self, sidebar: "ttk.Frame") -> None:
         sidebar_actions = ttk.Frame(sidebar, style="SidebarInner.TFrame")
-        sidebar_actions.grid(row=1, column=0, sticky="ew", pady=(8, 12))
+        sidebar_actions.grid(row=1, column=0, sticky="ew", pady=(4, 12))
         sidebar_actions.columnconfigure(0, weight=1)
-        ttk.Label(
-            sidebar_actions,
-            text="番組検索とジャンル絞り込みで対象をすばやく絞れます。Enter・ダブルクリック・右側の「一覧を取得」でエピソード一覧を更新します。",
-            style="CardMetaAlt.TLabel",
-            wraplength=360,
-            justify="left",
-        ).grid(row=0, column=0, sticky="w")
-        filter_row = ttk.Frame(sidebar_actions, style="SidebarInner.TFrame")
-        filter_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        filter_row.columnconfigure(1, weight=1)
-        ttk.Label(filter_row, text="ジャンル", style="CardMetaAlt.TLabel").grid(
-            row=0, column=0, sticky="w", padx=(0, 8)
-        )
+
+        # ジャンル選択
         self.program_genre_filter_combo = ttk.Combobox(
-            filter_row,
+            sidebar_actions,
             textvariable=self.program_genre_filter_var,
             values=self._program_genre_filter_values(),
             state="readonly",
             style="Search.TCombobox",
         )
-        self.program_genre_filter_combo.grid(row=0, column=1, sticky="ew")
-        search_row = ttk.Frame(sidebar_actions, style="SidebarInner.TFrame")
-        search_row.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        search_row.columnconfigure(1, weight=1)
-        ttk.Label(search_row, text="番組検索", style="CardMetaAlt.TLabel").grid(
-            row=0, column=0, sticky="w", padx=(0, 8)
-        )
+        self.program_genre_filter_combo.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+
+        # 番組検索
         self.program_search_entry = ttk.Combobox(
-            search_row,
+            sidebar_actions,
             textvariable=self.program_search_var,
             values=self.program_search_history,
             style="Search.TCombobox",
         )
-        self.program_search_entry.grid(row=0, column=1, sticky="ew")
+        self.program_search_entry.grid(row=1, column=0, sticky="ew")
         self.program_search_entry.bind("<Escape>", self._clear_program_search)
         self.program_search_entry.bind("<Down>", self._focus_program_tree_from_search)
         self.program_search_entry.bind("<Return>", self._commit_program_search)

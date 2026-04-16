@@ -344,16 +344,16 @@ class GuiListingMixin:
         self.selected_program_meta_var.set(" / ".join(part for part in meta_parts if part))
 
         if episodes is None:
-            stats = "エピソード一覧は未取得です。"
+            stats = ""
         else:
             downloaded_count = sum(
                 1 for episode in episodes if is_episode_downloaded(self.output_dir, program, episode)
             )
-            stats = f"エピソード {len(episodes)} 件"
+            stats = f"{len(episodes)} エピソード"
             if downloaded_count:
-                stats += f" / 保存済み {downloaded_count} 件"
+                stats += f" (保存済み {downloaded_count})"
         if message:
-            stats += f" / {message}"
+            stats = f"{stats} | {message}" if stats else message
         self.selected_program_stats_var.set(stats)
 
     def _on_program_select(self, _event=None):
@@ -368,13 +368,11 @@ class GuiListingMixin:
         episodes = self._cached_episodes_for(program)
         self._update_fetch_button_state()
         if episodes:
-            self._update_program_overview(program, episodes, "キャッシュ表示")
-            self._show_episodes(program, episodes, message=f"キャッシュを表示中 ({len(episodes)} 件)")
+            self._update_program_overview(program, episodes, "")
+            self._show_episodes(program, episodes, message="")
         else:
-            self._update_program_overview(program, None, "未取得")
-            self._show_episodes(
-                program, [], message="一覧は未取得です。ダブルクリックまたは「一覧を取得」で取得します。"
-            )
+            self._update_program_overview(program, None, "")
+            self._show_episodes(program, [], message="")
         return None
 
     def _on_program_double_click(self, event):

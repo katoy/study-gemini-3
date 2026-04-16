@@ -85,17 +85,15 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.ui_font_family = self._resolve_ui_font_family()
 
         self.status_var = tk.StringVar(value="番組を選択してください。")
-        self.selected_cell_meta_var = tk.StringVar(value="セルをクリックすると、ここで値を選択・コピーできます。")
+        self.selected_cell_meta_var = tk.StringVar(value="")
         self.selected_cell_value_var = tk.StringVar(value="")
         self.program_list_summary_var = tk.StringVar(value=f"{len(programs)} 番組")
         self.program_search_var = tk.StringVar()
         self.program_genre_filter_var = tk.StringVar(value="すべて")
-        self.selected_program_title_var = tk.StringVar(value="番組を選択してください")
-        self.selected_program_meta_var = tk.StringVar(
-            value="左の番組一覧から選択すると、ここに番組の概要が表示されます。"
-        )
-        self.selected_program_stats_var = tk.StringVar(value="エピソード一覧は未取得です。")
-        self.episode_message_var = tk.StringVar(value="一覧は未取得です。")
+        self.selected_program_title_var = tk.StringVar(value="")
+        self.selected_program_meta_var = tk.StringVar(value="")
+        self.selected_program_stats_var = tk.StringVar(value="")
+        self.episode_message_var = tk.StringVar(value="")
         self.episode_filter_summary_var = tk.StringVar(value="表示中 0 件")
         self.episode_selection_summary_var = tk.StringVar(value="選択 0 件")
         self.episode_search_var = tk.StringVar()
