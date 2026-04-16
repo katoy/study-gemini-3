@@ -1,13 +1,12 @@
 """Command-line entrypoint for the NHK radio downloader."""
 
 import argparse
-import re
 import subprocess
 import sys
 from pathlib import Path
 
 from .cache import clear_all_cache
-from .core import NHK_DETAIL_TMPL, NHK_GENRES, _genre_label, _resolve_program_from_url, fetch_program_list, get_episode_list
+from .core import NHK_DETAIL_TMPL, NHK_GENRES, _genre_label, _resolve_program_from_url, _url_to_program, fetch_program_list, get_episode_list
 from .downloads import _download_episode_command, _program_filename_template, _program_output_dir, _yt_dlp_command, is_episode_downloaded, mark_episode_downloaded, resolve_episode_downloaded_path
 from .gui import browse_programs
 
@@ -33,32 +32,16 @@ def select_program(programs: list[dict]) -> dict | None:
                 return None
             if raw.lower() == "u":
                 url = input("番組 URL を入力してください: ").strip()
-                return _url_to_program(url)
+                program = _url_to_program(url)
+                if program is None:
+                    print(f"  URL の形式が正しくありません: {url}")
+                return program
             n = int(raw)
             if 1 <= n <= len(programs):
                 return programs[n - 1]
             print(f"  1〜{len(programs)} または 0 / u を入力してください。")
         except (ValueError, EOFError):
             print("  数字を入力してください。")
-
-
-def _url_to_program(url: str) -> dict | None:
-    """URL から番組辞書を生成する"""
-    m = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
-    if not m:
-        print(f"  URL の形式が正しくありません: {url}")
-        return None
-    site_id, corner_id = m.group(1), m.group(2)
-    return {
-        "title": f"{site_id}_{corner_id}",
-        "display_title": f"{site_id}_{corner_id}",
-        "display_date": "----",
-        "genre": None,
-        "genre_label": _genre_label(None),
-        "site_id": site_id,
-        "corner_id": corner_id,
-        "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
-    }
 
 
 def select_episodes(episodes: list[dict]) -> list[dict] | None:
