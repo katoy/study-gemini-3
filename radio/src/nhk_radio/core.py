@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
-from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_EPISODE_TMPL, NHK_GENRES, _HEADERS
+from .constants import NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES, _HEADERS
 from .text import (
     _format_broadcast_time,
     _format_duration,
