@@ -88,6 +88,26 @@ class TestGuiComprehensive(unittest.TestCase):
             callback() 
             browser.active_download_rows["key1"]["percent_var"].set.assert_called()
 
+    def test_open_saved_folder_interaction(self):
+        browser = self._create_mock_browser()
+        # displayed_episode_map にモックデータをセット
+        episode = self.programs[0]
+        browser.displayed_episode_map = {"iid1": episode}
+        browser.displayed_program = episode
+        
+        # subprocess.Popen をモックして、OSコマンドの呼び出しを監視
+        with patch("nhk_radio.gui.listing.resolve_episode_downloaded_path", return_value=Path("/tmp/file.mp3")), \
+             patch("nhk_radio.gui.listing.subprocess.Popen") as mock_popen:
+            
+            # [済] クリック時のメソッドを呼び出し
+            browser._open_saved_episode_from_item("iid1")
+            
+            # OS の 'open' コマンド (macOSの場合) などが呼ばれたか確認
+            mock_popen.assert_called()
+            args, _ = mock_popen.call_args
+            cmd = args[0]
+            self.assertIn("/tmp", str(cmd[-1]))
+
     def test_build_widgets_full(self):
         with patch("nhk_radio.gui.browser.tk.Tk"), \
              patch("nhk_radio.gui.browser.tk.StringVar", return_value=MagicMock()), \

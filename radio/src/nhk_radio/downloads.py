@@ -159,20 +159,22 @@ def _episode_output_matches(path: Path, program: dict, episode: dict) -> bool:
         return False
 
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
-    stem = path.stem
+    name = path.name
 
-    if episode_date:
-        for program_title in program_titles:
-            expected = f"{episode_date}_{program_title}_{episode_title}"
-            if stem == expected or stem.endswith(f"_{expected}"):
-                return True
+    # 1) 日付による絞り込み (最も強力な指標)
+    if episode_date and episode_date not in name:
         return False
 
-    for program_title in program_titles:
-        expected = f"{program_title}_{episode_title}"
-        if stem == expected or stem.endswith(f"_{expected}"):
-            return True
-    return False
+    # 2) エピソードタイトルが含まれているか
+    # (記号などが除去された safe_name で比較)
+    if episode_title and episode_title not in _safe_name(name):
+        return False
+
+    # 3) 番組タイトルが含まれているか (少なくとも1つ)
+    if not any(title in _safe_name(name) for title in program_titles):
+        return False
+
+    return True
 
 
 def _episode_output_candidates(program_dir: Path, program: dict, episode: dict) -> list[Path]:
@@ -223,37 +225,54 @@ def mark_episode_downloaded(output_dir: Path, program: dict, episode: dict, path
 
 
 def is_episode_downloaded(output_dir: Path, program: dict, episode: dict) -> bool:
-    downloaded, _ = _load_download_manifest(program, output_dir)
-    if _episode_key(episode) in downloaded:
+    downloaded, saved_paths = _load_download_manifest(program, output_dir)
+    episode_key = _episode_key(episode)
+
+    # 1) マニフェストに直接「済み」の記録があるか (即時反映のため)
+    if episode_key in downloaded:
         return True
+
+    # 2) マニフェストに記録されたパスの実在を確認
+    saved_path_str = saved_paths.get(episode_key)
+    if saved_path_str:
+        resolved = Path(saved_path_str)
+        if not resolved.is_absolute():
+            resolved = _program_output_dir(output_dir, program) / resolved
+        if resolved.exists():
+            return True
+
+    # 3) ディレクトリをスキャンして候補を探す
     for program_dir in _program_search_dirs(output_dir, program):
         if program_dir.exists() and _episode_output_candidates(program_dir, program, episode):
             return True
+
     return False
 
 
-def resolve_episode_downloaded_path(output_dir: Path, program: dict, episode: dict) -> Path | None:
+def resolve_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
     downloaded, saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
-    for program_dir in _program_search_dirs(output_dir, program):
-        if not program_dir.exists():
-            continue
-        candidates = _episode_output_candidates(program_dir, program, episode)
-        if candidates:
-            if program_dir == _program_output_dir(output_dir, program):
-                relative_candidate = str(candidates[0].relative_to(program_dir))
-                if saved_paths.get(episode_key) != relative_candidate:
-                    mark_episode_downloaded(output_dir, program, episode, candidates[0])
-            return candidates[0]
 
-    saved_path = saved_paths.get(episode_key)
-    if saved_path:
-        resolved = Path(saved_path)
+    # 1) マニフェストに記録されたパスを最優先で確認
+    saved_path_str = saved_paths.get(episode_key)
+    if saved_path_str:
+        resolved = Path(saved_path_str)
         if not resolved.is_absolute():
             resolved = _program_output_dir(output_dir, program) / resolved
         if resolved.exists():
             return resolved
 
+    # 2) ディレクトリをスキャンして候補を探す
+    for program_dir in _program_search_dirs(output_dir, program):
+        if not program_dir.exists():
+            continue
+        candidates = _episode_output_candidates(program_dir, program, episode)
+        if candidates:
+            # 見つかった場合はマニフェストを更新しておく（次回から高速化）
+            mark_episode_downloaded(output_dir, program, episode, candidates[0])
+            return candidates[0]
+
+    # 3) (整合性修復) マニフェストにはあるが実体がない場合は、判定と一致させるため None を返す
     return None
 
 

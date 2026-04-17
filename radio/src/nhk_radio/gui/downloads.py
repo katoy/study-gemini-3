@@ -497,7 +497,14 @@ class GuiDownloadsMixin:
             self.download_result_queue.put(("canceled_one", episode_key, program, episode))
             return
         if success:
-            downloaded_path = resolve_episode_downloaded_path(self.output_dir, program, episode)
+            # OS のファイル書き込み完了を少し待つ
+            downloaded_path = None
+            for _ in range(3):
+                downloaded_path = resolve_episode_downloaded_path(self.output_dir, program, episode)
+                if downloaded_path:
+                    break
+                time.sleep(0.2)
+
             mark_episode_downloaded(self.output_dir, program, episode, downloaded_path)
             self.download_result_queue.put(("done_one", episode_key, program, episode))
         else:

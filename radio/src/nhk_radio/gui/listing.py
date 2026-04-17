@@ -6,10 +6,16 @@ import sys
 import time
 import unicodedata
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..cache import load_episode_cache
 from ..config import CACHE_TTL_SECONDS, SEARCH_HISTORY_LIMIT
-from ..downloads import _episode_key, is_episode_downloaded, resolve_episode_downloaded_path
+from ..downloads import (
+    _episode_key,
+    _load_download_manifest,
+    is_episode_downloaded,
+    resolve_episode_downloaded_path,
+)
 from ..text import (
     _genre_label,
     _normalize_text,
@@ -17,12 +23,29 @@ from ..text import (
     _sortable_duration_value,
     _sortable_timestamp_value,
 )
+from ..types import Episode, Program
 from .toolkit import tk, ttk
+
+if TYPE_CHECKING:
+    from .browser import EpisodeGuiBrowser
 
 
 class GuiListingMixin:
+    # Mixin properties to help type checker (cast self to EpisodeGuiBrowser)
+    if TYPE_CHECKING:
+        root: tk.Tk
+        programs: list[Program]
+        filtered_programs: list[Program]
+        displayed_program: Program | None
+        displayed_episodes: list[Episode]
+        displayed_episode_map: dict[str, Episode]
+        output_dir: Path
+        _palette: dict[str, str]
+
     def _program_genre_filter_values(self) -> list[str]:
-        labels = sorted({program.get("genre_label") or _genre_label(program.get("genre")) for program in self.programs})
+        labels = sorted(
+            {program.get("genre_label") or _genre_label(program.get("genre")) for program in self.programs}
+        )
         return ["すべて", *[label for label in labels if label]]
 
     def _on_program_filter_change(self, *_args):
@@ -470,7 +493,8 @@ class GuiListingMixin:
         heading = tree.heading(columns[column_index], "text") or columns[column_index]
         self.selected_cell_meta_var.set(f"{self._tree_label(tree)} / {heading}")
         self.selected_cell_value_var.set(value)
-        self.selected_cell_entry.xview_moveto(0)
+        if hasattr(self, "selected_cell_entry"):
+            self.selected_cell_entry.xview_moveto(0)
         self._update_selected_cell_ui()
 
     def _on_program_tree_click(self, event):
@@ -752,13 +776,16 @@ class GuiListingMixin:
         episode = self.displayed_episode_map[item_id]
         path = resolve_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
         if path is None:
-            self.status_var.set("保存済みファイルの実体が見つかりません。")
+            # 理由を特定するためのヒントを表示
+            _, saved_paths = _load_download_manifest(self.displayed_program, self.output_dir)
+            recorded_path = saved_paths.get(_episode_key(episode), "(記録なし)")
+            self.status_var.set(f"保存済みファイルが見つかりません。記録パス: {recorded_path}")
             return "break"
 
-        self._show_saved_episode_popup(path, episode)
+        self._open_saved_folder(path)
         return "break"
 
-    def _show_saved_episode_popup(self, path: Path, episode: dict):
+    def _show_saved_episode_popup(self, path: Path, episode: Episode):
         if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
             self.saved_episode_popup.destroy()
 
@@ -785,7 +812,7 @@ class GuiListingMixin:
         popup.focus_force()
         self.saved_episode_popup = popup
 
-    def _build_saved_episode_popup_content(self, popup: "tk.Toplevel", path: Path, episode: dict) -> None:
+    def _build_saved_episode_popup_content(self, popup: tk.Toplevel, path: Path, episode: Episode) -> None:
         main = ttk.Frame(popup, padding=16)
         main.pack(fill="both", expand=True)
         main.columnconfigure(0, weight=1)
@@ -797,7 +824,7 @@ class GuiListingMixin:
         ttk.Label(header, text="保存済みファイル", style="Heading.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text=episode.get("display_title", episode["title"]),
+            text=episode.get("display_title") or episode.get("title") or "エピソード",
             style="PopupTitle.TLabel",
             wraplength=700,
             justify="left",
@@ -813,15 +840,17 @@ class GuiListingMixin:
         ttk.Label(body, text="保存先PATH", style="PopupLabel.TLabel").grid(
             row=1, column=0, sticky="nw", padx=(0, 12), pady=(12, 0)
         )
-        path_entry = ttk.Entry(body, textvariable=tk.StringVar(value=str(path)))
+        # ガベージコレクションを防ぐため popup に属性として保持させる
+        popup._path_var = tk.StringVar(popup, value=str(path.absolute()))
+        path_entry = ttk.Entry(body, textvariable=popup._path_var)
         path_entry.grid(row=1, column=1, sticky="ew", pady=(12, 0))
         path_entry.state(["readonly"])
         ttk.Label(body, text="保存先フォルダ", style="PopupLabel.TLabel").grid(
             row=2, column=0, sticky="nw", padx=(0, 12), pady=(12, 0)
         )
-        ttk.Label(body, text=str(path.parent), style="PopupValue.TLabel", wraplength=560, justify="left").grid(
-            row=2, column=1, sticky="w", pady=(12, 0)
-        )
+        ttk.Label(
+            body, text=str(path.parent.absolute()), style="PopupValue.TLabel", wraplength=560, justify="left"
+        ).grid(row=2, column=1, sticky="w", pady=(12, 0))
 
         ttk.Separator(main, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(16, 12))
         buttons = ttk.Frame(main)
