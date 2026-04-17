@@ -43,9 +43,7 @@ class GuiListingMixin:
         _palette: dict[str, str]
 
     def _program_genre_filter_values(self) -> list[str]:
-        labels = sorted(
-            {program.get("genre_label") or _genre_label(program.get("genre")) for program in self.programs}
-        )
+        labels = sorted({program.genre_label or _genre_label(program.genre) for program in self.programs})
         return ["すべて", *[label for label in labels if label]]
 
     def _on_program_filter_change(self, *_args):
@@ -61,7 +59,7 @@ class GuiListingMixin:
             filtered = [
                 program
                 for program in filtered
-                if (program.get("genre_label") or _genre_label(program.get("genre"))) == genre_filter
+                if (program.genre_label or _genre_label(program.genre)) == genre_filter
             ]
         if needle:
             filtered = [program for program in filtered if needle in self._program_search_target(program)]
@@ -90,8 +88,8 @@ class GuiListingMixin:
                 tags=(tag,),
                 values=(
                     self.program_order_map.get(self._program_key(program), index),
-                    program.get("display_date", "----"),
-                    program.get("display_title", program["title"]),
+                    program.display_date or "----",
+                    program.display_title or program.title,
                 ),
             )
             self.program_tree_programs[item_id] = program
@@ -120,10 +118,10 @@ class GuiListingMixin:
         self.program_tree.focus(item_id)
         self.program_tree.see(item_id)
 
-    def _program_key(self, program: dict | None) -> tuple[str, str] | None:
+    def _program_key(self, program: Program | None) -> tuple[str, str] | None:
         if program is None:
             return None
-        return program["site_id"], program["corner_id"]
+        return program.site_id, program.corner_id
 
     def _heading_text(self, label: str, active_column: str | None, column: str, reverse: bool) -> str:
         if active_column != column:
@@ -199,15 +197,15 @@ class GuiListingMixin:
             return list(programs)
         return sorted(programs, key=self._program_sort_key, reverse=self.program_sort_reverse)
 
-    def _program_sort_key(self, program: dict):
+    def _program_sort_key(self, program: Program):
         program_key = self._program_key(program)
         original_index = self.program_order_map.get(program_key, 10**9)
-        display_title = self._normalized_search_text(program.get("display_title", program.get("title", "")))
+        display_title = self._normalized_search_text(program.display_title or program.title)
         if self.program_sort_column == "no":
             return (original_index, display_title)
         if self.program_sort_column == "date":
-            started_at = _sortable_timestamp_value(program.get("started_at"))
-            day = _sortable_day_value(str(program.get("onair_date") or program.get("display_date") or ""))
+            started_at = _sortable_timestamp_value(program.started_at)
+            day = _sortable_day_value(str(program.onair_date or program.display_date or ""))
             return (started_at, day, display_title, original_index)
         return (display_title, original_index)
 
@@ -215,16 +213,16 @@ class GuiListingMixin:
         normalized = unicodedata.normalize("NFKC", _normalize_text(text))
         return re.sub(r"\s+", " ", normalized).casefold()
 
-    def _program_search_target(self, program: dict) -> str:
+    def _program_search_target(self, program: Program) -> str:
         return self._normalized_search_text(
             " ".join(
                 part
                 for part in (
-                    program.get("display_title", ""),
-                    program.get("title", ""),
-                    program.get("corner_name", ""),
-                    program.get("genre_label", ""),
-                    program.get("genre", ""),
+                    program.display_title,
+                    program.title,
+                    program.corner_name,
+                    program.genre_label,
+                    program.genre,
                 )
                 if part
             )
@@ -323,8 +321,8 @@ class GuiListingMixin:
                 self._on_program_select()
         return "break"
 
-    def _cached_episodes_for(self, program: dict) -> list[dict]:
-        key = (program["site_id"], program["corner_id"])
+    def _cached_episodes_for(self, program: Program) -> list[Episode]:
+        key = (program.site_id, program.corner_id)
         cached = self.episodes_cache.get(key)
         if cached is not None:
             cached_at, episodes = cached
@@ -340,8 +338,8 @@ class GuiListingMixin:
 
     def _update_program_overview(
         self,
-        program: dict | None,
-        episodes: list[dict] | None = None,
+        program: Program | None,
+        episodes: list[Episode] | None = None,
         message: str | None = None,
     ):
         if program is None:
@@ -351,15 +349,15 @@ class GuiListingMixin:
             self.selected_program_stats_var.set("エピソード一覧は未取得です。")
             return
 
-        title = program.get("display_title", program["title"])
-        genre_label = program.get("genre_label") or _genre_label(program.get("genre"))
+        title = program.display_title or program.title
+        genre_label = program.genre_label or _genre_label(program.genre)
         meta_parts = [
             genre_label,
-            f"更新 {program.get('display_date', '----')}",
-            f"ID {program['site_id']}_{program['corner_id']}",
+            f"更新 {program.display_date or '----'}",
+            f"ID {program.site_id}_{program.corner_id}",
         ]
-        corner_name = _normalize_text(program.get("corner_name", ""))
-        if corner_name and corner_name != _normalize_text(program.get("title", "")):
+        corner_name = _normalize_text(program.corner_name or "")
+        if corner_name and corner_name != _normalize_text(program.title or ""):
             meta_parts.insert(1, corner_name)
 
         self.program_list_summary_var.set(f"{self._program_list_summary_text()} / 選択中: {genre_label}")
@@ -506,29 +504,29 @@ class GuiListingMixin:
         self._set_selected_tree_cell(self.program_tree, column_id, value)
         return None
 
-    def _show_episodes(self, program: dict, episodes: list[dict], message: str):
+    def _show_episodes(self, program: Program, episodes: list[Episode], message: str):
         self.displayed_program = program
         self.displayed_episodes = list(episodes)
-        self.episode_title_var.set(f"エピソード一覧: {program.get('display_title', program['title'])}")
+        self.episode_title_var.set(f"エピソード一覧: {program.display_title or program.title}")
         self.episode_message_var.set(message)
         self._render_episode_rows(program, episodes, clear_selection=False)
 
-    def _episode_search_target(self, episode: dict) -> str:
+    def _episode_search_target(self, episode: Episode) -> str:
         return self._normalized_search_text(
             " ".join(
                 part
                 for part in (
-                    episode.get("display_title", ""),
-                    episode.get("title", ""),
-                    episode.get("display_date", ""),
-                    episode.get("broadcast_time", ""),
-                    episode.get("duration_str", ""),
+                    episode.display_title,
+                    episode.title,
+                    episode.display_date,
+                    episode.broadcast_time,
+                    episode.duration_str,
                 )
                 if part
             )
         )
 
-    def _filtered_episode_rows(self, program: dict, episodes: list[dict]) -> list[dict]:
+    def _filtered_episode_rows(self, program: Program, episodes: list[Episode]) -> list[Episode]:
         needle = self._normalized_search_text(self.episode_search_var.get())
         saved_only = self.episode_saved_only_var.get()
         filtered = list(episodes)
@@ -568,35 +566,35 @@ class GuiListingMixin:
             self.episode_search_entry.focus_set()
         return "break"
 
-    def _sorted_episodes(self, episodes: list[dict]) -> list[dict]:
+    def _sorted_episodes(self, episodes: list[Episode]) -> list[Episode]:
         if self.episode_sort_column is None:
             return list(episodes)
 
         order_map = {_episode_key(episode): index for index, episode in enumerate(episodes)}
 
-        def sort_key(episode: dict):
+        def sort_key(episode: Episode):
             original_index = order_map.get(_episode_key(episode), 10**9)
-            title = self._normalized_search_text(episode.get("display_title", episode.get("title", "")))
+            title = self._normalized_search_text(episode.display_title or episode.title)
             if self.episode_sort_column == "saved":
                 saved = (
-                    is_episode_downloaded(self.output_dir, self.displayed_program or {}, episode)
+                    is_episode_downloaded(self.output_dir, self.displayed_program, episode)
                     if self.displayed_program
                     else False
                 )
                 return (saved, title, original_index)
             if self.episode_sort_column == "date":
-                timestamp = _sortable_timestamp_value(episode.get("date"))
-                day = _sortable_day_value(str(episode.get("date") or episode.get("display_date") or ""))
-                time_text = _normalize_text(episode.get("broadcast_time", ""))
+                timestamp = _sortable_timestamp_value(episode.date)
+                day = _sortable_day_value(str(episode.date or episode.display_date or ""))
+                time_text = _normalize_text(episode.broadcast_time)
                 return (timestamp, day, time_text, title, original_index)
             if self.episode_sort_column == "duration":
-                duration = _sortable_duration_value(str(episode.get("duration_str") or ""))
+                duration = _sortable_duration_value(str(episode.duration_str or ""))
                 return (duration, title, original_index)
             return (title, original_index)
 
         return sorted(episodes, key=sort_key, reverse=self.episode_sort_reverse)
 
-    def _render_episode_rows(self, program: dict, episodes: list[dict], clear_selection: bool):
+    def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool):
         self.displayed_episode_map.clear()
         for item in self.episode_tree.get_children():
             self.episode_tree.delete(item)
@@ -612,18 +610,18 @@ class GuiListingMixin:
             self.displayed_episode_map[iid] = episode
             is_dl = is_episode_downloaded(self.output_dir, program, episode)
             saved = self._downloaded_cell_text(is_dl)
-            date_time = episode.get("display_date", "----")
-            btime = episode.get("broadcast_time", "")
+            date_time = episode.display_date or "----"
+            btime = episode.broadcast_time
             if btime:
                 date_time = f"{date_time} {btime}"
-            dur = episode.get("duration_str", "") or "----"
+            dur = episode.duration_str or "----"
             tag = ("dl_odd" if index % 2 == 1 else "dl_even") if is_dl else "odd" if index % 2 == 1 else "even"
             self.episode_tree.insert(
                 "",
                 "end",
                 iid=iid,
                 tags=(tag,),
-                values=(saved, date_time, dur, episode.get("display_title", episode["title"])),
+                values=(saved, date_time, dur, episode.display_title or episode.title),
             )
 
         if rendered:
@@ -649,12 +647,12 @@ class GuiListingMixin:
             return
         self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=True)
 
-    def _refresh_downloaded_column(self, program: dict):
+    def _refresh_downloaded_column(self, program: Program):
         if self.displayed_program is None:
             return
         if (
-            self.displayed_program["site_id"] != program["site_id"]
-            or self.displayed_program["corner_id"] != program["corner_id"]
+            self.displayed_program.site_id != program.site_id
+            or self.displayed_program.corner_id != program.corner_id
         ):
             return
 
@@ -824,7 +822,7 @@ class GuiListingMixin:
         ttk.Label(header, text="保存済みファイル", style="Heading.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text=episode.get("display_title") or episode.get("title") or "エピソード",
+            text=episode.display_title or episode.title or "エピソード",
             style="PopupTitle.TLabel",
             wraplength=700,
             justify="left",

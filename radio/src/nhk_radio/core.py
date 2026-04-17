@@ -11,12 +11,13 @@ NHK ラジオ 聞き逃し番組ダウンローダー
 
 import asyncio
 import json
+import logging
 import re
-import subprocess
 import time
 from collections.abc import Sequence
 
 import httpx
+import yt_dlp
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
 from .constants import _HEADERS, NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES
@@ -30,6 +31,8 @@ from .text import (
     _program_display_title,
 )
 from .types import Episode, Program
+
+logger = logging.getLogger(__name__)
 
 
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 15) -> dict | list:
@@ -50,7 +53,8 @@ def http_get_text(url: str, timeout: int = 20) -> str:
     with httpx.Client(headers=_HEADERS) as client:
         resp = client.get(url, timeout=timeout)
         resp.raise_for_status()
-        return resp.text
+        t = resp.text
+        return t
 
 
 def fetch_program_list(genre: str | None = None) -> list[Program]:
@@ -66,7 +70,7 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
     """
     cached = load_program_cache(genre)
     if cached is not None:
-        return cached  # type: ignore
+        return cached
 
     programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
 
@@ -75,7 +79,7 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
         return programs
 
     stale = load_program_cache(genre, ttl_seconds=10**12)
-    return stale or programs  # type: ignore
+    return stale or programs
 
 
 # ──────────────────────────────────────────────────────
@@ -88,16 +92,16 @@ def _url_to_program(url: str) -> Program | None:
     if not match:
         return None
     site_id, corner_id = match.group(1), match.group(2)
-    return {
-        "title": f"{site_id}_{corner_id}",
-        "display_title": f"{site_id}_{corner_id}",
-        "display_date": "----",
-        "genre": None,
-        "genre_label": _genre_label(None),
-        "site_id": site_id,
-        "corner_id": corner_id,
-        "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
-    }
+    return Program(
+        title=f"{site_id}_{corner_id}",
+        display_title=f"{site_id}_{corner_id}",
+        display_date="----",
+        genre=None,
+        genre_label=_genre_label(None),
+        site_id=site_id,
+        corner_id=corner_id,
+        url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+    )
 
 
 def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | None:
@@ -110,11 +114,12 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | N
         cached_programs = load_program_cache(genre, ttl_seconds=10**12)
 
     for candidate in cached_programs or []:
-        if candidate["site_id"] == program["site_id"] and candidate["corner_id"] == program["corner_id"]:
-            return candidate  # type: ignore
+        if candidate.site_id == program.site_id and candidate.corner_id == program.corner_id:
+            return candidate
     if genre:
-        program["genre"] = genre
-        program["genre_label"] = _genre_label(genre)
+        from dataclasses import replace
+
+        program = replace(program, genre=genre, genre_label=_genre_label(genre))
     return program
 
 
@@ -124,24 +129,24 @@ def _make_entry(s: dict, genre: str | None = None) -> Program:
     title = s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}"
     corner_name = s.get("corner_name", "")
     onair_date = s.get("onair_date", "")
-    return {
-        "title": title,
-        "corner_name": corner_name,
-        "genre": genre,
-        "genre_label": _genre_label(genre),
-        "site_id": site_id,
-        "corner_id": corner_id,
-        "onair_date": onair_date,
-        "display_date": _format_onair_date(onair_date),
-        "display_title": _program_display_title(title, corner_name),
-        "started_at": s.get("started_at", ""),
-        "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
-    }
+    return Program(
+        title=title,
+        corner_name=corner_name,
+        genre=genre,
+        genre_label=_genre_label(genre),
+        site_id=site_id,
+        corner_id=corner_id,
+        onair_date=onair_date,
+        display_date=_format_onair_date(onair_date),
+        display_title=_program_display_title(title, corner_name),
+        started_at=s.get("started_at", ""),
+        url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+    )
 
 
 async def _fetch_all_async() -> list[Program]:
     """全ジャンルの番組を取得してまとめる (非同期・並列版)"""
-    print("番組一覧を取得中...", end="", flush=True)
+    logger.info("番組一覧を取得中...")
     seen: set[tuple[str, str]] = set()
     programs: list[Program] = []
     program_map: dict[tuple[str, str], Program] = {}
@@ -158,15 +163,16 @@ async def _fetch_all_async() -> list[Program]:
                         entry = _make_entry(s)
                         programs.append(entry)
                         program_map[key] = entry
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"最新追加の取得に失敗: {e}")
 
         # 2) 各ジャンルを追加 (並列取得して補完)
         async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
             try:
                 data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
                 return g, data
-            except Exception:
+            except Exception as e:
+                logger.debug(f"ジャンル {g} の取得に失敗: {e}")
                 return g, None
 
         tasks = [fetch_genre(g) for g in NHK_GENRES]
@@ -184,22 +190,29 @@ async def _fetch_all_async() -> list[Program]:
                     program_map[key] = entry
                 else:
                     existing = program_map.get(key)
-                    if existing is not None and not existing.get("genre"):
-                        existing["genre"] = g
-                        existing["genre_label"] = _genre_label(g)
+                    if existing is not None and not existing.genre:
+                        from dataclasses import replace
+
+                        new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
+                        try:
+                            idx = programs.index(existing)
+                            programs[idx] = new_entry
+                            program_map[key] = new_entry
+                        except ValueError:
+                            pass
 
     if programs:
-        print(f" {len(programs)} 件")
+        logger.info(f"{len(programs)} 件の番組を取得しました。")
         return programs
 
-    print(" 失敗 (フォールバック)")
+    logger.warning("番組一覧の取得に失敗しました。フォールバックを使用します。")
     return _fallback_program_list()
 
 
 async def _fetch_by_genre_async(genre: str) -> list[Program]:
     """指定ジャンルの番組一覧を取得する (非同期版)"""
     label = {
-        "language": "語学講座",
+        "language": "語学",
         "music": "音楽",
         "news": "ニュース",
         "drama": "ドラマ",
@@ -207,17 +220,17 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
         "documentary": "ドキュメンタリー",
         "variety": "バラエティ",
     }.get(genre, genre)
-    print(f"{label}一覧を取得中...", end="", flush=True)
+    logger.info(f"{label}一覧を取得中...")
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
             data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
         if isinstance(data, dict):
             programs = [_make_entry(s, genre=genre) for s in data.get("series", [])]
-            print(f" {len(programs)} 件")
+            logger.info(f"{len(programs)} 件を取得しました。")
             return programs
         return []
     except Exception as e:
-        print(f" 失敗: {e}")
+        logger.error(f"{label}一覧の取得に失敗: {e}")
         return _fallback_program_list() if genre == "language" else []
 
 
@@ -245,16 +258,16 @@ def _fallback_program_list() -> list[Program]:
         ("ラジオビジネス英語", "368315KKP8", "01"),
     ]
     return [
-        {
-            "title": title,
-            "display_title": title,
-            "display_date": "----",
-            "genre": "language",
-            "genre_label": _genre_label("language"),
-            "site_id": site_id,
-            "corner_id": corner_id,
-            "url": NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
-        }
+        Program(
+            title=title,
+            display_title=title,
+            display_date="----",
+            genre="language",
+            genre_label=_genre_label("language"),
+            site_id=site_id,
+            corner_id=corner_id,
+            url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+        )
         for title, site_id, corner_id in entries
     ]
 
@@ -265,72 +278,56 @@ def _fallback_program_list() -> list[Program]:
 
 
 def _parse_episode_info(info: dict, program: Program) -> Episode:
-    """yt-dlp の JSON 行 1 件をエピソード辞書に変換する。"""
+    """yt-dlp のエピソード情報を Episode クラスに変換する。"""
     ep_id = str(info.get("id", ""))
     title = info.get("title") or ep_id
     upload_date = info.get("upload_date") or ""
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
     date = upload_date or (str(int(timestamp)) if timestamp else "")
-    # ep_id がある場合は NHK プレイヤー URL を使う。
-    # info["url"] は期限付き m3u8 ストリーム URL のためキャッシュ後に期限切れになる。
-    # ep_id は "M65G6QLKMY_01_4311868" 形式で ?p= の値そのもの。
     if ep_id:
         ep_url = f"https://www.nhk.or.jp/radio/player/ondemand.html?p={ep_id}"
     else:
         ep_url = info.get("webpage_url") or info.get("url") or ""
-    return {
-        "id": ep_id,
-        "title": title,
-        "display_title": _normalize_text(title),
-        "date": date,
-        "display_date": _format_episode_date(upload_date or date),
-        "broadcast_time": _format_broadcast_time(timestamp),
-        "duration_str": _format_duration(duration),
-        "url": ep_url,
-    }
-
-
-def _report_fetch_result(episodes: Sequence[Episode], stderr: str, verbose: bool) -> None:
-    if not verbose:
-        return
-    if episodes:
-        print(f" {len(episodes)} 件")
-    else:
-        detail = stderr.strip()
-        if detail:
-            print(f" 失敗: {detail.splitlines()[-1]}")
-        else:
-            print(" 0件 (エピソードが見つからないか期限切れの可能性があります)")
+    return Episode(
+        id=ep_id,
+        title=title,
+        display_title=_normalize_text(title),
+        date=date,
+        display_date=_format_episode_date(upload_date or date),
+        broadcast_time=_format_broadcast_time(timestamp),
+        duration_str=_format_duration(duration),
+        url=ep_url,
+    )
 
 
 def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
-    """yt-dlp --flat-playlist を使って番組のエピソード一覧を取得する。"""
+    """yt-dlp Python API を使って番組のエピソード一覧を取得する。"""
     if verbose:
-        print(f"\n「{program['title']}」のエピソードを取得中...", end="", flush=True)
-    result = subprocess.run(
-        ["yt-dlp", "--flat-playlist", "--dump-json", program["url"]],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    episodes: list[Episode] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            info = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        episodes.append(_parse_episode_info(info, program))
-    if result.returncode != 0 and not episodes:
-        detail = result.stderr.strip()
-        if detail:
-            raise RuntimeError(detail.splitlines()[-1])
-        raise RuntimeError(f"yt-dlp exited with code {result.returncode}")
-    _report_fetch_result(episodes, result.stderr, verbose)
-    return episodes
+        logger.info(f"「{program.title}」のエピソードを取得中...")
+
+    ydl_opts = {
+        "extract_flat": "in_playlist",
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(program.url, download=False)
+            if info is None:
+                raise RuntimeError("番組情報の取得に失敗しました")
+
+            entries = info.get("entries", [])
+            episodes = [_parse_episode_info(entry, program) for entry in entries if entry]
+
+            if verbose:
+                logger.info(f"{len(episodes)} 件のエピソードを取得しました。")
+            return episodes
+    except Exception as e:
+        logger.error(f"エピソード取得失敗: {e}")
+        raise RuntimeError(str(e)) from e
 
 
 def get_episode_list(
@@ -341,7 +338,7 @@ def get_episode_list(
     if use_cache:
         cached = load_episode_cache(program)
         if cached is not None:
-            return cached, "cache"  # type: ignore
+            return cached, "cache"
 
     return refresh_episode_list(program, retry_delay=retry_delay)
 
@@ -363,7 +360,7 @@ def refresh_episode_list(
             time.sleep(retry_delay)
 
     stale = load_episode_cache(program, ttl_seconds=10**12)
-    if stale is not None:
-        return stale, "stale-cache"  # type: ignore
+    if stale:
+        return stale, "stale-cache"
 
     raise RuntimeError(last_error or "エピソード一覧を取得できませんでした")

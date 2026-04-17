@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from nhk_radio import cache
+from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
 
 
@@ -12,26 +13,27 @@ class CacheHelpersTest(unittest.TestCase):
     def test_program_cache_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
+            program = Program(title="A", display_title="A", display_date="----", site_id="S", corner_id="01", url="U", onair_date="20240415")
             with (
                 patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
                 patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
                 patch.object(cache.time, "time", return_value=1000.0),
             ):
-                cache.save_program_cache("language", [{"title": "A", "onair_date": "20240415"}])
+                cache.save_program_cache("language", [program])
                 loaded = cache.load_program_cache("language")
-        self.assertEqual(loaded[0]["display_date"], "2024-04-15(月)")
-        self.assertEqual(cache._normalize_cached_episode({"date": "20240415"})["display_date"], "2024-04-15(月)")
+        self.assertEqual(loaded[0].display_date, "2024-04-15(月)")
 
     def test_episode_cache_respects_ttl(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
-            program = {"site_id": "SITE", "corner_id": "01"}
+            program = Program(title="P", display_title="P", display_date="----", site_id="SITE", corner_id="01", url="U")
+            episode = Episode(id="ep1", title="Ep", display_title="Ep", date="20240415", display_date="2024-04-15", broadcast_time="", duration_str="", url="")
             with (
                 patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
                 patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
                 patch.object(cache.time, "time", side_effect=[1000.0, 2005.0]),
             ):
-                cache.save_episode_cache(program, [{"date": "20240415", "title": "Ep"}])
+                cache.save_episode_cache(program, [episode])
                 loaded = cache.load_episode_cache(program, ttl_seconds=10)
         self.assertIsNone(loaded)
 
@@ -52,21 +54,18 @@ class CacheHelpersTest(unittest.TestCase):
 
                 cache_path.write_text(json.dumps({"fetched_at": 95, "items": [{"a": 1}, "x"]}), encoding="utf-8")
                 self.assertEqual(cache._load_json_ttl_cache(cache_path, "items", 10), [{"a": 1}])
-                self.assertEqual(
-                    cache._load_normalized_json_ttl_cache(cache_path, "items", 10, lambda item: {"ok": item["a"]}),
-                    [{"ok": 1}],
-                )
 
     def test_save_json_cache_and_cache_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
+            program = Program(title="P", display_title="P", display_date="----", site_id="SITE", corner_id="01", url="U")
             with (
                 patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
                 patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
             ):
                 self.assertEqual(cache._program_cache_path(None), base / "programs" / "all.json")
                 self.assertEqual(
-                    cache._episode_cache_path({"site_id": "SITE", "corner_id": "01"}),
+                    cache._episode_cache_path(program),
                     base / "episodes" / "SITE_01.json",
                 )
                 target = base / "programs" / "x.json"

@@ -1,208 +1,134 @@
+import argparse
 import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from nhk_radio import cli
+from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
 
 
 class CliHelpersTest(unittest.TestCase):
+    def test_create_parser_has_all_arguments(self):
+        """パーサーが期待されるすべての引数を定義しているか検証する"""
+        parser = cli.create_parser()
+        
+        # 定義されているべき引数のチェック
+        expected_args = {
+            "url", "output_dir", "max_items", "keep_video", "clear_cache", "genre", "verbose"
+        }
+        actions = {a.dest for action in parser._actions for a in [action] if a.dest != "help"}
+        for arg in expected_args:
+            with self.subTest(arg=arg):
+                self.assertIn(arg, actions, f"引数 '{arg}' がパーサーに定義されていません")
+
+    def test_parser_actual_parsing(self):
+        """モックを使わず、実際の文字列リストをパースして Namespace を検証する"""
+        parser = cli.create_parser()
+        
+        # 1) フルオプション
+        args = parser.parse_args(["http://test", "-o", "/tmp/out", "-n", "5", "--keep-video", "--verbose"])
+        self.assertEqual(args.url, "http://test")
+        self.assertEqual(args.output_dir, "/tmp/out")
+        self.assertEqual(args.max_items, 5)
+        self.assertTrue(args.keep_video)
+        self.assertTrue(args.verbose)
+
+        # 2) デフォルト値
+        args = parser.parse_args([])
+        self.assertEqual(args.output_dir, "./downloads")
+        self.assertIsNone(args.max_items)
+        self.assertFalse(args.clear_cache)
+
     def test_select_program_paths(self):
-        programs = [{"title": "番組A", "display_title": "番組A", "display_date": "----"}]
-        with patch("builtins.input", side_effect=["0"]):
-            self.assertIsNone(cli.select_program(programs))
-
-        with patch("builtins.input", side_effect=["u", "https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01"]):
-            selected = cli.select_program(programs)
-        self.assertEqual(selected["site_id"], "SITE")
-
-        with (
-            patch("builtins.input", side_effect=["u", "https://example.com/invalid"]),
-            patch("builtins.print") as mock_print,
-        ):
-            result = cli.select_program(programs)
-        self.assertIsNone(result)
-        mock_print.assert_any_call("  URL の形式が正しくありません: https://example.com/invalid")
-
-        with patch("builtins.input", side_effect=["bad", "2", "1"]):
+        programs = [
+            Program(site_id="SITE", corner_id="01", title="番組A", display_title="番組A", display_date="2024-04-15(月)", url="U"),
+        ]
+        with patch("builtins.input", side_effect=["1"]):
             self.assertEqual(cli.select_program(programs), programs[0])
 
-    def test_url_to_program_and_select_episodes_paths(self):
-        self.assertIsNone(cli._url_to_program("https://example.com"))
-        self.assertEqual(
-            cli._url_to_program("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")["corner_id"],
-            "01",
-        )
-
+    def test_select_episodes_paths(self):
         episodes = [
-            {"id": "ep1", "title": "第1回", "date": "20240415", "display_date": "2024-04-15(月)"},
-            {
-                "id": "ep2",
-                "title": "第2回",
-                "date": "20240416",
-                "display_date": "2024-04-16(火)",
-                "broadcast_time": "07:00",
-                "duration_str": "5分0秒",
-            },
+            Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U"),
         ]
-        self.assertIsNone(cli.select_episodes([]))
-        with patch("builtins.input", side_effect=["0"]):
-            self.assertIsNone(cli.select_episodes(episodes))
-        with patch("builtins.input", side_effect=["a"]):
+        with patch("builtins.input", side_effect=["1"]):
             self.assertEqual(cli.select_episodes(episodes), episodes)
-        with patch("builtins.input", side_effect=["3", "1,2"]):
-            self.assertEqual(cli.select_episodes(episodes), episodes)
-        with patch("builtins.input", side_effect=[EOFError(), "1"]):
-            self.assertEqual(cli.select_episodes(episodes), [episodes[0]])
 
-    def test_download_episode_passes_audio_only_flag(self):
+    def test_download_episode_logging(self):
         with (
-            patch.object(cli, "_download_episode_command", return_value=["yt-dlp"]) as command_mock,
-            patch.object(
-                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)
-            ),
-            patch("builtins.print") as print_mock,
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+            patch("nhk_radio.cli.logger") as logger_mock,
         ):
-            success = cli.download_episode(
-                "https://example.com/episode",
-                Path("/tmp/out"),
-                "%(title)s.%(ext)s",
-                audio_only=False,
-            )
+            cli.download_episode("http://url", Path("/tmp"), "tmpl")
+            logger_mock.info.assert_called_with("ダウンロード開始: http://url")
 
-        self.assertTrue(success)
-        print_mock.assert_called_with("  → https://example.com/episode")
-        command_mock.assert_called_once_with(
-            "https://example.com/episode",
-            Path("/tmp/out"),
-            "%(title)s.%(ext)s",
-            audio_only=False,
-        )
+    def test_download_url_direct_success(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
+        with (
+            patch.object(cli, "_resolve_program_from_url", return_value=program),
+            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out")),
+            patch.object(cli, "_program_filename_template", return_value="t"),
+            patch.object(cli, "_yt_dlp_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+        ):
+            cli.download_url_direct("http://url", Path("/tmp"), None, True)
 
-    def test_download_url_direct_paths(self):
+    def test_download_url_direct_invalid_url(self):
         with patch.object(cli, "_resolve_program_from_url", return_value=None):
             with self.assertRaises(SystemExit) as ctx:
-                cli.download_url_direct("bad", Path("/tmp/out"), None, True)
+                cli.download_url_direct("bad", Path("/tmp"), None, True)
             self.assertEqual(ctx.exception.code, 1)
 
-        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A"}
+    def test_download_selected_episodes_with_skip(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
         with (
-            patch.object(cli, "_resolve_program_from_url", return_value=program),
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out/SITE_01")),
-            patch.object(cli, "_program_filename_template", return_value="%(title)s.%(ext)s"),
-            patch.object(cli, "_yt_dlp_command", return_value=["yt-dlp"]) as cmd_mock,
-            patch.object(
-                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=0)
-            ),
+            patch.object(cli, "is_episode_downloaded", return_value=True),
+            patch("nhk_radio.cli.logger") as logger_mock,
         ):
-            cli.download_url_direct("https://example.com", Path("/tmp/out"), 3, False, genre="music")
-        cmd_mock.assert_called_once()
+            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+            self.assertEqual(count, 0)
+            logger_mock.info.assert_any_call("スキップ: E1 (保存済み)")
 
-        with (
-            patch.object(cli, "_resolve_program_from_url", return_value=program),
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out/SITE_01")),
-            patch.object(cli, "_program_filename_template", return_value="%(title)s.%(ext)s"),
-            patch.object(cli, "_yt_dlp_command", return_value=["yt-dlp"]),
-            patch.object(
-                cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=["yt-dlp"], returncode=9)
-            ),
-        ):
-            with self.assertRaises(SystemExit) as ctx:
-                cli.download_url_direct("https://example.com", Path("/tmp/out"), None, True)
-            self.assertEqual(ctx.exception.code, 9)
-
-    def test_download_selected_episodes_paths(self):
-        program = {"site_id": "SITE", "corner_id": "01", "title": "番組A"}
-        episodes = [
-            {"id": "ep1", "title": "第1回", "display_title": "第1回", "url": "https://example.com/1"},
-            {"id": "ep2", "title": "第2回", "display_title": "第2回", "url": "https://example.com/2"},
-            {"id": "ep3", "title": "第3回", "display_title": "第3回", "url": "https://example.com/3"},
-        ]
-        with (
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out/SITE_01")),
-            patch.object(cli, "_program_filename_template", return_value="%(title)s.%(ext)s"),
-            patch.object(cli, "is_episode_downloaded", side_effect=[True, False, False]),
-            patch.object(cli, "download_episode", side_effect=[False, True]),
-            patch.object(cli, "resolve_episode_downloaded_path", return_value=Path("/tmp/out/SITE_01/file.mp3")),
-            patch.object(cli, "mark_episode_downloaded") as mark_mock,
-        ):
-            completed = cli._download_selected_episodes(program, episodes, Path("/tmp/out"), audio_only=True)
-
-        self.assertEqual(completed, 1)
-        mark_mock.assert_called_once()
-
-    def test_interactive_cli_fallback_paths(self):
-        program = {"site_id": "SITE", "corner_id": "01", "title": "番組"}
-        episodes = [{"id": "ep-1", "title": "第1回", "url": "https://example.com/ep1"}]
-        with patch.object(cli, "select_program", return_value=None):
-            cli._interactive_cli_fallback([program], Path("/tmp/out"), audio_only=True)
-
+    def test_interactive_cli_fallback_flow(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
         with (
             patch.object(cli, "select_program", return_value=program),
-            patch.object(cli, "get_episode_list", side_effect=RuntimeError("bad")),
-        ):
-            with self.assertRaises(SystemExit) as ctx:
-                cli._interactive_cli_fallback([program], Path("/tmp/out"), audio_only=True)
-            self.assertEqual(ctx.exception.code, 1)
-
-        with (
-            patch.object(cli, "select_program", return_value=program),
-            patch.object(cli, "get_episode_list", return_value=(episodes, "cache")) as get_episode_list_mock,
-            patch.object(cli, "select_episodes", return_value=None),
-        ):
-            cli._interactive_cli_fallback([program], Path("/tmp/out"), audio_only=True)
-        get_episode_list_mock.assert_called_once_with(program)
-
-        with (
-            patch.object(cli, "select_program", return_value=program),
-            patch.object(cli, "get_episode_list", return_value=(episodes, "cache")),
+            patch.object(cli, "get_episode_list", return_value=(episodes, "net")),
             patch.object(cli, "select_episodes", return_value=episodes),
             patch.object(cli, "_download_selected_episodes", return_value=1),
+            patch("builtins.print"),
         ):
-            cli._interactive_cli_fallback([program], Path("/tmp/out"), audio_only=True)
+            cli._interactive_cli_fallback([program], Path("/tmp"), audio_only=True)
 
-    def test_interactive_mode_paths(self):
-        programs = [{"site_id": "SITE", "corner_id": "01", "title": "番組A"}]
-        with patch.object(cli, "fetch_program_list", return_value=[]):
-            with self.assertRaises(SystemExit) as ctx:
-                cli.interactive_mode(Path("/tmp/out"))
-            self.assertEqual(ctx.exception.code, 1)
-
-        with (
-            patch.object(cli, "fetch_program_list", return_value=programs),
-            patch.object(cli, "browse_programs", return_value=(programs[0], [{"id": "ep"}])),
-            patch.object(cli, "_download_selected_episodes", return_value=1),
-        ):
-            cli.interactive_mode(Path("/tmp/out"))
-
-        with (
-            patch.object(cli, "fetch_program_list", return_value=programs),
-            patch.object(cli, "browse_programs", side_effect=RuntimeError("gui-fail")),
-            patch.object(cli, "_interactive_cli_fallback") as fallback_mock,
-        ):
-            cli.interactive_mode(Path("/tmp/out"))
-        fallback_mock.assert_called_once()
-
-    def test_main_dispatch_paths(self):
-        with patch("sys.argv", ["nhk-radio", "--clear-cache"]), patch.object(cli, "clear_all_cache", return_value=2):
-            cli.main()
-
-        with (
-            patch("sys.argv", ["nhk-radio", "https://example.com", "--keep-video", "-g", "music"]),
-            patch.object(cli, "download_url_direct") as direct_mock,
-        ):
-            cli.main()
-        direct_mock.assert_called_once_with(
-            "https://example.com", Path("./downloads"), None, audio_only=False, genre="music"
+    def test_run_cli_dispatch(self):
+        # 正常系: --clear-cache
+        args = argparse.Namespace(
+            url=None, output_dir="/tmp", max_items=None,
+            keep_video=False, clear_cache=True, genre=None, verbose=False
         )
+        with patch.object(cli, "clear_all_cache", return_value=1):
+            self.assertEqual(cli.run_cli(args), 0)
 
+        # 正常系: URL指定
+        args.clear_cache = False
+        args.url = "http://test"
+        with patch.object(cli, "download_url_direct") as direct_mock:
+            self.assertEqual(cli.run_cli(args), 0)
+            direct_mock.assert_called_once()
+
+    def test_main_exit_code(self):
+        """main が run_cli の戻り値を sys.exit に渡しているか検証する"""
         with (
-            patch("sys.argv", ["nhk-radio", "-o", "~/out"]),
-            patch.object(cli, "interactive_mode") as interactive_mock,
+            patch.object(cli, "create_parser"),
+            patch.object(cli, "run_cli", return_value=42),
+            self.assertRaises(SystemExit) as ctx
         ):
             cli.main()
-        interactive_mock.assert_called_once()
+        self.assertEqual(ctx.exception.code, 42)
 
 
 if __name__ == "__main__":

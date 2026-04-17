@@ -9,7 +9,7 @@ import webbrowser
 
 from ..cache import clear_all_cache
 from ..constants import NHK_ONDEMAND_URL
-from ..core import refresh_episode_list
+from ..core import fetch_program_list, refresh_episode_list
 from ..downloads import (
     _download_episode_command,
     _episode_key,
@@ -26,6 +26,55 @@ from .toolkit import tk, ttk
 
 
 class GuiDownloadsMixin:
+    def _start_fetch_programs(self, genre: str | None = None):
+        if self.loading:
+            return
+
+        self.status_var.set("番組一覧を取得中...")
+        self._set_loading(True)
+        self.program_fetch_queue = queue.Queue()
+        worker = threading.Thread(target=self._fetch_programs_worker, args=(genre, self.program_fetch_queue), daemon=True)
+        worker.start()
+        self.root.after(50, self._poll_program_fetch_result)
+
+    def _fetch_programs_worker(self, genre: str | None, result_queue: queue.Queue):
+        try:
+            programs = fetch_program_list(genre)
+            error = None
+        except Exception as e:
+            programs = []
+            error = str(e)
+        result_queue.put((programs, error))
+
+    def _poll_program_fetch_result(self):
+        if self.program_fetch_queue is None:
+            return
+
+        try:
+            programs, error = self.program_fetch_queue.get_nowait()
+        except queue.Empty:
+            if self.loading:
+                self.root.after(50, self._poll_program_fetch_result)
+            return
+
+        self.program_fetch_queue = None
+        self._finish_fetch_programs(programs, error)
+
+    def _finish_fetch_programs(self, programs: list[Program], error: str | None):
+        self._set_loading(False)
+        if error is not None:
+            self.status_var.set(f"番組一覧の取得に失敗しました: {error}")
+            return
+
+        self.programs = programs
+        self.filtered_programs = list(programs)
+        # Treeview を再構築
+        self._populate_programs(preserve_selection=False)
+        self.program_list_summary_var.set(self._program_list_summary_text())
+        self.status_var.set(f"{len(programs)} 件の番組を取得しました。")
+        if programs:
+            self.program_tree.focus_set()
+
     def _update_download_row_progress(
         self,
         episode_key: str,
@@ -216,7 +265,7 @@ class GuiDownloadsMixin:
             else:
                 self.download_button.state(["disabled"])
 
-    def _add_download_row(self, program: dict, episode: dict):
+    def _add_download_row(self, program: Program, episode: Episode):
         episode_key = _episode_key(episode)
         if episode_key in self.active_download_rows:
             return episode_key
@@ -248,7 +297,7 @@ class GuiDownloadsMixin:
         self._reflow_download_rows()
         self._update_download_summary()
 
-    def _create_download_job_widgets(self, row_index: int, episode: dict, episode_key: str) -> dict:
+    def _create_download_job_widgets(self, row_index: int, episode: Episode, episode_key: str) -> dict:
         """ダウンロードジョブ行のウィジェットを生成して辞書で返す。"""
         frame = ttk.Frame(self.download_jobs_inner, style="DownloadJob.TFrame", padding=(12, 10))
         frame.grid(row=row_index, column=0, sticky="ew", pady=2)
@@ -259,7 +308,7 @@ class GuiDownloadsMixin:
 
         title = ttk.Label(
             frame,
-            text=episode.get("display_title", episode["title"]),
+            text=episode.display_title or episode.title,
             anchor="w",
             justify="left",
             style="DownloadJobTitle.TLabel",
@@ -342,7 +391,7 @@ class GuiDownloadsMixin:
         if program is None:
             return "break"
 
-        title = program.get("display_title", program["title"])
+        title = program.display_title or program.title
         self.status_var.set(f"「{title}」のエピソード一覧を取得中...")
         self.episode_message_var.set("取得中...")
         self._update_program_overview(program, None, "取得中")
@@ -354,7 +403,7 @@ class GuiDownloadsMixin:
         self.root.after(50, self._poll_fetch_result)
         return "break"
 
-    def _fetch_worker(self, program: dict, result_queue: queue.Queue):
+    def _fetch_worker(self, program: Program, result_queue: queue.Queue):
         try:
             episodes, source = refresh_episode_list(program)
             error = None
@@ -378,10 +427,10 @@ class GuiDownloadsMixin:
         self.fetch_result_queue = None
         self._finish_fetch(program, episodes, source, error)
 
-    def _finish_fetch(self, program: dict, episodes: list[dict], source: str, error: str | None):
+    def _finish_fetch(self, program: Program, episodes: list[Episode], source: str, error: str | None):
         self._set_loading(False)
         self._set_progress(0, 1, "")
-        key = (program["site_id"], program["corner_id"])
+        key = (program.site_id, program.corner_id)
         if error is not None:
             self.episodes_cache[key] = (time.time(), [])
             self.status_var.set(f"取得失敗: {error}")
@@ -450,7 +499,7 @@ class GuiDownloadsMixin:
             return "break"
 
         started = len(new_jobs)
-        self.status_var.set(f"「{program.get('display_title', program['title'])}」のダウンロードを開始しました。")
+        self.status_var.set(f"「{program.display_title or program.title}」のダウンロードを開始しました。")
         self.episode_message_var.set(
             f"開始 {started} 件" + (f" / 既に実行中 {duplicate_count} 件" if duplicate_count else "")
         )
@@ -469,8 +518,8 @@ class GuiDownloadsMixin:
 
     def _download_one_worker(
         self,
-        program: dict,
-        episode: dict,
+        program: Program,
+        episode: Episode,
         episode_key: str,
         cancel_event: threading.Event,
     ):
@@ -482,7 +531,7 @@ class GuiDownloadsMixin:
 
         output_dir.mkdir(parents=True, exist_ok=True)
         process = subprocess.Popen(
-            _download_episode_command(episode["url"], output_dir, filename_template, audio_only=self.audio_only),
+            _download_episode_command(episode.url, output_dir, filename_template, audio_only=self.audio_only),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -516,8 +565,8 @@ class GuiDownloadsMixin:
         process: subprocess.Popen,
         episode_key: str,
         cancel_event: threading.Event,
-        program: dict,
-        episode: dict,
+        program: Program,
+        episode: Episode,
     ) -> tuple[bool, bool]:
         """プロセスの出力を監視し、進捗をキューに送る。(success, canceled) を返す。"""
         process_output_queue: queue.Queue[str | None] = queue.Queue()
@@ -599,23 +648,23 @@ class GuiDownloadsMixin:
             if kind == "done_one":
                 _, episode_key, program, episode = event
                 self._finish_download_row(episode_key, "完了")
-                self.status_var.set(f"ダウンロード完了: {episode.get('display_title', episode['title'])}")
+                self.status_var.set(f"ダウンロード完了: {episode.display_title or episode.title}")
                 self.episode_message_var.set(f"保存先: {_program_output_dir(self.output_dir, program)}")
                 if (
                     self.displayed_program is not None
-                    and self.displayed_program["site_id"] == program["site_id"]
-                    and self.displayed_program["corner_id"] == program["corner_id"]
+                    and self.displayed_program.site_id == program.site_id
+                    and self.displayed_program.corner_id == program.corner_id
                 ):
                     self._refresh_downloaded_column(program)
             elif kind == "failed_one":
                 _, episode_key, program, episode = event
                 self._finish_download_row(episode_key, "失敗")
-                self.status_var.set(f"ダウンロード失敗: {episode.get('display_title', episode['title'])}")
+                self.status_var.set(f"ダウンロード失敗: {episode.display_title or episode.title}")
                 self.episode_message_var.set(f"保存先: {_program_output_dir(self.output_dir, program)}")
             elif kind == "canceled_one":
                 _, episode_key, program, episode = event
                 self._finish_download_row(episode_key, "中断")
-                self.status_var.set(f"ダウンロードを中断しました: {episode.get('display_title', episode['title'])}")
+                self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
                 self.episode_message_var.set("中断したエピソードの途中ファイルは削除しました。")
 
             self.download_cancel_events.pop(event[1], None)

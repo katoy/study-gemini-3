@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 import sys
 import signal
+import tkinter as tk
+import argparse
 
 # プロジェクトルートをパスに追加
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -19,133 +21,105 @@ VIDEO_TEMP = PROJECT_ROOT / "demo_temp.mov"
 def run_auto_commands(browser: EpisodeGuiBrowser):
     """アプリのUIを自動操作するシナリオ"""
     print("オートデモシナリオを開始します...")
-    
     try:
-        time.sleep(3)
-        
-        print("ジャンルを選択中 (語学)...")
+        time.sleep(4)
         browser.program_genre_filter_var.set("語学")
         time.sleep(2)
-        
-        print("番組を検索中 (英語)...")
         browser.program_search_var.set("英語")
         time.sleep(3)
-        
         children = browser.program_tree.get_children()
         if children:
-            print(f"番組を選択中... ({len(children)} 件ヒット)")
             browser._select_program_item(children[0])
             browser._on_program_select()
             time.sleep(2)
-            
-            print("エピソード一覧を取得中...")
-            if hasattr(browser, "fetch_button") and str(browser.fetch_button["state"]) != "disabled":
+            if hasattr(browser, "fetch_button"):
                 browser.fetch_button.invoke()
-            else:
-                threading.Thread(target=browser._fetch_episodes_for_selected, daemon=True).start()
-        else:
-            print("警告: 検索結果が空です。")
-        
-        time.sleep(6)
-        
-        print("エピソードを選択中...")
+        time.sleep(8)
         ep_children = browser.episode_tree.get_children()
         if ep_children:
             browser.episode_tree.selection_set(ep_children[0])
             browser.episode_tree.focus(ep_children[0])
             time.sleep(2)
-            
-            print("最初のエピソードをダウンロード開始...")
-            if hasattr(browser, "download_button") and str(browser.download_button["state"]) != "disabled":
+            if hasattr(browser, "download_button"):
                 browser.download_button.invoke()
-            
-            print("ダウンロード完了を待機中...")
             start_wait = time.time()
             while time.time() - start_wait < 30:
-                has_active = any(
-                    row["state"] == "running" for row in browser.active_download_rows.values()
-                )
+                has_active = any(row["state"] == "running" for row in browser.active_download_rows.values())
                 if not has_active and browser.download_finished_count > 0:
-                    print("ダウンロードが完了しました。")
                     break
                 time.sleep(1)
-        
+        time.sleep(3)
     except Exception as e:
         print(f"オートデモ中にエラーが発生しました: {e}")
     finally:
         print("デモ終了。アプリを閉じます。")
-        browser.root.destroy()
+        browser.root.after(0, browser.root.destroy)
 
-def run_demo():
+def run_demo(manual=False):
     if VIDEO_TEMP.exists():
         VIDEO_TEMP.unlink()
     
-    print("--- 高精度オートデモ動画の生成を開始します ---")
-    
-    # ffmpeg 設定
-    # デバイス一覧の観測結果: [3] Capture screen 0
+    print(f"--- 画面全体の録画を開始します ({'手動操作' if manual else '自動シナリオ'}) ---")
+
+    # 1. ffmpeg 開始 (crop なし、画面全体)
     ffmpeg_cmd = [
-        "ffmpeg",
-        "-y",
+        "ffmpeg", "-loglevel", "error", "-y",
         "-f", "avfoundation",
-        "-framerate", "10",  # サポートされている範囲の値を明示
-        "-pix_fmt", "uyvy422",
-        "-i", "3",           # 画面インデックス 3 (Capture screen 0)
-        "-video_size", "1360x840",
+        "-pixel_format", "uyvy422",
+        "-framerate", "30",
+        "-i", "3", # Capture screen 0
+        "-pix_fmt", "yuv420p",
         str(VIDEO_TEMP)
     ]
     
-    print("録画を開始します (ffmpeg)...")
-    # エラー出力を取得するために stderr=PIPE にする
-    ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    time.sleep(2)
-    
-    # 録画が即座に失敗していないかチェック
-    if ffmpeg_proc.poll() is not None:
-        _, stderr = ffmpeg_proc.communicate()
-        print("ffmpeg が起動直後に終了しました。画面インデックスが正しくないか、許可がない可能性があります。")
-        print(f"--- エラー出力 ---\n{stderr}")
-        return
+    ffmpeg_proc = subprocess.Popen(ffmpeg_cmd)
+    time.sleep(1)
 
-    # アプリのセットアップ
+    # 2. アプリのセットアップ
     os.environ["NHK_RADIO_DEMO_MODE"] = "1"
     programs = fetch_program_list()
-    output_dir = PROJECT_ROOT / "downloads"
+    browser = EpisodeGuiBrowser(programs, PROJECT_ROOT / "downloads")
     
-    browser = EpisodeGuiBrowser(programs, output_dir)
-    threading.Thread(target=run_auto_commands, args=(browser,), daemon=True).start()
+    # 位置を (100, 100) 付近に配置 (フルスクリーンでも見やすい位置)
+    browser.root.geometry("1360x840+100+100")
     
-    print("アプリを起動しました。")
-    browser.run()
+    if not manual:
+        threading.Thread(target=run_auto_commands, args=(browser,), daemon=True).start()
     
-    print("録画を停止しています...")
+    print("アプリ起動中...")
+    browser.run() 
+    
+    # 3. 録画停止
+    print("録画を停止中...")
     ffmpeg_proc.send_signal(signal.SIGINT)
     try:
         ffmpeg_proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
+    except:
         ffmpeg_proc.kill()
     
-    # GIF 変換
+    # 4. GIF 変換
     if VIDEO_TEMP.exists() and VIDEO_TEMP.stat().st_size > 0:
-        print(f"録画成功 ({VIDEO_TEMP.stat().st_size} bytes)。GIF に変換中...")
+        print("GIF に変換中 (画面全体)...")
         palette_path = PROJECT_ROOT / "palette.png"
         try:
-            subprocess.run(["ffmpeg", "-y", "-i", str(VIDEO_TEMP), "-vf", "palettegen", str(palette_path)], check=True)
+            # 画面全体は解像度が高いため、1280px幅にリサイズしてGIFを作成
             subprocess.run([
-                "ffmpeg", "-y", "-i", str(VIDEO_TEMP), "-i", str(palette_path),
-                "-filter_complex", "fps=10,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse",
+                "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP), 
+                "-vf", "palettegen", "-sws_flags", "lanczos",
+                "-frames:v", "1", "-update", "1", str(palette_path)
+            ], check=True)
+            subprocess.run([
+                "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP), "-i", str(palette_path),
+                "-filter_complex", "fps=10,scale=1280:-1:flags=lanczos[x];[x][1:v]paletteuse",
                 str(DEMO_PATH)
             ], check=True)
-            print(f"完了しました! 生成されたファイル: {DEMO_PATH}")
-        except Exception as e:
-            print(f"GIF 変換に失敗しました: {e}")
+            print(f"完了しました! {DEMO_PATH}")
         finally:
             if palette_path.exists(): palette_path.unlink()
             if VIDEO_TEMP.exists(): VIDEO_TEMP.unlink()
-    else:
-        stdout, stderr = ffmpeg_proc.communicate()
-        print("録画ファイルが生成されませんでした。")
-        print(f"--- ffmpeg エラー出力 ---\n{stderr}")
 
 if __name__ == "__main__":
-    run_demo()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manual", action="store_true", help="手動操作モードで録画する")
+    args = parser.parse_args()
+    run_demo(manual=args.manual)

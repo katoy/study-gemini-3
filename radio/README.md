@@ -204,30 +204,30 @@ radio/
 ## テストカバレッジ
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-04-17
+最終計測: 2026-04-18
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
 | `__init__.py` | 0 | 100% |
 | `__main__.py` | 3 | 100% |
-| `cache.py` | 68 | 100% |
-| `cli.py` | 165 | 100% |
+| `cache.py` | 62 | 97% |
+| `cli.py` | 181 | 98% |
 | `config.py` | 85 | 100% |
 | `constants.py` | 10 | 100% |
-| `core.py` | 188 | 98% |
-| `downloads.py` | 231 | 97% |
+| `core.py` | 185 | 96% |
+| `downloads.py` | 254 | 99% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/browser.py` | 218 | 51% |
+| `gui/browser.py` | 226 | 51% |
 | `gui/build.py` | 321 | 100% |
-| `gui/downloads.py` | 440 | 13% |
-| `gui/help_markdown.py` | 133 | 33% |
+| `gui/downloads.py` | 480 | 54% |
+| `gui/help_markdown.py` | 133 | 99% |
 | `gui/listing.py` | 609 | 28% |
 | `gui/logo.py` | 32 | 12% |
 | `gui/styling.py` | 310 | 67% |
 | `gui/toolkit.py` | 9 | 44% |
-| `text.py` | 125 | 100% |
-| `types.py` | 3 | 100% |
-| **合計** | **2952** | **60%** |
+| `text.py` | 127 | 99% |
+| `types.py` | 22 | 91% |
+| **合計** | **3051** | **70%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

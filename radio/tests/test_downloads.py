@@ -5,34 +5,41 @@ from pathlib import Path
 from unittest.mock import patch
 
 from nhk_radio import downloads
+from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
 
-PROGRAM = {
-    "title": "番組A",
-    "display_title": "番組A",
-    "genre": "language",
-    "genre_label": "語学",
-    "site_id": "SITE",
-    "corner_id": "01",
-}
+PROGRAM = Program(
+    title="番組A",
+    display_title="番組A",
+    genre="language",
+    genre_label="語学",
+    site_id="SITE",
+    corner_id="01",
+    url="https://example.com/SITE_01",
+    display_date="2024-04-15(月)",
+)
 
-EPISODE = {
-    "id": "ep-1",
-    "date": "20240415",
-    "title": "第1回",
-    "display_title": "第1回",
-}
+EPISODE = Episode(
+    id="ep-1",
+    date="20240415",
+    title="第1回",
+    display_title="第1回",
+    display_date="2024-04-15",
+    broadcast_time="",
+    duration_str="",
+    url="https://example.com/ep1",
+)
 
 
 class DownloadHelpersTest(unittest.TestCase):
     def test_program_storage_helpers(self):
         output_dir = Path("/tmp/output")
         self.assertEqual(downloads._program_output_dir(output_dir, PROGRAM), output_dir / "SITE_01")
-        self.assertEqual(downloads._program_storage_id({"title": "番/組"}), "番_組")
-        self.assertEqual(downloads._program_storage_title({"display_title": "表示"}), "表示")
+        self.assertEqual(downloads._program_storage_id(Program(title="番/組", display_title="", display_date="", site_id="", corner_id="", url="")), "番_組")
+        self.assertEqual(downloads._program_storage_title(Program(title="", display_title="表示", display_date="", site_id="", corner_id="", url="")), "表示")
         self.assertEqual(
             downloads._program_storage_titles(
-                {"title": "A", "display_title": "A", "site_id": "SITE", "corner_id": "01"}
+                Program(title="A", display_title="A", site_id="SITE", corner_id="01", display_date="", url="")
             ),
             ["A", "SITE_01"],
         )
@@ -52,7 +59,7 @@ class DownloadHelpersTest(unittest.TestCase):
             downloads._program_filename_template(PROGRAM, max_items=True),
             "%(playlist_index)s_%(upload_date)s_番組A_%(title)s.%(ext)s",
         )
-        self.assertEqual(downloads._episode_key({"date": "20240415", "title": "第1回"}), "20240415:第1回")
+        self.assertEqual(downloads._episode_key(Episode(id="", date="20240415", title="第1回", display_title="", display_date="", broadcast_time="", duration_str="", url="")), "20240415:第1回")
 
     def test_load_download_manifest_handles_invalid_and_legacy_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,7 +96,7 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertEqual(downloads._episode_output_candidates(program_dir, PROGRAM, EPISODE)[0], preferred)
 
     def test_episode_output_helpers_without_date_and_manifest_only_cases(self):
-        episode = {"title": "第1回"}
+        episode = Episode(id="", title="第1回", display_title="第1回", date="", display_date="", broadcast_time="", duration_str="", url="")
         patterns = downloads._episode_output_patterns(PROGRAM, episode)
         self.assertIn("番組A_第1回.*", patterns)
 
@@ -121,7 +128,8 @@ class DownloadHelpersTest(unittest.TestCase):
             (manifest_dir / ".downloaded.json").write_text(
                 json.dumps({"downloaded": ["ep-1"], "paths": {}}), encoding="utf-8"
             )
-            self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
+            # 修正後: ファイルが実在しない場合は False を返す
+            self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
             self.assertIsNone(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -241,6 +249,62 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertTrue(hasattr(lock_a, "acquire"))
         self.assertTrue(hasattr(lock_a, "release"))
 
+    def test_load_download_manifest_error(self):
+        program = Program(site_id="SITE", corner_id="01", title="番組", display_title="番組", display_date="----", url="U")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            prog_dir = out / "SITE_01"
+            prog_dir.mkdir()
+            manifest = prog_dir / ".downloaded.json"
+            manifest.write_text("{bad", encoding="utf-8")
+            
+            with patch("nhk_radio.downloads.logger") as logger_mock:
+                downloaded, paths = downloads._load_download_manifest(program, out)
+                self.assertEqual(downloaded, set())
+                logger_mock.debug.assert_called()
+
+    def test_episode_output_patterns_no_date(self):
+        program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episode = Episode(id="", title="E", display_title="E", date="", display_date="", broadcast_time="", duration_str="", url="")
+        patterns = downloads._episode_output_patterns(program, episode)
+        self.assertIn("P_E.*", patterns)
+
+    def test_episode_output_matches_edge_cases(self):
+        program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episode = Episode(id="", title="E", display_title="E", date="20240415", display_date="20240415", broadcast_time="", duration_str="", url="")
+        
+        # タイトル不一致
+        path = Path("20240415_OTHER_E.mp3")
+        with patch("pathlib.Path.is_file", return_value=True):
+            self.assertFalse(downloads._episode_output_matches(path, program, episode))
+
+    def test_episode_output_patterns_multi_title(self):
+        program = Program(site_id="SITE", corner_id="01", title="P", display_title="D", display_date="----", url="U")
+        episode = Episode(id="", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
+        patterns = downloads._episode_output_patterns(program, episode)
+        self.assertIn("2024_P_E.*", patterns)
+        self.assertIn("2024_D_E.*", patterns)
+
+    def test_episode_output_matches_no_date_in_episode(self):
+        program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episode = Episode(id="", title="E", display_title="E", date="", display_date="", broadcast_time="", duration_str="", url="")
+        path = Path("P_E.mp3")
+        with patch("pathlib.Path.is_file", return_value=True):
+            self.assertTrue(downloads._episode_output_matches(path, program, episode))
+
+    def test_resolve_episode_downloaded_path_missing_file(self):
+        program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episode = Episode(id="ep1", title="E", display_title="E", date="", display_date="", broadcast_time="", duration_str="", url="")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            prog_dir = out / "SITE_01"
+            prog_dir.mkdir()
+            manifest = prog_dir / ".downloaded.json"
+            manifest.write_text(json.dumps({"downloaded": ["ep1"], "paths": {"ep1": "missing.mp3"}}))
+            
+            # マニフェストにはあるがファイルがない
+            self.assertIsNone(downloads.resolve_episode_downloaded_path(out, program, episode))
+
     def test_download_progress_formatters_and_command_builders(self):
         self.assertEqual(downloads._format_download_percent(None), "--%")
         self.assertEqual(downloads._format_download_percent(10.0), "10%")
@@ -275,6 +339,48 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertFalse(downloads.is_episode_downloaded(Path(tmp), PROGRAM, EPISODE))
+
+    def test_is_episode_downloaded_reflects_physical_file_deletion_regression(self):
+        """Finderなどでファイルが消された場合に[済]マークが消えることを保証する回帰テスト"""
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 1. ファイルを作成し、ダウンロード済みとしてマーク
+            file_path = program_dir / "20240415_番組A_第1回.mp3"
+            file_path.write_text("dummy", encoding="utf-8")
+            downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, file_path)
+            
+            self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
+            
+            # 2. 物理ファイルを削除
+            file_path.unlink()
+            
+            # 3. 判定が False に戻ることを確認 (キャッシュクリアと実在確認の合わせ技)
+            self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE),
+                             "物理ファイル削除後は、マニフェストに記録があっても False を返すべき")
+
+    def test_is_episode_downloaded_cache_invalidation(self):
+        """同一プロセス内でファイルが削除された際、キャッシュに邪魔されず検知できるか"""
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 命名規則に沿ったファイルを作成
+            file_path = program_dir / "20240415_番組A_第1回.mp3"
+            file_path.write_text("x", encoding="utf-8")
+            
+            # 1回目の呼び出しでキャッシュが作成され、True が返るべき
+            self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
+            
+            # ファイル削除
+            file_path.unlink()
+            
+            # 2回目の呼び出しでキャッシュが効いていると True になってしまうが、
+            # 修正後は _clear_file_scan_cache() が呼ばれるため False になるはず
+            self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
 
 
 if __name__ == "__main__":

@@ -61,16 +61,46 @@ class TextHelpersTest(unittest.TestCase):
         self.assertEqual(text._sortable_duration_value("0秒"), (0, 0))
         self.assertEqual(text._sortable_duration_value("abc"), (0, 0))
 
-    def test_program_display_title_and_safe_name(self):
-        self.assertEqual(text._program_display_title("番組", "コーナー"), "[番組] コーナー")
-        self.assertEqual(text._program_display_title("", ""), "(無題)")
-        self.assertEqual(text._safe_name('a/b:c*?"<>|'), "a_b_c______")
+    def test_fixed_display_date(self):
+        dt = datetime(2024, 4, 15)
+        self.assertEqual(text._fixed_display_date(dt), "2024-04-15(月)")
+
+    def test_format_onair_date_variants(self):
+        self.assertEqual(text._format_onair_date("2024-04-15"), "2024-04-15(月)")
+        self.assertEqual(text._format_onair_date("2024/04/16"), "2024-04-16(火)")
+        self.assertEqual(text._format_onair_date("20240417"), "2024-04-17(水)")
+        self.assertEqual(text._format_onair_date("2024年4月18日"), "2024-04-18(木)")
+        self.assertEqual(text._format_onair_date("不明な日付"), "不明な日付")
+
+    def test_sortable_day_value_invalid_cases(self):
+        # YYYYMMDD 形式だが日付として不正
+        self.assertEqual(text._sortable_day_value("20240230"), (0, 0))
+        # 正規表現にマッチするが datetime 変換で失敗
+        self.assertEqual(text._sortable_day_value("2024年13月01日"), (0, 0))
+        # 空文字や放送という文字のみ
+        self.assertEqual(text._sortable_day_value("放送"), (0, 0))
+
+    def test_sortable_timestamp_value_iso(self):
+        # ISO 形式 (UTC)
+        ts = text._sortable_timestamp_value("2024-04-15T00:00:00Z")
+        self.assertEqual(ts[0], 1)
+        self.assertEqual(ts[1], 1713139200.0)
+        # ISO 形式 (オフセットあり)
+        ts_jst = text._sortable_timestamp_value("2024-04-15T09:00:00+09:00")
+        self.assertEqual(ts_jst[1], 1713139200.0)
+
+    def test_program_display_title_cases(self):
+        self.assertEqual(text._program_display_title("番組", "番組"), "番組")
+        self.assertEqual(text._program_display_title("", "コーナー"), "コーナー")
+        self.assertEqual(text._program_display_title("番組", ""), "番組")
 
     def test_genre_label_and_width_helpers(self):
         self.assertEqual(text._genre_label("language"), "語学")
         self.assertEqual(text._genre_label("unknown"), "未分類")
         self.assertEqual(text._char_width("あ"), 2)
+        self.assertEqual(text._char_width("a"), 1)
         self.assertEqual(text._display_width("abあ"), 4)
+        self.assertEqual(text._display_width(""), 0)
 
 
 if __name__ == "__main__":

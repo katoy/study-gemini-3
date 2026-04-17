@@ -62,43 +62,43 @@ class GuiStylingMixin:
     def _theme_palette(self, theme_name: str) -> dict[str, str]:
         if theme_name == "dark":
             return {
-                "bg": "#1C1C1E",
-                "surface": "#2C2C2E",
-                "surface_alt": "#3A3A3C",
-                "accent": "#0A84FF",
-                "accent_dark": "#0066CC",
+                "bg": "#121214",           # より深い黒
+                "surface": "#1E1E20",      # コントラストを維持
+                "surface_alt": "#2A2A2D",
+                "accent": "#4DA3FF",       # 少し明るい青
+                "accent_dark": "#007AFF",
                 "accent_soft": "#0A2744",
                 "on_accent": "#FFFFFF",
-                "selected_bg": "#3B9BFF",
+                "selected_bg": "#005BBF",
                 "selected_fg": "#FFFFFF",
-                "text": "#F5F5F7",
-                "text_sub": "#98989D",
+                "text": "#FFFFFF",         # 純粋な白
+                "text_sub": "#B0B0B5",     # サブテキストを明るく
                 "border": "#3A3A3C",
-                "border_strong": "#48484A",
-                "head_bg": "#2C2C2E",
-                "row_odd": "#252527",
-                "dl_even": "#1C2E22",
-                "dl_odd": "#1F3326",
-                "input_bg": "#1C1C1E",
+                "border_strong": "#505054",
+                "head_bg": "#1E1E20",
+                "row_odd": "#18181A",
+                "dl_even": "#14261A",
+                "dl_odd": "#182F21",
+                "input_bg": "#000000",     # 入力エリアを完全に黒に
             }
         return {
-            "bg": "#F2F2F7",
+            "bg": "#F5F5F7",
             "surface": "#FFFFFF",
-            "surface_alt": "#F5F5F7",
-            "accent": "#007AFF",
-            "accent_dark": "#0055B3",
-            "accent_soft": "#E5F1FF",
+            "surface_alt": "#E8E8ED",
+            "accent": "#0066CC",       # 少し濃い青
+            "accent_dark": "#004499",
+            "accent_soft": "#DCEBFF",
             "on_accent": "#FFFFFF",
-            "selected_bg": "#007AFF",
+            "selected_bg": "#0066CC",
             "selected_fg": "#FFFFFF",
-            "text": "#1D1D1F",
-            "text_sub": "#6E6E73",
-            "border": "#E0E0E5",
-            "border_strong": "#C7C7CC",
-            "head_bg": "#F2F2F7",
-            "row_odd": "#F9F9FB",
-            "dl_even": "#F0FBF4",
-            "dl_odd": "#E5F7EC",
+            "text": "#000000",         # 純粋な黒
+            "text_sub": "#424245",     # サブテキストを濃く
+            "border": "#D1D1D6",
+            "border_strong": "#8E8E93",
+            "head_bg": "#E8E8ED",
+            "row_odd": "#F0F0F2",
+            "dl_even": "#E8F5E9",
+            "dl_odd": "#DBEDDE",
             "input_bg": "#FFFFFF",
         }
 

@@ -155,7 +155,7 @@ def _sortable_duration_value(duration_text: str) -> tuple[int, int]:
 def _program_display_title(series_title: str, corner_name: str) -> str:
     title = _normalize_text(series_title)
     corner = _normalize_text(corner_name)
-    if corner and corner != title:
+    if title and corner and corner != title:
         return f"[{title}] {corner}"
     return title or corner or "(無題)"
 
@@ -170,7 +170,9 @@ def _genre_label(genre: str | None) -> str:
 
 
 def _char_width(ch: str) -> int:
-    return 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+    if unicodedata.east_asian_width(ch) in "WF":
+        return 2
+    return 1
 
 
 def _display_width(text: str) -> int:

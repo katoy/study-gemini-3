@@ -1,6 +1,7 @@
 """Command-line entrypoint for the NHK radio downloader."""
 
 import argparse
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -23,17 +24,20 @@ from .downloads import (
     resolve_episode_downloaded_path,
 )
 from .gui import browse_programs
+from .types import Episode, Program
+
+logger = logging.getLogger(__name__)
 
 
-def select_program(programs: list[dict]) -> dict | None:
+def select_program(programs: list[Program]) -> Program | None:
     """番組一覧を表示してユーザーに選択させる"""
     print()
     print("=" * 70)
     print(f"  NHK ラジオ 聞き逃し番組一覧  ({len(programs)} 番組)")
     print("=" * 70)
     for i, p in enumerate(programs, 1):
-        date = p.get("display_date", "----")
-        title = p.get("display_title", p["title"])
+        date = p.display_date or "----"
+        title = p.display_title or p.title
         print(f"  {i:3}. [{date}] {title}")
     print("=" * 70)
     print("  0. キャンセル / URL を直接入力: u")
@@ -49,6 +53,7 @@ def select_program(programs: list[dict]) -> dict | None:
                 program = _url_to_program(url)
                 if program is None:
                     print(f"  URL の形式が正しくありません: {url}")
+                    continue
                 return program
             n = int(raw)
             if 1 <= n <= len(programs):
@@ -58,7 +63,7 @@ def select_program(programs: list[dict]) -> dict | None:
             print("  数字を入力してください。")
 
 
-def select_episodes(episodes: list[dict]) -> list[dict] | None:
+def select_episodes(episodes: list[Episode]) -> list[Episode] | None:
     """エピソード一覧を表示して選択させる"""
     if not episodes:
         print("  利用可能なエピソードがありません。")
@@ -67,15 +72,15 @@ def select_episodes(episodes: list[dict]) -> list[dict] | None:
     print()
     print("-" * 70)
     for i, ep in enumerate(episodes, 1):
-        date_text = ep.get("display_date", ep["date"][:10] if ep["date"] else "----")
-        btime = ep.get("broadcast_time", "")
-        dur = ep.get("duration_str", "")
+        date_text = ep.display_date or (ep.date[:10] if ep.date else "----")
+        btime = ep.broadcast_time or ""
+        dur = ep.duration_str or ""
         meta = date_text
         if btime:
             meta = f"{meta} {btime}"
         if dur:
             meta = f"{meta} [{dur}]"
-        print(f"  {i:3}. [{meta}] {ep['title']}")
+        print(f"  {i:3}. [{meta}] {ep.title}")
     print("-" * 70)
     print(f"  a. 全件 ({len(episodes)} 件)")
     print("  0. 戻る")
@@ -116,7 +121,7 @@ def download_episode(
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
     if verbose:
-        print(f"  → {url}")
+        logger.info(f"ダウンロード開始: {url}")
     return subprocess.run(cmd).returncode == 0
 
 
@@ -130,7 +135,7 @@ def download_url_direct(
     """URL を直接指定してダウンロードする (非対話モード)"""
     program = _resolve_program_from_url(url, genre=genre)
     if program is None:
-        print(f"URL の形式が正しくありません: {url}")
+        logger.error(f"URL の形式が正しくありません: {url}")
         sys.exit(1)
 
     target_dir = _program_output_dir(output_dir, program)
@@ -146,28 +151,28 @@ def download_url_direct(
         max_items=max_items,
     )
 
-    print(f"ダウンロード開始: {url}")
-    print(f"保存先: {target_dir}")
+    logger.info(f"番組: {program.display_title}")
+    logger.info(f"保存先: {target_dir}")
     result = subprocess.run(cmd)
     if result.returncode == 0:
-        print("\nダウンロード完了!")
+        logger.info("ダウンロード完了!")
     else:
-        print(f"\nエラー (終了コード: {result.returncode})")
+        logger.error(f"エラー (終了コード: {result.returncode})")
         sys.exit(result.returncode)
 
 
-def _download_selected_episodes(program: dict, episodes: list[dict], output_dir: Path, *, audio_only: bool) -> int:
+def _download_selected_episodes(program: Program, episodes: list[Episode], output_dir: Path, *, audio_only: bool) -> int:
     target_dir = _program_output_dir(output_dir, program)
     filename_template = _program_filename_template(program)
     downloaded_count = 0
     for episode in episodes:
-        title = episode.get("display_title", episode["title"])
+        title = episode.display_title or episode.title
         if is_episode_downloaded(output_dir, program, episode):
-            print(f"スキップ: {title} (保存済み)")
+            logger.info(f"スキップ: {title} (保存済み)")
             continue
-        success = download_episode(episode["url"], target_dir, filename_template, audio_only=audio_only)
+        success = download_episode(episode.url, target_dir, filename_template, audio_only=audio_only)
         if not success:
-            print(f"失敗: {title}")
+            logger.error(f"失敗: {title}")
             continue
         downloaded_path = resolve_episode_downloaded_path(output_dir, program, episode)
         mark_episode_downloaded(output_dir, program, episode, downloaded_path)
@@ -175,7 +180,7 @@ def _download_selected_episodes(program: dict, episodes: list[dict], output_dir:
     return downloaded_count
 
 
-def _interactive_cli_fallback(programs: list[dict], output_dir: Path, *, audio_only: bool) -> None:
+def _interactive_cli_fallback(programs: list[Program], output_dir: Path, *, audio_only: bool) -> None:
     program = select_program(programs)
     if program is None:
         print("終了します。")
@@ -184,7 +189,7 @@ def _interactive_cli_fallback(programs: list[dict], output_dir: Path, *, audio_o
     try:
         episodes, _source = get_episode_list(program)
     except Exception as e:
-        print(f"エピソード一覧を取得できませんでした: {e}")
+        logger.error(f"エピソード一覧を取得できませんでした: {e}")
         sys.exit(1)
 
     selected = select_episodes(episodes)
@@ -197,27 +202,55 @@ def _interactive_cli_fallback(programs: list[dict], output_dir: Path, *, audio_o
 
 
 def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: bool = True):
-    programs = fetch_program_list(genre)
-
-    if not programs:
-        print("番組が見つかりませんでした。")
-        sys.exit(1)
+    # macOS における GUI 起動時の Mach port エラー出力を抑制するための試み
+    if sys.platform == "darwin":
+        import os
+        if "TK_SILENCE_DEPRECATION" not in os.environ:
+            os.environ["TK_SILENCE_DEPRECATION"] = "1"
 
     try:
-        program, episodes = browse_programs(programs, output_dir, audio_only=audio_only)
+        # programs=None を渡して、GUI 内部で非同期取得を開始させる
+        program, episodes = browse_programs(None, output_dir, audio_only=audio_only, genre=genre)
     except RuntimeError as e:
-        print(f"GUI を起動できませんでした: {e}")
+        logger.warning(f"GUI を起動できませんでした: {e}")
+        # GUI が使えない場合はフォールバック（ここでは従来通り同期取得が必要）
+        programs = fetch_program_list(genre)
+        if not programs:
+            logger.error("番組が見つかりませんでした。")
+            sys.exit(1)
         _interactive_cli_fallback(programs, output_dir, audio_only=audio_only)
-        print("終了します。")
         return
 
     if program and episodes:
-        completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
-        print(f"完了: {completed} 件")
-    print("終了します。")
+        completed = _download_selected_episodes(program, selected=episodes, output_dir=output_dir, audio_only=audio_only)
+        logger.info(f"完了: {completed} 件")
+    logger.info("終了します。")
 
 
-def main():
+def run_cli(args):
+    # ロギングの設定
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s" if args.verbose else "%(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    output_dir = Path(args.output_dir).expanduser()
+
+    if args.clear_cache:
+        removed = clear_all_cache()
+        logger.info(f"キャッシュを削除しました: {removed} 件")
+        return 0
+
+    if args.url:
+        download_url_direct(args.url, output_dir, args.max_items, audio_only=not args.keep_video, genre=args.genre)
+    else:
+        interactive_mode(output_dir, genre=args.genre, audio_only=not args.keep_video)
+    return 0
+
+
+def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="NHK ラジオ 聞き逃し番組ダウンローダー (個人学習用)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -259,16 +292,11 @@ def main():
         metavar=f"{{{','.join(NHK_GENRES)}}}",
         help="番組ジャンルで絞り込む (省略すると全番組)",
     )
+    parser.add_argument("--verbose", "-v", action="store_true", help="詳細なログを出力する")
+    return parser
+
+
+def main():
+    parser = create_parser()
     args = parser.parse_args()
-
-    output_dir = Path(args.output_dir).expanduser()
-
-    if args.clear_cache:
-        removed = clear_all_cache()
-        print(f"キャッシュを削除しました: {removed} 件")
-        return
-
-    if args.url:
-        download_url_direct(args.url, output_dir, args.max_items, audio_only=not args.keep_video, genre=args.genre)
-    else:
-        interactive_mode(output_dir, genre=args.genre, audio_only=not args.keep_video)
+    sys.exit(run_cli(args))

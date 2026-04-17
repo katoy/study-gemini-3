@@ -16,24 +16,30 @@ from .toolkit import messagebox, tk, ttk
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
-    def __init__(self, programs: list[Program], output_dir: Path, *, audio_only: bool = True):
+    def __init__(self, programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None):
         if tk is None or ttk is None:
             raise RuntimeError("tkinter が利用できません")
 
-        self.programs = programs
+        self.programs = programs or []
         self.output_dir = output_dir
         self.audio_only = audio_only
-        self._initialize_runtime_state(programs)
+        self.genre = genre
+        self._initialize_runtime_state(self.programs)
         self._initialize_root_window()
-        self._initialize_ui_state(programs)
+        self._initialize_ui_state(self.programs)
 
         self._build_widgets()
         self._populate_programs()
+
+        if programs is None:
+            # 起動後に非同期取得を開始
+            self.root.after(100, lambda: self._start_fetch_programs(genre))
 
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
         self.fetch_result_queue: queue.Queue | None = None
+        self.program_fetch_queue: queue.Queue | None = None
         self.download_result_queue: queue.Queue = queue.Queue()
         self.download_polling = False
         self.download_cancel_events: dict[str, threading.Event] = {}
@@ -66,6 +72,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
+        
+        # macOS でのイベントループ初期化エラーを抑制するためのヒント
+        try:
+            self.root.update_idletasks()
+        except tk.TclError:
+            pass
+
         # デモモード時は録画しやすいように位置を固定
         import os
 
@@ -76,7 +89,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.root.minsize(1040, 680)
         self.root.protocol("WM_DELETE_WINDOW", self._cancel)
 
-    def _initialize_ui_state(self, programs: list[dict]) -> None:
+    def _initialize_ui_state(self, programs: list[Program]) -> None:
         self.current_theme = DEFAULT_UI_THEME
         self.current_font_size = DEFAULT_UI_FONT_SIZE_PT
         self.current_screen = "browser"
@@ -116,7 +129,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
 
-    def run(self) -> tuple[dict, list[dict]] | tuple[None, None]:
+    def run(self) -> tuple[Program, list[Episode]] | tuple[None, None]:
         self.root.mainloop()
         return self.result
 
@@ -275,10 +288,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
 
 def browse_programs(
-    programs: list[Program], output_dir: Path, *, audio_only: bool = True
+    programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None
 ) -> tuple[Program, list[Episode]] | tuple[None, None]:
+
     try:
-        return EpisodeGuiBrowser(programs, output_dir, audio_only=audio_only).run()
+        return EpisodeGuiBrowser(programs, output_dir, audio_only=audio_only, genre=genre).run()
     except tk.TclError as e:
         raise RuntimeError(str(e)) from e
 
