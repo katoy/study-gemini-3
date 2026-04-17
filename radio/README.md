@@ -219,7 +219,7 @@ radio/
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 226 | 51% |
 | `gui/build.py` | 321 | 100% |
-| `gui/downloads.py` | 480 | 54% |
+| `gui/downloads.py` | 482 | 54% |
 | `gui/help_markdown.py` | 133 | 99% |
 | `gui/listing.py` | 609 | 28% |
 | `gui/logo.py` | 32 | 12% |
@@ -227,7 +227,7 @@ radio/
 | `gui/toolkit.py` | 9 | 44% |
 | `text.py` | 127 | 99% |
 | `types.py` | 22 | 91% |
-| **合計** | **3051** | **70%** |
+| **合計** | **3053** | **70%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

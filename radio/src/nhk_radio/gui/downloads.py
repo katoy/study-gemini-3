@@ -68,6 +68,9 @@ class GuiDownloadsMixin:
 
         self.programs = programs
         self.filtered_programs = list(programs)
+        # ジャンル選択リストを更新
+        if hasattr(self, "program_genre_filter_combo"):
+            self.program_genre_filter_combo["values"] = self._program_genre_filter_values()
         # Treeview を再構築
         self._populate_programs(preserve_selection=False)
         self.program_list_summary_var.set(self._program_list_summary_text())
