@@ -68,6 +68,20 @@ python3 nhk_radio_dl.py --help
 uv run python -m pytest tests/
 ```
 
+### 5. デモ動画の生成 (macOS)
+
+アプリの操作デモ（GIF）を自動生成できます。
+
+```bash
+# 自動操作シナリオで生成
+uv run python scripts/generate_demo.py
+
+# 手動操作を録画して生成 (アプリを閉じると終了)
+uv run python scripts/generate_demo.py --manual
+```
+
+※ macOS の「画面収録」と「アクセシビリティ」の許可が必要です。
+
 ## 使い方
 
 ### GUI で番組を選んで保存
