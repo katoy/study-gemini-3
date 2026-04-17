@@ -289,7 +289,10 @@ class GuiListingMixin:
             self.selected_program_stats_var.set("エピソード一覧は未取得です。")
 
     def _on_program_search_change(self, *_args):
-        self._apply_program_filters()
+        # 入力のたびに実行せず、一定時間入力が止まってからフィルタを適用する（デバウンス）
+        if hasattr(self, "_search_timer"):
+            self.root.after_cancel(self._search_timer)
+        self._search_timer = self.root.after(250, self._apply_program_filters)
 
     def _clear_program_search(self, _event=None):
         self.program_search_var.set("")
@@ -322,19 +325,14 @@ class GuiListingMixin:
         return "break"
 
     def _cached_episodes_for(self, program: Program) -> list[Episode]:
+        """メモリキャッシュのみを同期的にチェックする軽量版。"""
         key = (program.site_id, program.corner_id)
         cached = self.episodes_cache.get(key)
         if cached is not None:
             cached_at, episodes = cached
             if time.time() - cached_at <= CACHE_TTL_SECONDS:
                 return episodes
-            self.episodes_cache.pop(key, None)
-
-        disk_cached = load_episode_cache(program)
-        if disk_cached is None:
-            return []
-        self.episodes_cache[key] = (time.time(), disk_cached)
-        return disk_cached
+        return []
 
     def _update_program_overview(
         self,
@@ -378,22 +376,29 @@ class GuiListingMixin:
         self.selected_program_stats_var.set(stats)
 
     def _on_program_select(self, _event=None):
-        if self.fetch_result_queue is not None:
-            return "break"
-
         program = self._selected_program()
         if program is None:
             return None
 
-        self.status_var.set("")
-        episodes = self._cached_episodes_for(program)
-        self._update_fetch_button_state()
-        if episodes:
-            self._update_program_overview(program, episodes, "")
-            self._show_episodes(program, episodes, message="")
-        else:
-            self._update_program_overview(program, None, "")
-            self._show_episodes(program, [], message="")
+        # メモリキャッシュをまずチェック（これは非常に速い）
+        key = (program.site_id, program.corner_id)
+        cached = self.episodes_cache.get(key)
+        
+        if cached is not None:
+            cached_at, episodes = cached
+            if time.time() - cached_at <= CACHE_TTL_SECONDS:
+                self.status_var.set("")
+                self._update_program_overview(program, episodes, "")
+                self._show_episodes(program, episodes, message="")
+                self._update_fetch_button_state()
+                return None
+
+        # メモリにない場合は、バックグラウンドでディスクキャッシュ・ネットワークをチェック
+        self._update_program_overview(program, None, "準備中...")
+        self._show_episodes(program, [], message="情報を確認しています...")
+        
+        # 非同期取得を開始 (GuiDownloadsMixin のメソッド)
+        self.root.after_idle(lambda: self._start_fetch_selected(silent=True))
         return None
 
     def _on_program_double_click(self, event):

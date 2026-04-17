@@ -140,8 +140,12 @@ class GuiDownloadsTest(unittest.TestCase):
 
     def test_clear_cache(self):
         with patch("nhk_radio.gui.downloads.clear_all_cache", return_value=10):
+            # 実行開始（非同期スレッドが起動するが、テストでは完了メソッドを直接呼んでシミュレート）
             self.gui._clear_cache()
-            self.gui.status_var.set.assert_called_with("キャッシュを削除しました (10 件)")
+            self.gui.status_var.set.assert_any_call("キャッシュを削除中...")
+            # 完了処理を直接実行
+            self.gui._finish_clear_cache(10)
+            self.gui.status_var.set.assert_any_call("キャッシュを削除しました (10 件)")
 
     def test_cancel_download_job(self):
         episode_key = "test_ep"

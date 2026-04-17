@@ -386,7 +386,7 @@ class GuiDownloadsMixin:
             with contextlib.suppress(Exception):
                 process.terminate()
 
-    def _start_fetch_selected(self, _event=None):
+    def _start_fetch_selected(self, _event=None, silent: bool = False):
         if self.loading:
             return "break"
 
@@ -394,11 +394,13 @@ class GuiDownloadsMixin:
         if program is None:
             return "break"
 
-        title = program.display_title or program.title
-        self.status_var.set(f"「{title}」のエピソード一覧を取得中...")
-        self.episode_message_var.set("取得中...")
-        self._update_program_overview(program, None, "取得中")
-        self._set_progress(0, 1, "")
+        if not silent:
+            title = program.display_title or program.title
+            self.status_var.set(f"「{title}」のエピソード一覧を取得中...")
+            self.episode_message_var.set("取得中...")
+            self._update_program_overview(program, None, "取得中")
+            self._set_progress(0, 1, "")
+
         self._set_loading(True, allow_cancel=False)
         self.fetch_result_queue = queue.Queue()
         worker = threading.Thread(target=self._fetch_worker, args=(program, self.fetch_result_queue), daemon=True)
@@ -459,10 +461,23 @@ class GuiDownloadsMixin:
     def _clear_cache(self):
         if self.loading:
             return
-        removed = clear_all_cache()
+        self.status_var.set("キャッシュを削除中...")
+        self._set_loading(True)
+        threading.Thread(target=self._clear_cache_worker, daemon=True).start()
+
+    def _clear_cache_worker(self):
+        try:
+            removed = clear_all_cache()
+        except Exception:
+            removed = 0
+        self.root.after(0, lambda: self._finish_clear_cache(removed))
+
+    def _finish_clear_cache(self, removed: int):
         self.episodes_cache.clear()
         self._reset_ui_state_after_cache_clear()
+        self._set_loading(False)
         self.status_var.set(f"キャッシュを削除しました ({removed} 件)")
+        # 再選択してUIを最新にする
         self._on_program_select()
 
     def _start_download_selected(self, _event=None):
