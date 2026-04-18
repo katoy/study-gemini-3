@@ -18,7 +18,7 @@ NHK ラジオの聞き逃し番組を一覧表示し、番組ごとにエピソ�
 - **URL 直接指定にも対応**: 番組 URL を引数で渡して、そのまま保存できます。
 - **キャッシュ付き**: 番組一覧・エピソード一覧を `.cache/` に保持し、再取得を減らします。取得失敗時は期限切れキャッシュも再利用します。
 - **重複保存を回避**: 保存済みファイルと `.downloaded.json` を使って、ダウンロード済みエピソードを追跡します。
-- **製品寄りの操作導線**: ヘルプ、キーボードショートカット、保存済みファイル確認ポップアップを備えています。
+- **製品寄りの操作導線**: ヘルプダイアログ、キーボードショートカット、保存済みエピソード行の `済` ボタンからワンクリックで保存先フォルダを開く機能を備えています。
 
 ## 動作環境
 
@@ -137,6 +137,7 @@ python3 nhk_radio_dl.py --clear-cache
 - `--keep-video`: 音声変換せず元ファイルを保持
 - `--clear-cache`: 番組一覧・エピソード一覧のキャッシュを削除して終了（GUI 設定は削除されません）
 - `--genre`, `-g`: `language`, `music`, `news`, `drama`, `sports`, `documentary`, `variety` のいずれかで絞り込み
+- `--verbose`, `-v`: 詳細なログを出力する
 
 ## 保存先
 
@@ -185,17 +186,25 @@ package としてインストールして実行する場合は、キャッシュ
 ```text
 radio/
 ├── API.md           # 番組 API の実装ベース仕様
-├── nhk_radio_dl.py  # メインスクリプト
+├── nhk_radio_dl.py  # ソースツリー実行用ラッパー (src/nhk_radio.cli を呼び出す)
 ├── README.md        # このドキュメント
+├── pyproject.toml   # uv / pip 用の依存・メタデータ
 ├── requirements.txt # 実行時の Python 依存
 ├── src/
 │   └── nhk_radio/   # アプリ本体 package
-│       ├── core.py
-│       ├── cache.py
-│       ├── downloads.py
-│       ├── text.py
-│       └── gui/
-├── tests/           # unittest ベースの回帰テスト
+│       ├── __main__.py  # `python -m nhk_radio` エントリ
+│       ├── cli.py       # コマンドライン引数処理と対話モード
+│       ├── core.py      # 番組一覧 / エピソード取得ロジック
+│       ├── cache.py     # 一覧キャッシュ (TTL 付き)
+│       ├── config.py    # 設定と UI 設定パス
+│       ├── constants.py # API エンドポイント・ジャンル定数
+│       ├── downloads.py # yt-dlp 実行・保存先管理・重複判定
+│       ├── text.py      # 表示整形ユーティリティ
+│       ├── types.py     # Program / Episode の dataclass 定義
+│       ├── help.md      # GUI ヘルプ本文
+│       └── gui/         # Tkinter GUI (mixin 構成)
+├── scripts/         # デモ動画生成スクリプト等
+├── tests/           # pytest ベースの回帰テスト
 ├── .cache/          # 番組一覧・エピソード一覧・UI 設定キャッシュ
 └── downloads/       # ダウンロード保存先
 ```
@@ -204,7 +213,7 @@ radio/
 ## テストカバレッジ
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-04-18
+最終計測: 2026-04-19
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
