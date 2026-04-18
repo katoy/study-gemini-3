@@ -5,9 +5,10 @@ from importlib import resources
 
 from ..constants import GENRE_LABELS, NHK_GENRES
 from ..text import _normalize_text
+from ..types import Program
 
 
-def build_help_markdown(programs: list[dict]) -> str:
+def build_help_markdown(programs: list[Program]) -> str:
     template = resources.files("nhk_radio").joinpath("help.md").read_text(encoding="utf-8")
     return template.replace("{{GENRE_LIST}}", _render_genre_list_markdown()).replace(
         "{{CORNER_LIST}}", _render_corner_list_markdown(programs)
@@ -18,20 +19,20 @@ def _render_genre_list_markdown() -> str:
     return "\n".join(f"- `{genre}`: {GENRE_LABELS.get(genre, genre)}" for genre in NHK_GENRES)
 
 
-def _render_corner_list_markdown(programs: list[dict]) -> str:
+def _render_corner_list_markdown(programs: list[Program]) -> str:
     lines: list[str] = []
     seen: set[str] = set()
     for program in sorted(
         programs,
         key=lambda item: (
-            _normalize_text(item.get("corner_name", "")),
-            str(item.get("site_id", "")),
-            str(item.get("corner_id", "")),
+            _normalize_text(item.corner_name or ""),
+            item.site_id or "",
+            item.corner_id or "",
         ),
     ):
-        site_id = str(program.get("site_id") or "").strip()
-        corner_id = str(program.get("corner_id") or "").strip()
-        corner_name = _normalize_text(program.get("corner_name", ""))
+        site_id = (program.site_id or "").strip()
+        corner_id = (program.corner_id or "").strip()
+        corner_name = _normalize_text(program.corner_name or "")
         if not site_id or not corner_id or not corner_name:
             continue
         key = f"{site_id}_{corner_id}"

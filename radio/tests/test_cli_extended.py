@@ -147,9 +147,10 @@ class CliExtendedTest(unittest.TestCase):
         episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="20240415", broadcast_time="", duration_str="", url="U")]
         with (
             patch.object(cli, "browse_programs", return_value=(program, episodes)),
-            patch.object(cli, "_download_selected_episodes", return_value=1),
+            patch.object(cli, "_download_selected_episodes", autospec=True, return_value=1) as download_mock,
         ):
             cli.interactive_mode(Path("/tmp"))
+            download_mock.assert_called_once_with(program, episodes, Path("/tmp"), audio_only=True)
 
     def test_interactive_mode_no_programs(self):
         # GUI 起動に失敗し、フォールバックで番組が見つからないケース

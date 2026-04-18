@@ -22,6 +22,7 @@ from ..downloads import (
     mark_episode_downloaded,
     resolve_episode_downloaded_path,
 )
+from ..types import Episode, Program
 from .toolkit import tk, ttk
 
 
@@ -154,9 +155,6 @@ class GuiDownloadsMixin:
     def _show_progress_window(self):
         self.download_jobs_canvas.focus_set()
         self.status_var.set("下部のダウンロード状況を確認してください。")
-
-    def _hide_progress_window(self):
-        return
 
     def _on_download_jobs_inner_configure(self, _event=None):
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))

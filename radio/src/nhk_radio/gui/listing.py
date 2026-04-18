@@ -8,7 +8,6 @@ import unicodedata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..cache import load_episode_cache
 from ..config import CACHE_TTL_SECONDS, SEARCH_HISTORY_LIMIT
 from ..downloads import (
     _episode_key,
@@ -25,9 +24,6 @@ from ..text import (
 )
 from ..types import Episode, Program
 from .toolkit import tk, ttk
-
-if TYPE_CHECKING:
-    from .browser import EpisodeGuiBrowser
 
 
 class GuiListingMixin:
@@ -105,7 +101,7 @@ class GuiListingMixin:
             self._clear_program_selection()
         self._update_fetch_button_state()
 
-    def _selected_program(self) -> dict | None:
+    def _selected_program(self) -> Program | None:
         selection = self.program_tree.selection()
         if not selection:
             return None
@@ -192,7 +188,7 @@ class GuiListingMixin:
         self._update_episode_tree_headings()
         self._rerender_displayed_episodes()
 
-    def _sorted_programs(self, programs: list[dict]) -> list[dict]:
+    def _sorted_programs(self, programs: list[Program]) -> list[Program]:
         if self.program_sort_column is None:
             return list(programs)
         return sorted(programs, key=self._program_sort_key, reverse=self.program_sort_reverse)
@@ -383,7 +379,7 @@ class GuiListingMixin:
         # メモリキャッシュをまずチェック（これは非常に速い）
         key = (program.site_id, program.corner_id)
         cached = self.episodes_cache.get(key)
-        
+
         if cached is not None:
             cached_at, episodes = cached
             if time.time() - cached_at <= CACHE_TTL_SECONDS:
@@ -396,7 +392,7 @@ class GuiListingMixin:
         # メモリにない場合は、バックグラウンドでディスクキャッシュ・ネットワークをチェック
         self._update_program_overview(program, None, "準備中...")
         self._show_episodes(program, [], message="情報を確認しています...")
-        
+
         # 非同期取得を開始 (GuiDownloadsMixin のメソッド)
         self.root.after_idle(lambda: self._start_fetch_selected(silent=True))
         return None
@@ -787,84 +783,6 @@ class GuiListingMixin:
 
         self._open_saved_folder(path)
         return "break"
-
-    def _show_saved_episode_popup(self, path: Path, episode: Episode):
-        if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
-            self.saved_episode_popup.destroy()
-
-        popup = tk.Toplevel(self.root)
-        popup.title("保存済みファイル")
-        popup.geometry("760x260")
-        popup.minsize(560, 220)
-        popup.transient(self.root)
-        popup.resizable(True, False)
-        popup.configure(background=self._palette["surface"])
-
-        self._build_saved_episode_popup_content(popup, path, episode)
-
-        popup.bind("<Escape>", lambda _event: popup.destroy())
-        popup.update_idletasks()
-        root_x = self.root.winfo_rootx()
-        root_y = self.root.winfo_rooty()
-        root_w = self.root.winfo_width()
-        root_h = self.root.winfo_height()
-        popup_w = popup.winfo_width()
-        popup_h = popup.winfo_height()
-        popup.geometry(f"+{root_x + max((root_w - popup_w) // 2, 0)}+{root_y + max((root_h - popup_h) // 2, 0)}")
-        popup.lift()
-        popup.focus_force()
-        self.saved_episode_popup = popup
-
-    def _build_saved_episode_popup_content(self, popup: tk.Toplevel, path: Path, episode: Episode) -> None:
-        main = ttk.Frame(popup, padding=16)
-        main.pack(fill="both", expand=True)
-        main.columnconfigure(0, weight=1)
-        main.rowconfigure(1, weight=1)
-
-        header = ttk.Frame(main)
-        header.grid(row=0, column=0, sticky="ew")
-        header.columnconfigure(0, weight=1)
-        ttk.Label(header, text="保存済みファイル", style="Heading.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            header,
-            text=episode.display_title or episode.title or "エピソード",
-            style="PopupTitle.TLabel",
-            wraplength=700,
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-
-        body = ttk.Frame(main, padding=(0, 14, 0, 0))
-        body.grid(row=1, column=0, sticky="nsew")
-        body.columnconfigure(1, weight=1)
-        ttk.Label(body, text="ファイル名", style="PopupLabel.TLabel").grid(row=0, column=0, sticky="nw", padx=(0, 12))
-        ttk.Label(body, text=path.name, style="PopupValue.TLabel", wraplength=560, justify="left").grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(body, text="保存先PATH", style="PopupLabel.TLabel").grid(
-            row=1, column=0, sticky="nw", padx=(0, 12), pady=(12, 0)
-        )
-        # ガベージコレクションを防ぐため popup に属性として保持させる
-        popup._path_var = tk.StringVar(popup, value=str(path.absolute()))
-        path_entry = ttk.Entry(body, textvariable=popup._path_var)
-        path_entry.grid(row=1, column=1, sticky="ew", pady=(12, 0))
-        path_entry.state(["readonly"])
-        ttk.Label(body, text="保存先フォルダ", style="PopupLabel.TLabel").grid(
-            row=2, column=0, sticky="nw", padx=(0, 12), pady=(12, 0)
-        )
-        ttk.Label(
-            body, text=str(path.parent.absolute()), style="PopupValue.TLabel", wraplength=560, justify="left"
-        ).grid(row=2, column=1, sticky="w", pady=(12, 0))
-
-        ttk.Separator(main, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(16, 12))
-        buttons = ttk.Frame(main)
-        buttons.grid(row=3, column=0, sticky="e")
-        ttk.Button(buttons, text="PATHのコピー", command=lambda: self._copy_path_to_clipboard(path)).grid(
-            row=0, column=0, padx=(0, 8)
-        )
-        ttk.Button(buttons, text="フォルダオープン", command=lambda: self._open_saved_folder(path)).grid(
-            row=0, column=1, padx=(0, 8)
-        )
-        ttk.Button(buttons, text="閉じる", command=popup.destroy).grid(row=0, column=2)
 
     def _copy_path_to_clipboard(self, path: Path):
         self.root.clipboard_clear()

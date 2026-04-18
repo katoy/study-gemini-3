@@ -1,5 +1,6 @@
 """Download tracking and output helpers."""
 
+import fnmatch
 import json
 import logging
 import re
@@ -16,7 +17,7 @@ _MANIFEST_LOCKS: dict[Path, threading.RLock] = {}
 _MANIFEST_LOCKS_GUARD = threading.Lock()
 
 # 同一セッション内でのファイル走査結果キャッシュ
-_FILE_SCAN_CACHE: dict[Path, list[Path]] = {}
+_FILE_SCAN_CACHE: dict[Path, tuple[float, list[Path]]] = {}
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
 
 
@@ -180,20 +181,20 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode) -> b
         return False
 
     # 3) 番組タイトルが含まれているか (少なくとも1つ)
-    if not any(title in _safe_name(name) for title in program_titles):
-        return False
-
-    return True
+    return any(title in _safe_name(name) for title in program_titles)
 
 
 def _get_cached_glob_files(directory: Path) -> list[Path]:
+    try:
+        current_mtime = directory.stat().st_mtime
+    except OSError:
+        return []
     with _FILE_SCAN_CACHE_LOCK:
-        if directory in _FILE_SCAN_CACHE:
-            return _FILE_SCAN_CACHE[directory]
-        if not directory.exists():
-            return []
+        entry = _FILE_SCAN_CACHE.get(directory)
+        if entry is not None and entry[0] == current_mtime:
+            return entry[1]
         files = [p for p in directory.iterdir() if p.is_file()]
-        _FILE_SCAN_CACHE[directory] = files
+        _FILE_SCAN_CACHE[directory] = (current_mtime, files)
         return files
 
 
@@ -256,8 +257,7 @@ def mark_episode_downloaded(output_dir: Path, program: Program, episode: Episode
 
 
 def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
-    # 判定前にキャッシュをクリアして Finder 等での変更を反映しやすくする
-    _clear_file_scan_cache()
+    # キャッシュはディレクトリの mtime で自動無効化されるため明示クリアは不要
 
     downloaded, saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
@@ -312,7 +312,7 @@ def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: E
         files = [p for p in program_dir.iterdir() if p.is_file()]
         for path in files:
             if path.suffix in {".part", ".ytdl"} and any(
-                re.match(pattern.replace(".", "\\.").replace("*", ".*"), path.name)
+                fnmatch.fnmatch(path.name, pattern)
                 for pattern in _episode_output_patterns(program, episode)
             ):
                 try:

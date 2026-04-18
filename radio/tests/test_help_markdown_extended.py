@@ -2,7 +2,21 @@ import unittest
 from unittest.mock import MagicMock, call, patch
 
 from nhk_radio.gui import help_markdown
+from nhk_radio.types import Program
 from tests import _support  # noqa: F401
+
+
+def _make_program(site_id: str, corner_id: str, corner_name: str) -> Program:
+    return Program(
+        title=corner_name or f"{site_id}_{corner_id}",
+        display_title=corner_name or f"{site_id}_{corner_id}",
+        display_date="----",
+        site_id=site_id,
+        corner_id=corner_id,
+        url="",
+        corner_name=corner_name,
+    )
+
 
 class HelpMarkdownExtendedTest(unittest.TestCase):
     def test_render_corner_list_empty(self):
@@ -11,9 +25,9 @@ class HelpMarkdownExtendedTest(unittest.TestCase):
 
     def test_render_corner_list_invalid_data(self):
         programs = [
-            {"site_id": "", "corner_id": "01", "corner_name": "A"},  # site_id missing
-            {"site_id": "S", "corner_id": "", "corner_name": "A"},  # corner_id missing
-            {"site_id": "S", "corner_id": "01", "corner_name": ""},  # corner_name missing
+            _make_program("", "01", "A"),  # site_id missing
+            _make_program("S", "", "A"),  # corner_id missing
+            _make_program("S", "01", ""),  # corner_name missing
         ]
         rendered = help_markdown._render_corner_list_markdown(programs)
         self.assertIn("(no loaded corner_name data)", rendered)

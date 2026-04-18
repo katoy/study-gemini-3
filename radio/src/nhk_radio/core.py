@@ -10,17 +10,22 @@ NHK ラジオ 聞き逃し番組ダウンローダー
 """
 
 import asyncio
-import json
 import logging
 import re
 import time
-from collections.abc import Sequence
 
 import httpx
 import yt_dlp
 
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
-from .constants import _HEADERS, NHK_API_GENRE, NHK_API_NEW_CORNERS, NHK_DETAIL_TMPL, NHK_GENRES
+from .constants import (
+    _HEADERS,
+    GENRE_LABELS,
+    NHK_API_GENRE,
+    NHK_API_NEW_CORNERS,
+    NHK_DETAIL_TMPL,
+    NHK_GENRES,
+)
 from .text import (
     _format_broadcast_time,
     _format_duration,
@@ -198,7 +203,7 @@ async def _fetch_all_async() -> list[Program]:
                             idx = programs.index(existing)
                             programs[idx] = new_entry
                             program_map[key] = new_entry
-                        except ValueError:
+                        except ValueError:  # pragma: no cover - defensive: map/list desync
                             pass
 
     if programs:
@@ -211,15 +216,7 @@ async def _fetch_all_async() -> list[Program]:
 
 async def _fetch_by_genre_async(genre: str) -> list[Program]:
     """指定ジャンルの番組一覧を取得する (非同期版)"""
-    label = {
-        "language": "語学",
-        "music": "音楽",
-        "news": "ニュース",
-        "drama": "ドラマ",
-        "sports": "スポーツ",
-        "documentary": "ドキュメンタリー",
-        "variety": "バラエティ",
-    }.get(genre, genre)
+    label = GENRE_LABELS.get(genre, genre)
     logger.info(f"{label}一覧を取得中...")
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:

@@ -1,7 +1,20 @@
 import unittest
 
 from nhk_radio.gui import help_markdown
+from nhk_radio.types import Program
 from tests import _support  # noqa: F401
+
+
+def _make_program(site_id: str, corner_id: str, corner_name: str) -> Program:
+    return Program(
+        title=corner_name or f"{site_id}_{corner_id}",
+        display_title=corner_name or f"{site_id}_{corner_id}",
+        display_date="----",
+        site_id=site_id,
+        corner_id=corner_id,
+        url="",
+        corner_name=corner_name,
+    )
 
 
 class HelpMarkdownTest(unittest.TestCase):
@@ -12,9 +25,9 @@ class HelpMarkdownTest(unittest.TestCase):
 
     def test_corner_markdown_deduplicates_loaded_programs(self):
         programs = [
-            {"site_id": "AAA", "corner_id": "01", "corner_name": "入門ビジネス英語"},
-            {"site_id": "AAA", "corner_id": "01", "corner_name": "入門ビジネス英語"},
-            {"site_id": "BBB", "corner_id": "02", "corner_name": "ニュースで学ぶ現代英語"},
+            _make_program("AAA", "01", "入門ビジネス英語"),
+            _make_program("AAA", "01", "入門ビジネス英語"),
+            _make_program("BBB", "02", "ニュースで学ぶ現代英語"),
         ]
         rendered = help_markdown._render_corner_list_markdown(programs)
         self.assertIn("- `AAA_01`: 入門ビジネス英語", rendered)
@@ -23,7 +36,7 @@ class HelpMarkdownTest(unittest.TestCase):
 
     def test_build_help_markdown_replaces_template_placeholders(self):
         markdown = help_markdown.build_help_markdown(
-            [{"site_id": "AAA", "corner_id": "01", "corner_name": "入門ビジネス英語"}]
+            [_make_program("AAA", "01", "入門ビジネス英語")]
         )
         self.assertIn("# NHK ラジオ 聞き逃し ヘルプ", markdown)
         self.assertIn("- `language`: 語学", markdown)

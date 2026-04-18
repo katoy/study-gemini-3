@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -203,10 +204,8 @@ def _interactive_cli_fallback(programs: list[Program], output_dir: Path, *, audi
 
 def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: bool = True):
     # macOS における GUI 起動時の Mach port エラー出力を抑制するための試み
-    if sys.platform == "darwin":
-        import os
-        if "TK_SILENCE_DEPRECATION" not in os.environ:
-            os.environ["TK_SILENCE_DEPRECATION"] = "1"
+    if sys.platform == "darwin" and "TK_SILENCE_DEPRECATION" not in os.environ:
+        os.environ["TK_SILENCE_DEPRECATION"] = "1"
 
     try:
         # programs=None を渡して、GUI 内部で非同期取得を開始させる
@@ -222,7 +221,7 @@ def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: 
         return
 
     if program and episodes:
-        completed = _download_selected_episodes(program, selected=episodes, output_dir=output_dir, audio_only=audio_only)
+        completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
         logger.info(f"完了: {completed} 件")
     logger.info("終了します。")
 

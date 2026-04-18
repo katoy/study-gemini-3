@@ -1,5 +1,6 @@
 """Tkinter GUI browser for NHK radio programs."""
 
+import contextlib
 import queue
 import subprocess
 import threading
@@ -72,12 +73,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
-        
+
         # macOS でのイベントループ初期化エラーを抑制するためのヒント
-        try:
+        with contextlib.suppress(tk.TclError):
             self.root.update_idletasks()
-        except tk.TclError:
-            pass
 
         # デモモード時は録画しやすいように位置を固定
         import os

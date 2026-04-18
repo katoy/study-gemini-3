@@ -210,24 +210,24 @@ radio/
 |:----------|----------------:|----------:|
 | `__init__.py` | 0 | 100% |
 | `__main__.py` | 3 | 100% |
-| `cache.py` | 62 | 97% |
-| `cli.py` | 181 | 98% |
+| `cache.py` | 62 | 100% |
+| `cli.py` | 180 | 100% |
 | `config.py` | 85 | 100% |
 | `constants.py` | 10 | 100% |
-| `core.py` | 185 | 96% |
-| `downloads.py` | 254 | 99% |
+| `core.py` | 181 | 100% |
+| `downloads.py` | 255 | 100% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/browser.py` | 226 | 51% |
+| `gui/browser.py` | 225 | 52% |
 | `gui/build.py` | 321 | 100% |
-| `gui/downloads.py` | 493 | 54% |
-| `gui/help_markdown.py` | 133 | 99% |
-| `gui/listing.py` | 609 | 27% |
+| `gui/downloads.py` | 492 | 54% |
+| `gui/help_markdown.py` | 134 | 99% |
+| `gui/listing.py` | 557 | 29% |
 | `gui/logo.py` | 32 | 12% |
 | `gui/styling.py` | 310 | 67% |
 | `gui/toolkit.py` | 9 | 44% |
-| `text.py` | 127 | 99% |
-| `types.py` | 22 | 91% |
-| **合計** | **3064** | **70%** |
+| `text.py` | 127 | 100% |
+| `types.py` | 13 | 100% |
+| **合計** | **2998** | **71%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
