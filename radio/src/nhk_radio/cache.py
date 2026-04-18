@@ -1,6 +1,7 @@
 """Cache helpers for program and episode data."""
 
 import json
+import logging
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 from .config import CACHE_TTL_SECONDS, EPISODE_CACHE_DIR, PROGRAM_CACHE_DIR, UI_SETTINGS_PATH
 from .text import _format_episode_date, _format_onair_date
 from .types import Episode, Program
+
+logger = logging.getLogger(__name__)
 
 
 def _program_cache_path(genre: str | None) -> Path:
@@ -63,9 +66,14 @@ def _clear_cache_dir(cache_dir: Path) -> int:
         return 0
     removed = 0
     for path in cache_dir.glob("*.json"):
-        if path.is_file():
+        if not path.is_file():  # pragma: no cover - defensive: glob yields dirs rarely
+            continue
+        try:
             path.unlink()
-            removed += 1
+        except OSError as e:
+            logger.warning(f"キャッシュ削除に失敗: {path} ({e})")
+            continue
+        removed += 1
     return removed
 
 

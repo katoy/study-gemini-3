@@ -74,9 +74,8 @@ class DownloadHelpersTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            downloaded_items, saved_paths = downloads._load_download_manifest(PROGRAM, output_dir)
+            saved_paths = downloads._load_download_manifest(PROGRAM, output_dir)
 
-        self.assertEqual(downloaded_items, {"ep-1"})
         self.assertEqual(saved_paths["ep-1"], "20240415_番組A_第1回.mp3")
 
     def test_episode_output_pattern_matching_and_candidates(self):
@@ -259,8 +258,8 @@ class DownloadHelpersTest(unittest.TestCase):
             manifest.write_text("{bad", encoding="utf-8")
             
             with patch("nhk_radio.downloads.logger") as logger_mock:
-                downloaded, paths = downloads._load_download_manifest(program, out)
-                self.assertEqual(downloaded, set())
+                paths = downloads._load_download_manifest(program, out)
+                self.assertEqual(paths, {})
                 logger_mock.debug.assert_called()
 
     def test_episode_output_patterns_no_date(self):

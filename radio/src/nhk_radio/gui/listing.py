@@ -776,19 +776,13 @@ class GuiListingMixin:
         path = resolve_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
         if path is None:
             # 理由を特定するためのヒントを表示
-            _, saved_paths = _load_download_manifest(self.displayed_program, self.output_dir)
+            saved_paths = _load_download_manifest(self.displayed_program, self.output_dir)
             recorded_path = saved_paths.get(_episode_key(episode), "(記録なし)")
             self.status_var.set(f"保存済みファイルが見つかりません。記録パス: {recorded_path}")
             return "break"
 
         self._open_saved_folder(path)
         return "break"
-
-    def _copy_path_to_clipboard(self, path: Path):
-        self.root.clipboard_clear()
-        self.root.clipboard_append(str(path))
-        self.root.update_idletasks()
-        self.status_var.set("PATH をクリップボードにコピーしました。")
 
     def _copy_selected_cell_to_clipboard(self, _event=None):
         value = self.selected_cell_value_var.get()

@@ -268,6 +268,50 @@ class CoverageGapExtraTest(unittest.TestCase):
         result = text._program_display_title("番組A", "コーナーB")
         self.assertEqual(result, "[番組A] コーナーB")
 
+    def test_safe_name_strips_trailing_dots_and_spaces(self):
+        # text.py: Windows 互換のため末尾のドット/空白を除去する
+        self.assertEqual(text._safe_name("番組A "), "番組A")
+        self.assertEqual(text._safe_name("番組A."), "番組A")
+        self.assertEqual(text._safe_name("番組A . "), "番組A")
+        # 全て除去されて空になった場合は fallback を返す
+        self.assertEqual(text._safe_name(". ", fallback="x"), "x")
+
+    def test_clear_cache_dir_logs_warning_on_unlink_failure(self):
+        # cache.py: _clear_cache_dir で OSError が発生した場合に warning ログが出て継続することを確認
+        from nhk_radio import cache as cache_mod
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            (d / "a.json").write_text("{}", encoding="utf-8")
+            (d / "b.json").write_text("{}", encoding="utf-8")
+            with (
+                patch.object(Path, "unlink", side_effect=[OSError("denied"), None]),
+                patch.object(cache_mod, "logger") as log_mock,
+            ):
+                removed = cache_mod._clear_cache_dir(d)
+            self.assertEqual(removed, 1)
+            log_mock.warning.assert_called()
+
+    def test_refresh_episode_list_returns_fresh_even_when_save_cache_fails(self):
+        # core.py: save_episode_cache 失敗時でも取得済みエピソードを返す
+        from nhk_radio.types import Episode, Program
+        program = Program(
+            title="P", display_title="P", display_date="----",
+            site_id="S", corner_id="01", url="U",
+        )
+        fresh = [Episode(
+            id="ep1", title="E", display_title="E",
+            date="20240415", display_date="2024-04-15",
+            broadcast_time="", duration_str="", url="",
+        )]
+        with (
+            patch.object(core, "fetch_episodes", return_value=fresh),
+            patch.object(core, "save_episode_cache", side_effect=OSError("disk full")),
+            patch("nhk_radio.core.logger") as logger_mock,
+        ):
+            episodes, source = core.refresh_episode_list(program)
+        self.assertEqual((episodes, source), (fresh, "network"))
+        logger_mock.warning.assert_called()
+
 
 if __name__ == "__main__":
     unittest.main()

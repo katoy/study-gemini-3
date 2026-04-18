@@ -162,6 +162,8 @@ def _program_display_title(series_title: str, corner_name: str) -> str:
 
 def _safe_name(text: str, fallback: str = "unknown") -> str:
     safe = re.sub(r'[\\/:*?"<>|]', "_", _normalize_text(text))
+    # Windows は末尾のドット/空白を持つ名前を扱えないため除去する
+    safe = safe.rstrip(" .")
     return safe or fallback
 
 

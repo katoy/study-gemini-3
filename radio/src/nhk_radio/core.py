@@ -210,8 +210,8 @@ async def _fetch_all_async() -> list[Program]:
         logger.info(f"{len(programs)} 件の番組を取得しました。")
         return programs
 
-    logger.warning("番組一覧の取得に失敗しました。フォールバックを使用します。")
-    return _fallback_program_list()
+    logger.warning("番組一覧を取得できませんでした。ネットワーク状態を確認してください。")
+    return []
 
 
 async def _fetch_by_genre_async(genre: str) -> list[Program]:
@@ -228,45 +228,7 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
         return []
     except Exception as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
-        return _fallback_program_list() if genre == "language" else []
-
-
-def _fallback_program_list() -> list[Program]:
-    """
-    API 取得失敗時のフォールバック。
-    2026年4月時点の正確な ID。
-    """
-    entries = [
-        ("ラジオ英会話", "PMMJ59J6N2", "01"),
-        ("基礎英語 レベル2", "83RW6PK3GG", "01"),
-        ("基礎英語 レベル1", "148W8XX226", "01"),
-        ("小学生の基礎英語", "GGQY3M1929", "01"),
-        ("エンジョイ・シンプル・イングリッシュ", "BR8Z3NX7XM", "01"),
-        ("まいにちロシア語", "YRLK72JZ7Q", "01"),
-        ("まいにちイタリア語", "LJWZP7XVMX", "01"),
-        ("まいにちフランス語", "XQ487ZM61K", "01"),
-        ("まいにちスペイン語", "NRZWXVGQ19", "01"),
-        ("まいにちドイツ語", "N8PZRZ9WQY", "01"),
-        ("まいにち中国語", "983PKQPYN7", "01"),
-        ("まいにちハングル講座", "LR47WW9K14", "01"),
-        ("ポルトガル語講座", "N13V9K157Y", "01"),
-        ("英会話タイムトライアル", "8Z6XJ6J415", "01"),
-        ("ニュースで学ぶ「現代英語」", "77RQWQX1L6", "01"),
-        ("ラジオビジネス英語", "368315KKP8", "01"),
-    ]
-    return [
-        Program(
-            title=title,
-            display_title=title,
-            display_date="----",
-            genre="language",
-            genre_label=_genre_label("language"),
-            site_id=site_id,
-            corner_id=corner_id,
-            url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
-        )
-        for title, site_id, corner_id in entries
-    ]
+        return []
 
 
 # ──────────────────────────────────────────────────────
@@ -314,7 +276,9 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(program.url, download=False)
             if info is None:
-                raise RuntimeError("番組情報の取得に失敗しました")
+                msg = "番組情報の取得に失敗しました"
+                logger.error(f"エピソード取得失敗: {msg}")
+                raise RuntimeError(msg)
 
             entries = info.get("entries", [])
             episodes = [_parse_episode_info(entry, program) for entry in entries if entry]
@@ -322,6 +286,8 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
             if verbose:
                 logger.info(f"{len(episodes)} 件のエピソードを取得しました。")
             return episodes
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.error(f"エピソード取得失敗: {e}")
         raise RuntimeError(str(e)) from e
@@ -348,13 +314,18 @@ def refresh_episode_list(
     for attempt in range(2):
         try:
             episodes = fetch_episodes(program, verbose=False)
-            save_episode_cache(program, episodes)
-            return episodes, "network"
         except Exception as e:
             last_error = str(e)
+            if attempt == 0:
+                time.sleep(retry_delay)
+            continue
 
-        if attempt == 0:
-            time.sleep(retry_delay)
+        # 取得成功: キャッシュ保存の失敗は警告のみに留め、取得データを返す
+        try:
+            save_episode_cache(program, episodes)
+        except Exception as e:
+            logger.warning(f"エピソードキャッシュの保存に失敗: {e}")
+        return episodes, "network"
 
     stale = load_episode_cache(program, ttl_seconds=10**12)
     if stale:

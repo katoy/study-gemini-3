@@ -227,12 +227,13 @@ def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: 
 
 
 def run_cli(args):
-    # ロギングの設定
+    # ロギングの設定 (複数回呼ばれても反映されるよう force=True を指定)
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s" if args.verbose else "%(message)s",
         datefmt="%H:%M:%S",
+        force=True,
     )
 
     output_dir = Path(args.output_dir).expanduser()

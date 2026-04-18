@@ -112,14 +112,13 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(resolved.genre_label, "音楽")
         self.assertEqual(load_cache_mock.call_count, 2)
 
-    def test_make_entry_and_fallback_program_list(self):
+    def test_make_entry_with_corner_name_and_genre(self):
         entry = core._make_entry(
             {"series_site_id": "SITE", "corner_site_id": "01", "corner_name": "コーナー"}, genre="language"
         )
         self.assertEqual(entry.title, "コーナー")
         self.assertEqual(entry.display_title, "コーナー")
-        fallback = core._fallback_program_list()
-        self.assertEqual(fallback[0].genre, "language")
+        self.assertEqual(entry.genre, "language")
 
     def test_fetch_all_merges_genres_and_falls_back(self):
         # http_get_json_async をモック
@@ -144,10 +143,9 @@ class CoreHelpersTest(unittest.TestCase):
         with (
             patch.object(core, "NHK_GENRES", ["language"]),
             patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("x")),
-            patch.object(core, "_fallback_program_list", return_value=[Program(title="fallback", display_title="f", display_date="----", site_id="S", corner_id="01", url="U")]),
         ):
             res = asyncio.run(core._fetch_all_async())
-            self.assertEqual(res[0].title, "fallback")
+            self.assertEqual(res, [])
 
     def test_fetch_by_genre_success_and_failure_paths(self):
         with patch.object(
@@ -159,14 +157,8 @@ class CoreHelpersTest(unittest.TestCase):
             programs = asyncio.run(core._fetch_by_genre_async("music"))
         self.assertEqual(len(programs), 1)
 
-        with (
-            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("bad")),
-            patch.object(core, "_fallback_program_list", return_value=[Program(title="fallback", display_title="f", display_date="----", site_id="S", corner_id="01", url="U")]),
-        ):
-            res = asyncio.run(core._fetch_by_genre_async("language"))
-            self.assertEqual(res[0].title, "fallback")
-
         with patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("bad")):
+            self.assertEqual(asyncio.run(core._fetch_by_genre_async("language")), [])
             self.assertEqual(asyncio.run(core._fetch_by_genre_async("news")), [])
 
     def test_parse_episode_info_and_report_fetch_result(self):

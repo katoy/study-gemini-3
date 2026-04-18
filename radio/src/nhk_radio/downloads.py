@@ -115,8 +115,8 @@ def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLo
         return lock
 
 
-def _load_download_manifest(program: Program, output_dir: Path) -> tuple[set[str], dict[str, str]]:
-    downloaded_items: set[str] = set()
+def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str]:
+    """保存済みエピソードのパス辞書を返す (key: episode_key, value: 相対or絶対パス)"""
     saved_paths: dict[str, str] = {}
     manifest_paths = [_download_manifest_path(program, output_dir)]
     for legacy_dir in _legacy_program_output_dirs(output_dir, program):
@@ -133,22 +133,17 @@ def _load_download_manifest(program: Program, output_dir: Path) -> tuple[set[str
             logger.debug(f"マニフェストの読み込みに失敗: {manifest_path} ({e})")
             continue
 
-        downloaded = payload.get("downloaded")
-        if isinstance(downloaded, list):
-            downloaded_items.update(str(item) for item in downloaded)
-
         paths = payload.get("paths")
         if isinstance(paths, dict):
             for key, value in paths.items():
                 saved_paths[str(key)] = str(value)
 
-    return downloaded_items, saved_paths
+    return saved_paths
 
 
-def _save_download_manifest(program: Program, output_dir: Path, downloaded: set[str], paths: dict[str, str]):
+def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]):
     manifest_path = _download_manifest_path(program, output_dir)
-    payload = {"downloaded": sorted(downloaded), "paths": paths}
-    _save_json_cache(manifest_path, payload)
+    _save_json_cache(manifest_path, {"paths": paths})
 
 
 def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
@@ -243,23 +238,22 @@ def _episode_output_candidates(program_dir: Path, program: Program, episode: Epi
 
 def mark_episode_downloaded(output_dir: Path, program: Program, episode: Episode, path: Path | None = None):
     with _download_manifest_lock(program, output_dir):
-        downloaded, saved_paths = _load_download_manifest(program, output_dir)
+        saved_paths = _load_download_manifest(program, output_dir)
         episode_key = _episode_key(episode)
-        downloaded.add(episode_key)
         program_dir = _program_output_dir(output_dir, program)
         if path is not None and path.exists():
             try:
                 saved_paths[episode_key] = str(path.relative_to(program_dir))
             except ValueError:
                 saved_paths[episode_key] = str(path)
-        _save_download_manifest(program, output_dir, downloaded, saved_paths)
+        _save_download_manifest(program, output_dir, saved_paths)
         _clear_file_scan_cache(program_dir)
 
 
 def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
     # キャッシュはディレクトリの mtime で自動無効化されるため明示クリアは不要
 
-    downloaded, saved_paths = _load_download_manifest(program, output_dir)
+    saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
 
     # 1) マニフェストに記録されたパスの実在を確認
@@ -281,7 +275,7 @@ def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) 
 
 
 def resolve_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
-    downloaded, saved_paths = _load_download_manifest(program, output_dir)
+    saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
 
     # 1) マニフェストに記録されたパスを最優先で確認
