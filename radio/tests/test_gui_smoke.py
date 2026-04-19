@@ -54,6 +54,7 @@ class GuiSmokeTest(unittest.TestCase):
         # 重要属性の存在確認
         self.assertTrue(hasattr(browser, "fetch_button_var"), "fetch_button_var が欠落しています")
         self.assertTrue(hasattr(browser, "_persist_ui_settings"), "_persist_ui_settings が欠落しています")
+        self.assertTrue(hasattr(browser, "_set_progress"), "_set_progress が欠落しています")
         self.assertEqual(browser.fetch_button_var.get(), "一覧を取得")
 
     def test_genre_filter_logic_smoke(self):

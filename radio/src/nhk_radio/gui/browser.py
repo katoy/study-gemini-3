@@ -181,6 +181,14 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             search_history=self.program_search_history,
         )
 
+    def _set_progress(self, current: int, total: int, text: str = ""):
+        """進捗状況を更新する。"""
+        if total > 0:
+            # 簡易的な進捗文字列を生成
+            self.progress_text_var.set(f"{text} {current}/{total}")
+        else:
+            self.progress_text_var.set(text)
+
     def _start_fetch_programs(self, genre: str | None = None):
         """Initial background fetch of all programs."""
         if self.loading:
