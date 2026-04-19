@@ -66,12 +66,18 @@ def _resolve_config_root_dir() -> Path:
     return _default_user_config_root()
 
 
-CACHE_ROOT_DIR = _resolve_cache_root_dir()
-PROGRAM_CACHE_DIR = CACHE_ROOT_DIR / "programs"
-EPISODE_CACHE_DIR = CACHE_ROOT_DIR / "episodes"
+def _program_cache_dir() -> Path:
+    return _resolve_cache_root_dir() / "programs"
 
-CONFIG_ROOT_DIR = _resolve_config_root_dir()
-UI_SETTINGS_PATH = CONFIG_ROOT_DIR / "ui_settings.json"
+
+def _episode_cache_dir() -> Path:
+    return _resolve_cache_root_dir() / "episodes"
+
+
+def _ui_settings_path() -> Path:
+    """UI設定ファイルのフルパスを返す。環境変数等の変更を即座に反映する。"""
+    return _resolve_config_root_dir() / "ui_settings.json"
+
 
 _MIGRATION_DONE = False
 
@@ -85,16 +91,17 @@ def _migrate_legacy_ui_settings():
     if _MIGRATION_DONE:
         return
     _MIGRATION_DONE = True
-    legacy_path = CACHE_ROOT_DIR / "ui_settings.json"
-    if legacy_path == UI_SETTINGS_PATH:
+    legacy_path = _resolve_cache_root_dir() / "ui_settings.json"
+    settings_path = _ui_settings_path()
+    if legacy_path == settings_path:
         return
-    if not legacy_path.exists() or UI_SETTINGS_PATH.exists():
+    if not legacy_path.exists() or settings_path.exists():
         return
     try:
-        UI_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        legacy_path.replace(UI_SETTINGS_PATH)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.replace(settings_path)
     except OSError:
-        # 移行失敗は致命的ではない (新規作成として扱う)
+        # 移行失敗は致命かではない (新規作成として扱う)
         pass
 
 
@@ -127,27 +134,28 @@ def _normalize_search_history(items: list) -> list[str]:
     return result
 
 
-def _load_ui_settings() -> dict[str, str | list[str]]:
+def _load_ui_settings() -> dict[str, str | list[str] | int]:
     _migrate_legacy_ui_settings()
-    if not UI_SETTINGS_PATH.exists():
+    path = _ui_settings_path()
+    if not path.exists():
         return {}
     try:
-        payload = json.loads(UI_SETTINGS_PATH.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
     if not isinstance(payload, dict):
         return {}
 
-    settings: dict[str, str | list[str]] = {}
+    settings: dict[str, str | list[str] | int] = {}
 
     theme = payload.get("theme")
     if theme in {"light", "dark"}:
         settings["theme"] = theme
 
-    font_size = payload.get("font_size_pt")
+    font_size = payload.get("font_size_pt") or payload.get("font_size")
     try:
         font_size_pt = min(max(int(font_size), 9), 18)
-        settings["font_size_pt"] = str(font_size_pt)
+        settings["font_size_pt"] = font_size_pt
     except (TypeError, ValueError):
         pass
 
@@ -160,20 +168,21 @@ def _load_ui_settings() -> dict[str, str | list[str]]:
     return settings
 
 
-def _save_ui_settings(theme: str, font_size_pt: str, program_search_history: list[str] | None = None):
+def _save_ui_settings(theme: str, font_size: int, program_search_history: list[str] | None = None):
     _migrate_legacy_ui_settings()
-    UI_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    path = _ui_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "theme": theme,
-        "font_size_pt": int(font_size_pt),
+        "font_size_pt": font_size,
         "program_search_history": program_search_history or [],
     }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
-    fd, tmp_path = tempfile.mkstemp(dir=UI_SETTINGS_PATH.parent, suffix=".tmp")
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
-        Path(tmp_path).replace(UI_SETTINGS_PATH)
+        Path(tmp_path).replace(path)
     except BaseException:
         try:
             os.unlink(tmp_path)

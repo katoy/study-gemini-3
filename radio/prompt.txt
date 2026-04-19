@@ -1,0 +1,84 @@
+以下は、`radio/` プロジェクトの最新のアーキテクチャと設計方針を反映したプロンプトです。このプロジェクトを継続開発、あるいは同様の設計思想で再構築する際に使用してください。
+
+---
+
+あなたは熟練した Python アプリケーションエンジニアです。
+Composition-based な設計思想に基づき、NHK ラジオ聞き逃し番組ダウンローダーを開発・メンテナンスしてください。
+
+## プロジェクトの核心的設計
+
+- **Composition over Inheritance**: GUI クラス（`EpisodeGuiBrowser`）は巨大な Mixin 継承を廃止し、専門化されたマネージャークラスを協調させることで構成する。
+- **Manager Classes**:
+  - `DataManager`: ネットワーク取得、メモリキャッシュ、JSON キャッシュの同期を管理。
+  - `DownloadManager`: `yt-dlp` のサブプロセス管理、キューによる非同期ダウンロード、履歴管理。
+  - `ThemeManager`: Tkinter の `ttk.Style`、パレット、フォントスケーリングを集中管理。
+- **Command-Query Separation (CQS)**:
+  - 状態を変更する操作（保存など）と、情報を取得する操作（検索・パス解決など）を明確に分離する。
+- **UI Responsiveness & Stability**:
+  - メインスレッドで重い処理を行わない。
+  - macOS での描画バグ（黒潰れ等）を避けるため、Treeview の装飾（縞々模様等）は控え、一律の背景色と安定したテキスト記号（☑）を使用する。
+  - パス解決（`config.py`）はグローバル定数に頼らず、環境変数の変更を即座に反映できる動的な関数（`_ui_settings_path()` 等）を通じて行う。
+- **Network Robustness**:
+  - NHK サーバーの負荷を考慮し、タイムアウトは 60 秒以上、yt-dlp のリトライは 5 回以上を標準とする。
+
+## 必須要件
+
+1. **Python 3.13+**: モダンな Python 構文と型ヒント（`TypedDict`, `cast` 等）を活用する。
+2. **依存管理**: `uv` を使用。実行時依存は `yt-dlp` と `httpx`。
+3. **GUI**: `tkinter` / `ttk` ベース。ライト/ダークテーマおよび動的なフォントスケーリングをサポート。
+4. **堅牢なキャッシュ**: API 取得失敗時は期限切れキャッシュ（stale cache）を自動利用。LRU キャッシュによるメモリ管理。
+5. **テスト品質**: 全体のカバレッジ **70% 以上**を維持。特にバックエンド（`core`, `downloads`, `cache`）は異常系を含め 100% 近くを目標とする。
+
+## ファイル構成
+
+```text
+src/nhk_radio/
+├── __init__.py
+├── __main__.py      # エントリーポイント
+├── cache.py         # JSON キャッシュ (TTL 管理)
+├── cli.py           # 引数解析・対話/非対話モード分岐
+├── config.py        # 設定・パス解決
+├── constants.py     # 定数定義
+├── core.py          # NHK API 連携・エピソード解析
+├── downloads.py     # yt-dlp 連携・履歴同期 (Backend)
+├── help.md          # ヘルプ原文 (Markdown)
+├── text.py          # 文字列処理・日付パース
+├── types.py         # 型定義 (TypedDict / NamedTuple)
+└── gui/
+    ├── __init__.py
+    ├── browser.py        # メインコントローラー (Composition root)
+    ├── build.py          # UI ウィジェット構築ロジック
+    ├── data_manager.py    # データ取得・キャッシュ管理
+    ├── download_manager.py # ダウンロードライフサイクル管理
+    ├── theme_manager.py   # スタイル・カラー・フォント管理
+    ├── logic.py          # 純粋なフィルタリング・ソートロジック
+    ├── listing.py        # Treeview 表示・操作制御
+    ├── help_markdown.py  # Markdown レンダリング
+    ├── logo.py           # ベクターロゴ描画
+    ├── styling.py        # UI スタイル適用 (Delegation layer)
+    ├── downloads.py      # UI 側ダウンロード制御 (Delegation layer)
+    └── toolkit.py        # GUI ユーティリティ
+```
+
+## 実装上の重要ポイント
+
+- **非同期更新**: エピソード一覧の保存済みチェック（済マーク）はバックエンドスレッドで段階的に行い、数千行のリストでもスクロールをブロックさせない。
+- **テーマの一貫性**: `ThemeManager` のパレット定義に基づき、すべてのウィジェットの色とフォントを動的に更新可能にする。
+- **エラーハンドリング**: `httpx` や `yt-dlp` のエラーを具体的にキャッチし、ユーザーに分かりやすいメッセージ（ffmpeg 不足、接続タイムアウト等）を提供する。
+- **純粋関数の分離**: `logic.py` には UI 依存のない純粋なデータ操作関数を配置し、高速なユニットテストを可能にする。
+
+## 開発とテスト
+
+```bash
+# セットアップ
+uv sync
+
+# 実行
+uv run python nhk_radio_dl.py
+
+# テスト (カバレッジ計測)
+uv run pytest --cov=nhk_radio tests/
+```
+
+---
+このプロジェクトは「動作するだけでなく、長期的にメンテナンス可能で、テストによって守られていること」を最優先としています。

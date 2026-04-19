@@ -59,7 +59,9 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     def test_migrate_legacy_ui_settings_oserror(self):
         # config.py: 90 (OSError on replace)
         with (
-            patch.object(config.Path, "exists", side_effect=[True, False]), # legacy exists, target not
+            patch("nhk_radio.config._resolve_cache_root_dir", return_value=Path("/tmp/cache")),
+            patch("nhk_radio.config._ui_settings_path", return_value=Path("/tmp/config/ui.json")),
+            patch.object(config.Path, "exists", side_effect=[True, False]),
             patch.object(config.Path, "replace", side_effect=OSError("rename fail")),
             patch.object(config, "_MIGRATION_DONE", False)
         ):

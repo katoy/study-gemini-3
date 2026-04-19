@@ -111,16 +111,14 @@ class GuiBuildMixin:
             textvariable=self.program_genre_filter_var,
             values=self._program_genre_filter_values(),
             state="readonly",
-            style="Search.TCombobox",
         )
-        self.program_genre_filter_combo.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        self.program_genre_filter_combo.grid(row=0, column=0, sticky="ew", pady=(0, 10))
 
         # 番組検索
         self.program_search_entry = ttk.Combobox(
             sidebar_actions,
             textvariable=self.program_search_var,
             values=self.program_search_history,
-            style="Search.TCombobox",
         )
         self.program_search_entry.grid(row=1, column=0, sticky="ew")
         self.program_search_entry.bind("<Escape>", self._clear_program_search)
@@ -244,9 +242,10 @@ class GuiBuildMixin:
             "duration", text="長さ", anchor="e", command=lambda: self._toggle_episode_sort("duration")
         )
         self.episode_tree.heading(
-            "title", text="タイトル", anchor="w", command=lambda: self._toggle_episode_sort("title")
+            "saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved")
         )
-        self.episode_tree.column("saved", width=82, anchor="center", stretch=False)
+        self.episode_tree.column("saved", width=60, anchor="center", stretch=False)
+
         self.episode_tree.column("date", width=190, anchor="w", stretch=False)
         self.episode_tree.column("duration", width=100, anchor="e", stretch=False)
         self.episode_tree.column("title", width=560, anchor="w")

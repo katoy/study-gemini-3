@@ -10,7 +10,12 @@ import time
 from dataclasses import asdict, fields
 from pathlib import Path
 
-from .config import CACHE_TTL_SECONDS, EPISODE_CACHE_DIR, PROGRAM_CACHE_DIR, UI_SETTINGS_PATH
+from .config import (
+    CACHE_TTL_SECONDS,
+    _episode_cache_dir,
+    _program_cache_dir,
+    _ui_settings_path,
+)
 from .text import _format_episode_date, _format_onair_date
 from .types import Episode, Program
 
@@ -34,7 +39,7 @@ def _filter_dataclass_kwargs(cls, data: dict) -> dict:
 
 
 def _program_cache_path(genre: str | None) -> Path:
-    return PROGRAM_CACHE_DIR / f"{genre or 'all'}.json"
+    return _program_cache_dir() / f"{genre or 'all'}.json"
 
 
 def _load_json_ttl_cache(cache_path: Path, data_key: str, ttl_seconds: int) -> list[dict] | None:
@@ -127,11 +132,11 @@ def _clear_cache_dir(cache_dir: Path) -> int:
 
 
 def clear_program_cache() -> int:
-    return _clear_cache_dir(PROGRAM_CACHE_DIR)
+    return _clear_cache_dir(_program_cache_dir())
 
 
 def _episode_cache_path(program: Program) -> Path:
-    return EPISODE_CACHE_DIR / f"{program.site_id}_{program.corner_id}.json"
+    return _episode_cache_dir() / f"{program.site_id}_{program.corner_id}.json"
 
 
 def load_episode_cache(program: Program, ttl_seconds: int = CACHE_TTL_SECONDS) -> list[Episode] | None:
@@ -152,26 +157,22 @@ def load_episode_cache(program: Program, ttl_seconds: int = CACHE_TTL_SECONDS) -
 def save_episode_cache(program: Program, episodes: list[Episode]):
     _save_json_cache(
         _episode_cache_path(program),
-        {
-            "fetched_at": time.time(),
-            "site_id": program.site_id,
-            "corner_id": program.corner_id,
-            "episodes": [asdict(e) for e in episodes],
-        },
+        {"fetched_at": time.time(), "episodes": [asdict(e) for e in episodes]},
     )
 
 
 def clear_episode_cache() -> int:
-    return _clear_cache_dir(EPISODE_CACHE_DIR)
+    return _clear_cache_dir(_episode_cache_dir())
 
 
 def clear_ui_settings() -> int:
-    if not UI_SETTINGS_PATH.exists():
+    path = _ui_settings_path()
+    if not path.exists():
         return 0
     try:
-        UI_SETTINGS_PATH.unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
     except OSError as e:
-        logger.warning(f"UI 設定の削除に失敗: {UI_SETTINGS_PATH} ({e})")
+        logger.warning(f"UI 設定の削除に失敗: {path} ({e})")
         return 0
     return 1
 

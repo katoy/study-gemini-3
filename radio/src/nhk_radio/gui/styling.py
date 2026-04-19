@@ -1,12 +1,15 @@
-"""UI Theme and Style management delegating to ThemeManager."""
+"""UI Styling and Theme management for EpisodeGuiBrowser."""
 
+import logging
+from tkinter import ttk
 from .theme_manager import ThemeManager
-from .toolkit import tk, ttk
-from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME
+from ..config import DEFAULT_UI_THEME, DEFAULT_UI_FONT_SIZE_PT
+
+logger = logging.getLogger(__name__)
 
 
 class GuiStylingMixin:
-    """Handles color palettes, fonts, and widget styling by delegating to ThemeManager."""
+    """Handles UI styling, theme switching, and font adjustments."""
 
     # Mixin properties to help type checker
     if False:
@@ -17,6 +20,11 @@ class GuiStylingMixin:
         """Initializes ThemeManager and initial styles."""
         self.theme_manager = ThemeManager(self.root)
         self.style = self.theme_manager.style
+        
+        # Manager がロードした最新の状態を Mixin 側へ同期
+        self.current_theme = self.theme_manager.current_theme
+        self.current_font_size = str(self.theme_manager.current_font_size)
+        
         self._apply_current_theme()
 
     @property
@@ -45,20 +53,10 @@ class GuiStylingMixin:
         self._tree_rowheight = f["rowheight"]
 
     def _refresh_treeview_theme(self):
-        """Applies theme tags to treeview rows."""
-        p = self._palette
-        
-        if hasattr(self, "program_tree"):
-            self.program_tree.tag_configure("even", background=p["surface"], foreground=p["text"])
-            self.program_tree.tag_configure("odd", background=p["row_odd"], foreground=p["text"])
-        
-        if hasattr(self, "episode_tree"):
-            self.episode_tree.tag_configure("even", background=p["surface"], foreground=p["text"])
-            self.episode_tree.tag_configure("odd", background=p["row_odd"], foreground=p["text"])
-            self.episode_tree.tag_configure("dl_even", background=p["dl_even"], foreground=p["text"])
-            self.episode_tree.tag_configure("dl_odd", background=p["dl_odd"], foreground=p["text"])
-        
+        """Applies theme tags to treeview rows (Safety first version)."""
+        # すべての装飾を ThemeManager 側に任せ、ここでは追加のタグ設定を行わない
         self._schedule_saved_button_refresh()
+
 
     def _save_ui_settings_from_screen(self):
         """Saves current settings via ThemeManager."""
@@ -104,11 +102,20 @@ class GuiStylingMixin:
     def _apply_font_size_preset(self, size_pt: int):
         self._set_font_size_value(size_pt, announce=True)
 
-    def _reset_ui_settings(self):
-        self.current_theme = DEFAULT_UI_THEME
-        self.current_font_size = str(DEFAULT_UI_FONT_SIZE_PT)
-        self._apply_current_theme()
-        self.status_var.set("表示設定を規定値に戻しました。")
+    def _on_font_size_scale(self, value):
+        self._set_font_size_value(int(float(value)))
+
+    def _on_font_size_scale_left(self, _event):
+        self._decrease_font_size()
+
+    def _on_font_size_scale_right(self, _event):
+        self._increase_font_size()
+
+    def _on_font_size_scale_home(self, _event):
+        self._set_font_size_value(9, announce=True)
+
+    def _on_font_size_scale_end(self, _event):
+        self._set_font_size_value(18, announce=True)
 
     def _mark_settings_dirty(self):
         s = self.theme_manager.settings
@@ -117,7 +124,6 @@ class GuiStylingMixin:
             int(self.current_font_size) != s.get("font_size_pt")
         )
         self._update_settings_ui()
-
 
     def _update_settings_ui(self):
         """Updates StringVar values for settings UI based on current theme/font."""
@@ -137,64 +143,32 @@ class GuiStylingMixin:
             else:
                 self.settings_save_button.state(["disabled"])
 
-    def _show_screen(self, screen_name: str, announce: bool = True):
-        """Switches between browser and settings screens."""
-        previous_screen = self.current_screen
-        if previous_screen == "settings" and screen_name != "settings":
-            self._discard_unsaved_settings()
-        
-        self.current_screen = screen_name
-        if screen_name == "settings":
-            self.browser_screen.grid_remove()
-            self.settings_screen.grid()
-            if announce:
-                self.status_var.set("表示設定画面を開きました。")
-        else:
-            self.settings_screen.grid_remove()
-            self.browser_screen.grid()
-            if announce:
-                self.status_var.set("ブラウザ画面に戻りました。")
-        
-        self._update_settings_ui()
+    def _on_settings_inner_configure(self, _event):
+        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
 
-    def _toggle_settings_screen(self):
-        next_screen = "browser" if self.current_screen == "settings" else "settings"
-        self._show_screen(next_screen)
+    def _on_settings_canvas_configure(self, event):
+        self.settings_canvas.itemconfig(self.settings_window, width=event.width)
 
-    def _discard_unsaved_settings(self):
-        """Reverts unsaved setting changes."""
-        if not self.settings_dirty:
-            return
-        s = self.theme_manager.settings
-        self.current_theme = s.get("theme", DEFAULT_UI_THEME)
-        self.current_font_size = str(s.get("font_size_pt", DEFAULT_UI_FONT_SIZE_PT))
-        self._apply_current_theme()
-        self.settings_dirty = False
-        self._update_settings_ui()
+    def _on_settings_mousewheel(self, event):
+        if event.num == 4 or event.delta > 0:
+            self.settings_canvas.yview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:
+            self.settings_canvas.yview_scroll(1, "units")
 
+    def _on_download_jobs_inner_configure(self, _event):
+        self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
 
-    def _on_font_size_scale(self, value):
-        self._set_font_size_value(int(round(float(value))), announce=False)
+    def _on_download_jobs_canvas_configure(self, event):
+        self.download_jobs_canvas.itemconfig(self.download_jobs_window, width=event.width)
 
-    def _adjust_font_size_scale(self, delta: int):
-        current = int(round(float(self.font_size_var.get())))
-        self._set_font_size_value(current + delta, announce=False)
+    def _on_download_jobs_mousewheel(self, event):
+        if event.num == 4 or event.delta > 0:
+            self.download_jobs_canvas.yview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:
+            self.download_jobs_canvas.yview_scroll(1, "units")
 
-    def _on_font_size_scale_left(self, _event=None):
-        self._adjust_font_size_scale(-1)
-        return "break"
-
-    def _on_font_size_scale_right(self, _event=None):
-        self._adjust_font_size_scale(1)
-        return "break"
-
-    def _on_font_size_scale_home(self, _event=None):
-        self._set_font_size_value(9, announce=False)
-        return "break"
-
-    def _on_font_size_scale_end(self, _event=None):
-        self._set_font_size_value(18, announce=False)
-        return "break"
+    def _on_episode_tree_yscroll(self, *args):
+        self.episode_scroll.set(*args)
 
 
 __all__ = ["GuiStylingMixin"]

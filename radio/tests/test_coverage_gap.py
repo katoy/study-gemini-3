@@ -84,7 +84,7 @@ class CoverageGapExtraTest(unittest.TestCase):
         from nhk_radio import cache as cache_mod
         with (
             tempfile.TemporaryDirectory() as tmp,
-            patch.object(cache_mod, "PROGRAM_CACHE_DIR", Path(tmp) / "missing"),
+            patch("nhk_radio.cache._program_cache_dir", return_value=Path(tmp) / "missing"),
         ):
             self.assertIsNone(cache_mod.load_program_cache("language"))
 
@@ -97,7 +97,7 @@ class CoverageGapExtraTest(unittest.TestCase):
         )
         with (
             tempfile.TemporaryDirectory() as tmp,
-            patch.object(cache_mod, "EPISODE_CACHE_DIR", Path(tmp) / "missing"),
+            patch("nhk_radio.cache._episode_cache_dir", return_value=Path(tmp) / "missing"),
         ):
             self.assertIsNone(cache_mod.load_episode_cache(program))
 
@@ -117,7 +117,7 @@ class CoverageGapExtraTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             with (
-                patch.object(cache_mod, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=base / "episodes"),
                 patch.object(cache_mod.time, "time", return_value=1000.0),
             ):
                 cache_mod.save_episode_cache(program, [episode])

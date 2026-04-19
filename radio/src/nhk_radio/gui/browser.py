@@ -46,6 +46,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
+        self._search_timer = None
         
         # UI 状態 (ThemeManager 初期化前にプレースホルダを設定)
         self.current_theme = DEFAULT_UI_THEME
@@ -86,10 +87,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
         self.displayed_episode_map: dict[str, Episode] = {}
-        self.program_sort_column: str | None = None
-        self.program_sort_reverse = False
-        self.episode_sort_column: str | None = None
-        self.episode_sort_reverse = False
+        self.program_sort_state = ("no", False)
+        self.episode_sort_state = ("date", True)
         self.saved_episode_buttons: dict[str, ttk.Button] = {}
         self.saved_button_refresh_pending = False
         self.saved_episode_popup: tk.Toplevel | None = None
@@ -115,6 +114,82 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         if self.fetch_result_queue:
             self.fetch_result_queue.put((program, episodes, source, error))
 
+    def _show_help_dialog(self, _event=None):
+        """ヘルプダイアログを表示する。"""
+        from .help_markdown import show_help_dialog
+        self.help_popup = show_help_dialog(self.root, self._palette)
+
+    def _clear_cache(self):
+        """キャッシュをクリアする。"""
+        if messagebox.askyesno("キャッシュ削除", "番組一覧とエピソードのキャッシュをすべて削除しますか？"):
+            from ..cache import clear_all_cache
+            clear_all_cache()
+            self._reset_ui_state_after_cache_clear()
+
+    def _toggle_settings_screen(self):
+        """設定画面とブラウザ画面を切り替える。"""
+        if self.current_screen == "browser":
+            self._show_screen("settings")
+        else:
+            self._show_screen("browser")
+
+    def _show_screen(self, screen_name: str, announce: bool = True):
+        """指定したスクリーンを表示する。"""
+        if screen_name == "settings":
+            self.browser_screen.grid_remove()
+            self.settings_screen.grid()
+            self.settings_button_var.set("ブラウザに戻る")
+            self.current_screen = "settings"
+            if announce:
+                self.status_var.set("表示設定画面")
+        else:
+            self.settings_screen.grid_remove()
+            self.browser_screen.grid()
+            self.settings_button_var.set("表示設定")
+            self.current_screen = "browser"
+            if announce:
+                self.status_var.set("番組ブラウザ")
+        self._update_settings_ui()
+
+    def _reset_ui_settings(self):
+        """UI設定をデフォルトに戻す。"""
+        if messagebox.askyesno("設定リセット", "表示設定を初期値に戻しますか？"):
+            from ..config import DEFAULT_UI_THEME, DEFAULT_UI_FONT_SIZE_PT
+            self._apply_theme(DEFAULT_UI_THEME)
+            self._apply_font_size_preset(int(DEFAULT_UI_FONT_SIZE_PT))
+            self.status_var.set("設定をリセットしました")
+
+    def _handle_escape(self, _event=None):
+        """Escapeキー押下時の処理。"""
+        if self.current_screen == "settings":
+            self._show_screen("browser")
+            return "break"
+        return None
+
+    def _handle_browser_shortcut(self, event):
+        """ブラウザ画面でのショートカットキー処理。"""
+        if self.current_screen != "browser":
+            return None
+        
+        key = event.keysym.lower()
+        # Ctrl/Cmd キーの状態
+        ctrl = (event.state & 0x4) or (event.state & 0x8) # macOS Command is often 0x8
+        
+        if key == "f" and not ctrl:
+            self._start_fetch_programs()
+            return "break"
+        if key == "d" and not ctrl:
+            self._start_download_selected()
+            return "break"
+        return None
+
+    def _discard_unsaved_settings(self):
+        """保存されていない設定を破棄して現在の状態に戻す。"""
+        self.current_theme = self.saved_theme
+        self.current_font_size = self.saved_font_size
+        self._apply_current_theme()
+        self.settings_dirty = False
+
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
@@ -134,10 +209,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.root.protocol("WM_DELETE_WINDOW", self._cancel)
 
     def _initialize_ui_state(self, programs: list[Program]) -> None:
-        # ThemeManager が読み込んだ実際の値と同期
+        # ThemeManager が読み込んだ実際の値と同期 (StylingMixin で既に行われているが念のため一貫性を維持)
         tm = self.theme_manager
-        self.current_theme = tm.current_theme
-        self.current_font_size = str(tm.current_font_size)
         self.program_search_history = list(tm.settings.get("program_search_history", []))
         
         self.saved_theme = self.current_theme
@@ -178,7 +251,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """UI設定を永続化する。ThemeManager を通じて保存。"""
         self.theme_manager.save_settings(
             theme=self.current_theme,
-            font_size_pt=self.current_font_size,
+            font_size=self.current_font_size,
             search_history=self.program_search_history,
         )
 

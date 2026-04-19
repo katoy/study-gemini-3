@@ -34,18 +34,27 @@ def _draw_brand_logo(canvas, palette: dict[str, str], size: int):
     orb_right = size - pad
     orb_bottom = size - pad
 
+    # 青系の配色を動的に決定
+    # palette に "primary_soft" がない場合は primary から生成することを想定するか、
+    # 既存の palette 構造に合わせます。
+    # 暫定的に primary を使用しつつ、透明度や明るさを調整します。
+    primary_color = palette["primary"]
+    
+    # 円の背景 (薄い青系)
+    bg_circle = "#E7F5FF" if palette["bg"].startswith("#F") else "#1A2533"
+
     canvas.create_oval(
         orb_left,
         orb_top,
         orb_right,
         orb_bottom,
-        fill=palette["accent_soft"],
-        outline=palette["accent"],
+        fill=bg_circle,
+        outline=primary_color,
         width=max(size * 0.04, 2),
     )
 
     wave_width = max(size * 0.045, 2)
-    wave_color = palette["accent_dark"]
+    wave_color = primary_color
     arc_box = (
         center - orb_size * 0.28,
         center - orb_size * 0.28,
@@ -80,8 +89,8 @@ def _draw_brand_logo(canvas, palette: dict[str, str], size: int):
     )
     canvas.create_polygon(
         triangle,
-        fill=palette["accent"],
-        outline=palette["accent_dark"],
+        fill=primary_color,
+        outline=primary_color,
         width=max(size * 0.025, 1),
         smooth=True,
     )

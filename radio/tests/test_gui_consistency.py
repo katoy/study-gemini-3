@@ -123,5 +123,64 @@ class GuiConsistencyTest(unittest.TestCase):
         # 3. 設定の保存
         b._persist_ui_settings()
 
+    def test_method_argument_arity(self):
+        """
+        ast 解析を使用して、self.method() 呼び出しの引数の数（Arity）が
+        定義と一致しているかチェックする。
+        """
+        import ast
+        import inspect
+
+        if self.browser is None:
+            self.fail(f"Browser failed to initialize: {self._setup_error}")
+
+        # 1) 実装されているメソッドの引数情報を収集
+        signatures = {}
+        for name in dir(self.browser):
+            attr = getattr(self.browser, name)
+            if callable(attr) and not name.startswith("__"):
+                try:
+                    signatures[name] = inspect.signature(attr)
+                except (ValueError, TypeError):
+                    continue
+
+        gui_dir = Path(__file__).parent.parent / "src" / "nhk_radio" / "gui"
+        files = ["browser.py", "build.py", "listing.py", "styling.py", "downloads.py"]
+        
+        errors = []
+        for filename in files:
+            path = gui_dir / filename
+            if not path.exists(): continue
+            
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            
+            for node in ast.walk(tree):
+                # self.method(...) 呼び出し
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    if isinstance(node.func.value, ast.Name) and node.func.value.id == "self":
+                        method_name = node.func.attr
+                        
+                        if method_name in signatures:
+                            sig = signatures[method_name]
+                            params = list(sig.parameters.values())
+                            
+                            # スター付き引数 (*args, **kwargs) がある呼び出しは静的判定が難しいため除外
+                            if any(isinstance(a, ast.Starred) for a in node.args):
+                                continue
+                            
+                            # 呼び出し側の引数カウント
+                            call_arg_count = len(node.args) + len(node.keywords)
+                            
+                            # 定義側の期待範囲
+                            min_args = sum(1 for p in params if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD))
+                            has_varargs = any(p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in params)
+                            max_args = len(params) if not has_varargs else float("inf")
+                            
+                            if call_arg_count < min_args or (call_arg_count > max_args and not has_varargs):
+                                errors.append(f"{filename}:{node.lineno} - {method_name} expected {min_args}-{max_args} args, but got {call_arg_count}")
+
+        if errors:
+            self.fail("Method arity mismatch found:\n" + "\n".join(errors))
+
 if __name__ == "__main__":
     unittest.main()

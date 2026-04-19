@@ -16,8 +16,8 @@ class CacheHelpersTest(unittest.TestCase):
             base = Path(tmp)
             program = Program(title="A", display_title="A", display_date="----", site_id="S", corner_id="01", url="U", onair_date="20240415")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
-                patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch("nhk_radio.cache._program_cache_dir", return_value=base / "programs"),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=base / "episodes"),
                 patch.object(cache.time, "time", return_value=1000.0),
             ):
                 cache.save_program_cache("language", [program])
@@ -30,8 +30,8 @@ class CacheHelpersTest(unittest.TestCase):
             program = Program(title="P", display_title="P", display_date="----", site_id="SITE", corner_id="01", url="U")
             episode = Episode(id="ep1", title="Ep", display_title="Ep", date="20240415", display_date="2024-04-15", broadcast_time="", duration_str="", url="")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
-                patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch("nhk_radio.cache._program_cache_dir", return_value=base / "programs"),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=base / "episodes"),
                 patch.object(cache.time, "time", side_effect=[1000.0, 2005.0]),
             ):
                 cache.save_episode_cache(program, [episode])
@@ -101,8 +101,8 @@ class CacheHelpersTest(unittest.TestCase):
             base = Path(tmp)
             program = Program(title="P", display_title="P", display_date="----", site_id="SITE", corner_id="01", url="U")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
-                patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch("nhk_radio.cache._program_cache_dir", return_value=base / "programs"),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=base / "episodes"),
             ):
                 self.assertEqual(cache._program_cache_path(None), base / "programs" / "all.json")
                 self.assertEqual(
@@ -138,9 +138,9 @@ class CacheHelpersTest(unittest.TestCase):
             ep_dir.mkdir()
             (prog_dir / "p.json").write_text("{}", encoding="utf-8")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", prog_dir),
-                patch.object(cache, "EPISODE_CACHE_DIR", ep_dir),
-                patch.object(cache, "UI_SETTINGS_PATH", ui_settings),
+                patch("nhk_radio.cache._program_cache_dir", return_value=prog_dir),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=ep_dir),
+                patch("nhk_radio.cache._ui_settings_path", return_value=ui_settings),
             ):
                 removed = cache.clear_all_cache()
             self.assertEqual(removed, 1)
@@ -150,7 +150,7 @@ class CacheHelpersTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ui_settings = Path(tmp) / "ui_settings.json"
             ui_settings.write_text("{}", encoding="utf-8")
-            with patch.object(cache, "UI_SETTINGS_PATH", ui_settings):
+            with patch("nhk_radio.cache._ui_settings_path", return_value=ui_settings):
                 removed = cache.clear_ui_settings()
                 self.assertEqual(removed, 1)
                 self.assertFalse(ui_settings.exists())
@@ -158,7 +158,7 @@ class CacheHelpersTest(unittest.TestCase):
     def test_clear_ui_settings_no_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             ui_settings = Path(tmp) / "nonexistent.json"
-            with patch.object(cache, "UI_SETTINGS_PATH", ui_settings):
+            with patch("nhk_radio.cache._ui_settings_path", return_value=ui_settings):
                 removed = cache.clear_ui_settings()
             self.assertEqual(removed, 0)
 
@@ -186,7 +186,7 @@ class CacheHelpersTest(unittest.TestCase):
                 ],
             }
             (base / "language.json").write_text(json.dumps(payload), encoding="utf-8")
-            with patch.object(cache, "PROGRAM_CACHE_DIR", base):
+            with patch("nhk_radio.cache._program_cache_dir", return_value=base):
                 loaded = cache.load_program_cache("language")
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0].title, "A")
@@ -216,7 +216,7 @@ class CacheHelpersTest(unittest.TestCase):
                 ],
             }
             (base / "SITE_01.json").write_text(json.dumps(payload), encoding="utf-8")
-            with patch.object(cache, "EPISODE_CACHE_DIR", base):
+            with patch("nhk_radio.cache._episode_cache_dir", return_value=base):
                 loaded = cache.load_episode_cache(program)
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0].id, "ep1")
@@ -226,7 +226,7 @@ class CacheHelpersTest(unittest.TestCase):
             ui_settings = Path(tmp) / "ui_settings.json"
             ui_settings.write_text("{}", encoding="utf-8")
             with (
-                patch.object(cache, "UI_SETTINGS_PATH", ui_settings),
+                patch("nhk_radio.cache._ui_settings_path", return_value=ui_settings),
                 patch.object(Path, "unlink", side_effect=OSError("read-only")),
                 self.assertLogs("nhk_radio.cache", level="WARNING") as logs,
             ):
@@ -242,8 +242,8 @@ class CacheHelpersTest(unittest.TestCase):
             (base / "programs" / "p.json").write_text("{}", encoding="utf-8")
             (base / "episodes" / "e.json").write_text("{}", encoding="utf-8")
             with (
-                patch.object(cache, "PROGRAM_CACHE_DIR", base / "programs"),
-                patch.object(cache, "EPISODE_CACHE_DIR", base / "episodes"),
+                patch("nhk_radio.cache._program_cache_dir", return_value=base / "programs"),
+                patch("nhk_radio.cache._episode_cache_dir", return_value=base / "episodes"),
             ):
                 self.assertEqual(cache.clear_program_cache(), 1)
                 self.assertEqual(cache.clear_episode_cache(), 1)

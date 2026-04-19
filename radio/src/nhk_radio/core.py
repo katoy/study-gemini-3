@@ -41,7 +41,7 @@ from .types import ApiProgramRaw, Episode, Program
 logger = logging.getLogger(__name__)
 
 
-async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 15) -> dict | list:
+async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 60) -> dict | list:
     try:
         resp = await client.get(url, timeout=timeout)
         resp.raise_for_status()
@@ -54,7 +54,7 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
         raise
 
 
-def http_get_json(url: str, timeout: int = 15) -> dict | list:
+def http_get_json(url: str, timeout: int = 60) -> dict | list:
     """Synchronous fallback using httpx"""
     try:
         with httpx.Client(headers=_HEADERS) as client:
@@ -69,7 +69,7 @@ def http_get_json(url: str, timeout: int = 15) -> dict | list:
         raise
 
 
-def http_get_text(url: str, timeout: int = 20) -> str:
+def http_get_text(url: str, timeout: int = 60) -> str:
     try:
         with httpx.Client(headers=_HEADERS) as client:
             resp = client.get(url, timeout=timeout)
@@ -292,6 +292,8 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        "socket_timeout": 60,  # タイムアウトをさらに延長
+        "retries": 5,          # 失敗時に5回まで自動リトライ
     }
 
     try:

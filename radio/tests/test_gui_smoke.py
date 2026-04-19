@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 import tkinter as tk
@@ -74,6 +75,25 @@ class GuiSmokeTest(unittest.TestCase):
             # trace_add によって呼ばれる
             mock_populate.assert_called()
 
+    def test_genre_combobox_update_on_populate(self):
+        """_populate_programs がコンボボックスの値をリフレッシュすることを検証。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        
+        # 初期状態の確認 (すべて, 音楽, 語学 が含まれているはず)
+        values = browser.program_genre_filter_combo.cget("values")
+        self.assertIn("音楽", values)
+        
+        # プログラムを入れ替えて再描画
+        browser.programs = [self.programs[0]] # 音楽のみ
+        browser._populate_programs()
+        
+        # コンボボックスの値が更新されているか
+        new_values = browser.program_genre_filter_combo.cget("values")
+        self.assertIn("音楽", new_values)
+        self.assertNotIn("語学", new_values)
+        self.assertIn("すべて", new_values)
+
     def test_search_history_persistence_smoke(self):
         """検索履歴の保存（_persist_ui_settings）が呼ばれることを確認。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
@@ -84,6 +104,86 @@ class GuiSmokeTest(unittest.TestCase):
             browser._remember_program_search("テスト検索")
             mock_persist.assert_called_once()
             self.assertIn("テスト検索", browser.program_search_history)
+
+    def test_persist_ui_settings_call_smoke(self):
+        """_persist_ui_settings が ThemeManager.save_settings を正しく呼び出すことを確認。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        
+        # theme_manager.save_settings を直接 Mock に差し替え
+        browser.theme_manager.save_settings = MagicMock()
+        
+        try:
+            browser._persist_ui_settings()
+        except TypeError as e:
+            self.fail(f"_persist_ui_settings raised TypeError: {e}")
+        
+        # save_settings が呼ばれたことを確認
+        browser.theme_manager.save_settings.assert_called()
+
+    def test_tree_click_callback_smoke(self):
+        """Treeview のクリック時に TypeError が発生しないことを確認 (再発防止)。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        
+        # 擬似的なクリックイベント
+        event = MagicMock()
+        event.x = 10
+        event.y = 10
+        
+        # identify_region や identify_column をモックして特定のセルがクリックされたことにする
+        browser.program_tree.identify_region = MagicMock(return_value="cell")
+        browser.program_tree.identify_column = MagicMock(return_value="#3") # タイトル列
+        browser.program_tree.identify_row = MagicMock(return_value="item1")
+        browser.program_tree.set = MagicMock(return_value="番組タイトル")
+        
+        try:
+            # TypeError が発生していた箇所を直接・間接的に実行
+            browser._on_program_tree_click(event)
+        except TypeError as e:
+            self.fail(f"_on_program_tree_click raised TypeError: {e}")
+        except Exception:
+            # その他のエラー（モックの不備など）はここでは許容（TypeError阻止が目的）
+            pass
+
+    def test_settings_roundtrip_integration(self):
+        """設定変更 -> 保存 -> 再読み込み の流れが正しいキーと型で動作することを確認。"""
+        # setUp で開始された全てのパッチを一旦停止する
+        for patcher in self.patchers:
+            patcher.stop()
+        
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                config_dir = Path(tmp_dir) / "config"
+                config_dir.mkdir(parents=True)
+                
+                # 環境変数で設定ディレクトリを固定
+                with patch.dict("os.environ", {"NHK_RADIO_CONFIG_DIR": str(config_dir)}), \
+                     patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+                    
+                    import nhk_radio.config as cfg
+                    cfg._MIGRATION_DONE = False
+                    
+                    # 1. 初期化 (デフォルト)
+                    browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    self.assertEqual(browser1.current_theme, "light")
+                    
+                    # 2. 設定変更と保存
+                    browser1.current_theme = "dark"
+                    browser1.current_font_size = 14
+                    browser1._persist_ui_settings()
+                    
+                    # 3. 再起動 (再初期化)
+                    cfg._MIGRATION_DONE = False
+                    browser2 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    
+                    # 設定が引き継がれているか
+                    self.assertEqual(browser2.current_theme, "dark")
+                    self.assertEqual(int(browser2.current_font_size), 14)
+        finally:
+            # テスト終了後にパッチを再開（tearDown で正しく stop されるように）
+            for patcher in self.patchers:
+                patcher.start()
 
 if __name__ == "__main__":
     unittest.main()

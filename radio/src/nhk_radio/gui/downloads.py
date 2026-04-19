@@ -306,6 +306,7 @@ class GuiDownloadsMixin:
     def _create_download_job_widgets(self, index: int, episode: Episode, episode_key: str) -> dict:
         p = self._palette
         frame = ttk.Frame(self.download_jobs_inner, style="Card.TFrame")
+        # column 1 (プログレスバー) が伸縮するように設定
         frame.columnconfigure(1, weight=1)
         
         title_label = ttk.Label(
@@ -316,7 +317,8 @@ class GuiDownloadsMixin:
         title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5))
         
         status_var = tk.StringVar(value="準備中...")
-        status_label = ttk.Label(frame, textvariable=status_var, font=("", 9))
+        # 状態ラベルにもある程度の幅を持たせて安定させる
+        status_label = ttk.Label(frame, textvariable=status_var, font=("", 9), width=10, anchor="e")
         status_label.grid(row=0, column=2, sticky="e", padx=10, pady=(10, 5))
         
         progress = ttk.Progressbar(frame, mode="indeterminate", length=200)
@@ -325,7 +327,8 @@ class GuiDownloadsMixin:
         
         percent_var = tk.StringVar(value="--%")
         progress_meta_var = tk.StringVar(value="--% / 残り --:--")
-        meta_label = ttk.Label(frame, textvariable=progress_meta_var, font=("", 9))
+        # 進捗テキストラベルに固定幅 (width=22) を設定して、伸縮を防ぐ
+        meta_label = ttk.Label(frame, textvariable=progress_meta_var, font=("", 9), width=22, anchor="e")
         meta_label.grid(row=1, column=2, sticky="e", padx=10, pady=5)
         
         action_button = ttk.Button(
