@@ -17,6 +17,7 @@ from .core import (
 )
 from .downloads import (
     _download_episode_command,
+    _parse_yt_dlp_progress,
     _program_filename_template,
     _program_output_dir,
     _yt_dlp_command,
