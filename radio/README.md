@@ -232,15 +232,15 @@ radio/
 | `gui/download_manager.py` | 84 | 27% |
 | `gui/downloads.py` | 250 | 57% |
 | `gui/help_markdown.py` | 134 | 99% |
-| `gui/listing.py` | 551 | 29% |
-| `gui/logic.py` | 53 | 17% |
-| `gui/logo.py` | 32 | 12% |
-| `gui/styling.py` | 140 | 41% |
+| `gui/listing.py` | 551 | 44% |
+| `gui/logic.py` | 53 | 21% |
+| `gui/logo.py` | 32 | 91% |
+| `gui/styling.py` | 140 | 60% |
 | `gui/theme_manager.py` | 89 | 90% |
 | `gui/toolkit.py` | 9 | 44% |
 | `text.py` | 134 | 99% |
 | `types.py` | 12 | 100% |
-| **合計** | **3071** | **70%** |
+| **合計** | **3071** | **74%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
