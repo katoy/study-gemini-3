@@ -28,8 +28,12 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.output_dir = output_dir
         self.audio_only = audio_only
         self.genre = genre
+        
         self._initialize_runtime_state(self.programs)
         self._initialize_root_window()
+        # ThemeManager の初期化 (Mixin経由)
+        self._initialize_theme()
+        
         self._initialize_ui_state(self.programs)
 
         self._build_widgets()
@@ -42,6 +46,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
+        
+        # UI 状態 (ThemeManager 初期化前にプレースホルダを設定)
+        self.current_theme = DEFAULT_UI_THEME
+        self.current_font_size = str(DEFAULT_UI_FONT_SIZE_PT)
+        self.current_screen = "browser"
+        self.settings_dirty = False
+        self.program_search_history: list[str] = []
         
         # データ管理 (Composition)
         self.data_manager = DataManager(
@@ -122,18 +133,17 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.root.protocol("WM_DELETE_WINDOW", self._cancel)
 
     def _initialize_ui_state(self, programs: list[Program]) -> None:
-        self.current_theme = DEFAULT_UI_THEME
-        self.current_font_size = DEFAULT_UI_FONT_SIZE_PT
-        self.current_screen = "browser"
-        saved_ui_settings = _load_ui_settings()
-        self.current_theme = saved_ui_settings.get("theme", self.current_theme)
-        self.current_font_size = saved_ui_settings.get("font_size_pt", self.current_font_size)
+        # ThemeManager が読み込んだ実際の値と同期
+        tm = self.theme_manager
+        self.current_theme = tm.current_theme
+        self.current_font_size = str(tm.current_font_size)
+        self.program_search_history = list(tm.settings.get("program_search_history", []))
+        
         self.saved_theme = self.current_theme
         self.saved_font_size = self.current_font_size
-        self.settings_dirty = False
-        self.program_search_history = list(saved_ui_settings.get("program_search_history", []))
-        self.font_family = self._resolve_mono_font_family()
-        self.ui_font_family = self._resolve_ui_font_family()
+        
+        self.font_family = tm.mono_family
+        self.ui_font_family = tm.font_family
 
         self.status_var = tk.StringVar(value="番組を選択してください。")
         self.selected_cell_meta_var = tk.StringVar(value="")

@@ -6,12 +6,7 @@ from .toolkit import tk, ttk
 
 class GuiBuildMixin:
     def _build_widgets(self):
-        self._load_font_profile()
-        self.style = ttk.Style(self.root)
-        self.style.theme_use("clam")
-        self._palette = self._theme_palette(self.current_theme)
-        self._configure_theme_styles()
-
+        # ウィジェット構築開始。テーマとフォントは既に初期化済み。
         main = ttk.Frame(self.root, padding=16)
         main.pack(fill="both", expand=True)
         main.columnconfigure(0, weight=1)
