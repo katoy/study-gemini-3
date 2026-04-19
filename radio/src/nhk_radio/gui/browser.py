@@ -71,6 +71,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.tooltip_label: tk.Label | None = None
         self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
+    def _on_download_manager_result(self, res_type, key, program, episode, data):
+        """Bridge result from DownloadManager to UI queue."""
+        self.download_result_queue.put((res_type, key, program, episode, data))
+
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
         self.root.title("NHK ラジオ 聞き逃しブラウザ")
@@ -128,6 +132,49 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.program_genre_filter_var.trace_add("write", self._on_program_filter_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
+
+    def _start_fetch_programs(self, genre: str | None = None):
+        """Initial background fetch of all programs."""
+        if self.loading:
+            return
+        
+        self.status_var.set("番組一覧を読み込み中...")
+        self._set_loading(True)
+        
+        self.program_fetch_queue = queue.Queue()
+        def _worker():
+            try:
+                from ..core import fetch_program_list
+                progs = fetch_program_list(genre)
+                self.program_fetch_queue.put((progs, None))
+            except Exception as e:
+                self.program_fetch_queue.put(([], str(e)))
+        
+        threading.Thread(target=_worker, daemon=True).start()
+        self.root.after(100, self._poll_fetch_programs)
+
+    def _poll_fetch_programs(self):
+        if self.program_fetch_queue is None:
+            return
+        
+        try:
+            res = self.program_fetch_queue.get_nowait()
+            self.program_fetch_queue = None
+            self._finish_fetch_programs(*res)
+        except queue.Empty:
+            self.root.after(100, self._poll_fetch_programs)
+
+    def _finish_fetch_programs(self, programs: list[Program], error: str | None):
+        self._set_loading(False)
+        if error:
+            self.status_var.set(f"取得失敗: {error}")
+        else:
+            self.programs = programs
+            self.filtered_programs = list(programs)
+            # program_order_map は後で GuiListingMixin 等で使われる可能性があるため更新
+            self.program_order_map = {self._program_key(p): i for i, p in enumerate(programs, 1)}
+            self._apply_program_filters()
+            self.status_var.set("読み込み完了")
 
     def run(self) -> tuple[Program, list[Episode]] | tuple[None, None]:
         self.root.mainloop()

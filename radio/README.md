@@ -213,7 +213,7 @@ radio/
 ## テストカバレッジ
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-04-19
+最終計測: 2026-04-20
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
@@ -226,9 +226,10 @@ radio/
 | `core.py` | 214 | 90% |
 | `downloads.py` | 274 | 99% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/browser.py` | 226 | 52% |
+| `gui/browser.py` | 261 | 47% |
 | `gui/build.py` | 321 | 100% |
-| `gui/downloads.py` | 498 | 54% |
+| `gui/download_manager.py` | 84 | 0% |
+| `gui/downloads.py` | 261 | 51% |
 | `gui/help_markdown.py` | 134 | 99% |
 | `gui/listing.py` | 551 | 30% |
 | `gui/logic.py` | 53 | 17% |
@@ -237,7 +238,7 @@ radio/
 | `gui/toolkit.py` | 9 | 44% |
 | `text.py` | 134 | 96% |
 | `types.py` | 12 | 100% |
-| **合計** | **3218** | **70%** |
+| **合計** | **3100** | **69%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
