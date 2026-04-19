@@ -159,7 +159,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.episode_selection_summary_var = tk.StringVar(value="選択 0 件")
         self.episode_search_var = tk.StringVar()
         self.episode_saved_only_var = tk.BooleanVar(value=False)
+        self.fetch_button_var = tk.StringVar(value="一覧を取得")
         self.progress_text_var = tk.StringVar(value="")
+
         self.settings_button_var = tk.StringVar()
         self.settings_summary_var = tk.StringVar()
         self.font_size_display_var = tk.StringVar()
@@ -170,6 +172,14 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.program_genre_filter_var.trace_add("write", self._on_program_filter_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
+
+    def _persist_ui_settings(self):
+        """UI設定を永続化する。ThemeManager を通じて保存。"""
+        self.theme_manager.save_settings(
+            theme=self.current_theme,
+            font_size_pt=self.current_font_size,
+            search_history=self.program_search_history,
+        )
 
     def _start_fetch_programs(self, genre: str | None = None):
         """Initial background fetch of all programs."""

@@ -178,7 +178,7 @@ class GuiBuildMixin:
         hero_actions.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(18, 0))
         self.fetch_button = ttk.Button(
             hero_actions,
-            text="一覧を取得",
+            textvariable=self.fetch_button_var,
             command=self._start_fetch_selected,
             style="Quiet.TButton",
         )
