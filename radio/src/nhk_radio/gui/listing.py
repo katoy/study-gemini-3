@@ -12,9 +12,10 @@ from ..config import CACHE_TTL_SECONDS, SEARCH_HISTORY_LIMIT
 from ..downloads import (
     _episode_key,
     _load_download_manifest,
+    find_episode_downloaded_path,
     is_episode_downloaded,
-    resolve_episode_downloaded_path,
 )
+from .logic import filter_episodes, filter_programs, sort_episodes, sort_programs
 from ..text import (
     _genre_label,
     _normalize_text,
@@ -189,21 +190,12 @@ class GuiListingMixin:
         self._rerender_displayed_episodes()
 
     def _sorted_programs(self, programs: list[Program]) -> list[Program]:
-        if self.program_sort_column is None:
-            return list(programs)
-        return sorted(programs, key=self._program_sort_key, reverse=self.program_sort_reverse)
-
-    def _program_sort_key(self, program: Program):
-        program_key = self._program_key(program)
-        original_index = self.program_order_map.get(program_key, 10**9)
-        display_title = self._normalized_search_text(program.display_title or program.title)
-        if self.program_sort_column == "no":
-            return (original_index, display_title)
-        if self.program_sort_column == "date":
-            started_at = _sortable_timestamp_value(program.started_at)
-            day = _sortable_day_value(str(program.onair_date or program.display_date or ""))
-            return (started_at, day, display_title, original_index)
-        return (display_title, original_index)
+        return sort_programs(
+            programs,
+            self.program_sort_column,
+            self.program_sort_reverse,
+            self.program_order_map,
+        )
 
     def _normalized_search_text(self, text: str) -> str:
         normalized = unicodedata.normalize("NFKC", _normalize_text(text))
@@ -327,6 +319,8 @@ class GuiListingMixin:
         if cached is not None:
             cached_at, episodes = cached
             if time.time() - cached_at <= CACHE_TTL_SECONDS:
+                # ヒットした場合は末尾に移動 (LRU)
+                self.episodes_cache.move_to_end(key)
                 return episodes
         return []
 
@@ -568,32 +562,14 @@ class GuiListingMixin:
         return "break"
 
     def _sorted_episodes(self, episodes: list[Episode]) -> list[Episode]:
-        if self.episode_sort_column is None:
-            return list(episodes)
-
-        order_map = {_episode_key(episode): index for index, episode in enumerate(episodes)}
-
-        def sort_key(episode: Episode):
-            original_index = order_map.get(_episode_key(episode), 10**9)
-            title = self._normalized_search_text(episode.display_title or episode.title)
-            if self.episode_sort_column == "saved":
-                saved = (
-                    is_episode_downloaded(self.output_dir, self.displayed_program, episode)
-                    if self.displayed_program
-                    else False
-                )
-                return (saved, title, original_index)
-            if self.episode_sort_column == "date":
-                timestamp = _sortable_timestamp_value(episode.date)
-                day = _sortable_day_value(str(episode.date or episode.display_date or ""))
-                time_text = _normalize_text(episode.broadcast_time)
-                return (timestamp, day, time_text, title, original_index)
-            if self.episode_sort_column == "duration":
-                duration = _sortable_duration_value(str(episode.duration_str or ""))
-                return (duration, title, original_index)
-            return (title, original_index)
-
-        return sorted(episodes, key=sort_key, reverse=self.episode_sort_reverse)
+        return sort_episodes(
+            episodes,
+            self.episode_sort_column,
+            self.episode_sort_reverse,
+            lambda e: is_episode_downloaded(self.output_dir, self.displayed_program, e)
+            if self.displayed_program
+            else False,
+        )
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool):
         self.displayed_episode_map.clear()
@@ -606,17 +582,22 @@ class GuiListingMixin:
         self.episode_tree.tag_configure("dl_even", background=p["dl_even"])
         self.episode_tree.tag_configure("dl_odd", background=p["dl_odd"])
         rendered = self._sorted_episodes(self._filtered_episode_rows(program, episodes))
+        
+        # UI の応答性を優先し、保存済みチェックはバックグラウンドで行う
+        to_check: list[tuple[str, Episode]] = []
         for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
-            is_dl = is_episode_downloaded(self.output_dir, program, episode)
-            saved = self._downloaded_cell_text(is_dl)
+            
+            # 初期状態は「未ダウンロード」として高速描画
+            saved = self._downloaded_cell_text(False)
             date_time = episode.display_date or "----"
             btime = episode.broadcast_time
             if btime:
                 date_time = f"{date_time} {btime}"
             dur = episode.duration_str or "----"
-            tag = ("dl_odd" if index % 2 == 1 else "dl_even") if is_dl else "odd" if index % 2 == 1 else "even"
+            tag = "odd" if index % 2 == 1 else "even"
+            
             self.episode_tree.insert(
                 "",
                 "end",
@@ -624,6 +605,7 @@ class GuiListingMixin:
                 tags=(tag,),
                 values=(saved, date_time, dur, episode.display_title or episode.title),
             )
+            to_check.append((iid, episode))
 
         if rendered:
             if clear_selection:
@@ -635,13 +617,56 @@ class GuiListingMixin:
                 self.episode_tree.focus(first)
                 self.episode_tree.see(first)
             self.download_button.state(["!disabled"])
+            
+            # 判定処理を開始
+            import threading
+            threading.Thread(target=self._async_download_check_worker, args=(program, to_check), daemon=True).start()
         else:
             self.episode_tree.selection_remove(self.episode_tree.selection())
             self.episode_tree.focus("")
             self.download_button.state(["disabled"])
+
         self._update_episode_filter_summary(len(rendered), len(episodes))
         self._update_episode_selection_summary()
         self._schedule_saved_button_refresh()
+
+    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]]):
+        """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
+        # 判定はディスクI/Oを伴うため、ここで一気に実行
+        results = []
+        for iid, episode in to_check:
+            # プログラムが切り替わっていたら中断
+            if self.displayed_program != program:
+                return
+            is_dl = is_episode_downloaded(self.output_dir, program, episode)
+            if is_dl:
+                results.append((iid, is_dl))
+        
+        if results:
+            self.root.after(0, lambda: self._apply_download_check_results(program, results))
+
+    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]]):
+        """判定結果を UI に反映する。"""
+        if self.displayed_program != program:
+            return
+
+        for iid, is_dl in results:
+            if not self.episode_tree.exists(iid):
+                continue
+            
+            saved = self._downloaded_cell_text(is_dl)
+            # 現在の値を保持しつつ判定結果だけ更新
+            current_values = self.episode_tree.item(iid, "values")
+            if not current_values:
+                continue
+            
+            # Treeview の index から奇数・偶数を再判定
+            index = self.episode_tree.index(iid)
+            tag = ("dl_odd" if index % 2 == 1 else "dl_even") if is_dl else "odd" if index % 2 == 1 else "even"
+            
+            new_values = list(current_values)
+            new_values[0] = saved
+            self.episode_tree.item(iid, values=tuple(new_values), tags=(tag,))
 
     def _rerender_displayed_episodes(self):
         if self.displayed_program is None:
@@ -773,7 +798,7 @@ class GuiListingMixin:
             return None
         self._set_selected_tree_cell(self.episode_tree, "#1", self._downloaded_cell_text(True))
         episode = self.displayed_episode_map[item_id]
-        path = resolve_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
         if path is None:
             # 理由を特定するためのヒントを表示
             saved_paths = _load_download_manifest(self.displayed_program, self.output_dir)

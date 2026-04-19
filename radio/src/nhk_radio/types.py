@@ -1,7 +1,22 @@
 """Type definitions for NHK radio data."""
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import TypedDict
+
+
+class ApiProgramRaw(TypedDict, total=False):
+    """Raw program data from NHK API."""
+
+    site_id: str
+    series_site_id: str
+    corner_site_id: str
+    title: str
+    corner_name: str
+    onair_date: str
+    started_at: str
+    genre_label: str
+    thumbnail_url: str
+    description: str
 
 
 @dataclass(frozen=True)
@@ -19,7 +34,6 @@ class Program:
     corner_name: str | None = None
     onair_date: str | None = None
     started_at: str | None = None
-    extra_data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -34,4 +48,3 @@ class Episode:
     broadcast_time: str
     duration_str: str
     url: str
-    extra_data: dict[str, Any] = field(default_factory=dict)

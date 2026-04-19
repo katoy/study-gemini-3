@@ -22,7 +22,7 @@ from .downloads import (
     _yt_dlp_command,
     is_episode_downloaded,
     mark_episode_downloaded,
-    resolve_episode_downloaded_path,
+    sync_episode_download_history,
 )
 from .gui import browse_programs
 from .types import Episode, Program
@@ -207,8 +207,8 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
         if not success:
             logger.error(f"失敗: {title}")
             continue
-        downloaded_path = resolve_episode_downloaded_path(output_dir, program, episode)
-        if not mark_episode_downloaded(output_dir, program, episode, downloaded_path):
+        downloaded_path = sync_episode_download_history(output_dir, program, episode)
+        if downloaded_path is None:
             logger.warning(f"ダウンロード履歴の記録に失敗: {title}")
         downloaded_count += 1
     return downloaded_count

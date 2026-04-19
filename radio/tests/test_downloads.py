@@ -129,7 +129,7 @@ class DownloadHelpersTest(unittest.TestCase):
             )
             # 修正後: ファイルが実在しない場合は False を返す
             self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
-            self.assertIsNone(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
+            self.assertIsNone(downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
 
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
@@ -138,12 +138,12 @@ class DownloadHelpersTest(unittest.TestCase):
             found = program_dir / "20240415_番組A_第1回.mp3"
             found.write_text("x", encoding="utf-8")
             self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
-            self.assertEqual(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE), found)
+            self.assertEqual(downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE), found)
 
         with tempfile.TemporaryDirectory() as tmp:
-            self.assertIsNone(downloads.resolve_episode_downloaded_path(Path(tmp), PROGRAM, EPISODE))
+            self.assertIsNone(downloads.find_episode_downloaded_path(Path(tmp), PROGRAM, EPISODE))
 
-    def test_resolve_primary_candidate_updates_manifest_when_relative_path_changes(self):
+    def test_sync_primary_candidate_updates_manifest_when_relative_path_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             manifest_dir = output_dir / "SITE_01"
@@ -155,7 +155,7 @@ class DownloadHelpersTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            resolved = downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE)
+            resolved = downloads.sync_episode_download_history(output_dir, PROGRAM, EPISODE)
 
             self.assertEqual(resolved, primary)
             manifest = json.loads((manifest_dir / ".downloaded.json").read_text(encoding="utf-8"))
@@ -184,7 +184,7 @@ class DownloadHelpersTest(unittest.TestCase):
             downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, file_path)
 
             self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
-            self.assertEqual(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE), file_path)
+            self.assertEqual(downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE), file_path)
 
     def test_mark_episode_downloaded_stores_absolute_path_outside_program_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -197,7 +197,40 @@ class DownloadHelpersTest(unittest.TestCase):
             manifest = json.loads((output_dir / "SITE_01" / ".downloaded.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["paths"]["ep-1"], str(outside_path))
 
-    def test_resolve_episode_downloaded_path_supports_legacy_title_based_folder_and_saved_paths(self):
+    def test_get_cached_glob_files_returns_empty_on_iterdir_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            downloads._clear_file_scan_cache()
+            with patch.object(Path, "iterdir", side_effect=OSError("denied")):
+                result = downloads._get_cached_glob_files(target)
+            self.assertEqual(result, [])
+
+    def test_cleanup_partial_episode_files_swallows_iterdir_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir.mkdir(parents=True, exist_ok=True)
+            # 例外が発生しても呼び出し元に伝播しないこと
+            with patch.object(Path, "iterdir", side_effect=OSError("denied")):
+                downloads.cleanup_partial_episode_files(output_dir, PROGRAM, EPISODE)
+
+    def test_mark_episode_downloaded_returns_false_on_save_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir.mkdir(parents=True, exist_ok=True)
+            file_path = program_dir / "20240415_番組A_第1回.mp3"
+            file_path.write_text("dummy", encoding="utf-8")
+
+            with (
+                patch.object(Path, "write_text", side_effect=OSError("disk full")),
+                self.assertLogs("nhk_radio.downloads", level="WARNING") as logs,
+            ):
+                result = downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, file_path)
+            self.assertFalse(result)
+            self.assertTrue(any("ダウンロード履歴の保存に失敗" in m for m in logs.output))
+
+    def test_find_episode_downloaded_path_supports_legacy_title_based_folder_and_saved_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             legacy_dir = output_dir / "語学" / "番組A"
@@ -205,7 +238,7 @@ class DownloadHelpersTest(unittest.TestCase):
             legacy_file = legacy_dir / "20240415_番組A_第1回.mp3"
             legacy_file.write_text("dummy", encoding="utf-8")
 
-            resolved = downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE)
+            resolved = downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE)
             self.assertEqual(resolved, legacy_file)
 
             manifest_dir = output_dir / "SITE_01"
@@ -217,13 +250,13 @@ class DownloadHelpersTest(unittest.TestCase):
             saved = manifest_dir / "saved.mp3"
             saved.write_text("x", encoding="utf-8")
             legacy_file.unlink()
-            self.assertEqual(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE), saved)
+            self.assertEqual(downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE), saved)
 
             (manifest_dir / ".downloaded.json").write_text(
                 json.dumps({"downloaded": ["ep-1"], "paths": {"ep-1": "missing.mp3"}}),
                 encoding="utf-8",
             )
-            self.assertIsNone(downloads.resolve_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
+            self.assertIsNone(downloads.find_episode_downloaded_path(output_dir, PROGRAM, EPISODE))
 
     def test_cleanup_partial_episode_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -291,7 +324,7 @@ class DownloadHelpersTest(unittest.TestCase):
         with patch("pathlib.Path.is_file", return_value=True):
             self.assertTrue(downloads._episode_output_matches(path, program, episode))
 
-    def test_resolve_episode_downloaded_path_missing_file(self):
+    def test_find_episode_downloaded_path_missing_file(self):
         program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
         episode = Episode(id="ep1", title="E", display_title="E", date="", display_date="", broadcast_time="", duration_str="", url="")
         with tempfile.TemporaryDirectory() as tmp:
@@ -299,10 +332,10 @@ class DownloadHelpersTest(unittest.TestCase):
             prog_dir = out / "SITE_01"
             prog_dir.mkdir()
             manifest = prog_dir / ".downloaded.json"
-            manifest.write_text(json.dumps({"downloaded": ["ep1"], "paths": {"ep1": "missing.mp3"}}))
+            manifest.write_text(json.dumps({"downloaded": ["ep1"], "paths": {"ep1": "missing.mp3"}}), encoding="utf-8")
             
             # マニフェストにはあるがファイルがない
-            self.assertIsNone(downloads.resolve_episode_downloaded_path(out, program, episode))
+            self.assertIsNone(downloads.find_episode_downloaded_path(out, program, episode))
 
     def test_download_progress_formatters_and_command_builders(self):
         self.assertEqual(downloads._format_download_percent(None), "--%")

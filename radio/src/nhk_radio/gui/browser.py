@@ -4,6 +4,7 @@ import contextlib
 import queue
 import subprocess
 import threading
+from collections import OrderedDict
 from pathlib import Path
 
 from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings
@@ -50,7 +51,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.active_download_meta: dict[str, tuple[Program, Episode]] = {}
         self.download_started_count = 0
         self.download_finished_count = 0
-        self.episodes_cache: dict[tuple[str, str], tuple[float, list[Episode]]] = {}
+        self.episodes_cache: OrderedDict[tuple[str, str], tuple[float, list[Episode]]] = OrderedDict()
         self.filtered_programs = list(programs)
         self.program_tree_programs: dict[str, Program] = {}
         self.displayed_program: Program | None = None
@@ -300,3 +301,4 @@ def browse_programs(
 # ──────────────────────────────────────────────────────
 # 対話型選択 UI
 # ──────────────────────────────────────────────────────
+

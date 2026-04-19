@@ -20,7 +20,7 @@ from ..downloads import (
     _program_output_dir,
     cleanup_partial_episode_files,
     mark_episode_downloaded,
-    resolve_episode_downloaded_path,
+    sync_episode_download_history,
 )
 from ..types import Episode, Program
 from .toolkit import tk, ttk
@@ -436,6 +436,7 @@ class GuiDownloadsMixin:
         key = (program.site_id, program.corner_id)
         if error is not None:
             self.episodes_cache[key] = (time.time(), [])
+            self.episodes_cache.move_to_end(key)
             self.status_var.set(f"取得失敗: {error}")
             fallback = self._cached_episodes_for(program)
             if fallback:
@@ -446,15 +447,19 @@ class GuiDownloadsMixin:
             else:
                 self._update_program_overview(program, None, "取得失敗")
                 self._show_episodes(program, [], message="一覧は未取得です。取得に失敗しました。")
-            return
+        else:
+            self.episodes_cache[key] = (time.time(), episodes)
+            self.episodes_cache.move_to_end(key)
+            source_label = {"stale-cache": "期限切れキャッシュ"}.get(source, "最新取得")
+            self.status_var.set("")
+            self._update_program_overview(program, episodes, source_label)
+            self._show_episodes(program, episodes, message=f"{source_label}で {len(episodes)} 件を表示中")
+            if episodes:
+                self.episode_tree.focus_set()
 
-        self.episodes_cache[key] = (time.time(), episodes)
-        source_label = {"stale-cache": "期限切れキャッシュ"}.get(source, "最新取得")
-        self.status_var.set("")
-        self._update_program_overview(program, episodes, source_label)
-        self._show_episodes(program, episodes, message=f"{source_label}で {len(episodes)} 件を表示中")
-        if episodes:
-            self.episode_tree.focus_set()
+        # メモリリーク防止のための容量制限 (100番組分)
+        if len(self.episodes_cache) > 100:
+            self.episodes_cache.popitem(last=False)
 
     def _clear_cache(self):
         if self.loading:
@@ -565,12 +570,13 @@ class GuiDownloadsMixin:
             # OS のファイル書き込み完了を少し待つ
             downloaded_path = None
             for _ in range(3):
-                downloaded_path = resolve_episode_downloaded_path(self.output_dir, program, episode)
+                downloaded_path = sync_episode_download_history(self.output_dir, program, episode)
                 if downloaded_path:
                     break
                 time.sleep(0.2)
 
-            mark_episode_downloaded(self.output_dir, program, episode, downloaded_path)
+            if downloaded_path is None:
+                logger.warning(f"ダウンロード履歴の記録に失敗: {episode_key}")
             self.download_result_queue.put(("done_one", episode_key, program, episode))
         else:
             cleanup_partial_episode_files(self.output_dir, program, episode)
@@ -691,6 +697,10 @@ class GuiDownloadsMixin:
             self.root.after(100, self._poll_download_result)
         else:
             self.download_polling = False
+
+
+__all__ = ["GuiDownloadsMixin"]
+nload_polling = False
 
 
 __all__ = ["GuiDownloadsMixin"]

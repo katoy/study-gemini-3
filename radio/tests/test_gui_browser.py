@@ -99,7 +99,7 @@ class TestGuiComprehensive(unittest.TestCase):
         browser.displayed_program = program
         
         # subprocess.Popen をモックして、OSコマンドの呼び出しを監視
-        with patch("nhk_radio.gui.listing.resolve_episode_downloaded_path", return_value=Path("/tmp/file.mp3")), \
+        with patch("nhk_radio.gui.listing.find_episode_downloaded_path", return_value=Path("/tmp/file.mp3")), \
              patch("nhk_radio.gui.listing.subprocess.Popen") as mock_popen:
             
             # [済] クリック時のメソッドを呼び出し

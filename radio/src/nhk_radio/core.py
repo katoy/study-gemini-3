@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 import time
+from typing import cast
 
 import httpx
 import yt_dlp
@@ -35,7 +36,7 @@ from .text import (
     _normalize_text,
     _program_display_title,
 )
-from .types import Episode, Program
+from .types import ApiProgramRaw, Episode, Program
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +146,14 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | N
     return program
 
 
-def _make_entry(s: dict, genre: str | None = None) -> Program:
-    site_id = s.get("series_site_id") or s.get("site_id", "")
-    corner_id = s.get("corner_site_id") or s.get("corner_id", "01")
-    title = s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}"
-    corner_name = s.get("corner_name", "")
-    onair_date = s.get("onair_date", "")
+def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
+    site_id = str(s.get("series_site_id") or s.get("site_id") or "")
+    corner_id = str(s.get("corner_site_id") or s.get("corner_id") or "01")
+    title = str(s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}")
+    corner_name = s.get("corner_name")
+    onair_date = str(s.get("onair_date") or "")
+    started_at = str(s.get("started_at") or "")
+
     return Program(
         title=title,
         corner_name=corner_name,
@@ -159,9 +162,9 @@ def _make_entry(s: dict, genre: str | None = None) -> Program:
         site_id=site_id,
         corner_id=corner_id,
         onair_date=onair_date,
-        display_date=_format_onair_date(onair_date),
+        display_date=_format_onair_date(onair_date, started_at),
         display_title=_program_display_title(title, corner_name),
-        started_at=s.get("started_at", ""),
+        started_at=started_at,
         url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
     )
 
@@ -178,8 +181,9 @@ async def _fetch_all_async() -> list[Program]:
         try:
             data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
             if isinstance(data, dict):
-                for s in data.get("corners", []):
-                    key = (s.get("series_site_id"), s.get("corner_site_id"))
+                for s_raw in data.get("corners", []):
+                    s = cast(ApiProgramRaw, s_raw)
+                    key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
                     if key not in seen:
                         seen.add(key)
                         entry = _make_entry(s)
@@ -203,8 +207,9 @@ async def _fetch_all_async() -> list[Program]:
         for g, data in results:
             if not isinstance(data, dict):
                 continue
-            for s in data.get("series", []):
-                key = (s.get("series_site_id"), s.get("corner_site_id"))
+            for s_raw in data.get("series", []):
+                s = cast(ApiProgramRaw, s_raw)
+                key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
                 if key not in seen:
                     seen.add(key)
                     entry = _make_entry(s, genre=g)
@@ -239,11 +244,11 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
             data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
         if isinstance(data, dict):
-            programs = [_make_entry(s, genre=genre) for s in data.get("series", [])]
+            programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("series", [])]
             logger.info(f"{len(programs)} 件を取得しました。")
             return programs
         return []
-    except Exception as e:
+    except (httpx.HTTPError, ValueError, Exception) as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
         return []
 

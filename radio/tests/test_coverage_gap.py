@@ -140,8 +140,7 @@ class CoverageGapExtraTest(unittest.TestCase):
         with (
             patch.object(cli, "is_episode_downloaded", return_value=False),
             patch.object(cli, "download_episode", return_value=True),
-            patch.object(cli, "resolve_episode_downloaded_path", return_value=Path("/tmp/out.mp3")),
-            patch.object(cli, "mark_episode_downloaded") as mark_mock,
+            patch.object(cli, "sync_episode_download_history", return_value=Path("/tmp/out.mp3")) as sync_mock,
             patch.object(cli, "_program_output_dir", return_value=Path("/tmp")),
             patch.object(cli, "_program_filename_template", return_value="%(id)s.%(ext)s"),
         ):
@@ -149,7 +148,7 @@ class CoverageGapExtraTest(unittest.TestCase):
                 program, [episode], Path("/tmp"), audio_only=True
             )
             self.assertEqual(count, 1)
-            mark_mock.assert_called_once()
+            sync_mock.assert_called_once()
 
     def test_http_get_json_async_executes_body(self):
         # core.py: 45-46 (http_get_json_async actual execution)

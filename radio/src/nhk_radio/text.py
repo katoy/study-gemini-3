@@ -15,7 +15,17 @@ def _fixed_display_date(day: datetime) -> str:
     return day.strftime("%Y-%m-%d") + f"({JP_WEEKDAYS[day.weekday()]})"
 
 
-def _format_onair_date(onair_date: str) -> str:
+def _format_onair_date(onair_date: str, started_at: str | None = None) -> str:
+    # 1) started_at (ISO形式等) を優先して試行
+    if started_at:
+        try:
+            # 2024-04-15T10:00:00+09:00 のような形式を想定
+            # Python 3.11+ なら fromisoformat が強力
+            day = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            return _fixed_display_date(day)
+        except (ValueError, TypeError):
+            pass
+
     normalized = _normalize_text(onair_date).replace("放送", "")
     if not normalized:
         return "----------(-)"

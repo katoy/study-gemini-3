@@ -5,19 +5,25 @@ import json
 import logging
 import re
 import threading
+from collections import OrderedDict
 from pathlib import Path
 
-from .cache import _save_json_cache
 from .text import _genre_label, _safe_name
 from .types import Episode, Program
 
 logger = logging.getLogger(__name__)
 
+# マニフェストパスごとのロック。
+# 典型的なユースケース (数～数十番組) では上限を設けなくても問題ないが、
+# 保存先切り替えを頻繁に行う長寿命プロセスでは単調増加する点に注意。
 _MANIFEST_LOCKS: dict[Path, threading.RLock] = {}
 _MANIFEST_LOCKS_GUARD = threading.Lock()
 
-# 同一セッション内でのファイル走査結果キャッシュ
-_FILE_SCAN_CACHE: dict[Path, tuple[float, list[Path]]] = {}
+# 同一セッション内でのファイル走査結果キャッシュ。
+# mtime ベースの自動無効化により古いエントリは再スキャン時に上書きされる。
+# メモリリーク防止のため、最大エントリ数を制限する。
+_FILE_SCAN_CACHE_MAX_SIZE = 200
+_FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
 
 
@@ -141,9 +147,16 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
     return saved_paths
 
 
-def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]):
+def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
+    """マニフェストを保存する。失敗時は warning を出して False を返す。"""
     manifest_path = _download_manifest_path(program, output_dir)
-    _save_json_cache(manifest_path, {"paths": paths})
+    try:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps({"paths": paths}, ensure_ascii=False), encoding="utf-8")
+    except OSError as e:
+        logger.warning(f"ダウンロード履歴の保存に失敗: {manifest_path} ({e})")
+        return False
+    return True
 
 
 def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
@@ -177,21 +190,33 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode) -> b
 
     # 3) 番組タイトルが含まれているか (少なくとも1つ)
     return any(title in _safe_name(name) for title in program_titles)
-
-
 def _get_cached_glob_files(directory: Path) -> list[Path]:
+    if not directory.is_dir():
+        return []
+
     try:
         current_mtime = directory.stat().st_mtime
     except OSError:
         return []
+
     with _FILE_SCAN_CACHE_LOCK:
         entry = _FILE_SCAN_CACHE.get(directory)
         if entry is not None and entry[0] == current_mtime:
+            # ヒットした場合は末尾に移動 (LRU)
+            _FILE_SCAN_CACHE.move_to_end(directory)
             return entry[1]
-        files = [p for p in directory.iterdir() if p.is_file()]
-        _FILE_SCAN_CACHE[directory] = (current_mtime, files)
-        return files
 
+        try:
+            files = [p for p in directory.iterdir() if p.is_file()]
+        except OSError as e:
+            logger.debug(f"ディレクトリ走査に失敗: {directory} ({e})")
+            return []
+
+        _FILE_SCAN_CACHE[directory] = (current_mtime, files)
+        # 容量制限
+        if len(_FILE_SCAN_CACHE) > _FILE_SCAN_CACHE_MAX_SIZE:
+            _FILE_SCAN_CACHE.popitem(last=False)
+        return files
 
 def _clear_file_scan_cache(directory: Path | None = None):
     with _FILE_SCAN_CACHE_LOCK:
@@ -236,7 +261,10 @@ def _episode_output_candidates(program_dir: Path, program: Program, episode: Epi
     return candidates
 
 
-def mark_episode_downloaded(output_dir: Path, program: Program, episode: Episode, path: Path | None = None):
+def mark_episode_downloaded(
+    output_dir: Path, program: Program, episode: Episode, path: Path | None = None
+) -> bool:
+    """ダウンロード済みエピソードをマニフェストに記録する。保存成功なら True。"""
     with _download_manifest_lock(program, output_dir):
         saved_paths = _load_download_manifest(program, output_dir)
         episode_key = _episode_key(episode)
@@ -246,8 +274,9 @@ def mark_episode_downloaded(output_dir: Path, program: Program, episode: Episode
                 saved_paths[episode_key] = str(path.relative_to(program_dir))
             except ValueError:
                 saved_paths[episode_key] = str(path)
-        _save_download_manifest(program, output_dir, saved_paths)
+        saved = _save_download_manifest(program, output_dir, saved_paths)
         _clear_file_scan_cache(program_dir)
+        return saved
 
 
 def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
@@ -274,7 +303,8 @@ def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) 
     return False
 
 
-def resolve_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
+def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
+    """保存済みエピソードのパスを検索して返す (副作用なし)。"""
     saved_paths = _load_download_manifest(program, output_dir)
     episode_key = _episode_key(episode)
 
@@ -291,11 +321,18 @@ def resolve_episode_downloaded_path(output_dir: Path, program: Program, episode:
     for program_dir in _program_search_dirs(output_dir, program):
         candidates = _episode_output_candidates(program_dir, program, episode)
         if candidates:
-            # 見つかった場合はマニフェストを更新しておく（次回から高速化）
-            mark_episode_downloaded(output_dir, program, episode, candidates[0])
             return candidates[0]
 
     return None
+
+
+def sync_episode_download_history(output_dir: Path, program: Program, episode: Episode) -> Path | None:
+    """ディスク上の実ファイルを確認し、必要に応じてマニフェストを更新する (明示的な副作用)。"""
+    path = find_episode_downloaded_path(output_dir, program, episode)
+    if path:
+        # 見つかった場合はマニフェストに反映しておく (副作用の明示化)
+        mark_episode_downloaded(output_dir, program, episode, path)
+    return path
 
 
 def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: Episode):
@@ -303,7 +340,11 @@ def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: E
         if not program_dir.exists():
             continue
         _clear_file_scan_cache(program_dir)
-        files = [p for p in program_dir.iterdir() if p.is_file()]
+        try:
+            files = [p for p in program_dir.iterdir() if p.is_file()]
+        except OSError as e:
+            logger.debug(f"ディレクトリ走査に失敗: {program_dir} ({e})")
+            continue
         for path in files:
             if path.suffix in {".part", ".ytdl"} and any(
                 fnmatch.fnmatch(path.name, pattern)
