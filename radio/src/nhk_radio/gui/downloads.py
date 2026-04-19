@@ -170,21 +170,9 @@ class GuiDownloadsMixin:
             self._set_progress(0, 1, "")
 
         self._set_loading(True, allow_cancel=False)
-        self.fetch_result_queue = queue.Queue()
-        worker = threading.Thread(target=self._fetch_worker, args=(program, self.fetch_result_queue), daemon=True)
-        worker.start()
+        self.data_manager.start_fetch_episodes(program)
         self.root.after(50, self._poll_fetch_result)
         return "break"
-
-    def _fetch_worker(self, program: Program, result_queue: queue.Queue):
-        try:
-            episodes, source = refresh_episode_list(program)
-            error = None
-        except Exception as e:
-            episodes = []
-            source = ""
-            error = str(e)
-        result_queue.put((program, episodes, source, error))
 
     def _poll_fetch_result(self):
         if self.fetch_result_queue is None:
@@ -197,7 +185,6 @@ class GuiDownloadsMixin:
                 self.root.after(50, self._poll_fetch_result)
             return
 
-        self.fetch_result_queue = None
         self._finish_fetch(program, episodes, source, error)
 
     def _finish_fetch(self, program: Program, episodes: list[Episode], source: str, error: str | None):
@@ -235,14 +222,16 @@ class GuiDownloadsMixin:
             return
         self.status_var.set("キャッシュを削除中...")
         self._set_loading(True)
-        threading.Thread(target=self._clear_cache_worker, daemon=True).start()
-
-    def _clear_cache_worker(self):
-        try:
-            clear_all_cache()
-            self.root.after(0, self._on_cache_cleared_success)
-        except Exception as e:
-            self.root.after(0, lambda: self._on_cache_cleared_error(str(e)))
+        
+        def _worker():
+            try:
+                clear_all_cache()
+                self.data_manager.clear_all_data()
+                self.root.after(0, self._on_cache_cleared_success)
+            except Exception as e:
+                self.root.after(0, lambda: self._on_cache_cleared_error(str(e)))
+        
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _on_cache_cleared_success(self):
         self._set_loading(False)

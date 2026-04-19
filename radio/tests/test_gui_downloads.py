@@ -24,6 +24,7 @@ class MockGui(GuiDownloadsMixin):
         self._palette = {"surface": "white", "row_odd": "gray", "dl_even": "blue", "dl_odd": "lightblue"}
         
         # Managers (Composition)
+        self.data_manager = MagicMock()
         self.download_manager = MagicMock()
         
         # UI vars
@@ -98,15 +99,6 @@ class GuiDownloadsTest(unittest.TestCase):
         self.gui._finish_download_row(episode_key, "完了")
         self.assertEqual(row["state"], "done")
 
-    def test_fetch_worker_success(self):
-        program = Program(site_id="S1", corner_id="01", title="Prog", display_title="Prog", display_date="----", url="U")
-        episodes = [Episode(id="E1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")]
-        result_queue = queue.Queue()
-        with patch("nhk_radio.gui.downloads.refresh_episode_list", return_value=(episodes, "net")):
-            self.gui._fetch_worker(program, result_queue)
-        res = result_queue.get()
-        self.assertEqual(res, (program, episodes, "net", None))
-
     def test_on_cancel_all(self):
         self.gui._on_cancel_all()
         self.gui.download_manager.cancel_all.assert_called_once()
@@ -165,6 +157,14 @@ class GuiDownloadsTest(unittest.TestCase):
         ):
             widgets = self.gui._create_download_job_widgets(0, episode, "k1")
             self.assertIn("frame", widgets)
+
+    def test_clear_cache(self):
+        with patch("nhk_radio.gui.downloads.clear_all_cache"):
+            self.gui._clear_cache()
+            self.gui.status_var.set.assert_any_call("キャッシュを削除中...")
+            # 完了通知
+            self.gui._on_cache_cleared_success()
+            self.gui.status_var.set.assert_any_call("キャッシュを削除しました。")
 
 if __name__ == "__main__":
     unittest.main()

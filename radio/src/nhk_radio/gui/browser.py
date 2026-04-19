@@ -10,6 +10,8 @@ from pathlib import Path
 from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings
 from ..types import Episode, Program
 from .build import GuiBuildMixin
+from .data_manager import DataManager
+from .download_manager import DownloadManager
 from .downloads import GuiDownloadsMixin
 from .help_markdown import build_help_markdown, render_help_markdown
 from .listing import GuiListingMixin
@@ -40,19 +42,35 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
-        self.fetch_result_queue: queue.Queue | None = None
-        self.program_fetch_queue: queue.Queue | None = None
+        
+        # データ管理 (Composition)
+        self.data_manager = DataManager(
+            on_program_result=self._on_data_manager_programs,
+            on_episode_result=self._on_data_manager_episodes,
+        )
+        self.data_manager.update_programs(programs)
+        
+        # UI同期用キュー
+        self.fetch_result_queue: queue.Queue | None = queue.Queue()
+        self.program_fetch_queue: queue.Queue | None = queue.Queue()
         self.download_result_queue: queue.Queue = queue.Queue()
+        
+        # ダウンロード管理 (Composition)
+        self.download_manager = DownloadManager(
+            output_dir=self.output_dir,
+            audio_only=self.audio_only,
+            on_result=self._on_download_manager_result,
+        )
+        
         self.download_polling = False
-        self.download_cancel_events: dict[str, threading.Event] = {}
-        self.download_processes: dict[str, subprocess.Popen] = {}
-        self.download_process_lock = threading.Lock()
         self.active_download_rows: dict[str, dict] = {}
         self.active_download_meta: dict[str, tuple[Program, Episode]] = {}
-        self.download_started_count = 0
-        self.download_finished_count = 0
-        self.episodes_cache: OrderedDict[tuple[str, str], tuple[float, list[Episode]]] = OrderedDict()
-        self.filtered_programs = list(programs)
+        
+        # Mixin 後位互換用参照
+        self.programs = self.data_manager.programs
+        self.filtered_programs = self.data_manager.programs
+        self.episodes_cache = self.data_manager.episodes_cache
+        
         self.program_tree_programs: dict[str, Program] = {}
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
@@ -74,6 +92,16 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _on_download_manager_result(self, res_type, key, program, episode, data):
         """Bridge result from DownloadManager to UI queue."""
         self.download_result_queue.put((res_type, key, program, episode, data))
+
+    def _on_data_manager_programs(self, programs, error):
+        """Bridge programs result from DataManager to UI queue."""
+        if self.program_fetch_queue:
+            self.program_fetch_queue.put((programs, error))
+
+    def _on_data_manager_episodes(self, program, episodes, source, error):
+        """Bridge episodes result from DataManager to UI queue."""
+        if self.fetch_result_queue:
+            self.fetch_result_queue.put((program, episodes, source, error))
 
     def _initialize_root_window(self) -> None:
         self.root = tk.Tk()
@@ -140,17 +168,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         
         self.status_var.set("番組一覧を読み込み中...")
         self._set_loading(True)
-        
-        self.program_fetch_queue = queue.Queue()
-        def _worker():
-            try:
-                from ..core import fetch_program_list
-                progs = fetch_program_list(genre)
-                self.program_fetch_queue.put((progs, None))
-            except Exception as e:
-                self.program_fetch_queue.put(([], str(e)))
-        
-        threading.Thread(target=_worker, daemon=True).start()
+        self.data_manager.start_fetch_programs(genre)
         self.root.after(100, self._poll_fetch_programs)
 
     def _poll_fetch_programs(self):

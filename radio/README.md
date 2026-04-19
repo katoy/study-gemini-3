@@ -226,10 +226,11 @@ radio/
 | `core.py` | 214 | 90% |
 | `downloads.py` | 274 | 99% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/browser.py` | 261 | 47% |
+| `gui/browser.py` | 260 | 48% |
 | `gui/build.py` | 321 | 100% |
-| `gui/download_manager.py` | 84 | 0% |
-| `gui/downloads.py` | 261 | 51% |
+| `gui/data_manager.py` | 64 | 38% |
+| `gui/download_manager.py` | 84 | 27% |
+| `gui/downloads.py` | 250 | 57% |
 | `gui/help_markdown.py` | 134 | 99% |
 | `gui/listing.py` | 551 | 30% |
 | `gui/logic.py` | 53 | 17% |
@@ -238,7 +239,7 @@ radio/
 | `gui/toolkit.py` | 9 | 44% |
 | `text.py` | 134 | 96% |
 | `types.py` | 12 | 100% |
-| **合計** | **3100** | **69%** |
+| **合計** | **3152** | **69%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
