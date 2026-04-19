@@ -98,6 +98,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.help_markdown_content: str | None = None
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
+        self._search_timer: str | None = None
         self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
     def _on_download_manager_result(self, res_type, key, program, episode, data):
@@ -188,6 +189,17 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             self.progress_text_var.set(f"{text} {current}/{total}")
         else:
             self.progress_text_var.set(text)
+
+    def _update_selected_cell_ui(self, meta: str, value: str):
+        """選択されたセルの情報をUIに反映する。"""
+        self.selected_cell_meta_var.set(meta)
+        self.selected_cell_value_var.set(value)
+
+    def _reset_ui_state_after_cache_clear(self):
+        """キャッシュクリア後にUI表示を初期化する。"""
+        self.episodes_cache.clear()
+        self._populate_programs()
+        self.status_var.set("キャッシュをクリアしました")
 
     def _start_fetch_programs(self, genre: str | None = None):
         """Initial background fetch of all programs."""

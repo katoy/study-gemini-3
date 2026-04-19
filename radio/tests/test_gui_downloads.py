@@ -31,7 +31,7 @@ class MockGui(GuiDownloadsMixin):
         self.status_var = MagicMock()
         self.episode_message_var = MagicMock()
         self.fetch_button_var = MagicMock()
-        self.download_summary_var = MagicMock()
+        self.progress_text_var = MagicMock()
         
         # UI widgets
         self.fetch_button = MagicMock()
@@ -131,7 +131,7 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_update_download_summary(self):
         self.gui.active_download_rows = {"k1": {"state": "running"}}
         self.gui._update_download_summary()
-        self.gui.download_summary_var.set.assert_called_with("実行中: 1 / 全体: 1")
+        self.gui.progress_text_var.set.assert_called_with("実行中: 1 / 全体: 1")
 
     def test_reflow_download_rows(self):
         row_frame = MagicMock()

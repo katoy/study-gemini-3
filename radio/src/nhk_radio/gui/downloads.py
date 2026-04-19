@@ -291,9 +291,9 @@ class GuiDownloadsMixin:
         active = sum(1 for r in self.active_download_rows.values() if r["state"] == "running")
         total = len(self.active_download_rows)
         if total == 0:
-            self.download_summary_var.set("ダウンロードジョブはありません")
+            self.progress_text_var.set("ダウンロードジョブはありません")
         else:
-            self.download_summary_var.set(f"実行中: {active} / 全体: {total}")
+            self.progress_text_var.set(f"実行中: {active} / 全体: {total}")
 
     def _reflow_download_rows(self):
         # Canvas 内のアイテムを上から順に再配置
