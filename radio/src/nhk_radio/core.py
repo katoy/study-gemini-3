@@ -41,25 +41,42 @@ logger = logging.getLogger(__name__)
 
 
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 15) -> dict | list:
-    resp = await client.get(url, timeout=timeout)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = await client.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTPエラー (ステータスコード: {e.response.status_code}): {url}")
+        raise
+    except httpx.RequestError as e:
+        logger.error(f"ネットワークエラー: {e} ({url})")
+        raise
 
 
 def http_get_json(url: str, timeout: int = 15) -> dict | list:
     """Synchronous fallback using httpx"""
-    with httpx.Client(headers=_HEADERS) as client:
-        resp = client.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()
+    try:
+        with httpx.Client(headers=_HEADERS) as client:
+            resp = client.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTPエラー ({e.response.status_code}): {url}")
+        raise
+    except httpx.RequestError as e:
+        logger.error(f"ネットワーク接続エラー: {e}")
+        raise
 
 
 def http_get_text(url: str, timeout: int = 20) -> str:
-    with httpx.Client(headers=_HEADERS) as client:
-        resp = client.get(url, timeout=timeout)
-        resp.raise_for_status()
-        t = resp.text
-        return t
+    try:
+        with httpx.Client(headers=_HEADERS) as client:
+            resp = client.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp.text
+    except httpx.HTTPError as e:
+        logger.error(f"テキスト取得失敗: {e}")
+        raise
 
 
 def fetch_program_list(genre: str | None = None) -> list[Program]:
@@ -168,16 +185,16 @@ async def _fetch_all_async() -> list[Program]:
                         entry = _make_entry(s)
                         programs.append(entry)
                         program_map[key] = entry
-        except Exception as e:
-            logger.debug(f"最新追加の取得に失敗: {e}")
+        except (httpx.HTTPError, ValueError) as e:
+            logger.debug(f"最新追加の取得に失敗 (スキップ): {e}")
 
         # 2) 各ジャンルを追加 (並列取得して補完)
         async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
             try:
                 data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
                 return g, data
-            except Exception as e:
-                logger.debug(f"ジャンル {g} の取得に失敗: {e}")
+            except (httpx.HTTPError, ValueError) as e:
+                logger.debug(f"ジャンル {g} の取得に失敗 (スキップ): {e}")
                 return g, None
 
         tasks = [fetch_genre(g) for g in NHK_GENRES]
@@ -276,7 +293,7 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(program.url, download=False)
             if info is None:
-                msg = "番組情報の取得に失敗しました"
+                msg = "番組情報の取得に失敗しました。番組が終了しているか、一時的にアクセスできない可能性があります。"
                 logger.error(f"エピソード取得失敗: {msg}")
                 raise RuntimeError(msg)
 
@@ -286,11 +303,19 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
             if verbose:
                 logger.info(f"{len(episodes)} 件のエピソードを取得しました。")
             return episodes
-    except RuntimeError:
-        raise
+    except yt_dlp.utils.DownloadError as e:
+        msg = str(e)
+        if "ffmpeg" in msg.lower():
+            err_msg = "ffmpeg が見つからないか、エラーが発生しました。外部ツールを確認してください。"
+        elif "connection" in msg.lower() or "timeout" in msg.lower():
+            err_msg = "ネットワーク接続に失敗しました。インターネット環境を確認してください。"
+        else:
+            err_msg = f"番組情報の解析に失敗しました: {msg}"
+        logger.error(err_msg)
+        raise RuntimeError(err_msg) from e
     except Exception as e:
-        logger.error(f"エピソード取得失敗: {e}")
-        raise RuntimeError(str(e)) from e
+        logger.error(f"予期しないエラーが発生しました: {e}")
+        raise RuntimeError(f"エピソード取得失敗: {e}") from e
 
 
 def get_episode_list(

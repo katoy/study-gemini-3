@@ -219,24 +219,24 @@ radio/
 |:----------|----------------:|----------:|
 | `__init__.py` | 0 | 100% |
 | `__main__.py` | 3 | 100% |
-| `cache.py` | 67 | 100% |
-| `cli.py` | 180 | 100% |
-| `config.py` | 85 | 100% |
+| `cache.py` | 100 | 94% |
+| `cli.py` | 203 | 93% |
+| `config.py` | 132 | 95% |
 | `constants.py` | 10 | 100% |
-| `core.py` | 186 | 100% |
-| `downloads.py` | 249 | 100% |
+| `core.py` | 210 | 90% |
+| `downloads.py` | 263 | 100% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 225 | 52% |
 | `gui/build.py` | 321 | 100% |
-| `gui/downloads.py` | 492 | 54% |
+| `gui/downloads.py` | 493 | 54% |
 | `gui/help_markdown.py` | 134 | 99% |
 | `gui/listing.py` | 552 | 30% |
 | `gui/logo.py` | 32 | 12% |
 | `gui/styling.py` | 310 | 67% |
 | `gui/toolkit.py` | 9 | 44% |
 | `text.py` | 128 | 100% |
-| `types.py` | 13 | 100% |
-| **合計** | **2998** | **71%** |
+| `types.py` | 10 | 100% |
+| **合計** | **3137** | **71%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

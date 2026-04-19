@@ -118,12 +118,44 @@ def download_episode(
     audio_only: bool = True,
     verbose: bool = True,
 ) -> bool:
-    """yt-dlp で1エピソードをダウンロードする"""
+    """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
+
     if verbose:
         logger.info(f"ダウンロード開始: {url}")
-    return subprocess.run(cmd).returncode == 0
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        last_percent = -1.0
+        if process.stdout:
+            for line in process.stdout:
+                percent, _eta, _status = _parse_yt_dlp_progress(line)
+                if percent is not None and abs(percent - last_percent) >= 1.0:
+                    sys.stdout.write(f"\r  進捗: {percent:5.1f}%")
+                    sys.stdout.flush()
+                    last_percent = percent
+            if last_percent >= 0:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+
+        return process.wait() == 0
+    except KeyboardInterrupt:
+        if "process" in locals():
+            process.terminate()
+            process.wait()
+        print("\n  中断されました。")
+        return False
+    except Exception as e:
+        logger.error(f"ダウンロード実行エラー: {e}")
+        return False
 
 
 def download_url_direct(
@@ -176,7 +208,8 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
             logger.error(f"失敗: {title}")
             continue
         downloaded_path = resolve_episode_downloaded_path(output_dir, program, episode)
-        mark_episode_downloaded(output_dir, program, episode, downloaded_path)
+        if not mark_episode_downloaded(output_dir, program, episode, downloaded_path):
+            logger.warning(f"ダウンロード履歴の記録に失敗: {title}")
         downloaded_count += 1
     return downloaded_count
 

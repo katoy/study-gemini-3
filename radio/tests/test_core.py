@@ -3,6 +3,8 @@ import subprocess
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import httpx
+
 from nhk_radio import core
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
@@ -32,7 +34,7 @@ class CoreHelpersTest(unittest.TestCase):
     def test_fetch_by_genre_async_error(self):
         # ジャンル取得失敗時の空リスト返却 (language 以外)
         with (
-            patch.object(core, "http_get_json_async", side_effect=Exception("API Error")),
+            patch.object(core, "http_get_json_async", side_effect=httpx.RequestError("API Error")),
             patch("nhk_radio.core.logger") as logger_mock
         ):
             result = asyncio.run(core._fetch_by_genre_async("music"))
@@ -142,7 +144,7 @@ class CoreHelpersTest(unittest.TestCase):
 
         with (
             patch.object(core, "NHK_GENRES", ["language"]),
-            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("x")),
+            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=httpx.RequestError("x")),
         ):
             res = asyncio.run(core._fetch_all_async())
             self.assertEqual(res, [])
@@ -157,7 +159,7 @@ class CoreHelpersTest(unittest.TestCase):
             programs = asyncio.run(core._fetch_by_genre_async("music"))
         self.assertEqual(len(programs), 1)
 
-        with patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=RuntimeError("bad")):
+        with patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=httpx.HTTPError("bad")):
             self.assertEqual(asyncio.run(core._fetch_by_genre_async("language")), [])
             self.assertEqual(asyncio.run(core._fetch_by_genre_async("news")), [])
 
