@@ -97,7 +97,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.help_markdown_content: str | None = None
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
-        self._search_timer: str | None = None
         self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
     def _on_download_manager_result(self, res_type, key, program, episode, data):
@@ -113,11 +112,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """Bridge episodes result from DataManager to UI queue."""
         if self.fetch_result_queue:
             self.fetch_result_queue.put((program, episodes, source, error))
-
-    def _show_help_dialog(self, _event=None):
-        """ヘルプダイアログを表示する。"""
-        from .help_markdown import show_help_dialog
-        self.help_popup = show_help_dialog(self.root, self._palette)
 
     def _clear_cache(self):
         """キャッシュをクリアする。"""
@@ -158,13 +152,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             self._apply_theme(DEFAULT_UI_THEME)
             self._apply_font_size_preset(int(DEFAULT_UI_FONT_SIZE_PT))
             self.status_var.set("設定をリセットしました")
-
-    def _handle_escape(self, _event=None):
-        """Escapeキー押下時の処理。"""
-        if self.current_screen == "settings":
-            self._show_screen("browser")
-            return "break"
-        return None
 
     def _handle_browser_shortcut(self, event):
         """ブラウザ画面でのショートカットキー処理。"""

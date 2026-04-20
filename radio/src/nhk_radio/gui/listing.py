@@ -270,9 +270,10 @@ class GuiListingMixin:
         new_history = [term]
         seen = {normalized_term}
         for item in history:
-            if self._normalized_search_text(item) not in seen:
+            normalized = self._normalized_search_text(item)
+            if normalized not in seen:
                 new_history.append(item)
-                seen.add(self._normalized_search_text(item))
+                seen.add(normalized)
         
         self.program_search_history = new_history[:SEARCH_HISTORY_LIMIT]
         self._update_program_search_history_values()

@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unicodedata
 from pathlib import Path
 
@@ -80,6 +81,7 @@ def _ui_settings_path() -> Path:
 
 
 _MIGRATION_DONE = False
+_MIGRATION_LOCK = threading.Lock()
 
 
 def _migrate_legacy_ui_settings():
@@ -88,9 +90,10 @@ def _migrate_legacy_ui_settings():
     最初の UI 設定アクセス時に一度だけ実行される。
     """
     global _MIGRATION_DONE
-    if _MIGRATION_DONE:
-        return
-    _MIGRATION_DONE = True
+    with _MIGRATION_LOCK:
+        if _MIGRATION_DONE:
+            return
+        _MIGRATION_DONE = True
     legacy_path = _resolve_cache_root_dir() / "ui_settings.json"
     settings_path = _ui_settings_path()
     if legacy_path == settings_path:

@@ -1,5 +1,6 @@
 """Download management logic decoupled from UI."""
 
+import logging
 import queue
 import subprocess
 import threading
@@ -16,6 +17,8 @@ from ..downloads import (
     sync_episode_download_history,
 )
 from ..types import Episode, Program
+
+logger = logging.getLogger(__name__)
 
 
 class DownloadManager:
@@ -115,8 +118,9 @@ class DownloadManager:
             if process.stdout:
                 for line in process.stdout:
                     if cancel_event.is_set():
+                        process.terminate()
                         break
-                    
+
                     percent, eta, status = _parse_yt_dlp_progress(line)
                     if percent is not None:
                         self.on_result("progress", episode_key, program, episode, (percent, eta, status))
@@ -125,8 +129,7 @@ class DownloadManager:
             success = (return_code == 0) and not cancel_event.is_set()
 
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"Download thread error: {e}")
+            logger.error(f"Download thread error: {e}")
             success = False
         finally:
             with self.process_lock:
