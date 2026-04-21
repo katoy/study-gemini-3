@@ -2,27 +2,53 @@
   .program-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 1rem; }
   .program-card { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; cursor: pointer; transition: box-shadow 0.15s; }
   .program-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-header-info { flex: 1; min-width: 0; }
   .program-card h3 { font-size: 0.95rem; margin-bottom: 0.3rem; color: #1a3a5c; }
   .program-card .meta { font-size: 0.78rem; color: #666; }
   .program-card .genre-badge { display: inline-block; background: #e8f0fe; color: #1a3a5c; border-radius: 3px; padding: 0.1rem 0.4rem; font-size: 0.72rem; margin-bottom: 0.3rem; }
-  .episode-area { margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.75rem; min-height: 2rem; }
+  .toggle-icon { color: #999; font-size: 0.75rem; flex-shrink: 0; margin-left: 0.5rem; padding-top: 0.15rem; transition: transform 0.2s ease; user-select: none; }
+  .program-card[data-open] .toggle-icon { transform: rotate(180deg); }
+  .episode-area { display: none; margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.75rem; min-height: 2rem; }
+  .program-card[data-open] .episode-area { display: block; }
   .empty-msg { color: #888; text-align: center; padding: 2rem; }
 </style>
+
+<script>
+  (function () {
+    // DL ボタンなど card 内のボタンクリックはトグルしない
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('button')) return;
+      var card = e.target.closest('.program-card');
+      if (!card || !card.dataset.loaded) return;
+      if (card.hasAttribute('data-open')) {
+        card.removeAttribute('data-open');
+      } else {
+        card.setAttribute('data-open', '');
+      }
+    });
+  })();
+</script>
 
 {% if programs %}
 <div class="program-grid">
   {% for p in programs %}
   <div class="program-card">
-    <span class="genre-badge">{{ p.genre_label }}</span>
-    <h3>{{ p.display_title }}</h3>
-    <div class="meta">{{ p.display_date }}</div>
+    <div class="card-header">
+      <div class="card-header-info">
+        <span class="genre-badge">{{ p.genre_label }}</span>
+        <h3>{{ p.display_title }}</h3>
+        <div class="meta">{{ p.display_date }}</div>
+      </div>
+      <span class="toggle-icon">▼</span>
+    </div>
     <div class="episode-area"
          id="ep-{{ p.site_id }}-{{ p.corner_id }}"
          hx-get="/programs/{{ p.site_id }}_{{ p.corner_id }}/episodes"
          hx-trigger="click[!this.dataset.loaded] from:closest .program-card"
          hx-indicator="find .ep-loading"
          hx-swap="innerHTML"
-         hx-on::after-request="this.dataset.loaded='1'">
+         hx-on::after-request="this.dataset.loaded='1'; this.closest('.program-card').setAttribute('data-open', '')">
       <span class="ep-loading htmx-indicator"><span class="spinner"></span></span>
       <span style="font-size:0.8rem;color:#999;">クリックしてエピソードを表示</span>
     </div>
