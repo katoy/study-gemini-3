@@ -48,7 +48,7 @@
          hx-trigger="click[!this.dataset.loaded] from:closest .program-card"
          hx-indicator="find .ep-loading"
          hx-swap="innerHTML"
-         hx-on::after-request="this.dataset.loaded='1'; this.closest('.program-card').setAttribute('data-open', '')">
+         hx-on::after-request="this.dataset.loaded='1'; var _c=this.closest('.program-card'); _c.dataset.loaded='1'; _c.setAttribute('data-open', '')">
       <span class="ep-loading htmx-indicator"><span class="spinner"></span></span>
       <span style="font-size:0.8rem;color:#999;">クリックしてエピソードを表示</span>
     </div>
