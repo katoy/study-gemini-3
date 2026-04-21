@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+
+# 仮想環境
+.venv/
+
+# テスト・カバレッジ
+.pytest_cache/
+.coverage
+htmlcov/
+
+# アプリキャッシュ (番組・エピソード情報)
+.cache/
+
+# ダウンロード済みファイル
+downloads/
+
+# uv 生成物 (lock は管理対象)
+# uv.lock はコミット対象
+
+# エディタ・ツール
+.agents/
+.claude/
+
+# その他 (uv init が生成するルート main.py のみ除外)
+/main.py
