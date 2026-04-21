@@ -134,9 +134,9 @@ async def episodes_partial(request: Request, program_id: str):
     )
 
 
-@router.post("/download")
+@router.post("/download", response_class=HTMLResponse)
 async def start_download(request: Request, background_tasks: BackgroundTasks):
-    """ダウンロードジョブを登録して job_id を返す。"""
+    """ダウンロードジョブを登録してステータス HTML フラグメントを返す。"""
     try:
         body = await request.json()
     except Exception:
@@ -155,7 +155,11 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "pending", "program": program, "episode": episode, "error": ""}
     background_tasks.add_task(_run_download, job_id, program, episode)
-    return JSONResponse({"job_id": job_id})
+    return templates.TemplateResponse(
+        request,
+        "partials/download_status.html",
+        {"job_id": job_id, "job": _jobs[job_id]},
+    )
 
 
 @router.get("/api/download/{job_id}/status", response_class=HTMLResponse)

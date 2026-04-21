@@ -5,7 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}</title>
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/htmx-ext-json-enc@2.0.1/json-enc.js"></script>
+  <script>
+    async function startDL(btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const resp = await fetch('/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            program: JSON.parse(btn.dataset.program),
+            episode: JSON.parse(btn.dataset.episode)
+          })
+        });
+        const html = await resp.text();
+        if (!resp.ok) { btn.textContent = '✗'; btn.disabled = false; return; }
+        // ボタンをステータス HTML フラグメントに差し替え、htmx ポーリングを起動
+        const tmp = document.createElement('span');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild || tmp;
+        btn.replaceWith(node);
+        htmx.process(node);
+      } catch (err) {
+        btn.textContent = '✗';
+        btn.disabled = false;
+      }
+    }
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }

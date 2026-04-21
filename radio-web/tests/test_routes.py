@@ -136,8 +136,9 @@ class RoutesTest(unittest.TestCase):
         with patch("app.routes._run_download", new_callable=AsyncMock):
             resp = self.client.post("/download", json=payload)
         self.assertEqual(resp.status_code, 200)
-        body = resp.json()
-        self.assertIn("job_id", body)
+        # レスポンスは HTML ステータスフラグメント
+        self.assertIn("text/html", resp.headers["content-type"])
+        self.assertIn("hx-get", resp.text)
 
     def test_start_download_missing_body_returns_422(self):
         resp = self.client.post("/download", json={})

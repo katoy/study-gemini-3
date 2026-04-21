@@ -26,11 +26,9 @@
           <button class="dl-btn done" disabled>済</button>
         {% else %}
           <button class="dl-btn"
-                  hx-post="/download"
-                  hx-ext="json-enc"
-                  hx-vals='{"program": {{ program | tojson }}, "episode": {{ ep | tojson }}}'
-                  hx-swap="outerHTML"
-                  hx-target="this">DL</button>
+                  data-program="{{ program | tojson }}"
+                  data-episode="{{ ep | tojson }}"
+                  onclick="startDL(this)">DL</button>
         {% endif %}
       </div>
       <div class="ep-title">{{ ep.display_title }}</div>
