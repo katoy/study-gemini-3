@@ -137,7 +137,10 @@ async def episodes_partial(request: Request, program_id: str):
 @router.post("/download")
 async def start_download(request: Request, background_tasks: BackgroundTasks):
     """ダウンロードジョブを登録して job_id を返す。"""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません")
     program_dict = body.get("program")
     episode_dict = body.get("episode")
     if not isinstance(program_dict, dict) or not isinstance(episode_dict, dict):

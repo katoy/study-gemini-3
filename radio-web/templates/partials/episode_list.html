@@ -26,6 +26,7 @@
       {% else %}
         <button class="dl-btn"
                 hx-post="/download"
+                hx-ext="json-enc"
                 hx-vals='{"program": {{ program | tojson }}, "episode": {{ ep | tojson }}}'
                 hx-swap="outerHTML"
                 hx-target="this">DL</button>
