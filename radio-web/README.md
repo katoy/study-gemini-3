@@ -66,7 +66,7 @@ bash scripts/test.sh --html
 > 実行日: 2026-04-21 / Python 3.13.13 / pytest 9.0.3
 
 ```
-123 passed, 2 skipped in 1.14s
+123 passed, 2 skipped in 3.11s
 ```
 
 | ファイル | Stmts | Miss | カバレッジ | 未カバー行 |
