@@ -20,7 +20,6 @@ from playwright.async_api import Browser, Page, async_playwright
 logger = logging.getLogger(__name__)
 
 # 定数
-VERTICAL_WRITING_MODES = {'vertical-rl', 'vertical-lr'}
 DEFAULT_CDP_URL = 'http://localhost:9222'
 MAX_SAME_PAGES = 3  # 同じ画面が何回続いたら終端とみなすか
 NEXT_PAGE_KEY = 'ArrowDown'  # 縦書き・横書きに関わらず次ページへ進むキー
@@ -37,12 +36,12 @@ async def capture_kindle_pages(
     output_dir: str,
     cdp_url: str = DEFAULT_CDP_URL,
     page_delay: float = 0.8,
-) -> Tuple[str, List[str], str]:
+) -> Tuple[str, List[str]]:
     """
     Kindle Cloud Reader のページを全てキャプチャします。
 
     Returns:
-        (book_title, [screenshot_path, ...], detected_writing_mode)
+        (book_title, [screenshot_path, ...])
     """
     async with async_playwright() as p:
         browser = await _connect_to_chrome(p, cdp_url)
@@ -67,12 +66,8 @@ async def capture_kindle_pages(
             await _focus_reader(kindle_page)
             logger.info("キャプチャ準備完了。")
 
-            # ログ出力用に判定だけ行う
-            detected = await _detect_writing_mode(kindle_page)
-            logger.info(f"組方向(推定): {detected}")
-
             screenshots = await _capture_all_pages(kindle_page, book_dir, page_delay)
-            return book_title, screenshots, detected
+            return book_title, screenshots
         finally:
             await browser.close()
 
