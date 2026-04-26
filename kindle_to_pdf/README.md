@@ -25,7 +25,7 @@ Kindle Cloud Reader で開いている本を自動でキャプチャし、高品
 macOS の場合は、提供されている `setup.sh` を実行することで、Python ライブラリと Playwright のブラウザを一括でインストールできます。
 
 ```bash
-cd kindle_to_notebooklm
+cd kindle_to_pdf
 bash setup.sh
 ```
 
@@ -34,6 +34,40 @@ bash setup.sh
 pip install -r requirements.txt
 playwright install chromium
 ```
+
+### Windows (推奨: PowerShell)
+
+Windows 用に用意したスクリプトで同等のセットアップが可能です。
+
+- PowerShell スクリプト（推奨、実行ポリシーを一時的にバイパスして実行）:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup_win.ps1
+```
+
+- あるいはバッチで（互換性のため用意）:
+
+```bat
+setup_win.bat
+```
+
+セットアップ後、実行は次のどちらか：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run_win.ps1 --launch-chrome
+```
+
+または簡易バッチ:
+
+```bat
+run_win.bat --run
+```
+
+トラブルシューティング:
+- PowerShell の実行ポリシーでブロックされる場合は `-ExecutionPolicy Bypass` を使用してください。
+- Playwright 関連のネイティブ拡張で DLL エラーが出る場合、Visual C++ 再頒布可能パッケージ(x64) のインストールが必要になることがあります:
+  https://aka.ms/vs/17/release/vc_redist.x64.exe
+
 
 ---
 
