@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <script>
+    async function startDL(btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const resp = await fetch('/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            program: JSON.parse(btn.dataset.program),
+            episode: JSON.parse(btn.dataset.episode)
+          })
+        });
+        const html = await resp.text();
+        if (!resp.ok) { btn.textContent = '✗'; btn.disabled = false; return; }
+        // ボタンをステータス HTML フラグメントに差し替え、htmx ポーリングを起動
+        const tmp = document.createElement('span');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild || tmp;
+        btn.replaceWith(node);
+        htmx.process(node);
+      } catch (err) {
+        btn.textContent = '✗';
+        btn.disabled = false;
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    header { background: #1a3a5c; color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.2rem; }
+    header nav a { color: #cde; text-decoration: none; margin-left: 1rem; font-size: 0.9rem; }
+    header nav a:hover { text-decoration: underline; }
+    main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+    .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+    .htmx-request.htmx-indicator { opacity: 1; }
+    .spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid #aaa; border-top-color: #1a3a5c; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <h1>📻 NHK ラジオ聞き逃し</h1>
+    <nav>
+      <a href="/">番組一覧</a>
+      <a href="/downloads">ダウンロード</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

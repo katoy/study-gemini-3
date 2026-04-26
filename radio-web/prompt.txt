@@ -1,0 +1,145 @@
+# NHK ラジオ聞き逃し Web アプリ 作成プロンプト例
+
+---
+
+## 1. 初期依頼（全体像の把握と作業リスト作成）
+
+```
+../radio を FastAPI + htmx で書き直したいです。
+作業リストを作成して。
+テストコードの移植、カバレッジ計測についても考慮して。
+```
+
+---
+
+## 2. 実装の進行
+
+```
+順番に処理して。
+```
+
+---
+
+## 3. カバレッジ計測
+
+```
+カバレッジ計測して。
+```
+
+---
+
+## 4. README 整備
+
+```
+README.md に ToC を追加して。カバレッジ計測結果も追加して。
+```
+
+---
+
+## 5. カバレッジ 100% 達成
+
+```
+カバレッジ 100% にして。
+```
+
+---
+
+## アプリ概要
+
+- **目的**: NHK ラジオ「らじる★らじる」の聞き逃し番組を検索・ダウンロードする Web アプリ
+- **元実装**: Tkinter GUI (`../radio`) を Web へ移植
+- **技術スタック**:
+  - FastAPI + Jinja2 (サーバーサイド)
+  - htmx (部分 HTML 更新・遅延ロード・ポーリング)
+  - yt-dlp (音声ダウンロード)
+  - httpx (非同期 HTTP クライアント)
+  - uv (Python パッケージ管理)
+
+---
+
+## 主要機能と実装方針
+
+### ジャンル絞り込み
+- プルダウン選択 → htmx が `/programs?genre=xxx` にリクエスト
+- サーバーが番組カード一覧の HTML フラグメントを返す (部分更新)
+
+### 番組カード → エピソード一覧 (遅延ロード)
+- カードクリック → htmx が `/programs/{site_id}_{corner_id}/episodes` にリクエスト
+- yt-dlp でエピソード情報を取得して HTML フラグメントを返す
+
+### ダウンロード
+- DL ボタン → POST `/download` でジョブ登録
+- htmx ポーリングで `/api/download/{job_id}/status` を監視
+- バックグラウンドで `asyncio.create_subprocess_exec` + yt-dlp を実行
+
+### キャッシュ
+- 番組一覧・エピソード一覧は JSON ファイルに TTL 付きでキャッシュ
+- ダウンロード済みファイルはマニフェスト (`.downloaded.json`) で管理
+
+---
+
+## テスト方針
+
+- pytest + pytest-cov でカバレッジ計測 (`--cov-fail-under=80` を必須化)
+- ネットワーク・yt-dlp の呼び出しはすべて `unittest.mock` でモック化
+- プラットフォーム固有コード (Windows NT パス分岐) は `# pragma: no cover`
+- 到達不能な防御的コードも `# pragma: no cover` でスキップ
+- 目標: **100% カバレッジ**
+
+---
+
+## プロジェクト構成
+
+```
+radio-web/
+├── app/
+│   ├── main.py          # FastAPI インスタンス・lifespan
+│   └── routes.py        # 全エンドポイント・ダウンロードジョブ管理
+├── src/nhk_radio_web/
+│   ├── types.py         # Program / Episode dataclass
+│   ├── constants.py     # NHK API URL・ジャンル定数
+│   ├── core.py          # 番組・エピソード取得ロジック
+│   ├── cache.py         # JSON キャッシュ (TTL 付き)
+│   ├── downloads.py     # ダウンロード追跡・yt-dlp コマンド生成
+│   ├── text.py          # テキスト整形ユーティリティ
+│   └── config.py        # パス解決・環境変数
+├── templates/
+│   ├── base.html
+│   ├── index.html
+│   ├── downloads.html
+│   └── partials/
+│       ├── program_list.html
+│       ├── episode_list.html
+│       └── download_status.html
+├── tests/               # pytest テスト (123 件)
+├── scripts/test.sh      # テスト実行スクリプト
+├── pyproject.toml
+└── README.md
+```
+
+---
+
+## 注意点・ハマりどころ
+
+### Starlette 1.0.0 の API 変更
+旧: `TemplateResponse("name.html", {"request": req, ...})`
+新: `TemplateResponse(request, "name.html", {...})`
+→ request をコンテキスト dict に含めると `TypeError: unhashable type: 'dict'` が発生
+
+### src レイアウトの setuptools 設定
+`pyproject.toml` に以下が必要:
+```toml
+[tool.setuptools.packages.find]
+where = ["src"]
+```
+
+### asyncio_mode = "auto"
+pytest-asyncio を使う場合、`pyproject.toml` に設定が必要:
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+```
+
+### Windows パス分岐
+macOS では `WindowsPath` をインスタンス化できないため、
+`os.name == "nt"` ブロックには `# pragma: no cover` を付与して除外する。

@@ -1,0 +1,135 @@
+import argparse
+import subprocess
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from nhk_radio import cli
+from nhk_radio.types import Episode, Program
+from tests import _support  # noqa: F401
+
+
+class CliHelpersTest(unittest.TestCase):
+    def test_create_parser_has_all_arguments(self):
+        """パーサーが期待されるすべての引数を定義しているか検証する"""
+        parser = cli.create_parser()
+        
+        # 定義されているべき引数のチェック
+        expected_args = {
+            "url", "output_dir", "max_items", "keep_video", "clear_cache", "genre", "verbose"
+        }
+        actions = {a.dest for action in parser._actions for a in [action] if a.dest != "help"}
+        for arg in expected_args:
+            with self.subTest(arg=arg):
+                self.assertIn(arg, actions, f"引数 '{arg}' がパーサーに定義されていません")
+
+    def test_parser_actual_parsing(self):
+        """モックを使わず、実際の文字列リストをパースして Namespace を検証する"""
+        parser = cli.create_parser()
+        
+        # 1) フルオプション
+        args = parser.parse_args(["http://test", "-o", "/tmp/out", "-n", "5", "--keep-video", "--verbose"])
+        self.assertEqual(args.url, "http://test")
+        self.assertEqual(args.output_dir, "/tmp/out")
+        self.assertEqual(args.max_items, 5)
+        self.assertTrue(args.keep_video)
+        self.assertTrue(args.verbose)
+
+        # 2) デフォルト値
+        args = parser.parse_args([])
+        self.assertEqual(args.output_dir, "./downloads")
+        self.assertIsNone(args.max_items)
+        self.assertFalse(args.clear_cache)
+
+    def test_select_program_paths(self):
+        programs = [
+            Program(site_id="SITE", corner_id="01", title="番組A", display_title="番組A", display_date="2024-04-15(月)", url="U"),
+        ]
+        with patch("builtins.input", side_effect=["1"]):
+            self.assertEqual(cli.select_program(programs), programs[0])
+
+    def test_select_episodes_paths(self):
+        episodes = [
+            Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U"),
+        ]
+        with patch("builtins.input", side_effect=["1"]):
+            self.assertEqual(cli.select_episodes(episodes), episodes)
+
+    def test_download_episode_logging(self):
+        with (
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+            patch("nhk_radio.cli.logger") as logger_mock,
+        ):
+            cli.download_episode("http://url", Path("/tmp"), "tmpl")
+            logger_mock.info.assert_called_with("ダウンロード開始: http://url")
+
+    def test_download_url_direct_success(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
+        with (
+            patch.object(cli, "_resolve_program_from_url", return_value=program),
+            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out")),
+            patch.object(cli, "_program_filename_template", return_value="t"),
+            patch.object(cli, "_yt_dlp_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+        ):
+            cli.download_url_direct("http://url", Path("/tmp"), None, True)
+
+    def test_download_url_direct_invalid_url(self):
+        with patch.object(cli, "_resolve_program_from_url", return_value=None):
+            with self.assertRaises(SystemExit) as ctx:
+                cli.download_url_direct("bad", Path("/tmp"), None, True)
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_download_selected_episodes_with_skip(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
+        with (
+            patch.object(cli, "is_episode_downloaded", return_value=True),
+            patch("nhk_radio.cli.logger") as logger_mock,
+        ):
+            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+            self.assertEqual(count, 0)
+            logger_mock.info.assert_any_call("スキップ: E1 (保存済み)")
+
+    def test_interactive_cli_fallback_flow(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
+        with (
+            patch.object(cli, "select_program", return_value=program),
+            patch.object(cli, "get_episode_list", return_value=(episodes, "net")),
+            patch.object(cli, "select_episodes", return_value=episodes),
+            patch.object(cli, "_download_selected_episodes", return_value=1),
+            patch("builtins.print"),
+        ):
+            cli._interactive_cli_fallback([program], Path("/tmp"), audio_only=True)
+
+    def test_run_cli_dispatch(self):
+        # 正常系: --clear-cache
+        args = argparse.Namespace(
+            url=None, output_dir="/tmp", max_items=None,
+            keep_video=False, clear_cache=True, genre=None, verbose=False
+        )
+        with patch.object(cli, "clear_all_cache", return_value=1):
+            self.assertEqual(cli.run_cli(args), 0)
+
+        # 正常系: URL指定
+        args.clear_cache = False
+        args.url = "http://test"
+        with patch.object(cli, "download_url_direct") as direct_mock:
+            self.assertEqual(cli.run_cli(args), 0)
+            direct_mock.assert_called_once()
+
+    def test_main_exit_code(self):
+        """main が run_cli の戻り値を sys.exit に渡しているか検証する"""
+        with (
+            patch.object(cli, "create_parser"),
+            patch.object(cli, "run_cli", return_value=42),
+            self.assertRaises(SystemExit) as ctx
+        ):
+            cli.main()
+        self.assertEqual(ctx.exception.code, 42)
+
+
+if __name__ == "__main__":
+    unittest.main()

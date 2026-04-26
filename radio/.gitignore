@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.eggs/
+*.egg-info/
+build/
+dist/
+.ipynb_checkpoints/
+
+# Project data
+downloads/
+test_downloads/
+.cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo

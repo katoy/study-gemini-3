@@ -2,10 +2,16 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# 仮想環境 (uv / venv)
 .venv/
 env/
 venv/
 ENV/
+
+# uv
+.python-version
+uv.lock
 
 # macOS
 .DS_Store
@@ -14,13 +20,9 @@ ENV/
 output/
 *.pdf
 *.png
-*.txt
 
 # Logs
 *.log
 
 # Environments
 .env
-.venv
-pip-log.txt
-pip-delete-this-directory.txt

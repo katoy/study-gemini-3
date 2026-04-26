@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}ダウンロード一覧{% endblock %}
+
+{% block head %}
+<style>
+  table { width: 100%; border-collapse: collapse; background: #fff; }
+  th, td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #eee; font-size: 0.88rem; text-align: left; }
+  th { background: #f0f0f0; font-weight: 600; }
+  .status-done { color: #2e7d32; }
+  .status-error { color: #c00; }
+  .status-pending, .status-downloading { color: #666; }
+  .empty-msg { text-align: center; color: #888; padding: 2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom:1rem;">ダウンロード一覧</h2>
+{% if jobs %}
+<table>
+  <thead>
+    <tr>
+      <th>番組</th>
+      <th>エピソード</th>
+      <th>状態</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for job_id, job in jobs.items() %}
+    <tr>
+      <td>{{ job.program.display_title }}</td>
+      <td>{{ job.episode.display_title }} ({{ job.episode.display_date }})</td>
+      <td class="status-{{ job.status }}">
+        {% if job.status == "done" %}✔ 完了
+        {% elif job.status == "error" %}✖ {{ job.error }}
+        {% elif job.status == "downloading" %}<span class="spinner"></span> DL中
+        {% else %}待機中
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-msg">ダウンロード履歴はありません。</p>
+{% endif %}
+{% endblock %}

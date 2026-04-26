@@ -151,7 +151,7 @@ async def _prepare_screenshots(
 
     logger.info("[1/2] Kindle ページをキャプチャ中...")
     try:
-        book_title, screenshots, _ = await capture_kindle_pages(
+        book_title, screenshots = await capture_kindle_pages(
             output_dir=str(output_dir),
             cdp_url=args.cdp_url,
             page_delay=args.page_delay,

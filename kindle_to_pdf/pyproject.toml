@@ -1,0 +1,10 @@
+[project]
+name = "kindle-to-pdf"
+version = "0.1.1"
+description = "Kindle 本をキャプチャして高品質な PDF を生成するツール"
+requires-python = ">=3.12"
+dependencies = [
+    "img2pdf>=0.6.0",
+    "pillow>=12.0.0",
+    "playwright>=1.50.0",
+]

@@ -1,0 +1,40 @@
+<style>
+  .ep-list { list-style: none; margin-top: 0.5rem; }
+  .ep-list li { padding: 0.45rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.82rem; }
+  .ep-list li:last-child { border-bottom: none; }
+  .ep-meta-row { display: flex; align-items: center; gap: 0.5rem; }
+  .ep-date { color: #888; white-space: nowrap; }
+  .ep-duration { color: #999; white-space: nowrap; font-size: 0.75rem; margin-left: auto; }
+  .ep-title { margin-top: 0.2rem; color: #333; word-break: break-all; line-height: 1.4; }
+  .dl-btn { background: #1a3a5c; color: #fff; border: none; border-radius: 3px; padding: 0.2rem 0.5rem; cursor: pointer; font-size: 0.75rem; white-space: nowrap; margin-left: 0.4rem; }
+  .dl-btn:disabled { background: #aaa; cursor: default; }
+  .dl-btn.done { background: #2e7d32; }
+  .ep-error { color: #c00; font-size: 0.82rem; }
+</style>
+
+{% if error %}
+  <p class="ep-error">⚠ {{ error }}</p>
+{% elif episodes_with_status %}
+  <ul class="ep-list">
+  {% for item in episodes_with_status %}
+    {% set ep = item.episode %}
+    <li>
+      <div class="ep-meta-row">
+        <span class="ep-date">{{ ep.display_date }}</span>
+        <span class="ep-duration">{{ ep.duration_str }}</span>
+        {% if item.downloaded %}
+          <button class="dl-btn done" disabled>済</button>
+        {% else %}
+          <button class="dl-btn"
+                  data-program="{{ program | tojson }}"
+                  data-episode="{{ ep | tojson }}"
+                  onclick="startDL(this)">DL</button>
+        {% endif %}
+      </div>
+      <div class="ep-title">{{ ep.display_title }}</div>
+    </li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p style="font-size:0.82rem;color:#999;">エピソードがありません。</p>
+{% endif %}

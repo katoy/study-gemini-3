@@ -7,24 +7,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 bash setup.sh
 # または手動で:
-pip install -r requirements.txt
-playwright install chromium
+uv sync
+uv run playwright install chromium
 ```
 
 ## 実行コマンド
 
 ```bash
 # Chrome を自動起動してキャプチャ（推奨）
-python main.py --launch-chrome
+uv run python main.py --launch-chrome
 
 # 既存の PNG 画像から PDF のみ生成
-python main.py --images-dir ./output/<書籍タイトル>
+uv run python main.py --images-dir ./output/<書籍タイトル>
 
 # PNG を保持したままキャプチャ
-python main.py --launch-chrome --screenshots keep
+uv run python main.py --launch-chrome --screenshots keep
 
 # ページ遷移待機を延長（回線が遅い場合）
-python main.py --launch-chrome --page-delay 2.0
+uv run python main.py --launch-chrome --page-delay 2.0
 ```
 
 テストは存在しない。

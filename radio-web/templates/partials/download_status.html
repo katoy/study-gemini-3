@@ -1,0 +1,13 @@
+{% set status = job.status %}
+{% if status == "done" %}
+  <span style="color:#2e7d32;font-size:0.8rem;">✔ 完了</span>
+{% elif status == "error" %}
+  <span style="color:#c00;font-size:0.8rem;">✖ {{ job.error or 'エラー' }}</span>
+{% else %}
+  <span style="font-size:0.8rem;"
+        hx-get="/api/download/{{ job_id }}/status"
+        hx-trigger="every 2s"
+        hx-swap="outerHTML">
+    <span class="spinner"></span> {{ "ダウンロード中" if status == "downloading" else "待機中" }}…
+  </span>
+{% endif %}
