@@ -15,81 +15,45 @@ Kindle Cloud Reader で開いている本を自動でキャプチャし、高品
 ## 🛠 動作環境
 
 - **OS**: macOS (M1/M2/M3 シリーズ推奨), Windows, Linux
-- **Python**: 3.11 以上
-- **ブラウザ**: Google Chrome
+- **Python**: 3.12 以上
+- **パッケージマネージャー**: [uv](https://astral.sh/uv/) 推奨
 
 ---
 
 ## 🚀 セットアップ
 
-macOS の場合は、提供されている `setup.sh` を実行することで、Python ライブラリと Playwright のブラウザを一括でインストールできます。
+リポジトリ付属のセットアップスクリプトを使うか、`uv` を利用した環境構築を推奨します。
 
 ```bash
-cd kindle_to_pdf
-bash setup.sh
+# リポジトリ直下で
+./setup.sh
+# または uv を使う場合
+uv sync
+uv run playwright install chromium
 ```
-
-**手動でインストールする場合:**
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
-
-### Windows (推奨: PowerShell)
-
-Windows 用に用意したスクリプトで同等のセットアップが可能です。
-
-- PowerShell スクリプト（推奨、実行ポリシーを一時的にバイパスして実行）:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\setup_win.ps1
-```
-
-- あるいはバッチで（互換性のため用意）:
-
-```bat
-setup_win.bat
-```
-
-セットアップ後、実行は次のどちらか：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\run_win.ps1 --launch-chrome
-```
-
-または簡易バッチ:
-
-```bat
-run_win.bat --run
-```
-
-トラブルシューティング:
-- PowerShell の実行ポリシーでブロックされる場合は `-ExecutionPolicy Bypass` を使用してください。
-- Playwright 関連のネイティブ拡張で DLL エラーが出る場合、Visual C++ 再頒布可能パッケージ(x64) のインストールが必要になることがあります:
-  https://aka.ms/vs/17/release/vc_redist.x64.exe
-
 
 ---
 
 ## 📖 使い方
 
-### 方法 A: Chrome を自動起動する (推奨)
+### 起動スクリプトを使用する（macOS 推奨）
 
-この方法では、既存の Chrome 設定に影響を与えない専用のウィンドウが起動します。
+macOS 用の起動スクリプト `run.sh` を用意しています。デフォルトで Chrome を自動起動します。
 
 ```bash
-python main.py --launch-chrome
+# デフォルト起動（Chrome を自動で開く）
+./run.sh
+
+# オプションを指定して起動（例：ページ送り待機時間を1.2秒にする）
+./run.sh --page-delay 1.2
 ```
 
-1. 起動した Chrome で [Kindle Cloud Reader](https://read.amazon.co.jp) にログインし、本を開きます。
-2. 最初のページを表示した状態で、ターミナルに戻り **Enter キー** を押すとキャプチャが開始されます。
-
-### 方法 B: 既存の画像から PDF を生成する
-
-すでに画像（`page_0001.png` など）が揃っているディレクトリから PDF のみを作成する場合に使用します。
+手動で実行する場合（uv を使う例）:
 
 ```bash
-python main.py --images-dir ./output/書籍タイトル
+uv run python main.py --launch-chrome
+# もしくは画像から PDF を作る場合
+uv run python main.py --images-dir ./output/書籍タイトル
 ```
 
 ---
@@ -110,13 +74,13 @@ python main.py --images-dir ./output/書籍タイトル
 ## 📂 ファイル構成
 
 ```text
-kindle_to_notebooklm/
+kindle-to-pdf/
 ├── main.py            # エントリーポイント。引数処理と全体のフロー管理。
 ├── kindle_capture.py  # Playwright を使用したブラウザ操作・キャプチャ・終端判定。
 ├── pdf_maker.py       # img2pdf を使用した高品質な PDF 生成。
+├── run.sh             # macOS 用の起動スクリプト (推奨)。
 ├── setup.sh           # macOS 用の環境構築スクリプト。
-├── requirements.txt   # Python 依存ライブラリ一覧。
-├── .tool-versions     # asdf 等のバージョン管理用ファイル。
+├── pyproject.toml     # uv 用のプロジェクト定義。
 └── README.md          # 本ドキュメント。
 ```
 
