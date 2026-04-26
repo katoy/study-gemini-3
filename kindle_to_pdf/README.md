@@ -22,60 +22,93 @@ Kindle Cloud Reader で開いている本を自動でキャプチャし、高品
 
 ## 🚀 セットアップ
 
-付属のセットアップスクリプトを使うか、`uv` を利用した環境構築を推奨します。
+付属のセットアップスクリプトを使うか、`uv` を利用した環境構築を推奨します。OS ごとに手順を分けて記載します。
 
-### 付属スクリプトを使う（macOS 等）
+### macOS / Linux
 
 ```bash
-# リポジトリ直下で
+# リポジトリ直下で（実行権限がなければ chmod +x setup.sh）
 ./setup.sh
+
+# または uv を使用する場合
+uv sync
+uv run playwright install chromium
 ```
 
-### uv を使う場合
+### Windows (PowerShell)
 
-```bash
+```powershell
+# 管理者として開かないでください（不要な権限を避けるため）
+# リポジトリ直下で
+.\setup_win.bat
+
+# PowerShell を使って playwright を手動で入れる場合
 uv sync
 uv run playwright install chromium
 ```
 
 ---
 
-## 📖 使い方
+## 📖 実行方法
 
-1. (オプション) `--launch-chrome` で専用の Chrome を起動するか、既存の Chrome をデバッグモードで起動して接続します。
-2. Chrome で Kindle Cloud Reader を開き、ログインして本を表示します。
-3. 最初のページを表示した状態でターミナルに戻り、Enter などの操作でキャプチャを開始します。
+以下は macOS / Windows の両方での代表的な実行例です。環境に合わせて使ってください。
 
-### 例: 自動起動（推奨）
+### macOS / Linux
+
+- 自動で Chrome を起動してキャプチャ（推奨）:
 
 ```bash
-# デフォルト起動（Chrome を自動で開く）
+# 付属スクリプトで簡単起動
 ./run.sh
 
-# uv を使う場合
+# あるいは uv 経由で明示的に起動
 uv run python main.py --launch-chrome
 ```
 
-### 画像から PDF を作る
-
-既にキャプチャ済みの PNG から PDF を作る場合:
+- 既存のキャプチャ画像から PDF を生成する場合:
 
 ```bash
 uv run python main.py --images-dir ./output/書籍タイトル
 ```
 
+- 追加例（画像を残す・遅延を長めに）:
+
+```bash
+uv run python main.py --launch-chrome --screenshots keep --page-delay 2.0
+```
+
+### Windows (コマンドプロンプト / PowerShell)
+
+- バッチファイルで起動（推奨）:
+
+```
+run_win.bat
+```
+
+- 直接 Python を呼ぶ場合:
+
+```powershell
+# PowerShell の例
+uv run python main.py --launch-chrome
+
+# 既存画像から PDF を作る
+uv run python main.py --images-dir .\output\書籍タイトル
+```
+
 ---
 
-## ⚙️ オプション一覧
+## ⚙️ オプション一覧（更新）
 
-| オプション | デフォルト | 説明 |
-|---|---:|---|
-| `--output-dir`, `-o` | `./output` | 生成物の保存先 |
-| `--launch-chrome` | なし | 専用の Chrome インスタンスを自動起動する |
-| `--screenshots {delete,keep}` | `delete` | PNG 画像の扱い。`keep` で画像を output に残す |
-| `--page-delay` | `0.8` | ページ遷移後の最低待機秒数 |
-| `--images-dir DIR` | なし | 指定した画像ディレクトリを入力として PDF を生成 |
-| `--chrome-user-data-dir` | 一時フォルダ | `--launch-chrome` 使用時のプロファイル保存先 |
+| オプション | 省略形 | デフォルト | 説明 |
+|---|---|---:|---|
+| `--output-dir` | `-o` | `./output` | 生成物の保存先 |
+| `--launch-chrome` | なし | なし | 専用の Chrome インスタンスを自動起動し、CDP で接続する |
+| `--screenshots` | なし | `delete` | `delete`（画像を削除）または `keep`（画像を保持） |
+| `--page-delay` | なし | `0.8` | ページ遷移後の最低待機秒数（秒） |
+| `--images-dir DIR` | なし | なし | 指定した画像ディレクトリを入力として PDF を生成 |
+| `--chrome-user-data-dir DIR` | なし | 一時フォルダ | `--launch-chrome` 使用時の Chrome プロファイル保存先 |
+
+注意: Windows のパスはバックスラッシュ（\）または PowerShell の場合はエスケープ済みパスを使用してください。
 
 ---
 
@@ -86,8 +119,11 @@ kindle-to-pdf/
 ├── main.py            # エントリーポイント。引数処理と全体のフロー管理。
 ├── kindle_capture.py  # Playwright を使用したブラウザ操作・キャプチャ・終端判定。
 ├── pdf_maker.py       # img2pdf を使用した高品質な PDF 生成。
-├── run.sh             # macOS 用の起動スクリプト (推奨)。
-├── setup.sh           # 環境構築スクリプト。
+├── run.sh             # macOS / Linux 用の起動スクリプト（環境により uv 経由で起動）。
+├── run_win.bat        # Windows 用の起動バッチ。
+├── run_win.ps1        # Windows PowerShell 用の実行スクリプト。
+├── setup.sh           # macOS / Linux の環境構築スクリプト。
+├── setup_win.bat      # Windows の環境構築バッチ。
 ├── pyproject.toml     # uv 用のプロジェクト定義。
 └── README.md          # 本ドキュメント。
 ```
@@ -99,3 +135,5 @@ kindle-to-pdf/
 - **私的利用の範囲内で**: 本ツールは個人的な学習や資料管理を目的としています。生成した PDF の再配布等は厳禁です。
 - **自己責任で**: Amazon Kindle の利用規約を確認のうえ、自己責任でご利用ください。
 - **Live Text について**: テキストのコピー・検索は macOS の「プレビュー」アプリ等で行ってください。OS の機能により文字認識が行われます。
+
+必要ならば、README にスクリーンショットやトラブルシューティング（Chrome 起動時のポート競合、Playwright のインストール失敗時の対処）を追加できます。どの程度詳しく追加するか指示ください。
