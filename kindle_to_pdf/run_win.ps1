@@ -58,9 +58,64 @@ if ($RemainingArgs -and $RemainingArgs.Length -gt 0) {
     $forward = $args
 }
 
-# Build argument list to pass to Python
+# Detect and optionally launch Chrome, and build argument list to pass to Python
 # Ensure unbuffered (-u) so interactive prompts appear immediately
-$pyArgs = @('-u','main.py') + $forward
+# If caller passed --launch-chrome, start Chrome here and remove that flag before forwarding
+$launchChrome = $false
+$forceKillChrome = $false
+$argsList = $forward
+if ($argsList -and ($argsList -contains '--launch-chrome')) {
+    $launchChrome = $true
+    $argsList = $argsList | Where-Object { $_ -ne '--launch-chrome' }
+}
+if ($argsList -and ($argsList -contains '--force-kill-chrome')) {
+    $forceKillChrome = $true
+    $argsList = $argsList | Where-Object { $_ -ne '--force-kill-chrome' }
+}
+
+if ($launchChrome) {
+    Write-Host "Starting Chrome with remote debugging on port 9222..."
+    $possible = @(
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
+    )
+    $chromePath = $possible | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $chromePath) {
+        Write-Host "Chrome executable not found in standard locations." -ForegroundColor Yellow
+    } else {
+        $userData = Join-Path $env:TEMP "chrome-debug-profile"
+        New-Item -ItemType Directory -Path $userData -Force | Out-Null
+        $startArgs = @("--remote-debugging-port=9222","--user-data-dir=$userData","--no-first-run")
+        Start-Process -FilePath $chromePath -ArgumentList $startArgs -NoNewWindow
+        Start-Sleep -Seconds 1
+
+        # Check whether port 9222 is listening
+        $listening = $false
+        try {
+            $conn = Get-NetTCPConnection -LocalPort 9222 -ErrorAction Stop
+            if ($conn) { $listening = $true }
+        } catch {
+            $listening = $false
+        }
+
+        if (-not $listening -and $forceKillChrome) {
+            Write-Host "Port 9222 not available. Forcing existing Chrome processes to stop..."
+            Stop-Process -Name chrome -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+            Start-Process -FilePath $chromePath -ArgumentList $startArgs -NoNewWindow
+            Start-Sleep -Seconds 1
+            try { $conn = Get-NetTCPConnection -LocalPort 9222 -ErrorAction Stop; if ($conn) { $listening = $true } } catch {}
+        }
+
+        if ($listening) {
+            Write-Host "Chrome started and listening on 9222 (user-data: $userData)"
+        } else {
+            Write-Host "Chrome started but 9222 not listening. Close other Chrome instances and retry, or re-run with --force-kill-chrome to force stop." -ForegroundColor Yellow
+        }
+    }
+}
+
+$pyArgs = @('-u','main.py') + $argsList
 
 Write-Host "Running: $venvPython $($pyArgs -join ' ')"
 
