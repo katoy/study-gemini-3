@@ -20,16 +20,16 @@ from playwright.async_api import Browser, Page, async_playwright
 logger = logging.getLogger(__name__)
 
 # 定数
-DEFAULT_CDP_URL = 'http://localhost:9222'
+DEFAULT_CDP_URL = "http://localhost:9222"
 MAX_SAME_PAGES = 3  # 同じ画面が何回続いたら終端とみなすか
-NEXT_PAGE_KEY = 'ArrowDown'  # 縦書き・横書きに関わらず次ページへ進むキー
+NEXT_PAGE_KEY = "ArrowDown"  # 縦書き・横書きに関わらず次ページへ進むキー
 
 
 def sanitize_filename(name: str) -> str:
     """ファイル名として使用できない文字を除去・置換します。"""
-    name = re.sub(r'[<>:"/\\|?*\n\r\t]', '_', name)
-    name = re.sub(r'_+', '_', name).strip('_')
-    return name[:80] or 'kindle_book'
+    name = re.sub(r'[<>:"/\\|?*\n\r\t]', "_", name)
+    name = re.sub(r"_+", "_", name).strip("_")
+    return name[:80] or "kindle_book"
 
 
 async def capture_kindle_pages(
@@ -85,10 +85,7 @@ async def _connect_to_chrome(p, cdp_url: str) -> Browser:
                 "--remote-debugging-port=9222 --no-first-run"
             )
         elif os_name == "Windows":
-            chrome_cmd = (
-                "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" "
-                "--remote-debugging-port=9222"
-            )
+            chrome_cmd = '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222'
         else:
             chrome_cmd = "google-chrome --remote-debugging-port=9222"
 
@@ -120,9 +117,8 @@ def _get_chrome_executable() -> str:
 
 def find_free_port() -> int:
     """使用可能な空きポートを探して返します。"""
-    import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
+        s.bind(("", 0))
         return s.getsockname()[1]
 
 
@@ -190,11 +186,11 @@ def _find_kindle_tab(browser: Browser) -> Page:
         for page in context.pages:
             url = page.url
             all_urls.append(url)
-            if 'read.amazon' in url:
+            if "read.amazon" in url:
                 kindle_pages.append(page)
 
     if not kindle_pages:
-        url_list = '\n'.join(f'  - {u}' for u in all_urls) if all_urls else '  (タブなし)'
+        url_list = "\n".join(f"  - {u}" for u in all_urls) if all_urls else "  (タブなし)"
         raise RuntimeError(
             "Kindle Cloud Reader のタブが見つかりません。\n\n"
             "接続中の Chrome で開いているタブ:\n"
@@ -206,14 +202,14 @@ def _find_kindle_tab(browser: Browser) -> Page:
         )
 
     for p in kindle_pages:
-        if 'asin=' in p.url or 'reading' in p.url:
+        if "asin=" in p.url or "reading" in p.url:
             return p
     return kindle_pages[-1]
 
 
 def _extract_title(raw_title: str) -> str:
     """ページタイトルから書籍名を抽出します。"""
-    title = raw_title.replace('Kindle Cloud Reader', '').strip(' -')
+    title = raw_title.replace("Kindle Cloud Reader", "").strip(" -")
     return sanitize_filename(title)
 
 
@@ -232,7 +228,7 @@ async def _wait_for_page_stable(
     stable_count = 0
 
     while time.monotonic() - start < timeout:
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             tmp_path = Path(f.name)
         try:
             await page.screenshot(path=str(tmp_path), full_page=False)
@@ -278,7 +274,7 @@ async def _capture_all_pages(
         else:
             same_count = 0
             screenshots.append(str(shot_path))
-            print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end='', flush=True)
+            print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end="", flush=True)
 
         prev_hash = cur_hash
         await page.keyboard.press(NEXT_PAGE_KEY)
@@ -288,72 +284,14 @@ async def _capture_all_pages(
     return screenshots
 
 
-async def _detect_writing_mode(page: Page) -> str:
-    """縦書き・横書きを自動判定します（CSS解析）。"""
-    try:
-        wm = await page.evaluate("""() => {
-            const getWM = (el) => {
-                if (!el) return null;
-                const style = getComputedStyle(el);
-                return style.writingMode || style.webkitWritingMode;
-            };
-
-            // Kindle Cloud Reader の主要なテキストコンテナを探す
-            const checkElements = (doc) => {
-                // 優先度の高いクラス/ID
-                const selectors = [
-                    '.k6-content', 
-                    '#ST_RE_Container', 
-                    '.kindle-reader-container', 
-                    'body', 
-                    'html'
-                ];
-                for (const sel of selectors) {
-                    const el = doc.querySelector(sel);
-                    const s = getWM(el);
-                    if (s && s.includes('vertical')) return 'vertical';
-                }
-                // それ以外の dir 属性などを持つ要素
-                const items = doc.querySelectorAll('*[dir], .text, .content');
-                for (const el of items) {
-                    const s = getWM(el);
-                    if (s && s.includes('vertical')) return 'vertical';
-                }
-                return null;
-            };
-
-            // メインドキュメントのチェック
-            if (checkElements(document) === 'vertical') return 'vertical';
-
-            // iframe 内のチェック
-            for (const iframe of document.querySelectorAll('iframe')) {
-                try {
-                    const doc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (checkElements(doc) === 'vertical') return 'vertical';
-                } catch (_) {}
-            }
-            return 'horizontal-tb';
-        }""")
-        
-        if wm and 'vertical' in wm:
-            logger.info(f"  (判定: CSS解析により縦書きを検出)")
-            return 'vertical'
-    except Exception as e:
-        logger.debug(f"CSS解析中にエラー: {e}")
-
-    # デフォルトの判定
-    logger.info("  (判定: 縦書きと仮定)")
-    return 'vertical'
-
-
 async def _focus_reader(page: Page) -> None:
     """リーダー画面にフォーカスを当てます。"""
     try:
         await page.bring_to_front()
-        await page.focus('body')
-        await page.keyboard.press('Escape')
+        await page.focus("body")
+        await page.keyboard.press("Escape")
         await asyncio.sleep(0.5)
-        await page.keyboard.press('Escape')
+        await page.keyboard.press("Escape")
         await asyncio.sleep(0.5)
     except Exception:
         pass
