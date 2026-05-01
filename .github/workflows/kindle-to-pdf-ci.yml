@@ -1,12 +1,14 @@
-name: CI
+name: kindle-to-pdf CI
 
 on:
   push:
     paths:
       - "kindle_to_pdf/**"
+      - ".github/workflows/kindle-to-pdf-ci.yml"
   pull_request:
     paths:
       - "kindle_to_pdf/**"
+      - ".github/workflows/kindle-to-pdf-ci.yml"
 
 defaults:
   run:
