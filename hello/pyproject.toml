@@ -1,0 +1,48 @@
+[project]
+name = "hello-world"
+version = "0.1.0"
+description = "多言語・音声対応 Hello World"
+license = { text = "MIT" }
+authors = [
+    { name = "katoy" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+hello = "hello:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.2",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.12",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["hello"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=hello --cov-report=term-missing --cov-fail-under=100"
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
