@@ -23,11 +23,18 @@ uv run python main.py --images-dir ./output/<書籍タイトル>
 # PNG を保持したままキャプチャ
 uv run python main.py --launch-chrome --screenshots keep
 
-# ページ遷移待機を延長（回線が遅い場合）
-uv run python main.py --launch-chrome --page-delay 2.0
-```
+## テストの実行
 
-テストは存在しない。
+```bash
+# 全てのテストを実行
+uv run pytest
+
+# 特定のファイルのみ実行
+uv run pytest tests/test_kindle_capture.py
+
+# カバレッジを確認
+uv run pytest --cov=.
+```
 
 ## アーキテクチャ
 

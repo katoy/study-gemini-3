@@ -6,17 +6,33 @@ Kindle 本をキャプチャして画像 PDF を生成するツールのエン�
 import argparse
 import asyncio
 import logging
+import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from kindle_capture import capture_kindle_pages, launch_chrome, sanitize_filename
+from kindle_capture import (
+    _terminate_process,
+    capture_kindle_pages,
+    find_free_port,
+    launch_chrome,
+    sanitize_filename,
+)
 from pdf_maker import make_pdf
 
-# ログ設定
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
+
+
+def _configure_logging(verbose: bool) -> None:
+    """ログ設定をエントリーポイントで一度だけ初期化する。"""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,6 +76,12 @@ def parse_args() -> argparse.Namespace:
         default=0.8,
         help="ページ送りの待機時間(秒) (デフォルト: 0.8)",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="DEBUG レベルのログを有効にする (LOG_LEVEL=DEBUG でも可)",
+    )
     return parser.parse_args()
 
 
@@ -70,14 +92,18 @@ async def run(args: argparse.Namespace) -> None:
 
     # Chrome の自動起動
     chrome_proc = None
+    chrome_temp_user_data_dir: Optional[str] = None
     if args.launch_chrome:
         import urllib.parse
-
-        from kindle_capture import find_free_port
 
         cdp_port = find_free_port()
         parsed_url = urllib.parse.urlparse(args.cdp_url)
         args.cdp_url = f"{parsed_url.scheme}://{parsed_url.hostname}:{cdp_port}{parsed_url.path}"
+
+        # ユーザーデータディレクトリが省略されたら明示的に作成し、終了時に削除する
+        if args.chrome_user_data_dir is None:
+            chrome_temp_user_data_dir = tempfile.mkdtemp(prefix="kindle_chrome_")
+            args.chrome_user_data_dir = chrome_temp_user_data_dir
 
         try:
             chrome_proc = launch_chrome(
@@ -85,8 +111,10 @@ async def run(args: argparse.Namespace) -> None:
                 user_data_dir=args.chrome_user_data_dir,
                 initial_url="https://read.amazon.co.jp/",
             )
-        except Exception as e:
-            logger.error(f"Chrome の起動に失敗しました: {e}")
+        except (FileNotFoundError, RuntimeError):
+            logger.exception("Chrome の起動に失敗しました")
+            if chrome_temp_user_data_dir is not None:
+                shutil.rmtree(chrome_temp_user_data_dir, ignore_errors=True)
             sys.exit(1)
 
     try:
@@ -102,7 +130,14 @@ async def run(args: argparse.Namespace) -> None:
             print("（終了する場合は 'q' を入力して Enter）")
             print("!" * 60 + "\n")
 
-            user_input = input(">> ").strip().lower()
+            try:
+                user_input = input(">> ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print()  # 改行を入れる
+                break
+
+            if not user_input:
+                continue
             if user_input == "q":
                 break
 
@@ -120,14 +155,18 @@ async def run(args: argparse.Namespace) -> None:
                 _print_summary(pdf_path)
 
                 print("\n次の本を処理しますか？")
-            except Exception as e:
-                logger.error(f"エラーが発生しました: {e}")
+            except Exception:
+                # traceback も含めて出力（--verbose が無くても原因特定できるように）
+                logger.exception("エラーが発生しました")
                 print("修正して再試行するか、'q' で終了してください。")
 
     finally:
         if chrome_proc is not None:
-            chrome_proc.terminate()
+            _terminate_process(chrome_proc)
             logger.info("Chrome を終了しました。")
+        if chrome_temp_user_data_dir is not None:
+            shutil.rmtree(chrome_temp_user_data_dir, ignore_errors=True)
+            logger.debug("一時ユーザーデータディレクトリを削除: %s", chrome_temp_user_data_dir)
 
 
 async def _prepare_screenshots(args: argparse.Namespace, output_dir: Path) -> Tuple[str, List[str], Optional[Path]]:
@@ -141,7 +180,7 @@ async def _prepare_screenshots(args: argparse.Namespace, output_dir: Path) -> Tu
 
         screenshots = sorted([str(p) for p in shot_dir.glob("page_*.png")])
         book_title = shot_dir.name
-        logger.info(f"[1/2] 既存画像を使用: {book_title} ({len(screenshots)} ページ)")
+        logger.info("[1/2] 既存画像を使用: %s (%d ページ)", book_title, len(screenshots))
         return book_title, screenshots, None
 
     logger.info("[1/2] Kindle ページをキャプチャ中...")
@@ -150,7 +189,7 @@ async def _prepare_screenshots(args: argparse.Namespace, output_dir: Path) -> Tu
         cdp_url=args.cdp_url,
         page_delay=args.page_delay,
     )
-    logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
+    logger.info("      完了: %s (%d ページ)", book_title, len(screenshots))
     shot_dir = Path(screenshots[0]).parent if screenshots else None
     return book_title, screenshots, shot_dir
 
@@ -164,7 +203,7 @@ def _generate_pdf(output_dir: Path, book_title: str, screenshots: List[str]) -> 
         pdf_path = output_dir / f"{base_name}_{counter}.pdf"
         counter += 1
 
-    logger.info(f"[2/2] PDF を生成中: {pdf_path}")
+    logger.info("[2/2] PDF を生成中: %s", pdf_path)
     make_pdf(
         screenshots=screenshots,
         output_path=str(pdf_path),
@@ -174,7 +213,7 @@ def _generate_pdf(output_dir: Path, book_title: str, screenshots: List[str]) -> 
 
 def _delete_screenshots(shot_dir: Path) -> None:
     """スクリーンショットディレクトリを削除します。"""
-    logger.info(f"スクリーンショットを削除中: {shot_dir}")
+    logger.info("スクリーンショットを削除中: %s", shot_dir)
     shutil.rmtree(shot_dir, ignore_errors=True)
     logger.info("      削除完了")
 
@@ -190,13 +229,17 @@ def _print_summary(pdf_path: Path) -> None:
 def main() -> None:
     """エントリーポイント。"""
     args = parse_args()
+    verbose = args.verbose or os.environ.get("LOG_LEVEL", "").upper() == "DEBUG"
+    _configure_logging(verbose)
+
     try:
         asyncio.run(run(args))
     except KeyboardInterrupt:
-        logger.info("\nユーザーにより中断されました。")
+        print()  # ^C 直後の改行
+        logger.info("ユーザーにより中断されました。")
         sys.exit(0)
-    except Exception as e:
-        logger.critical(f"予期しないエラーが発生しました: {e}", exc_info=True)
+    except Exception:
+        logger.critical("予期しないエラーが発生しました", exc_info=True)
         sys.exit(1)
 
 

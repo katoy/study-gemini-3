@@ -29,15 +29,10 @@ def make_pdf(
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"画像を PDF に結合中 ({len(screenshots)} ページ)...")
+    logger.info("画像を PDF に結合中 (%d ページ)...", len(screenshots))
 
-    try:
-        with open(output_path, "wb") as f:
-            f.write(img2pdf.convert(screenshots))
-    except Exception as e:
-        logger.error(f"PDF 結合中にエラーが発生しました: {e}")
-        raise
+    with open(output_path, "wb") as f:
+        f.write(img2pdf.convert(screenshots))
 
-    if output_file.exists():
-        size_mb = output_file.stat().st_size / 1_048_576
-        logger.info(f"PDF 生成完了: {output_path} ({size_mb:.1f} MB)")
+    size_mb = output_file.stat().st_size / 1_048_576
+    logger.info("PDF 生成完了: %s (%.1f MB)", output_path, size_mb)
