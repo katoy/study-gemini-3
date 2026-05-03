@@ -116,17 +116,55 @@ uv run python main.py --images-dir .\output\書籍タイトル
 
 ```text
 kindle-to-pdf/
-├── main.py            # エントリーポイント。引数処理と全体のフロー管理。
-├── kindle_capture.py  # Playwright を使用したブラウザ操作・キャプチャ・終端判定。
-├── pdf_maker.py       # img2pdf を使用した高品質な PDF 生成。
-├── run.sh             # macOS / Linux 用の起動スクリプト（環境により uv 経由で起動）。
-├── run_win.bat        # Windows 用の起動バッチ。
-├── run_win.ps1        # Windows PowerShell 用の実行スクリプト。
-├── setup.sh           # macOS / Linux の環境構築スクリプト。
-├── setup_win.bat      # Windows の環境構築バッチ。
-├── pyproject.toml     # uv 用のプロジェクト定義。
-└── README.md          # 本ドキュメント。
+├── main.py              # エントリーポイント。引数処理と全体のフロー管理。
+├── kindle_capture.py    # Playwright を使用したブラウザ操作・キャプチャ・終端判定。
+├── pdf_maker.py         # img2pdf を使用した高品質な PDF 生成。
+├── run.sh               # macOS / Linux 用の起動スクリプト（環境により uv 経由で起動）。
+├── run_win.bat          # Windows 用の起動バッチ。
+├── run_win.ps1          # Windows PowerShell 用の実行スクリプト。
+├── check_quality.sh     # macOS / Linux 用の品質チェック スクリプト（ruff, mypy, coverage）。
+├── check_quality.bat    # Windows 用の品質チェック バッチ（Command Prompt）。
+├── check_quality.ps1    # Windows 用の品質チェック スクリプト（PowerShell）。
+├── setup.sh             # macOS / Linux の環境構築スクリプト。
+├── setup_win.bat        # Windows の環境構築バッチ。
+├── pyproject.toml       # uv 用のプロジェクト定義。
+└── README.md            # 本ドキュメント。
 ```
+
+---
+
+## ✅ 品質チェック
+
+コードの品質を保証するため、以下のチェック (ruff, mypy, テストカバレッジ 100%) を実行できます。
+
+### macOS / Linux
+
+```bash
+# 実行権限を付与（初回のみ）
+chmod +x check_quality.sh
+
+# 品質チェック実行
+./check_quality.sh
+```
+
+### Windows (Command Prompt)
+
+```cmd
+check_quality.bat
+```
+
+### Windows (PowerShell)
+
+```powershell
+.\check_quality.ps1
+```
+
+各スクリプトは以下を実行します：
+- **ruff**: Python コードのリント チェック（スタイル違反、潜在的なバグを検出）
+- **mypy**: 型チェック（型安全性を検証）
+- **pytest**: テスト実行とカバレッジ確認（100% カバレッジが必須）
+
+すべてのチェックが合格すれば、品質基準を満たしています。
 
 ---
 
