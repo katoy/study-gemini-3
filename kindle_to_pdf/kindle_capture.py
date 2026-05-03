@@ -10,6 +10,7 @@ import platform
 import re
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -22,7 +23,10 @@ logger = logging.getLogger(__name__)
 # 定数
 DEFAULT_CDP_URL = "http://localhost:9222"
 MAX_SAME_PAGES = 3  # 同じ画面が何回続いたら終端とみなすか
+MAX_PAGES = 5000  # 暴走防止のための最大キャプチャ枚数
 NEXT_PAGE_KEY = "ArrowDown"  # 縦書き・横書きに関わらず次ページへ進むキー
+CHROME_LAUNCH_TIMEOUT = 15.0  # Chrome 起動を待つ最大秒数
+PAGE_STABLE_TIMEOUT = 10.0  # ページ安定検知の最大秒数
 
 
 def sanitize_filename(name: str) -> str:
@@ -53,8 +57,8 @@ async def capture_kindle_pages(
 
             raw_title = await kindle_page.title()
             book_title = _extract_title(raw_title)
-            logger.info(f"ターゲットURL: {kindle_page.url}")
-            logger.info(f"書籍タイトル: {book_title}")
+            logger.info("ターゲットURL: %s", kindle_page.url)
+            logger.info("書籍タイトル: %s", book_title)
 
             book_dir = Path(output_dir) / book_title
             counter = 2
@@ -78,7 +82,6 @@ async def _connect_to_chrome(p, cdp_url: str) -> Browser:
         return await p.chromium.connect_over_cdp(cdp_url)
     except Exception as e:
         os_name = platform.system()
-        chrome_cmd = ""
         if os_name == "Darwin":
             chrome_cmd = (
                 "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "
@@ -94,7 +97,7 @@ async def _connect_to_chrome(p, cdp_url: str) -> Browser:
             "以下のコマンドで Chrome を起動してから再実行してください:\n"
             f"  {chrome_cmd}\n"
             "※ すでに Chrome が起動している場合は一度終了してから実行してください。"
-        )
+        ) from e
 
 
 def _get_chrome_executable() -> str:
@@ -165,17 +168,64 @@ def launch_chrome(
     if initial_url:
         cmd.append(initial_url)
 
-    logger.info(f"Chrome を起動中: port={cdp_port}")
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Chrome のクラッシュ原因を診断できるよう stderr を一時ファイルに保存する
+    stderr_log = Path(tempfile.mkstemp(prefix="kindle_chrome_", suffix=".log")[1])
+    logger.info("Chrome を起動中: port=%d (stderr: %s)", cdp_port, stderr_log)
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=stderr_log.open("w"),
+    )
 
-    deadline = time.time() + 15
-    while time.time() < deadline:
+    deadline = time.monotonic() + CHROME_LAUNCH_TIMEOUT
+    while time.monotonic() < deadline:
+        # プロセス自体が落ちている場合は即座に検知して中断する
+        if proc.poll() is not None:
+            stderr_tail = _tail_log(stderr_log)
+            raise RuntimeError(
+                f"Chrome プロセスが exit code {proc.returncode} で終了しました。\nstderr (末尾):\n{stderr_tail}"
+            )
         if _is_port_open(cdp_port):
+            logger.debug("Chrome が CDP ポート %d で起動しました", cdp_port)
             return proc
         time.sleep(0.5)
 
+    # タイムアウト時はプロセスを確実に終了させる
+    _terminate_process(proc)
+    stderr_tail = _tail_log(stderr_log)
+    raise RuntimeError(
+        f"Chrome が {CHROME_LAUNCH_TIMEOUT:.0f} 秒以内に CDP ポート {cdp_port} で応答しませんでした。\n"
+        f"stderr (末尾):\n{stderr_tail}"
+    )
+
+
+def _terminate_process(proc: subprocess.Popen, timeout: float = 5.0) -> None:
+    """プロセスを丁寧に終了させ、必要なら kill する。"""
+    if proc.poll() is not None:
+        return
     proc.terminate()
-    raise RuntimeError(f"Chrome が {cdp_port} ポートで起動しませんでした。")
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        logger.warning("Chrome が terminate に応答しないため kill します")
+        proc.kill()
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logger.error("Chrome プロセスの終了に失敗しました (pid=%s)", proc.pid)
+
+
+def _tail_log(path: Path, max_bytes: int = 4096) -> str:
+    """ログファイルの末尾を最大 max_bytes だけ読み取って返します。"""
+    try:
+        data = path.read_bytes()
+    except OSError as e:
+        return f"(stderr ログ読み取り失敗: {e})"
+    if not data:
+        return "(空)"
+    if len(data) > max_bytes:
+        data = data[-max_bytes:]
+    return data.decode("utf-8", errors="replace")
 
 
 def _find_kindle_tab(browser: Browser) -> Page:
@@ -217,34 +267,36 @@ async def _wait_for_page_stable(
     page: Page,
     check_interval: float = 0.3,
     stable_checks: int = 2,
-    timeout: float = 10.0,
-) -> None:
+    timeout: float = PAGE_STABLE_TIMEOUT,
+) -> bool:
     """ページのレンダリングが安定するまで待機します（ローディング完了待ち）。
 
     連続する2回のスクリーンショットが一致したら安定とみなします。
+    タイムアウト時は False を返します（呼び出し側で警告ログ等を出す）。
     """
     start = time.monotonic()
     prev_hash: Optional[str] = None
     stable_count = 0
 
     while time.monotonic() - start < timeout:
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            tmp_path = Path(f.name)
         try:
-            await page.screenshot(path=str(tmp_path), full_page=False)
-            cur_hash = _calculate_md5(tmp_path)
-        finally:
-            tmp_path.unlink(missing_ok=True)
+            data = await page.screenshot(full_page=False)
+        except Exception:
+            logger.debug("page stable 判定中に screenshot 取得失敗", exc_info=True)
+            return False
+        cur_hash = hashlib.md5(data).hexdigest()
 
         if cur_hash == prev_hash:
             stable_count += 1
             if stable_count >= stable_checks:
-                return
+                return True
         else:
             stable_count = 0
 
         prev_hash = cur_hash
         await asyncio.sleep(check_interval)
+
+    return False
 
 
 async def _capture_all_pages(
@@ -256,12 +308,25 @@ async def _capture_all_pages(
     screenshots: List[str] = []
     prev_hash: Optional[str] = None
     same_count = 0
+    use_progress_line = sys.stderr.isatty()
 
     logger.info("キャプチャ開始 (終端を検出したら自動停止します)...")
 
     while True:
+        # 暴走防止: 異常な数のページが取れた場合は強制終了
+        if len(screenshots) >= MAX_PAGES:
+            logger.warning(
+                "キャプチャ枚数が上限 %d に達しました。終端検知が機能していない可能性があります。",
+                MAX_PAGES,
+            )
+            break
+
         shot_path = book_dir / f"page_{len(screenshots) + 1:04d}.png"
-        await page.screenshot(path=str(shot_path), full_page=False)
+        try:
+            await page.screenshot(path=str(shot_path), full_page=False)
+        except Exception as e:
+            logger.error("ページ %d のキャプチャに失敗しました: %s", len(screenshots) + 1, e)
+            raise
         cur_hash = _calculate_md5(shot_path)
 
         if cur_hash == prev_hash:
@@ -269,17 +334,29 @@ async def _capture_all_pages(
             if shot_path.exists():
                 shot_path.unlink()
             if same_count >= MAX_SAME_PAGES:
-                print(f"\n終端を検出しました。合計 {len(screenshots)} ページ")
+                if use_progress_line:
+                    print()  # 進捗行を改行で確定
+                logger.info("終端を検出しました。合計 %d ページ", len(screenshots))
                 break
         else:
             same_count = 0
             screenshots.append(str(shot_path))
-            print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end="", flush=True)
+            if use_progress_line:
+                print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end="", flush=True)
+            else:
+                logger.info("キャプチャ中: %d ページ目", len(screenshots))
 
         prev_hash = cur_hash
         await page.keyboard.press(NEXT_PAGE_KEY)
         await asyncio.sleep(page_delay)  # ページ遷移開始を確保する最低待機
-        await _wait_for_page_stable(page)  # ローディング完了まで待機
+        stable = await _wait_for_page_stable(page)  # ローディング完了まで待機
+        if not stable:
+            logger.warning(
+                "ページ %d でレンダリング安定検知がタイムアウトしました (%.0f 秒)。"
+                "終端検出が誤動作する可能性があります。",
+                len(screenshots),
+                PAGE_STABLE_TIMEOUT,
+            )
 
     return screenshots
 
@@ -294,13 +371,10 @@ async def _focus_reader(page: Page) -> None:
         await page.keyboard.press("Escape")
         await asyncio.sleep(0.5)
     except Exception:
-        pass
+        # Escape 等は失敗しても致命的ではないが、診断用に DEBUG で残す
+        logger.debug("リーダーへのフォーカス処理で例外が発生しました", exc_info=True)
 
 
 def _calculate_md5(path: Path) -> str:
     """ファイルの MD5 ハッシュを計算します。"""
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+    return hashlib.md5(path.read_bytes()).hexdigest()

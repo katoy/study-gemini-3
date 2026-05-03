@@ -3,7 +3,22 @@
     "allow": [
       "Bash(uv init:*)",
       "Bash(uv add:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(rtk read:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('email','not found'\\)\\)\")",
+      "Bash(claude auth:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv lock:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run:*)",
+      "Bash(gh pr:*)",
+      "Bash(git -C /Users/katoy/github/study-gemini-3/kindle_to_pdf status)",
+      "Bash(git -C /Users/katoy/github/study-gemini-3/kindle_to_pdf diff --stat)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(chmod +x *)",
+      "Bash(./check_quality.sh *)"
     ]
   }
 }
