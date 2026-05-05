@@ -1,0 +1,3 @@
+pyautogui
+img2pdf
+Pillow
