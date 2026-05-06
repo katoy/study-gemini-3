@@ -1,0 +1,43 @@
+[project]
+name = "kindle-app-to-pdf"
+version = "1.0.0"
+description = "Convert Kindle app books to PDF (Mac/Windows compatible)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "katoy", email = "katoy@media-5.co.jp"}
+]
+license = {text = "MIT"}
+keywords = ["kindle", "pdf", "screenshot", "mac", "windows"]
+
+dependencies = [
+    "img2pdf",
+    "pypdf",
+    "pyautogui",
+    "pygetwindow",
+    "pillow",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Repository = "https://github.com/katoy/study-gemini-3"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_unreachable = true

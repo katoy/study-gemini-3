@@ -1,30 +1,38 @@
-# Kindle App to PDF (macOS)
+# Kindle App to PDF
 
-macOS 版 Kindle デスクトップアプリの書籍を、高品質な PNG 画像としてキャプチャし、劣化のない PDF を自動生成するツールです。
+Kindle デスクトップアプリの書籍を、高品質な PNG 画像としてキャプチャし、劣化のない PDF を自動生成するツールです。
+
+**対応 OS**: macOS（AppleScript 使用）、Windows（pygetwindow + PIL 使用）
 
 ## ⚠️ 重要：注意事項 (Disclaimer)
 
 - **著作権について**: 本ツールは、個人での利用、または著作権法で認められている範囲内（私的使用のための複製など）での使用を目的としています。生成された PDF を他人に配布したり、インターネット上にアップロードしたりすることは、著作権法に抵触する恐れがあります。利用者は自己責任において使用してください。
-- **OS制限**: macOS 専用です。`osascript` (AppleScript) と `screencapture` に依存しています。
-- **アクセシビリティ許可**: 初回実行時や、ターミナル等の実行環境を変更した際には、macOS の「システム設定 > プライバシーとセキュリティ > アクセシビリティ」で、実行アプリに許可を与える必要があります。
-- **ハードウェア要件**: Retina ディスプレイ環境では解像度が高くなるため、生成される PDF ファイルが巨大になる場合があります。必要に応じて `split_pdf.py` で分割してください。
+- **OS別注意事項**: 
+  - **macOS**: `osascript` (AppleScript) と `screencapture` に依存します。アクセシビリティ許可が必要です。
+  - **Windows**: `pygetwindow` と `PIL.ImageGrab` を使用します。高 DPI 環境では表示スケール 100% を推奨します。
+- **ハードウェア要件**: Retina ディスプレイなど高解像度環境では、生成される PDF ファイルが巨大になる場合があります。必要に応じて `split_pdf.py` で分割してください。
 
 ## 特徴
 
 - **高画質・ロスレス**: `img2pdf` を使用し、再エンコードなしで PNG の品質を維持したまま PDF 化します。
-- **UI干渉の徹底排除**: 撮影前にメニューやシークバーを自動的に非表示（Escapeキー送信）にし、一切のノイズがないクリーンな誌面のみを確実にキャプチャします。
-- **高度な終端検知**:
-    - **ハッシュ履歴判定**: 画像の重複を検知し、本の終わりに達すると自動停止します。
-    - **UIキーワードスキャン**: 「評価」「レビュー」「完了」などのテキストを検知し、評価ダイアログが出る前に停止を試みます。
-    - **自動クリーンアップ**: 最終ページで評価ダイアログが写り込んでしまった場合、重複検知時に末尾の1枚を自動的に除外します。
-- **柔軟なページ送り**: デフォルトでスペースキーによる汎用的なページ送りに対応しているほか、右矢印・左矢印による制御も可能です。
+- **マルチプラットフォーム**: macOS と Windows に対応しています。
+- **UI干渉の最小化**: ウィンドウ領域を自動検出し、Kindle アプリのみをキャプチャします。
+- **高度な終端検知**: 画像の重複を検知し、本の終わりに達すると自動停止します。
+- **柔軟なページ送り**: デフォルトでスペースキーによるページ送りに対応しているほか、矢印キーも利用可能です。
 
 ## 動作環境
 
+### macOS
 - **OS**: macOS 12 (Monterey) 以降推奨 (Intel / Apple Silicon 両対応)
 - **Python**: 3.11 以上
-- **必須アプリ**: macOS 版 Kindle デスクトップアプリ (App Store 版または Amazon 公式サイト版)
+- **必須アプリ**: Kindle デスクトップアプリ (App Store 版または Amazon 公式サイト版)
 - **依存コマンド**: `osascript`, `screencapture` (macOS 標準搭載)
+
+### Windows
+- **OS**: Windows 10 / 11
+- **Python**: 3.11 以上
+- **必須アプリ**: Kindle for PC（Microsoft Store または Amazon 公式サイト版）
+- **表示設定**: 推奨スケール 100%（高 DPI 環境では調整が必要な場合があります）
 
 ## セットアップ
 
@@ -32,90 +40,172 @@ macOS 版 Kindle デスクトップアプリの書籍を、高品質な PNG 画�
 本リポジトリをダウンロードまたはクローンします。
 
 ### 2. Python 依存ライブラリのインストール
-ターミナルでリポジトリのディレクトリに移動し、以下のコマンドを実行して必要なライブラリをインストールします。
 
-#### **標準的な pip を使う場合**
+#### **macOS**
+
+**最も簡単: セットアップスクリプトを使う（推奨）**
 ```bash
-# スクリプトを使用する場合
 bash setup.sh
+```
 
-# または直接 pip でインストールする場合
+**uv を使う場合 (高速です)**
+```bash
+# uv がインストールされていない場合は先にインストール
+# brew install uv
+
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+**pip を使う場合**
+```bash
 pip install -r requirements.txt
 ```
 
-#### **uv を使う場合 (推奨: 高速です)**
-[uv](https://github.com/astral-sh/uv) がインストールされている場合は、仮想環境の作成から実行までを非常に高速に行えます。
+#### **Windows**
 
-```bash
-# 仮想環境の作成とインストール
-uv venv
-uv pip install -r requirements.txt
-
-# 実行
-uv run main.py
+**最も簡単: セットアップスクリプトを使う（推奨）**
+```powershell
+setup.bat
 ```
 
-### 3. macOS の権限設定 (重要)
-本ツールは Kindle アプリを自動操作するため、**アクセシビリティの許可**が必要です。
+**uv を使う場合 (高速です)**
+```powershell
+# uv がインストールされていない場合は先にインストール
+# winget install astral-sh.uv  または https://github.com/astral-sh/uv から
 
+uv venv
+.venv\Scripts\Activate.ps1
+uv pip install -r requirements.txt
+```
+
+**PowerShell スクリプトを使う場合**
+```powershell
+.\setup.ps1
+```
+
+**pip を使う場合**
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### 3. OS別の権限設定
+
+#### macOS
 1. システム設定 > プライバシーとセキュリティ > **アクセシビリティ** を開きます。
 2. 使用しているターミナルアプリ（「ターミナル」、「iTerm2」、「Visual Studio Code」など）のスイッチを **オン** にします。
-    - リストにない場合は、`+` ボタンでアプリを追加してください。
-3. 同様に、**「画面収録」** の権限も必要になる場合があります（通常は初回実行時にポップアップが出ます）。
+3. 同様に、**「画面収録」** の権限も確認してください。
+
+#### Windows
+- 特別な権限設定は不要ですが、Windows の表示スケールが 100% であることを確認してください。
+- 高 DPI 環境では、設定 > ディスプレイ > スケール から調整してください。
 
 ## 使い方
 
-Kindle アプリで本を開き、**最初のページ（またはキャプチャを開始したいページ）**を表示した状態で実行してください。
+Kindle アプリで本を開き、**最初のページ（またはキャプチャを開始したいページ）** を表示した状態で実行してください。
+
+### 最も簡単な方法
+
+**macOS/Linux:**
+```bash
+./run.sh
+```
+
+**Windows:**
+```powershell
+run.bat
+```
+
+### コマンドラインでの実行
 
 ```bash
-# 標準的な実行 (デフォルトでスペースキーによる送り。最も安定しています)
+# 標準的な実行（デフォルトでスペースキーによる送り）
 python main.py
 
-# 縦書き・横書きなどで矢印キーを明示的に使いたい場合
+# または uv で実行
+uv run python main.py
+
+# 矢印キーを使いたい場合
 python main.py --direction right
 python main.py --direction left
 
-# ページ送りが遅い書籍の場合 (待機時間を調整)
+# ページ送りが遅い書籍の場合
 python main.py --page-delay 2.0
+
+# 出力先を指定する場合
+python main.py --output /path/to/output
 ```
 
 ### オプション
 
-- `--direction {right,left,space}`: ページめくりの方向 (デフォルト: `space`)
-- `--page-delay SECONDS`: ページ送り後の待機秒数 (デフォルト: `1.5`)。アニメーションが長い本では長めに設定してください。
-- `--output DIR`: PDF の保存先ディレクトリ (デフォルト: `output`)
+- `--direction {right,left,space}`: ページめくりの方向（デフォルト: `space`）
+- `--page-delay SECONDS`: ページ送り後の待機秒数（デフォルト: `1.5`）
+- `--output DIR`: PDF の保存先ディレクトリ（デフォルト: `output`）
 
 ## トラブルシューティング
 
-### 1. ページ送りがされない / 権限エラー
+### macOS
+
+**1. ページ送りがされない / 権限エラー**
 - ターミナル、VSCode、iTerm 等に **「アクセシビリティ」の権限** が付与されているか確認してください。
 
-### 2. PDF の最後に評価画面やシークバーが入る
-- 本ツールは評価画面が出た瞬間に削除するロジックを搭載していますが、もし残る場合は `--page-delay` を少し長め（`2.0` など）に設定してください。
+**2. PDF の最後に評価画面やシークバーが入る**
+- `--page-delay` を少し長めに設定してください。例：`python main.py --page-delay 2.0`
 
-### 3. 指定した解像度にならない
-- 撮影時のウィンドウサイズに依存します。Kindle アプリのウィンドウを大きく広げると、より高解像度でキャプチャできます。
+### Windows
+
+**1. キャプチャ座標がずれている**
+- Windows の表示スケールを確認してください。**設定 > ディスプレイ > スケール と レイアウト** で 100% に設定してください。
+- 必要に応じて、Kindle for PC のウィンドウサイズを調整してください。
+
+**2. スキャンが終了しない**
+- Kindle ウィンドウが最前面にあり、フォーカスされていることを確認してください。
+- 最後のページに到達してからしばらく待つと、自動的に終了します。
+
+### 共通
+
+**3. PDF が生成されない**
+- `output` ディレクトリの権限を確認してください。
+- ディスク容量が十分にあるか確認してください。
 
 ## ファイル構成
 
 ```text
 kindle_app_to_pdf/
-├── main.py            # メイン・エントリポイント。引数解析と全体フローの制御
-├── kindle_capture.py  # Kindle操作・キャプチャロジック（UIスキャン、ハッシュ判定等）
-├── pdf_maker.py       # img2pdf を使用した PNG からロスレス PDF への変換処理
-├── split_pdf.py       # (ツール) 巨大な PDF を指定したページ数ごとに分割するスクリプト
-├── requirements.txt   # 依存 Python ライブラリの一覧 (img2pdf, pypdf)
-├── setup.sh           # (オプション) 環境構築用のセットアップスクリプト
-├── README.md          # 本ドキュメント
-└── output/            # デフォルトの保存先。書籍ごとの PNG 群と PDF が保存される
+├── main.py              # メイン・エントリポイント（Mac/Windows 両対応）
+├── kindle_capture.py    # Kindle 操作・キャプチャロジック（OS別に自動分岐）
+├── pdf_maker.py         # img2pdf を使用した PNG からロスレス PDF への変換処理
+├── split_pdf.py         # (ツール) 巨大な PDF を分割するスクリプト
+│
+├── # セットアップスクリプト
+├── setup.sh             # (macOS/Linux) セットアップスクリプト
+├── setup.bat            # (Windows) セットアップスクリプト (batch版)
+├── setup.ps1            # (Windows) セットアップスクリプト (PowerShell版)
+│
+├── # 実行スクリプト
+├── run.sh               # (macOS/Linux) uv で実行するスクリプト
+├── run.bat              # (Windows) uv で実行するスクリプト
+│
+├── # 設定ファイル
+├── requirements.txt     # 依存 Python ライブラリの一覧（pip/uv用）
+├── pyproject.toml       # Python プロジェクト設定（uv/pip-tools用）
+├── README.md            # 本ドキュメント
+│
+└── output/              # デフォルトの保存先（書籍ごとの PNG 群と PDF）
 ```
 
 ### 各ファイルの役割
 
 - **main.py**: ユーザーインターフェースとしての CLI を提供し、`kindle_capture` と `pdf_maker` を連携させます。
-- **kindle_capture.py**: macOS の `osascript` (AppleScript) を駆使して、Kindle の最前面化、シークバー消去、ページ送り、ウィンドウ領域の特定、ダイアログ検知などを行います。
+- **kindle_capture.py**: OS に応じて最適な方法で Kindle をキャプチャします。
+  - **macOS**: `osascript` (AppleScript) を使用
+  - **Windows**: `pygetwindow` と `PIL.ImageGrab` を使用
 - **pdf_maker.py**: キャプチャされた PNG を `img2pdf` に渡し、品質を落とさずに PDF を生成します。
-- **split_pdf.py**: Retina ディスプレイ等で生成された数 GB の PDF を、扱いやすいサイズに分割するために利用できます。
+- **split_pdf.py**: 大きな PDF を扱いやすいサイズに分割するツールです。
 
 ## ライセンス
+
 MIT

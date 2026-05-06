@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     """コマンドライン引数を解析します。"""
     parser = argparse.ArgumentParser(
-        description='Mac Kindle アプリをキャプチャして PDF を生成します'
+        description='Kindle アプリをキャプチャして PDF を生成します（Mac / Windows 対応）'
     )
     parser.add_argument(
         '--output-dir', '-o',

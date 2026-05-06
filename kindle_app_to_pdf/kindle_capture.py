@@ -1,16 +1,37 @@
 """
-Mac Kindle デスクトップアプリのページをスクリーンショットでキャプチャするモジュール。
-osascript (AppleScript) と screencapture コマンドを使用します。
+Kindle デスクトップアプリのページをスクリーンショットでキャプチャするモジュール。
+Mac: osascript (AppleScript) と screencapture コマンドを使用
+Windows: pygetwindow と PIL.ImageGrab を使用
 """
 
 import hashlib
 import logging
+import platform
 import re
 import subprocess
 import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Windows 用のインポート
+if platform.system() == "Windows":
+    try:
+        import pygetwindow as gw  # type: ignore
+        from PIL import ImageGrab  # type: ignore
+        import ctypes
+        from ctypes import wintypes
+
+        # Python プロセスを DPI-aware にする
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+    except ImportError:
+        pass
 
 # 定数
 KINDLE_APP_NAMES = ["Kindle", "Amazon Kindle"]
@@ -21,7 +42,8 @@ def sanitize_filename(name: str) -> str:
     """ファイル名として使用できない文字を除去・置換します。"""
     name = re.sub(r'[<>:"/\\|?*\n\r\t]', '_', name)
     name = re.sub(r'_+', '_', name).strip('_')
-    return name[:80] or 'kindle_book'
+    name = name[:80].strip()  # 80文字に切り詰めて末尾の空白を削除
+    return name or 'kindle_book'
 
 
 def _run_applescript(script: str) -> str:
@@ -267,14 +289,194 @@ end tell
         logger.debug(f"ダイアログチェック失敗 (無視して継続): {e}")
         return False
 
+# Windows 用関数
+def _get_dpi_scale_windows() -> float:
+    """Windows の DPI スケーリング係数を取得します。"""
+    try:
+        import winreg
+
+        # Windows のシステム DPI をレジストリから取得
+        registry_path = r"Control Panel\Desktop"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry_path) as key:
+            dpi_value, _ = winreg.QueryValueEx(key, "LogPixels")
+            return dpi_value / 96.0
+    except Exception:
+        # デバイスコンテキストから DPI を取得（フォールバック）
+        try:
+            hdc = ctypes.windll.user32.GetDC(0)
+            dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
+            ctypes.windll.user32.ReleaseDC(0, hdc)
+            return dpi / 96.0
+        except Exception:
+            return 1.0
+
+
+def _find_kindle_window_windows() -> tuple[int, int, int, int]:
+    """Windows で Kindle ウィンドウを検出し、クライアント領域を返します。"""
+    kindle_windows = gw.getWindowsWithTitle("Kindle")
+
+    if not kindle_windows:
+        raise RuntimeError(
+            "Kindle window not found. Please open the Kindle app and try again."
+        )
+
+    window = kindle_windows[0]
+    logger.info(f"Found Kindle window: {window.title}")
+
+    if not window.isActive:
+        window.activate()
+        time.sleep(0.5)
+
+    # Windows API で正確なクライアント領域を取得
+    hwnd = window._hWnd
+    rect = wintypes.RECT()
+    ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    client_rect = wintypes.RECT()
+    ctypes.windll.user32.GetClientRect(hwnd, ctypes.byref(client_rect))
+
+    # ウィンドウ座標をクライアント座標に変換
+    pt = wintypes.POINT(rect.left, rect.top)
+    ctypes.windll.user32.ClientToScreen(hwnd, ctypes.byref(pt))
+
+    x = pt.x
+    y = pt.y
+    width = client_rect.right - client_rect.left
+    height = client_rect.bottom - client_rect.top
+
+    dpi_scale = _get_dpi_scale_windows()
+    logger.info(f"Capture region: {width}x{height} (DPI: {dpi_scale:.2f}x)")
+
+    return x, y, width, height
+
+
+def _get_book_title_windows() -> str:
+    """Windows で Kindle ウィンドウのタイトルから本のタイトルを抽出します。"""
+    kindle_windows = gw.getWindowsWithTitle("Kindle")
+    if kindle_windows:
+        title = kindle_windows[0].title
+        # ウィンドウタイトルから "Kindle" の後ろの部分を取得
+        if " - " in title:
+            book_title = title.split(" - ", 1)[1]
+            return sanitize_filename(book_title)
+    return "kindle_book"
+
+
+def _capture_window_region_windows(output_path: str, bbox: tuple[int, int, int, int]) -> None:
+    """Windows で Kindle ウィンドウの領域をスクリーンショット撮影します。"""
+    screenshot = ImageGrab.grab(bbox=bbox)
+    screenshot.convert("RGB").save(output_path, "PNG")
+
+
+def _send_next_page_windows(direction: str = 'right') -> None:
+    """Windows で Kindle ウィンドウにページめくりキーを送信します。"""
+    import pyautogui as py  # type: ignore
+
+    kindle_windows = gw.getWindowsWithTitle("Kindle")
+    if kindle_windows:
+        window = kindle_windows[0]
+        if not window.isActive:
+            window.activate()
+            time.sleep(0.2)
+
+    if direction == 'left':
+        key = 'left'
+    elif direction == 'space':
+        key = 'space'
+    else:
+        key = 'right'
+
+    py.press(key)
+
+
 def capture_kindle_pages(
     output_dir: str,
     page_delay: float = 1.5,
     direction: str = 'right',
 ) -> tuple[str, list[str]]:
     """
-    Mac Kindle デスクトップアプリの全ページをキャプチャします。
+    Kindle デスクトップアプリの全ページをキャプチャします。
+    Mac では AppleScript を、Windows では pygetwindow と PIL を使用します。
     """
+    system = platform.system()
+
+    if system == "Windows":
+        return _capture_kindle_pages_windows(output_dir, page_delay, direction)
+    else:
+        return _capture_kindle_pages_mac(output_dir, page_delay, direction)
+
+
+def _capture_kindle_pages_windows(
+    output_dir: str,
+    page_delay: float = 1.5,
+    direction: str = 'right',
+) -> tuple[str, list[str]]:
+    """Windows 用の Kindle ページキャプチャ処理。"""
+    # Kindle ウィンドウを一度だけ検出（位置を固定）
+    x, y, width, height = _find_kindle_window_windows()
+    bbox = (x, y, x + width, y + height)
+
+    book_title = _get_book_title_windows()
+    logger.info(f"書籍タイトル: {book_title}")
+
+    book_dir = Path(output_dir) / book_title
+    counter = 2
+    while book_dir.exists():
+        book_dir = Path(output_dir) / f"{book_title}_{counter}"
+        counter += 1
+    book_dir.mkdir(parents=True, exist_ok=True)
+
+    screenshots: list[str] = []
+    last_hash = None
+    same_count = 0
+
+    logger.info(f"キャプチャ開始 (方向: {direction})...")
+    print(f"Windows Kindle をキャプチャ中です...")
+
+    while True:
+        shot_path = book_dir / f"page_{len(screenshots) + 1:04d}.png"
+
+        try:
+            _capture_window_region_windows(str(shot_path), bbox)
+        except Exception as e:
+            logger.error(f"キャプチャエラー: {e}")
+            break
+
+        cur_hash = _calculate_md5(shot_path)
+
+        # 前のページと同じハッシュかどうかをチェック
+        if cur_hash == last_hash:
+            same_count += 1
+            logger.debug(f"重複検出: {same_count}/{MAX_SAME_PAGES}")
+            if shot_path.exists():
+                shot_path.unlink()
+            if same_count >= MAX_SAME_PAGES:
+                print(f"\n終端を検出しました（画像が変わらなくなった）。合計 {len(screenshots)} ページ")
+                break
+        else:
+            same_count = 0
+            screenshots.append(str(shot_path))
+            last_hash = cur_hash
+
+            print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end='', flush=True)
+
+        # 次のページへ
+        try:
+            _send_next_page_windows(direction=direction)
+        except Exception as e:
+            logger.warning(f"ページ送り エラー: {e}")
+            break
+
+        time.sleep(page_delay)
+
+    return book_title, screenshots
+
+
+def _capture_kindle_pages_mac(
+    output_dir: str,
+    page_delay: float = 1.5,
+    direction: str = 'right',
+) -> tuple[str, list[str]]:
+    """Mac 用の Kindle ページキャプチャ処理（元の実装）。"""
     app_name, process_name = _find_and_activate_kindle()
     logger.info(f"Kindle アプリを検出: {app_name} (プロセス: {process_name})")
 
@@ -305,7 +507,7 @@ def capture_kindle_pages(
 
         shot_path = book_dir / f"page_{len(screenshots) + 1:04d}.png"
         _capture_window_region(process_name, str(shot_path))
-        
+
         # 2. 撮影直後のチェック (重要: 撮影中に評価ダイアログが出た場合)
         if _is_dialog_active(process_name, raw_book_title):
             logger.info("撮影した画像にダイアログが含まれている可能性があるため、破棄して終了します。")
@@ -335,7 +537,7 @@ def capture_kindle_pages(
             hash_history.append(cur_hash)
             if len(hash_history) > MAX_HISTORY:
                 hash_history.pop(0)
-            
+
             print(f"\rキャプチャ中: {len(screenshots)} ページ目...", end='', flush=True)
 
         # 次のページへ

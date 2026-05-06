@@ -40,11 +40,17 @@ htmlcov/
 
 # Project specific
 output/
+kindle_app_to_pdf/KindleScreenshots/
 *.pdf
 *.png
-*.txt
 radio/downloads/
 radio/test_downloads/
+kindle_app_to_pdf/main_for_win.py
+
+# Temporary/generated files (但し requirements.txt, pyproject.toml は含める)
+*.txt
+!requirements.txt
+!**/requirements.txt
 
 # Logs
 *.log
@@ -54,5 +60,6 @@ pip-delete-this-directory.txt
 # IDEs
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
