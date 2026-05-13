@@ -113,6 +113,7 @@ class GuiBuildMixin:
             state="readonly",
         )
         self.program_genre_filter_combo.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.program_genre_filter_combo.bind("<<ComboboxSelected>>", self._on_program_filter_change)
 
         # 番組検索
         self.program_search_entry = ttk.Combobox(

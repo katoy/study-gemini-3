@@ -17,7 +17,7 @@ from ..core import (
     fetch_program_list,
     refresh_episode_list,
 )
-from ..downloads import is_episode_downloaded
+from ..downloads import _episode_key, is_episode_downloaded
 from ..text import (
     _format_episode_date,
     _format_onair_date,
@@ -47,7 +47,9 @@ class GuiListingMixin:
 
     def _update_program_genre_filter_values(self):
         if hasattr(self, "program_genre_filter_combo"):
-            self.program_genre_filter_combo.configure(values=self._program_genre_filter_values())
+            values = tuple(self._program_genre_filter_values())
+            if tuple(self.program_genre_filter_combo.cget("values")) != values:
+                self.program_genre_filter_combo.configure(values=values)
 
     def _apply_program_filters(self):
         needle = self._normalized_search_text(self.program_search_var.get())
@@ -69,8 +71,10 @@ class GuiListingMixin:
     def _populate_programs(self, preserve_selection: bool = True):
         self._update_program_genre_filter_values()
         # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
-        current_program = self._selected_program() or self.displayed_program if preserve_selection else None
-        current_key = self._program_key(current_program) if current_program is not None else None
+        current_key = None
+        if preserve_selection:
+            current_program = self._selected_program()
+            current_key = self._program_key(current_program) if current_program is not None else self.selected_program_key
         programs = self._sorted_programs(self.filtered_programs)
         self.program_tree_programs.clear()
         for item_id in self.program_tree.get_children():
@@ -96,9 +100,13 @@ class GuiListingMixin:
         if selected_item_id:
             self.program_tree.selection_set(selected_item_id)
             self.program_tree.see(selected_item_id)
+            self.selected_program_key = self._program_key(self.program_tree_programs.get(selected_item_id))
         elif programs:
             self.program_tree.selection_set(f"program-0")
             self.program_tree.see(f"program-0")
+            self.selected_program_key = self._program_key(self.program_tree_programs.get("program-0"))
+        else:
+            self.selected_program_key = None
 
         self.program_list_summary_var.set(
             f"{len(programs)} / {len(self.programs)} 番組"
@@ -106,6 +114,10 @@ class GuiListingMixin:
         )
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
+        preserved_episode_keys: tuple[str, ...] = ()
+        if not clear_selection:
+            preserved_episode_keys = self._selected_episode_keys() or self.selected_episode_keys
+
         self.displayed_episode_map.clear()
         for item_id in self.episode_tree.get_children():
             self.episode_tree.delete(item_id)
@@ -137,11 +149,25 @@ class GuiListingMixin:
             if clear_selection:
                 self.episode_tree.selection_remove(self.episode_tree.selection())
                 self.episode_tree.focus("")
+                self.selected_episode_keys = ()
             else:
-                first = next(iter(self.displayed_episode_map))
-                self.episode_tree.selection_set(first)
-                self.episode_tree.focus(first)
-                self.episode_tree.see(first)
+                selected_ids = [
+                    iid for iid, episode in self.displayed_episode_map.items()
+                    if _episode_key(episode) in preserved_episode_keys
+                ]
+                if selected_ids:
+                    self.episode_tree.selection_set(selected_ids)
+                    self.episode_tree.focus(selected_ids[0])
+                    self.episode_tree.see(selected_ids[0])
+                    self.selected_episode_keys = tuple(
+                        _episode_key(self.displayed_episode_map[iid]) for iid in selected_ids
+                    )
+                else:
+                    first = next(iter(self.displayed_episode_map))
+                    self.episode_tree.selection_set(first)
+                    self.episode_tree.focus(first)
+                    self.episode_tree.see(first)
+                    self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
             self.download_button.state(["!disabled"])
             
             # 判定処理を開始
@@ -238,7 +264,8 @@ class GuiListingMixin:
             self.episode_saved_only_check.state(["!disabled"])
         else:
             self.episode_saved_only_check.state(["disabled"])
-            self.episode_saved_only_var.set(False)
+            if self.episode_saved_only_var.get():
+                self.episode_saved_only_var.set(False)
 
     def _program_genre_filter_values(self) -> list[str]:
         labels = sorted({program.genre_label or _genre_label(program.genre) for program in self.programs})
@@ -293,6 +320,7 @@ class GuiListingMixin:
     def _on_program_select(self, _event=None):
         program = self._selected_program()
         if program:
+            self.selected_program_key = self._program_key(program)
             # 概要を即座に更新
             self._update_program_overview(program, None, "詳細を読み込み中...")
             self.selected_program_title_var.set(program.display_title or program.title)
@@ -455,7 +483,16 @@ class GuiListingMixin:
         self.episode_selection_summary_var.set(f"選択 {count} 件")
 
     def _on_episode_selection_change(self, _event=None):
+        self.selected_episode_keys = self._selected_episode_keys()
         self._update_episode_selection_summary()
+
+    def _selected_episode_keys(self) -> tuple[str, ...]:
+        keys: list[str] = []
+        for item_id in self.episode_tree.selection():
+            episode = self.displayed_episode_map.get(item_id)
+            if episode is not None:
+                keys.append(_episode_key(episode))
+        return tuple(keys)
 
     def _tree_label(self, tree: ttk.Treeview) -> str:
         if tree is self.program_tree:
@@ -531,8 +568,11 @@ class GuiListingMixin:
     def _select_program_item(self, item_id: str):
         self.program_tree.selection_set(item_id)
         self.program_tree.see(item_id)
+        self.selected_program_key = self._program_key(self.program_tree_programs.get(item_id))
 
     def _show_episodes(self, program: Program, episodes: list[Episode], message: str):
+        if self._program_key(self.displayed_program) != self._program_key(program):
+            self.selected_episode_keys = ()
         self.displayed_program = program
         self.displayed_episodes = list(episodes)
         self.episode_title_var.set(f"エピソード一覧: {program.display_title or program.title}")

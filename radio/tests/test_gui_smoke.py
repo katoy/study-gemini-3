@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 import tkinter as tk
 from nhk_radio.gui.browser import EpisodeGuiBrowser
-from nhk_radio.types import Program
+from nhk_radio.types import Episode, Program
 
 class GuiSmokeTest(unittest.TestCase):
     def setUp(self):
@@ -69,10 +69,10 @@ class GuiSmokeTest(unittest.TestCase):
         self.assertIn("音楽", genres)
         self.assertIn("語学", genres)
 
-        # ジャンルフィルタ変数を変更したときに _populate_programs が呼ばれるか
+        # ジャンル選択イベントで _populate_programs が呼ばれるか
         with patch.object(browser, "_populate_programs") as mock_populate:
             browser.program_genre_filter_var.set("音楽")
-            # trace_add によって呼ばれる
+            browser._on_program_filter_change()
             mock_populate.assert_called()
 
     def test_genre_combobox_update_on_populate(self):
@@ -93,6 +93,63 @@ class GuiSmokeTest(unittest.TestCase):
         self.assertIn("音楽", new_values)
         self.assertNotIn("語学", new_values)
         self.assertIn("すべて", new_values)
+
+    def test_genre_combobox_not_reconfigured_when_values_unchanged(self):
+        """同じ候補を再設定しないことで、マウス選択中の状態を崩さない。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        with patch.object(browser.program_genre_filter_combo, "configure") as mock_configure:
+            browser._update_program_genre_filter_values()
+        mock_configure.assert_not_called()
+
+    def test_populate_programs_preserves_last_selected_program(self):
+        """一時的に tree selection が空でも、最後に選んだ番組へ戻る。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        second_id = browser.program_tree.get_children()[1]
+        browser._select_program_item(second_id)
+        browser.program_tree.selection_remove(browser.program_tree.selection())
+
+        browser._populate_programs()
+
+        self.assertEqual(browser.program_tree.selection(), (second_id,))
+
+    def test_render_episode_rows_preserves_selected_episode(self):
+        """エピソード一覧の再描画後も選択中エピソードを維持する。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        episodes = [
+            Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15", broadcast_time="", duration_str="", url=""),
+            Episode(id="ep2", title="E2", display_title="E2", date="20240416", display_date="2024-04-16", broadcast_time="", duration_str="", url=""),
+        ]
+
+        browser._show_episodes(self.programs[0], episodes, "loaded")
+        second_id = browser.episode_tree.get_children()[1]
+        browser.episode_tree.selection_set(second_id)
+        browser._on_episode_selection_change()
+        browser.episode_tree.selection_remove(browser.episode_tree.selection())
+
+        browser._render_episode_rows(self.programs[0], episodes, clear_selection=False)
+
+        self.assertEqual(browser.episode_tree.selection(), (second_id,))
+
+    def test_refresh_saved_only_state_does_not_reset_false_var(self):
+        """保存済みなしの更新で不要な set(False) をしない。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        browser.episode_saved_only_var.set(False)
+        browser.displayed_program = self.programs[0]
+        browser.displayed_episodes = []
+
+        with patch("nhk_radio.gui.listing.is_episode_downloaded", return_value=False), \
+             patch.object(browser.episode_saved_only_var, "set") as mock_set:
+            browser._refresh_saved_only_button_state()
+
+        mock_set.assert_not_called()
 
     def test_search_history_persistence_smoke(self):
         """検索履歴の保存（_persist_ui_settings）が呼ばれることを確認。"""

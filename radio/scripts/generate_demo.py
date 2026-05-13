@@ -24,6 +24,7 @@ def run_auto_commands(browser: EpisodeGuiBrowser):
     try:
         time.sleep(4)
         browser.program_genre_filter_var.set("語学")
+        browser.root.after(0, browser._on_program_filter_change)
         time.sleep(2)
         browser.program_search_var.set("英語")
         time.sleep(3)

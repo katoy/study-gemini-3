@@ -84,9 +84,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.episodes_cache = self.data_manager.episodes_cache
         
         self.program_tree_programs: dict[str, Program] = {}
+        self.selected_program_key: str | None = None
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
         self.displayed_episode_map: dict[str, Episode] = {}
+        self.selected_episode_keys: tuple[str, ...] = ()
         self.program_sort_state = ("no", False)
         self.episode_sort_state = ("date", True)
         self.saved_episode_buttons: dict[str, ttk.Button] = {}
@@ -230,7 +232,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.theme_var = tk.StringVar(value=self.current_theme)
         self.font_size_var = tk.IntVar(value=int(self.current_font_size))
         self.program_search_var.trace_add("write", self._on_program_search_change)
-        self.program_genre_filter_var.trace_add("write", self._on_program_filter_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
 
@@ -466,4 +467,3 @@ def browse_programs(
 # ──────────────────────────────────────────────────────
 # 対話型選択 UI
 # ──────────────────────────────────────────────────────
-
