@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
+
 from nhk_radio.gui.theme_manager import ThemeManager
+
 
 class ThemeManagerTest(unittest.TestCase):
     def setUp(self):
@@ -15,7 +17,7 @@ class ThemeManagerTest(unittest.TestCase):
             "bg", "surface", "surface_alt", "text", "text_sub", "primary",
             "accent", "row_odd", "dl_even", "dl_odd", "border", "selected_bg"
         ]
-        
+
         for theme in ["light", "dark"]:
             palette = self.tm._get_palette(theme)
             for key in required_keys:
@@ -25,10 +27,10 @@ class ThemeManagerTest(unittest.TestCase):
     def test_font_profile_keys_consistency(self):
         """UIが期待する全てのフォントキーが存在することを検証する。"""
         required_keys = [
-            "ui_base", "ui_bold", "ui_small", "mono", "app_title", 
+            "ui_base", "ui_bold", "ui_small", "mono", "app_title",
             "heading", "card_title", "rowheight"
         ]
-        
+
         profile = self.tm._get_font_profile(11)
         for key in required_keys:
             with self.subTest(key=key):
@@ -41,7 +43,7 @@ class ThemeManagerTest(unittest.TestCase):
             self.tm.apply_theme("dark", 12)
         except Exception as e:
             self.fail(f"apply_theme raised {type(e).__name__} unexpectedly: {e}")
-        
+
         self.assertEqual(self.tm.current_theme, "dark")
         self.assertEqual(self.tm.current_font_size, 12)
 

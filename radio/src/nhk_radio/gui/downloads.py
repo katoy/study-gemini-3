@@ -1,6 +1,7 @@
 """Fetch and download helpers for EpisodeGuiBrowser, delegating logic to DownloadManager."""
 
-import contextlib
+# mypy: disable-error-code="attr-defined,assignment,call-arg,empty-body"
+
 import queue
 import threading
 import time
@@ -8,7 +9,6 @@ import webbrowser
 
 from ..cache import clear_all_cache
 from ..constants import NHK_ONDEMAND_URL
-from ..core import fetch_program_list, refresh_episode_list
 from ..downloads import (
     _episode_key,
     _format_download_eta,
@@ -91,7 +91,7 @@ class GuiDownloadsMixin:
             row = self.active_download_rows.get(episode_key)
             if row and row["state"] == "running":
                 continue
-            
+
             self._reset_download_row(episode_key)
             self._add_download_row(program, episode)
             self.download_manager.start_download(program, episode)
@@ -104,7 +104,7 @@ class GuiDownloadsMixin:
                 self.root.after(100, self._poll_download_result)
         else:
             self.status_var.set("選択したエピソードはすでにダウンロード中です。")
-        
+
         return "break"
 
     def _on_cancel_all(self):
@@ -126,12 +126,12 @@ class GuiDownloadsMixin:
                 break
 
             kind, episode_key, program, episode, data = event
-            
+
             if kind == "progress":
                 percent, eta, status_text = data
                 self._update_download_row_progress(episode_key, percent=percent, eta=eta, status_text=status_text)
                 continue
-            
+
             if kind == "done_one":
                 self._finish_download_row(episode_key, "完了")
                 self.status_var.set(f"ダウンロード完了: {episode.display_title or episode.title}")
@@ -222,15 +222,16 @@ class GuiDownloadsMixin:
             return
         self.status_var.set("キャッシュを削除中...")
         self._set_loading(True)
-        
+
         def _worker():
             try:
                 clear_all_cache()
                 self.data_manager.clear_all_data()
                 self.root.after(0, self._on_cache_cleared_success)
             except Exception as e:
-                self.root.after(0, lambda: self._on_cache_cleared_error(str(e)))
-        
+                message = str(e)
+                self.root.after(0, lambda: self._on_cache_cleared_error(message))
+
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_cache_cleared_success(self):
@@ -271,7 +272,7 @@ class GuiDownloadsMixin:
         if status == "完了":
             row["progress"].configure(value=100)
             row["percent_var"].set("100%")
-        
+
         # ボタンを「削除」に変更
         row["action_button"].configure(text="削除", command=lambda: self._remove_download_row(episode_key))
         self._update_download_summary()
@@ -299,46 +300,45 @@ class GuiDownloadsMixin:
         # Canvas 内のアイテムを上から順に再配置
         for i, row in enumerate(self.active_download_rows.values()):
             row["frame"].grid(row=i, column=0, sticky="ew", padx=5, pady=2)
-        
+
         self.root.update_idletasks()
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
 
     def _create_download_job_widgets(self, index: int, episode: Episode, episode_key: str) -> dict:
-        p = self._palette
         frame = ttk.Frame(self.download_jobs_inner, style="Card.TFrame")
         # column 1 (プログレスバー) が伸縮するように設定
         frame.columnconfigure(1, weight=1)
-        
+
         title_label = ttk.Label(
-            frame, 
+            frame,
             text=episode.display_title or episode.title,
             style="Bold.TLabel"
         )
         title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5))
-        
+
         status_var = tk.StringVar(value="準備中...")
         # 状態ラベルにもある程度の幅を持たせて安定させる
         status_label = ttk.Label(frame, textvariable=status_var, font=("", 9), width=10, anchor="e")
         status_label.grid(row=0, column=2, sticky="e", padx=10, pady=(10, 5))
-        
+
         progress = ttk.Progressbar(frame, mode="indeterminate", length=200)
         progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
         progress.start(10)
-        
+
         percent_var = tk.StringVar(value="--%")
         progress_meta_var = tk.StringVar(value="--% / 残り --:--")
         # 進捗テキストラベルに固定幅 (width=22) を設定して、伸縮を防ぐ
         meta_label = ttk.Label(frame, textvariable=progress_meta_var, font=("", 9), width=22, anchor="e")
         meta_label.grid(row=1, column=2, sticky="e", padx=10, pady=5)
-        
+
         action_button = ttk.Button(
-            frame, 
-            text="中止", 
+            frame,
+            text="中止",
             command=lambda: self._on_cancel_one(episode_key),
             width=8
         )
         action_button.grid(row=0, column=3, rowspan=2, padx=10, pady=10)
-        
+
         return {
             "frame": frame,
             "status_var": status_var,

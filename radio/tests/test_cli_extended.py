@@ -2,11 +2,12 @@ import argparse
 import subprocess
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from nhk_radio import cli
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
+
 
 class CliExtendedTest(unittest.TestCase):
     def test_select_program_cancel(self):
@@ -53,12 +54,12 @@ class CliExtendedTest(unittest.TestCase):
     def test_select_episodes_with_meta(self):
         episodes = [
             Episode(
-                id="ep1", 
-                title="E1", 
+                id="ep1",
+                title="E1",
                 display_title="E1",
-                date="20240415", 
+                date="20240415",
                 display_date="20240415",
-                broadcast_time="10:00", 
+                broadcast_time="10:00",
                 duration_str="15:00",
                 url=""
             )

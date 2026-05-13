@@ -1,9 +1,11 @@
 import unittest
+from contextlib import suppress
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 from nhk_radio.gui.browser import EpisodeGuiBrowser
-from nhk_radio.gui.toolkit import tk
 from nhk_radio.types import Episode, Program
+
 
 class TestGuiComprehensive(unittest.TestCase):
     def setUp(self):
@@ -30,13 +32,13 @@ class TestGuiComprehensive(unittest.TestCase):
              patch("nhk_radio.gui.browser.EpisodeGuiBrowser._build_widgets"), \
              patch("nhk_radio.gui.browser.EpisodeGuiBrowser._populate_programs"), \
              patch("nhk_radio.gui.browser.EpisodeGuiBrowser._start_fetch_programs"):
-            
+
             tm_instance = theme_mock.return_value
             tm_instance.current_theme = "light"
             tm_instance.current_font_size = 11
             tm_instance.settings = {}
             tm_instance.palette = {
-                "bg": "white", "text": "black", "surface": "white", 
+                "bg": "white", "text": "black", "surface": "white",
                 "row_odd": "gray", "dl_even": "blue", "dl_odd": "lightblue",
                 "accent": "orange", "accent_soft": "lightorange", "border": "gray"
             }
@@ -73,7 +75,7 @@ class TestGuiComprehensive(unittest.TestCase):
         browser._update_download_row_progress("key1", percent=50.0, eta="10s")
         if browser.root.after.called:
             callback = browser.root.after.call_args[0][1]
-            callback() 
+            callback()
             browser.active_download_rows["key1"]["percent_var"].set.assert_called()
 
     def test_open_saved_folder_interaction(self):
@@ -81,16 +83,16 @@ class TestGuiComprehensive(unittest.TestCase):
         episode = Episode(id="ep1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         browser.displayed_episode_map = {"iid1": episode}
         browser.displayed_program = self.programs[0]
-        
+
         from nhk_radio import downloads
-        with patch.object(downloads, "find_episode_downloaded_path", return_value=Path("/tmp/file.mp3")), \
-             patch("nhk_radio.gui.listing.is_episode_downloaded", return_value=True), \
-             patch("nhk_radio.gui.listing.webbrowser.open") as mock_open:
+        with (
+            patch.object(downloads, "find_episode_downloaded_path", return_value=Path("/tmp/file.mp3")),
+            patch("nhk_radio.gui.listing.is_episode_downloaded", return_value=True),
+            patch("nhk_radio.gui.listing.webbrowser.open"),
+            suppress(Exception),
+        ):
             # フォルダを開くロジックを直接検証するのが難しいため、例外が出ないことのみ確認
-            try:
-                browser._on_episode_tree_click(MagicMock(x=10, y=10))
-            except Exception:
-                pass
+            browser._on_episode_tree_click(MagicMock(x=10, y=10))
 
     def test_build_widgets_full(self):
         # 非常に多くのパッチが必要なため、ネストを一段階に抑える
@@ -122,7 +124,7 @@ class TestGuiComprehensive(unittest.TestCase):
             patch("nhk_radio.gui.browser.EpisodeGuiBrowser._populate_programs"),
             patch("nhk_radio.gui.browser.EpisodeGuiBrowser._start_fetch_programs"),
         ]
-        
+
         # 逐次的に適用してスタックオーバーフローを避ける
         from contextlib import ExitStack
         with ExitStack() as stack:
@@ -134,7 +136,7 @@ class TestGuiComprehensive(unittest.TestCase):
                     tm_instance.current_font_size = 11
                     tm_instance.settings = {}
                     tm_instance.palette = {
-                        "bg": "white", "text": "black", "surface": "white", 
+                        "bg": "white", "text": "black", "surface": "white",
                         "row_odd": "gray", "dl_even": "blue", "dl_odd": "lightblue",
                         "accent": "orange", "accent_soft": "lightorange", "border": "gray"
                     }
@@ -147,7 +149,7 @@ class TestGuiComprehensive(unittest.TestCase):
                         "card_title": ("sans-serif", 14), "hero_title": ("sans-serif", 18),
                         "popup_title": ("sans-serif", 14), "rowheight": 30
                     }
-            
+
             browser = EpisodeGuiBrowser(self.programs, self.output_dir)
             self.assertIsNotNone(browser.root)
 

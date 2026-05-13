@@ -1,13 +1,12 @@
-import unittest
 import queue
-import threading
-import time
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from nhk_radio.gui.downloads import GuiDownloadsMixin
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
+
 
 class MockGui(GuiDownloadsMixin):
     def __init__(self):
@@ -22,17 +21,17 @@ class MockGui(GuiDownloadsMixin):
         self.output_dir = Path("/tmp/radio")
         self.audio_only = True
         self._palette = {"surface": "white", "row_odd": "gray", "dl_even": "blue", "dl_odd": "lightblue"}
-        
+
         # Managers (Composition)
         self.data_manager = MagicMock()
         self.download_manager = MagicMock()
-        
+
         # UI vars
         self.status_var = MagicMock()
         self.episode_message_var = MagicMock()
         self.fetch_button_var = MagicMock()
         self.progress_text_var = MagicMock()
-        
+
         # UI widgets
         self.fetch_button = MagicMock()
         self.download_jobs_canvas = MagicMock()
@@ -50,7 +49,7 @@ class MockGui(GuiDownloadsMixin):
 
     def _refresh_downloaded_column(self, *args):
         pass
-    
+
     def _reset_ui_state_after_cache_clear(self):
         pass
 
@@ -149,7 +148,7 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_create_download_job_widgets(self):
         episode = Episode(id="E1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         with (
-            patch("nhk_radio.gui.downloads.ttk.Frame") as frame_mock,
+            patch("nhk_radio.gui.downloads.ttk.Frame"),
             patch("nhk_radio.gui.downloads.ttk.Label"),
             patch("nhk_radio.gui.downloads.tk.StringVar"),
             patch("nhk_radio.gui.downloads.ttk.Button"),

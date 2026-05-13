@@ -1,29 +1,18 @@
 """NHK Radio program and episode listing logic for the GUI."""
 
+# mypy: disable-error-code="attr-defined,has-type,arg-type,assignment,misc,empty-body,return-value"
+
 import logging
-import queue
-import re
-import threading
 import tkinter as tk
 import unicodedata
-import webbrowser
-from collections import OrderedDict
-from pathlib import Path
-from tkinter import ttk, messagebox
+import webbrowser  # noqa: F401
+from contextlib import suppress
+from tkinter import ttk
 
-from ..config import CACHE_TTL_SECONDS, SEARCH_HISTORY_LIMIT
-from ..constants import _HEADERS, GENRE_LABELS, NHK_API_GENRE, NHK_GENRES
-from ..core import (
-    fetch_program_list,
-    refresh_episode_list,
-)
+from ..config import SEARCH_HISTORY_LIMIT
 from ..downloads import _episode_key, is_episode_downloaded
 from ..text import (
-    _format_episode_date,
-    _format_onair_date,
     _genre_label,
-    _normalize_text,
-    _sortable_day_value,
     _sortable_duration_value,
     _sortable_timestamp_value,
 )
@@ -102,15 +91,15 @@ class GuiListingMixin:
             self.program_tree.see(selected_item_id)
             self.selected_program_key = self._program_key(self.program_tree_programs.get(selected_item_id))
         elif programs:
-            self.program_tree.selection_set(f"program-0")
-            self.program_tree.see(f"program-0")
+            self.program_tree.selection_set("program-0")
+            self.program_tree.see("program-0")
             self.selected_program_key = self._program_key(self.program_tree_programs.get("program-0"))
         else:
             self.selected_program_key = None
 
         self.program_list_summary_var.set(
             f"{len(programs)} / {len(self.programs)} 番組"
-            + (f" (検索中)" if len(programs) < len(self.programs) else "")
+            + (" (検索中)" if len(programs) < len(self.programs) else "")
         )
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
@@ -121,13 +110,13 @@ class GuiListingMixin:
         self.displayed_episode_map.clear()
         for item_id in self.episode_tree.get_children():
             self.episode_tree.delete(item_id)
-        
+
         rendered = self._sorted_episodes(episodes)
         to_check = []
         for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
-            
+
             # 初期状態は「未ダウンロード」として高速描画
             saved = self._downloaded_cell_text(False)
             date_time = episode.display_date or "----"
@@ -135,7 +124,7 @@ class GuiListingMixin:
             if btime:
                 date_time = f"{date_time} {btime}"
             dur = episode.duration_str or "----"
-            
+
             # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
             self.episode_tree.insert(
                 "",
@@ -169,7 +158,7 @@ class GuiListingMixin:
                     self.episode_tree.see(first)
                     self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
             self.download_button.state(["!disabled"])
-            
+
             # 判定処理を開始
             import threading
             threading.Thread(target=self._async_download_check_worker, args=(program, to_check), daemon=True).start()
@@ -191,7 +180,7 @@ class GuiListingMixin:
             is_dl = is_episode_downloaded(self.output_dir, program, episode)
             if is_dl:
                 results.append((iid, True))
-        
+
         if results and self.displayed_program == program:
             self.root.after(0, lambda: self._apply_download_check_results(program, results))
 
@@ -222,7 +211,7 @@ class GuiListingMixin:
     def _refresh_downloaded_column(self, program: Program):
         if self.displayed_program is None:
             return
-        
+
         for iid, episode in self.displayed_episode_map.items():
             values = list(self.episode_tree.item(iid, "values"))
             if len(values) < 3:
@@ -251,7 +240,7 @@ class GuiListingMixin:
         self.saved_button_refresh_pending = False
         if not hasattr(self, "episode_saved_only_check"):
             return
-        
+
         # 実際に保存済みアイテムがあるか確認
         has_saved = False
         if self.displayed_program:
@@ -259,7 +248,7 @@ class GuiListingMixin:
                 if is_episode_downloaded(self.output_dir, self.displayed_program, episode):
                     has_saved = True
                     break
-        
+
         if has_saved:
             self.episode_saved_only_check.state(["!disabled"])
         else:
@@ -289,10 +278,10 @@ class GuiListingMixin:
         term = (term or "").strip()
         if not term:
             return
-        
+
         history = list(self.program_search_history)
         normalized_term = self._normalized_search_text(term)
-        
+
         # 重複除去 (大文字小文字無視)
         new_history = [term]
         seen = {normalized_term}
@@ -301,7 +290,7 @@ class GuiListingMixin:
             if normalized not in seen:
                 new_history.append(item)
                 seen.add(normalized)
-        
+
         self.program_search_history = new_history[:SEARCH_HISTORY_LIMIT]
         self._update_program_search_history_values()
         self._persist_ui_settings()
@@ -356,10 +345,8 @@ class GuiListingMixin:
 
     def _on_program_search_change(self, *_args):
         if getattr(self, "_search_timer", None):
-            try:
+            with suppress(tk.TclError, ValueError):
                 self.root.after_cancel(self._search_timer)
-            except (tk.TclError, ValueError):
-                pass
         self._search_timer = self.root.after(250, self._apply_program_filters)
 
     def _clear_program_search(self, _event=None):
@@ -434,7 +421,7 @@ class GuiListingMixin:
         # フィルタリング
         needle = self._normalized_search_text(self.episode_search_var.get())
         saved_only = self.episode_saved_only_var.get()
-        
+
         filtered = episodes
         if needle:
             filtered = [e for e in filtered if needle in self._normalized_search_text(f"{e.title} {e.display_title}")]
@@ -445,16 +432,24 @@ class GuiListingMixin:
         col, reverse = self.episode_sort_state
         if col == "saved":
             # 保存済みを優先
-            key_func = lambda e: is_episode_downloaded(self.output_dir, self.displayed_program, e) if self.displayed_program else False
+            def key_func(episode: Episode) -> bool:
+                return (
+                    is_episode_downloaded(self.output_dir, self.displayed_program, episode)
+                    if self.displayed_program
+                    else False
+                )
         elif col == "date":
-            key_func = lambda e: _sortable_timestamp_value(e.date)
+            def key_func(episode: Episode):
+                return _sortable_timestamp_value(episode.date)
         elif col == "duration":
-            key_func = lambda e: _sortable_duration_value(e.duration_str)
+            def key_func(episode: Episode):
+                return _sortable_duration_value(episode.duration_str)
         elif col == "title":
-            key_func = lambda e: e.display_title or e.title
+            def key_func(episode: Episode) -> str:
+                return episode.display_title or episode.title
         else:
             return filtered
-            
+
         return sorted(filtered, key=key_func, reverse=reverse)
 
     def _toggle_episode_sort(self, col: str):
@@ -601,7 +596,7 @@ class GuiListingMixin:
         self._hide_tooltip()
         tooltip = tk.Toplevel(self.root)
         tooltip.wm_overrideredirect(True)
-        
+
         # 背景色をパレットから取得
         p = self._palette
         label = tk.Label(

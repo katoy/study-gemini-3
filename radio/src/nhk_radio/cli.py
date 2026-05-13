@@ -22,7 +22,6 @@ from .downloads import (
     _program_output_dir,
     _yt_dlp_command,
     is_episode_downloaded,
-    mark_episode_downloaded,
     sync_episode_download_history,
 )
 from .gui import browse_programs

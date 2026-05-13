@@ -1,14 +1,15 @@
 """Pure logic for filtering and sorting programs and episodes, decoupled from UI."""
 
-from typing import Iterable
-from ..types import Program, Episode
+from collections.abc import Iterable
+
 from ..text import (
+    _genre_label,
     _normalize_text,
-    _sortable_timestamp_value,
     _sortable_day_value,
     _sortable_duration_value,
-    _genre_label,
+    _sortable_timestamp_value,
 )
+from ..types import Episode, Program
 
 
 def filter_programs(
@@ -23,7 +24,7 @@ def filter_programs(
             p for p in filtered
             if (p.genre_label or _genre_label(p.genre)) == genre_filter
         ]
-    
+
     if needle:
         needle_norm = _normalize_text(needle)
         filtered = [
@@ -47,7 +48,7 @@ def sort_programs(
         key = (p.site_id, p.corner_id)
         original_index = order_map.get(key, 10**9)
         title = _normalize_text(p.display_title or p.title)
-        
+
         if column == "order":
             return (original_index, title)
         if column == "date":
@@ -68,7 +69,7 @@ def filter_episodes(
     """Filter episodes by search text."""
     if not needle:
         return list(episodes)
-    
+
     needle_norm = _normalize_text(needle)
     return [
         e for e in episodes
@@ -93,7 +94,7 @@ def sort_episodes(
     def sort_key(e: Episode):
         original_index = episode_to_idx.get(id(e), 10**9)
         title = _normalize_text(e.display_title or e.title)
-        
+
         if column == "saved":
             saved = is_downloaded_func(e)
             return (saved, title, original_index)

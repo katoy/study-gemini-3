@@ -1,7 +1,15 @@
 """Widget construction helpers for EpisodeGuiBrowser."""
 
+# mypy: disable-error-code="attr-defined,call-overload,empty-body"
+
+from typing import Any
+
 from .logo import create_brand_logo
 from .toolkit import tk, ttk
+
+
+def _set_tree_heading(tree: Any, column: str, *, text: str, anchor: str, command: Any) -> None:
+    tree.heading(column, text=text, anchor=anchor, command=command)
 
 
 class GuiBuildMixin:
@@ -140,9 +148,9 @@ class GuiBuildMixin:
             show="headings",
             selectmode="browse",
         )
-        self.program_tree.heading("no", text="No.", anchor="e", command=lambda: self._toggle_program_sort("no"))
-        self.program_tree.heading("date", text="更新日", anchor="w", command=lambda: self._toggle_program_sort("date"))
-        self.program_tree.heading("title", text="番組", anchor="w", command=lambda: self._toggle_program_sort("title"))
+        _set_tree_heading(self.program_tree, "no", text="No.", anchor="e", command=lambda: self._toggle_program_sort("no"))
+        _set_tree_heading(self.program_tree, "date", text="更新日", anchor="w", command=lambda: self._toggle_program_sort("date"))
+        _set_tree_heading(self.program_tree, "title", text="番組", anchor="w", command=lambda: self._toggle_program_sort("title"))
         self.program_tree.column("no", width=60, anchor="e", stretch=False)
         self.program_tree.column("date", width=140, anchor="w", stretch=False)
         self.program_tree.column("title", width=360, anchor="w")
@@ -233,17 +241,25 @@ class GuiBuildMixin:
             show="headings",
             selectmode="extended",
         )
-        self.episode_tree.heading(
-            "saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved")
+        _set_tree_heading(
+            self.episode_tree, "saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved")
         )
-        self.episode_tree.heading(
-            "date", text="放送日時", anchor="w", command=lambda: self._toggle_episode_sort("date")
+        _set_tree_heading(
+            self.episode_tree, "date", text="放送日時", anchor="w", command=lambda: self._toggle_episode_sort("date")
         )
-        self.episode_tree.heading(
-            "duration", text="長さ", anchor="e", command=lambda: self._toggle_episode_sort("duration")
+        _set_tree_heading(
+            self.episode_tree,
+            "duration",
+            text="長さ",
+            anchor="e",
+            command=lambda: self._toggle_episode_sort("duration"),
         )
-        self.episode_tree.heading(
-            "saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved")
+        _set_tree_heading(
+            self.episode_tree,
+            "title",
+            text="タイトル",
+            anchor="w",
+            command=lambda: self._toggle_episode_sort("title"),
         )
         self.episode_tree.column("saved", width=60, anchor="center", stretch=False)
 

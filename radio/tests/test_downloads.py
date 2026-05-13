@@ -205,6 +205,17 @@ class DownloadHelpersTest(unittest.TestCase):
                 result = downloads._get_cached_glob_files(target)
             self.assertEqual(result, [])
 
+    def test_get_cached_glob_files_returns_empty_on_stat_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            downloads._clear_file_scan_cache()
+            with (
+                patch.object(Path, "is_dir", return_value=True),
+                patch.object(Path, "stat", side_effect=OSError("denied")),
+            ):
+                result = downloads._get_cached_glob_files(target)
+            self.assertEqual(result, [])
+
     def test_cleanup_partial_episode_files_swallows_iterdir_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
@@ -289,7 +300,7 @@ class DownloadHelpersTest(unittest.TestCase):
             prog_dir.mkdir()
             manifest = prog_dir / ".downloaded.json"
             manifest.write_text("{bad", encoding="utf-8")
-            
+
             with patch("nhk_radio.downloads.logger") as logger_mock:
                 paths = downloads._load_download_manifest(program, out)
                 self.assertEqual(paths, {})
@@ -304,7 +315,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_episode_output_matches_edge_cases(self):
         program = Program(site_id="SITE", corner_id="01", title="P", display_title="P", display_date="----", url="U")
         episode = Episode(id="", title="E", display_title="E", date="20240415", display_date="20240415", broadcast_time="", duration_str="", url="")
-        
+
         # タイトル不一致
         path = Path("20240415_OTHER_E.mp3")
         with patch("pathlib.Path.is_file", return_value=True):
@@ -333,7 +344,7 @@ class DownloadHelpersTest(unittest.TestCase):
             prog_dir.mkdir()
             manifest = prog_dir / ".downloaded.json"
             manifest.write_text(json.dumps({"downloaded": ["ep1"], "paths": {"ep1": "missing.mp3"}}), encoding="utf-8")
-            
+
             # マニフェストにはあるがファイルがない
             self.assertIsNone(downloads.find_episode_downloaded_path(out, program, episode))
 
@@ -378,17 +389,17 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             program_dir = downloads._program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # 1. ファイルを作成し、ダウンロード済みとしてマーク
             file_path = program_dir / "20240415_番組A_第1回.mp3"
             file_path.write_text("dummy", encoding="utf-8")
             downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, file_path)
-            
+
             self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
-            
+
             # 2. 物理ファイルを削除
             file_path.unlink()
-            
+
             # 3. 判定が False に戻ることを確認 (キャッシュクリアと実在確認の合わせ技)
             self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE),
                              "物理ファイル削除後は、マニフェストに記録があっても False を返すべき")
@@ -399,17 +410,17 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             program_dir = downloads._program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # 命名規則に沿ったファイルを作成
             file_path = program_dir / "20240415_番組A_第1回.mp3"
             file_path.write_text("x", encoding="utf-8")
-            
+
             # 1回目の呼び出しでキャッシュが作成され、True が返るべき
             self.assertTrue(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))
-            
+
             # ファイル削除
             file_path.unlink()
-            
+
             # 2回目の呼び出しでキャッシュが効いていると True になってしまうが、
             # 修正後は _clear_file_scan_cache() が呼ばれるため False になるはず
             self.assertFalse(downloads.is_episode_downloaded(output_dir, PROGRAM, EPISODE))

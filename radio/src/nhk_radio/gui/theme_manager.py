@@ -5,7 +5,6 @@ from typing import Any
 
 from .. import config
 from .toolkit import tk, ttk
-from .logo import update_brand_logo
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +17,10 @@ class ThemeManager:
         self.style = ttk.Style(root)
         self.settings = config._load_ui_settings()
         self.current_theme = str(self.settings.get("theme", config.DEFAULT_UI_THEME))
-        # _load_ui_settings が int を返すようになったので直接取得
-        self.current_font_size = int(self.settings.get("font_size_pt", int(config.DEFAULT_UI_FONT_SIZE_PT)))
-        
+        self.current_font_size = self._coerce_font_size(
+            self.settings.get("font_size_pt", config.DEFAULT_UI_FONT_SIZE_PT)
+        )
+
         self.font_family = self._resolve_ui_font_family()
         self.mono_family = self._resolve_mono_font_family()
         self.palette = self._get_palette(self.current_theme)
@@ -31,7 +31,7 @@ class ThemeManager:
         self.current_theme = theme
         self.current_font_size = font_size
         self.palette = self._get_palette(theme)
-        
+
         config._save_ui_settings(theme, font_size, search_history)
         self.settings = {
             "theme": theme,
@@ -44,7 +44,7 @@ class ThemeManager:
         if theme_name:
             self.current_theme = theme_name
             self.palette = self._get_palette(theme_name)
-        if font_size:
+        if font_size is not None:
             self.current_font_size = font_size
             self.font_profile = self._get_font_profile(font_size)
 
@@ -56,13 +56,21 @@ class ThemeManager:
         self.style.configure(".", background=p["bg"], foreground=p["text"], font=f["ui_base"])
         self.style.configure("TFrame", background=p["bg"])
         self.style.configure("TLabel", background=p["bg"], foreground=p["text"], font=f["ui_base"])
-        
+
         self._configure_cards(p, f)
         self._configure_treeviews(p, f)
         self._configure_buttons(p, f)
         self._configure_inputs(p, f)
         self._configure_labels(p, f)
         self._configure_progressbars(p, f)
+
+    @staticmethod
+    def _coerce_font_size(value: object) -> int:
+        if isinstance(value, bool):
+            value = int(value)
+        if isinstance(value, int | str):
+            return int(value)
+        return int(config.DEFAULT_UI_FONT_SIZE_PT)
 
     def _get_palette(self, theme_name: str) -> dict[str, str]:
         if theme_name == "dark":
@@ -72,7 +80,7 @@ class ThemeManager:
                 "accent": "#ff922b", "accent_soft": "#2C2014", "accent_dark": "#D97706",
                 "border": "#333333", "border_strong": "#404040", "head_bg": "#252525",
                 "selected_bg": "#2B5A8C", "selected_fg": "#FFFFFF",
-                "row_odd": "#1A1A1A", "dl_even": "#121212", "dl_odd": "#1A1A1A", 
+                "row_odd": "#1A1A1A", "dl_even": "#121212", "dl_odd": "#1A1A1A",
                 "input_bg": "#2D2D2D", "on_accent": "#FFFFFF",
             }
         return {
@@ -81,7 +89,7 @@ class ThemeManager:
             "accent": "#E8590C", "accent_soft": "#FFF4E6", "accent_dark": "#D9480F",
             "border": "#DEE2E6", "border_strong": "#CED4DA", "head_bg": "#E9ECEF",
             "selected_bg": "#E7F5FF", "selected_fg": "#000000",
-            "row_odd": "#F1F3F5", "dl_even": "#F8F9FA", "dl_odd": "#F1F3F5", 
+            "row_odd": "#F1F3F5", "dl_even": "#F8F9FA", "dl_odd": "#F1F3F5",
             "input_bg": "#FFFFFF", "on_accent": "#FFFFFF",
         }
 
@@ -104,14 +112,18 @@ class ThemeManager:
 
     def _resolve_ui_font_family(self) -> str:
         import sys
-        if sys.platform == "darwin": return ".AppleSystemUIFont"
-        if sys.platform == "win32": return "Yu Gothic UI"
+        if sys.platform == "darwin":
+            return ".AppleSystemUIFont"
+        if sys.platform == "win32":
+            return "Yu Gothic UI"
         return "sans-serif"
 
     def _resolve_mono_font_family(self) -> str:
         import sys
-        if sys.platform == "darwin": return "Menlo"
-        if sys.platform == "win32": return "Consolas"
+        if sys.platform == "darwin":
+            return "Menlo"
+        if sys.platform == "win32":
+            return "Consolas"
         return "monospace"
 
     def _configure_cards(self, p, f):
@@ -123,15 +135,15 @@ class ThemeManager:
         self.style.configure("HeroInner.TFrame", background=p["accent_soft"])
 
     def _configure_treeviews(self, p, f):
-        self.style.configure("Treeview", 
-            font=f["ui_base"], 
+        self.style.configure("Treeview",
+            font=f["ui_base"],
             rowheight=f["rowheight"] + 2,
-            background=p["surface"], 
-            foreground=p["text"], 
+            background=p["surface"],
+            foreground=p["text"],
             fieldbackground=p["surface"],
             borderwidth=0,
             highlightthickness=0,
-            focuscolor="", 
+            focuscolor="",
             focusthickness=0
         )
         self.style.layout("Treeview.Item",
@@ -140,8 +152,8 @@ class ThemeManager:
             ]})]
         )
         self.style.configure("Treeview.Heading", font=f["ui_bold"], background=p["surface_alt"], foreground=p["text"])
-        self.style.map("Treeview", 
-            background=[("selected", p["selected_bg"])], 
+        self.style.map("Treeview",
+            background=[("selected", p["selected_bg"])],
             foreground=[("selected", p["selected_fg"])]
         )
 
@@ -162,7 +174,7 @@ class ThemeManager:
             foreground=[("readonly", p["text"])]
         )
         self.style.configure("Search.TCombobox", fieldbackground=p["input_bg"], background=p["input_bg"], foreground=p["text"], arrowcolor=p["text"])
-        
+
         self.root.option_add("*TCombobox*Listbox.background", p["input_bg"])
         self.root.option_add("*TCombobox*Listbox.foreground", p["text"])
         self.root.option_add("*TCombobox*Listbox.selectBackground", p["selected_bg"])
@@ -170,11 +182,11 @@ class ThemeManager:
 
     def _configure_progressbars(self, p, f):
         # 進捗バーの視認性向上: 暗い溝 (trough) に鮮やかなバー (background)
-        self.style.configure("TProgressbar", 
-            troughcolor=p["bg"], 
-            background=p["primary"], 
-            borderwidth=1, 
-            lightcolor=p["primary"], 
+        self.style.configure("TProgressbar",
+            troughcolor=p["bg"],
+            background=p["primary"],
+            borderwidth=1,
+            lightcolor=p["primary"],
             darkcolor=p["primary"]
         )
 

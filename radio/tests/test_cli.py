@@ -13,7 +13,7 @@ class CliHelpersTest(unittest.TestCase):
     def test_create_parser_has_all_arguments(self):
         """パーサーが期待されるすべての引数を定義しているか検証する"""
         parser = cli.create_parser()
-        
+
         # 定義されているべき引数のチェック
         expected_args = {
             "url", "output_dir", "max_items", "keep_video", "clear_cache", "genre", "verbose"
@@ -26,7 +26,7 @@ class CliHelpersTest(unittest.TestCase):
     def test_parser_actual_parsing(self):
         """モックを使わず、実際の文字列リストをパースして Namespace を検証する"""
         parser = cli.create_parser()
-        
+
         # 1) フルオプション
         args = parser.parse_args(["http://test", "-o", "/tmp/out", "-n", "5", "--keep-video", "--verbose"])
         self.assertEqual(args.url, "http://test")
@@ -58,11 +58,30 @@ class CliHelpersTest(unittest.TestCase):
     def test_download_episode_logging(self):
         with (
             patch.object(cli, "_download_episode_command", return_value=["ls"]),
-            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+            patch.object(cli.subprocess, "Popen") as popen_mock,
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
+            process = popen_mock.return_value
+            process.stdout = []
+            process.wait.return_value = 0
             cli.download_episode("http://url", Path("/tmp"), "tmpl")
             logger_mock.info.assert_called_with("ダウンロード開始: http://url")
+
+    def test_download_episode_reports_progress_and_newline(self):
+        process = unittest.mock.Mock()
+        process.stdout = ["[download] progress"]
+        process.wait.return_value = 0
+        with (
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "Popen", return_value=process),
+            patch.object(cli, "_parse_yt_dlp_progress", return_value=(10.0, None, "downloading")),
+            patch.object(cli.sys.stdout, "write") as write_mock,
+            patch.object(cli.sys.stdout, "flush") as flush_mock,
+        ):
+            self.assertTrue(cli.download_episode("http://url", Path("/tmp"), "tmpl", verbose=False))
+        write_mock.assert_any_call("\r  進捗:  10.0%")
+        write_mock.assert_any_call("\n")
+        self.assertGreaterEqual(flush_mock.call_count, 2)
 
     def test_download_url_direct_success(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
@@ -91,6 +110,19 @@ class CliHelpersTest(unittest.TestCase):
             count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
             self.assertEqual(count, 0)
             logger_mock.info.assert_any_call("スキップ: E1 (保存済み)")
+
+    def test_download_selected_episodes_warns_when_history_sync_fails(self):
+        program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
+        episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
+        with (
+            patch.object(cli, "is_episode_downloaded", return_value=False),
+            patch.object(cli, "download_episode", return_value=True),
+            patch.object(cli, "sync_episode_download_history", return_value=None),
+            patch("nhk_radio.cli.logger") as logger_mock,
+        ):
+            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+        self.assertEqual(count, 1)
+        logger_mock.warning.assert_called_with("ダウンロード履歴の記録に失敗: E1")
 
     def test_interactive_cli_fallback_flow(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")

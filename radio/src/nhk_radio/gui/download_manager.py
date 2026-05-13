@@ -1,12 +1,12 @@
 """Download management logic decoupled from UI."""
 
 import logging
-import queue
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
 from ..downloads import (
     _download_episode_command,
@@ -28,7 +28,7 @@ class DownloadManager:
         self,
         output_dir: Path,
         audio_only: bool,
-        on_result: Callable[[str, str, Program, Episode, any], None],
+        on_result: Callable[[str, str, Program, Episode, Any], None],
     ):
         self.output_dir = output_dir
         self.audio_only = audio_only
@@ -37,18 +37,18 @@ class DownloadManager:
         self.processes: dict[str, subprocess.Popen] = {}
         self.cancel_events: dict[str, threading.Event] = {}
         self.process_lock = threading.Lock()
-        
+
         self.started_count = 0
         self.finished_count = 0
 
     def start_download(self, program: Program, episode: Episode) -> str:
         """Starts a background download for the given episode."""
         episode_key = _episode_key(episode)
-        
+
         with self.process_lock:
             if episode_key in self.processes:
                 return episode_key  # Already downloading
-            
+
             cancel_event = threading.Event()
             self.cancel_events[episode_key] = cancel_event
             self.started_count += 1
@@ -66,7 +66,7 @@ class DownloadManager:
         with self.process_lock:
             if episode_key in self.cancel_events:
                 self.cancel_events[episode_key].set()
-            
+
             process = self.processes.get(episode_key)
             if process:
                 process.terminate()
@@ -98,7 +98,7 @@ class DownloadManager:
         # テンプレートは固定（必要なら manager の設定に持たせる）
         from ..downloads import _program_filename_template
         filename_template = _program_filename_template(program)
-        
+
         cmd = _download_episode_command(
             episode.url, target_dir, filename_template, audio_only=self.audio_only
         )
@@ -145,11 +145,11 @@ class DownloadManager:
                     if downloaded_path:
                         break
                     time.sleep(0.2)
-                
+
                 self.on_result("done_one", episode_key, program, episode, downloaded_path)
             else:
                 if not cancel_event.is_set():
                     cleanup_partial_episode_files(self.output_dir, program, episode)
-                
+
                 res_type = "cancelled_one" if cancel_event.is_set() else "failed_one"
                 self.on_result(res_type, episode_key, program, episode, None)
