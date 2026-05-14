@@ -218,20 +218,20 @@ class DownloadManagerTest(unittest.TestCase):
                 True,
                 lambda kind, key, program, episode, data: events.append(kind),
             )
-            process = MagicMock()
-            process.stdout = []
-            process.wait.return_value = 1
             cancel_event = threading.Event()
             cancel_event.set()
 
+            def mock_run_yt_dlp(cmd, on_progress=None, cancel_event=None):
+                # キャンセルイベントが set されているので False を返す
+                return False
+
             with (
                 patch("nhk_radio.gui.download_manager._download_episode_command", return_value=["yt-dlp"]),
-                patch("nhk_radio.gui.download_manager.subprocess.Popen", return_value=process),
                 patch("nhk_radio.gui.download_manager._program_output_dir", return_value=Path(tmp_dir)),
+                patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", side_effect=mock_run_yt_dlp),
             ):
                 manager._download_worker(self.program, self.episode, "E1", cancel_event)
 
-        process.terminate.assert_called_once()
         self.assertIn("cancelled_one", events)
 
 if __name__ == "__main__":

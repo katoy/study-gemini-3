@@ -293,8 +293,8 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "socket_timeout": 60,  # タイムアウトをさらに延長
-        "retries": 5,          # 失敗時に5回まで自動リトライ
+        "socket_timeout": 30,  # ネットワーク遅延時のタイムアウト
+        "retries": 2,          # 失敗時に2回まで自動リトライ
     }
 
     try:

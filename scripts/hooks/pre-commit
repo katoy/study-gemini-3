@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# pre-commit: paper_to_pdf のテストとカバレッジを確認してからコミット
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PROJECT_DIR="$REPO_ROOT/paper_to_pdf"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    exit 0
+fi
+
+cd "$PROJECT_DIR"
+
+echo "--- pre-commit: unit tests + coverage (paper_to_pdf) ---"
+python -m pytest --ignore=tests/test_visual_regression.py --cov=. --cov-report=term-missing -q
+
+echo "--- pre-commit: visual regression tests (paper_to_pdf) ---"
+python -m pytest tests/test_visual_regression.py -v
+
+echo "--- pre-commit: OK ---"

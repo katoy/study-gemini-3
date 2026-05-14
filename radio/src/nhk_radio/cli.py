@@ -18,11 +18,11 @@ from .core import (
 )
 from .downloads import (
     _download_episode_command,
-    _parse_yt_dlp_progress,
     _program_filename_template,
     _program_output_dir,
     _yt_dlp_command,
     is_episode_downloaded,
+    run_yt_dlp_subprocess,
     sync_episode_download_history,
 )
 from .gui import browse_programs
@@ -122,45 +122,27 @@ def download_episode(
     """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
-    process = None
 
     if verbose:
         logger.info(f"ダウンロード開始: {url}")
 
+    last_percent = -1.0
+
+    def on_progress(percent, eta, status):
+        nonlocal last_percent
+        if percent is not None and abs(percent - last_percent) >= 1.0:
+            sys.stdout.write(f"\r  進捗: {percent:5.1f}%")
+            sys.stdout.flush()
+            last_percent = percent
+
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-
-        last_percent = -1.0
-        if process.stdout:
-            for line in process.stdout:
-                percent, _eta, _status = _parse_yt_dlp_progress(line)
-                if percent is not None and abs(percent - last_percent) >= 1.0:
-                    sys.stdout.write(f"\r  進捗: {percent:5.1f}%")
-                    sys.stdout.flush()
-                    last_percent = percent
-            if last_percent >= 0:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-
-        return process.wait() == 0
+        success = run_yt_dlp_subprocess(cmd, on_progress=on_progress)
+        if last_percent >= 0:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        return success
     except KeyboardInterrupt:
-        if process is not None:
-            process.terminate()
-            process.wait()
         print("\n  中断されました。")
-        return False
-    except Exception as e:
-        if process is not None:
-            with suppress(Exception):
-                process.terminate()
-                process.wait()
-        logger.error(f"ダウンロード実行エラー: {e}")
         return False
 
 

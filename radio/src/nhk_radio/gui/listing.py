@@ -10,7 +10,7 @@ from contextlib import suppress
 from tkinter import ttk
 
 from ..config import SEARCH_HISTORY_LIMIT
-from ..downloads import _episode_key, is_episode_downloaded
+from ..downloads import _episode_key, get_downloaded_episode_keys, is_episode_downloaded
 from ..text import (
     _genre_label,
     _sortable_duration_value,
@@ -173,13 +173,14 @@ class GuiListingMixin:
 
     def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]]):
         """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
-        results = []
-        for iid, episode in to_check:
-            if self.displayed_program != program:
-                return
-            is_dl = is_episode_downloaded(self.output_dir, program, episode)
-            if is_dl:
-                results.append((iid, True))
+        if self.displayed_program != program:
+            return
+
+        # エピソードをバッチで一括判定（N+1 問題を解決）
+        episodes = [ep for _iid, ep in to_check]
+        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+
+        results = [(iid, True) for iid, ep in to_check if _episode_key(ep) in downloaded_keys]
 
         if results and self.displayed_program == program:
             self.root.after(0, lambda: self._apply_download_check_results(program, results))
@@ -212,11 +213,16 @@ class GuiListingMixin:
         if self.displayed_program is None:
             return
 
+        # バッチ判定で全エピソードの保存状態を効率的に取得
+        episodes = list(self.displayed_episode_map.values())
+        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+
         for iid, episode in self.displayed_episode_map.items():
             values = list(self.episode_tree.item(iid, "values"))
             if len(values) < 3:
                 continue
-            values[0] = self._downloaded_cell_text(is_episode_downloaded(self.output_dir, program, episode))
+            is_downloaded = _episode_key(episode) in downloaded_keys
+            values[0] = self._downloaded_cell_text(is_downloaded)
             self.episode_tree.item(iid, values=tuple(values))
         self._schedule_saved_button_refresh()
         self._update_program_overview(self.displayed_program, self.displayed_episodes, "保存状態を更新")
@@ -241,13 +247,13 @@ class GuiListingMixin:
         if not hasattr(self, "episode_saved_only_check"):
             return
 
-        # 実際に保存済みアイテムがあるか確認
+        # バッチ判定で保存済みの有無をチェック
         has_saved = False
-        if self.displayed_program:
-            for episode in self.displayed_episodes:
-                if is_episode_downloaded(self.output_dir, self.displayed_program, episode):
-                    has_saved = True
-                    break
+        if self.displayed_program and self.displayed_episodes:
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, self.displayed_program, self.displayed_episodes
+            )
+            has_saved = bool(downloaded_keys)
 
         if has_saved:
             self.episode_saved_only_check.state(["!disabled"])
@@ -335,7 +341,9 @@ class GuiListingMixin:
         self.selected_program_meta_var.set(meta)
 
         if episodes is not None:
-            saved_count = sum(1 for e in episodes if is_episode_downloaded(self.output_dir, program, e))
+            # バッチ判定で全エピソードの保存状態を効率的に取得
+            downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+            saved_count = len(downloaded_keys)
             stats = f"{len(episodes)} エピソード (保存済み {saved_count})"
             if message:
                 stats += f" | {message}"
@@ -422,22 +430,23 @@ class GuiListingMixin:
         needle = self._normalized_search_text(self.episode_search_var.get())
         saved_only = self.episode_saved_only_var.get()
 
+        # バッチ判定: フィルタリングとソートの両方で使用
+        downloaded_keys: set[str] = set()
+        if self.displayed_program and (saved_only or self.episode_sort_state[0] == "saved"):
+            downloaded_keys = get_downloaded_episode_keys(self.output_dir, self.displayed_program, episodes)
+
         filtered = episodes
         if needle:
             filtered = [e for e in filtered if needle in self._normalized_search_text(f"{e.title} {e.display_title}")]
         if saved_only and self.displayed_program:
-            filtered = [e for e in filtered if is_episode_downloaded(self.output_dir, self.displayed_program, e)]
+            filtered = [e for e in filtered if _episode_key(e) in downloaded_keys]
 
         # ソート
         col, reverse = self.episode_sort_state
         if col == "saved":
             # 保存済みを優先
             def key_func(episode: Episode) -> bool:
-                return (
-                    is_episode_downloaded(self.output_dir, self.displayed_program, episode)
-                    if self.displayed_program
-                    else False
-                )
+                return _episode_key(episode) in downloaded_keys
         elif col == "date":
             def key_func(episode: Episode):
                 return _sortable_timestamp_value(episode.date)
@@ -659,7 +668,7 @@ class GuiListingMixin:
 
     def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
         """指定した番組のキャッシュされたエピソードを返す。"""
-        return self.data_manager.load_cached_episodes(program)
+        return self.data_manager.get_cached_episodes(program, ttl_seconds=10**12)
 
 
 __all__ = ["GuiListingMixin"]

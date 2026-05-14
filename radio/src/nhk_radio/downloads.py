@@ -5,7 +5,9 @@ import json
 import logging
 import re
 import threading
+import time
 from collections import OrderedDict
+from contextlib import suppress
 from pathlib import Path
 
 from .text import _genre_label, _safe_name
@@ -22,9 +24,21 @@ _MANIFEST_LOCKS_GUARD = threading.Lock()
 # 同一セッション内でのファイル走査結果キャッシュ。
 # mtime ベースの自動無効化により古いエントリは再スキャン時に上書きされる。
 # メモリリーク防止のため、最大エントリ数を制限する。
-_FILE_SCAN_CACHE_MAX_SIZE = 200
+# 環境変数 NHK_RADIO_FILE_SCAN_CACHE_SIZE で上書き可能（デフォルト 100）
+def _get_file_scan_cache_max_size() -> int:
+    import os
+    return int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
+
+_FILE_SCAN_CACHE_MAX_SIZE = _get_file_scan_cache_max_size()
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
+
+# マニフェスト読み込み結果のキャッシュ（短期 TTL）。
+# GUI レンダリングで is_episode_downloaded が何度も呼ばれるため、
+# 番組単位で manifest の読み込み結果を時間限定で保持する。
+_MANIFEST_CACHE_TTL_SECONDS = 10
+_MANIFEST_CACHE: dict[Path, tuple[float, dict[str, str]]] = {}
+_MANIFEST_CACHE_LOCK = threading.Lock()
 
 
 def _program_output_dir(output_dir: Path, program: Program) -> Path:
@@ -122,9 +136,30 @@ def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLo
 
 
 def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str]:
-    """保存済みエピソードのパス辞書を返す (key: episode_key, value: 相対or絶対パス)"""
+    """保存済みエピソードのパス辞書を返す (key: episode_key, value: 相対or絶対パス)
+
+    短期キャッシュにより、同一番組への繰り返しアクセスの I/O 負荷を削減。
+    ファイルの mtime 変化を検出してキャッシュを無効化。
+    """
+    primary_manifest_path = _download_manifest_path(program, output_dir)
+
+    # プライマリマニフェストの mtime を取得
+    try:
+        primary_mtime = primary_manifest_path.stat().st_mtime if primary_manifest_path.exists() else -1.0
+    except OSError:
+        primary_mtime = -1.0
+
+    # キャッシュをチェック: TTL と mtime の両方を確認
+    with _MANIFEST_CACHE_LOCK:
+        if primary_manifest_path in _MANIFEST_CACHE:
+            cached_at, cached_mtime, cached_data = _MANIFEST_CACHE[primary_manifest_path]
+            if (time.time() - cached_at < _MANIFEST_CACHE_TTL_SECONDS and
+                cached_mtime == primary_mtime):
+                return cached_data
+
+    # キャッシュミス: ディスクから読み込み
     saved_paths: dict[str, str] = {}
-    manifest_paths = [_download_manifest_path(program, output_dir)]
+    manifest_paths = [primary_manifest_path]
     for legacy_dir in _legacy_program_output_dirs(output_dir, program):
         manifest_path = legacy_dir / ".downloaded.json"
         if manifest_path not in manifest_paths:
@@ -144,15 +179,35 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
             for key, value in paths.items():
                 saved_paths[str(key)] = str(value)
 
+    # キャッシュに格納 (timestamp, mtime, data)
+    with _MANIFEST_CACHE_LOCK:
+        _MANIFEST_CACHE[primary_manifest_path] = (time.time(), primary_mtime, saved_paths)
+
     return saved_paths
 
 
 def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
-    """マニフェストを保存する。失敗時は warning を出して False を返す。"""
+    """マニフェストをアトミックに保存する。失敗時は warning を出して False を返す。
+
+    一時ファイルへ書き込み後に rename するため、プロセスクラッシュ時も破損しない。
+    """
+    import os
+    import tempfile
+    from contextlib import suppress
+
     manifest_path = _download_manifest_path(program, output_dir)
     try:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(json.dumps({"paths": paths}, ensure_ascii=False), encoding="utf-8")
+        text = json.dumps({"paths": paths}, ensure_ascii=False)
+        fd, tmp_path = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(text)
+            Path(tmp_path).replace(manifest_path)
+        except BaseException:
+            with suppress(OSError):
+                os.unlink(tmp_path)
+            raise
     except OSError as e:
         logger.warning(f"ダウンロード履歴の保存に失敗: {manifest_path} ({e})")
         return False
@@ -213,9 +268,10 @@ def _get_cached_glob_files(directory: Path) -> list[Path]:
             return []
 
         _FILE_SCAN_CACHE[directory] = (current_mtime, files)
-        # 容量制限
+        # 容量制限（超過時は最古エントリを削除）
         if len(_FILE_SCAN_CACHE) > _FILE_SCAN_CACHE_MAX_SIZE:
-            _FILE_SCAN_CACHE.popitem(last=False)
+            removed_path, _ = _FILE_SCAN_CACHE.popitem(last=False)
+            logger.debug(f"ファイルスキャンキャッシュ超過。削除: {removed_path}")
         return files
 
 def _clear_file_scan_cache(directory: Path | None = None):
@@ -224,6 +280,20 @@ def _clear_file_scan_cache(directory: Path | None = None):
             _FILE_SCAN_CACHE.pop(directory, None)
         else:
             _FILE_SCAN_CACHE.clear()
+
+
+def _clear_manifest_cache(manifest_path: Path | None = None):
+    """マニフェストキャッシュをクリアする。
+
+    Args:
+        manifest_path: 特定の番組のマニフェストをクリアする場合は指定。
+                      None の場合はすべてクリア。
+    """
+    with _MANIFEST_CACHE_LOCK:
+        if manifest_path:
+            _MANIFEST_CACHE.pop(manifest_path, None)
+        else:
+            _MANIFEST_CACHE.clear()
 
 
 def _episode_output_candidates(program_dir: Path, program: Program, episode: Episode) -> list[Path]:
@@ -276,7 +346,41 @@ def mark_episode_downloaded(
                 saved_paths[episode_key] = str(path)
         saved = _save_download_manifest(program, output_dir, saved_paths)
         _clear_file_scan_cache(program_dir)
+        # マニフェストが更新されたので、キャッシュも無効化
+        _clear_manifest_cache(_download_manifest_path(program, output_dir))
         return saved
+
+
+def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: list[Episode]) -> set[str]:
+    """複数エピソードの保存状態を効率的に判定する（バッチ処理）。
+
+    マニフェスト 1 回読み込みとディレクトリスキャン共有で N+1 問題を解決。
+    """
+    downloaded_keys: set[str] = set()
+    saved_paths = _load_download_manifest(program, output_dir)
+
+    # ステップ 1: マニフェスト確認
+    for episode in episodes:
+        episode_key = _episode_key(episode)
+        saved_path_str = saved_paths.get(episode_key)
+        if saved_path_str:
+            resolved = Path(saved_path_str)
+            if not resolved.is_absolute():
+                resolved = _program_output_dir(output_dir, program) / resolved
+            if resolved.exists():
+                downloaded_keys.add(episode_key)
+
+    # ステップ 2: ディレクトリスキャン (マニフェスト未記録のエピソードのみ)
+    program_dirs = _program_search_dirs(output_dir, program)
+    for program_dir in program_dirs:
+        files = _get_cached_glob_files(program_dir)
+        for episode in episodes:
+            if _episode_key(episode) in downloaded_keys:
+                continue
+            if any(_episode_output_matches(f, program, episode) for f in files):
+                downloaded_keys.add(_episode_key(episode))
+
+    return downloaded_keys
 
 
 def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
@@ -422,3 +526,60 @@ def _yt_dlp_command(
         cmd.append("--no-playlist")
     cmd.append(url)
     return cmd
+
+
+def run_yt_dlp_subprocess(
+    cmd: list[str],
+    on_progress: callable[[float | None, str | None, str | None], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> bool:
+    """yt-dlp サブプロセスを実行し、進捗をコールバックで報告する。
+
+    Args:
+        cmd: yt-dlp コマンド (リスト形式)
+        on_progress: 進捗コールバック (percent, eta, status)
+        cancel_event: キャンセルイベント（設定されたら terminate）
+
+    Returns:
+        成功時 True、キャンセル時 False、失敗時 False
+    """
+    import subprocess
+
+    process = None
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        if process.stdout:
+            for line in process.stdout:
+                # キャンセルイベントがセットされたら terminate
+                if cancel_event and cancel_event.is_set():
+                    process.terminate()
+                    break
+
+                # 進捗コールバックを実行
+                if on_progress:
+                    percent, eta, status = _parse_yt_dlp_progress(line)
+                    if percent is not None or eta is not None or status is not None:
+                        on_progress(percent, eta, status)
+
+        # タイムアウト 120 秒で wait
+        try:
+            return process.wait(timeout=120) == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("yt-dlp プロセスが応答しません。強制終了します。")
+            process.kill()
+            process.wait()
+            return False
+    except Exception as e:
+        logger.error(f"yt-dlp 実行エラー: {e}")
+        if process is not None:
+            with suppress(Exception):
+                process.terminate()
+                process.wait()
+        return False

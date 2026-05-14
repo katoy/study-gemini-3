@@ -1,0 +1,25 @@
+[project]
+name = "paper-to-pdf"
+version = "0.1.0"
+description = "スマホ撮影した書籍をAI補正してクリーンなPDFに変換するCLIツール"
+requires-python = ">=3.12"
+dependencies = [
+    "opencv-python",
+    "pillow",
+    "numpy",
+    "torch",
+    "torchvision",
+    "requests",
+    "pypdfium2",
+    "ocrmac",
+    "pymupdf>=1.27.2.2",
+    "tqdm>=4.67.3",
+    "transformers>=5.5.4",
+    "accelerate>=1.13.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+]

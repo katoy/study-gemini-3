@@ -150,7 +150,11 @@ class GuiDownloadsMixin:
                 self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
 
         if self.download_manager.is_active():
-            self.root.after(100, self._poll_download_result)
+            # アクティブなダウンロード数に基づいて動的にポーリング間隔を調整
+            # 3 個以上なら 50ms、1-2 個なら 100ms（複数ジョブでの応答性 vs CPU 使用率）
+            active_count = len(self.download_manager.processes)
+            poll_interval = 50 if active_count >= 3 else 100
+            self.root.after(poll_interval, self._poll_download_result)
         else:
             self.download_polling = False
 
@@ -192,8 +196,8 @@ class GuiDownloadsMixin:
         self._set_progress(0, 1, "")
         key = (program.site_id, program.corner_id)
         if error is not None:
-            self.episodes_cache[key] = (time.time(), [])
-            self.episodes_cache.move_to_end(key)
+            # エラー時はキャッシュに空リストを書き込まない
+            # （期限切れキャッシュが再利用できるようにするため）
             self.status_var.set(f"取得失敗: {error}")
             fallback = self._cached_episodes_for(program)
             if fallback:
