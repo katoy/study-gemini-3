@@ -192,8 +192,8 @@ class GuiDownloadsMixin:
         self._set_progress(0, 1, "")
         key = (program.site_id, program.corner_id)
         if error is not None:
-            self.episodes_cache[key] = (time.time(), [])
-            self.episodes_cache.move_to_end(key)
+            # エラー時はキャッシュに空リストを書き込まない
+            # （期限切れキャッシュが再利用できるようにするため）
             self.status_var.set(f"取得失敗: {error}")
             fallback = self._cached_episodes_for(program)
             if fallback:
