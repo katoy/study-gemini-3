@@ -11,9 +11,9 @@ from typing import Any
 from ..downloads import (
     _download_episode_command,
     _episode_key,
-    _parse_yt_dlp_progress,
     _program_output_dir,
     cleanup_partial_episode_files,
+    run_yt_dlp_subprocess,
     sync_episode_download_history,
 )
 from ..types import Episode, Program
@@ -95,7 +95,6 @@ class DownloadManager:
         target_dir = _program_output_dir(self.output_dir, program)
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        # テンプレートは固定（必要なら manager の設定に持たせる）
         from ..downloads import _program_filename_template
         filename_template = _program_filename_template(program)
 
@@ -103,41 +102,26 @@ class DownloadManager:
             episode.url, target_dir, filename_template, audio_only=self.audio_only
         )
 
+        # ダミープロセスをロックに登録（process_lock は実行完了時に解放）
+        with self.process_lock:
+            self.processes[episode_key] = True
+
         try:
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
+            def on_progress(percent, eta, status):
+                if percent is not None:
+                    self.on_result("progress", episode_key, program, episode, (percent, eta, status))
 
-            with self.process_lock:
-                self.processes[episode_key] = process
-
-            if cancel_event.is_set():
-                process.terminate()
-
-            if process.stdout:
-                for line in process.stdout:
-                    if cancel_event.is_set():
-                        process.terminate()
-                        break
-
-                    percent, eta, status = _parse_yt_dlp_progress(line)
-                    if percent is not None:
-                        self.on_result("progress", episode_key, program, episode, (percent, eta, status))
-
-            return_code = process.wait()
-            success = (return_code == 0) and not cancel_event.is_set()
+            success = run_yt_dlp_subprocess(cmd, on_progress=on_progress, cancel_event=cancel_event)
+            success = success and not cancel_event.is_set()
 
         except Exception as e:
             logger.error(f"Download thread error: {e}")
             success = False
+
         finally:
             terminal_event_data: Any = None
             if success:
-                # 履歴同期
+                # 履歴同期（最大3回試行）
                 for _ in range(3):
                     terminal_event_data = sync_episode_download_history(self.output_dir, program, episode)
                     if terminal_event_data:

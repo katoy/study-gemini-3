@@ -7,6 +7,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from contextlib import suppress
 from pathlib import Path
 
 from .text import _genre_label, _safe_name
@@ -519,3 +520,53 @@ def _yt_dlp_command(
         cmd.append("--no-playlist")
     cmd.append(url)
     return cmd
+
+
+def run_yt_dlp_subprocess(
+    cmd: list[str],
+    on_progress: callable[[float | None, str | None, str | None], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> bool:
+    """yt-dlp サブプロセスを実行し、進捗をコールバックで報告する。
+
+    Args:
+        cmd: yt-dlp コマンド (リスト形式)
+        on_progress: 進捗コールバック (percent, eta, status)
+        cancel_event: キャンセルイベント（設定されたら terminate）
+
+    Returns:
+        成功時 True、キャンセル時 False、失敗時 False
+    """
+    import subprocess
+
+    process = None
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        if process.stdout:
+            for line in process.stdout:
+                # キャンセルイベントがセットされたら terminate
+                if cancel_event and cancel_event.is_set():
+                    process.terminate()
+                    break
+
+                # 進捗コールバックを実行
+                if on_progress:
+                    percent, eta, status = _parse_yt_dlp_progress(line)
+                    if percent is not None or eta is not None or status is not None:
+                        on_progress(percent, eta, status)
+
+        return process.wait() == 0
+    except Exception as e:
+        logger.error(f"yt-dlp 実行エラー: {e}")
+        if process is not None:
+            with suppress(Exception):
+                process.terminate()
+                process.wait()
+        return False

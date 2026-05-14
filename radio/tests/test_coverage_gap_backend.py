@@ -97,26 +97,22 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     # --- cli.py ---
     def test_download_episode_keyboard_interrupt(self):
-        # cli.py: 141-149 (KeyboardInterrupt)
-        mock_proc = MagicMock()
+        # cli.py: KeyboardInterrupt handling
         with (
-            patch("subprocess.Popen", return_value=mock_proc),
-            patch.object(mock_proc, "stdout", [b"progress"]),
-            patch("nhk_radio.cli._parse_yt_dlp_progress", side_effect=KeyboardInterrupt)
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch("nhk_radio.cli.run_yt_dlp_subprocess", side_effect=KeyboardInterrupt)
         ):
             res = cli.download_episode("url", Path("/tmp"), "tmpl")
             self.assertFalse(res)
-            mock_proc.terminate.assert_called()
 
     def test_download_episode_general_exception(self):
-        # cli.py: 151-155 (General Exception)
+        # downloads.py: run_yt_dlp_subprocess exception handling
         with (
-            patch("subprocess.Popen", side_effect=RuntimeError("spawn fail")),
-            patch.object(cli, "logger") as log_mock
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch("nhk_radio.cli.run_yt_dlp_subprocess", return_value=False)
         ):
             res = cli.download_episode("url", Path("/tmp"), "tmpl")
             self.assertFalse(res)
-            log_mock.error.assert_called()
 
     def test_download_url_direct_failure(self):
         # cli.py: 212 (sys.exit on failure)

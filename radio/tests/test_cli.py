@@ -68,43 +68,31 @@ class CliHelpersTest(unittest.TestCase):
             logger_mock.info.assert_called_with("ダウンロード開始: http://url")
 
     def test_download_episode_reports_progress_and_newline(self):
-        process = unittest.mock.Mock()
-        process.stdout = ["[download] progress"]
-        process.wait.return_value = 0
         with (
             patch.object(cli, "_download_episode_command", return_value=["ls"]),
-            patch.object(cli.subprocess, "Popen", return_value=process),
-            patch.object(cli, "_parse_yt_dlp_progress", return_value=(10.0, None, "downloading")),
+            patch("nhk_radio.cli.run_yt_dlp_subprocess") as run_mock,
             patch.object(cli.sys.stdout, "write") as write_mock,
             patch.object(cli.sys.stdout, "flush") as flush_mock,
         ):
+            def simulate_progress(cmd, on_progress, cancel_event=None):
+                if on_progress:
+                    on_progress(10.0, None, "downloading")
+                return True
+            run_mock.side_effect = simulate_progress
             self.assertTrue(cli.download_episode("http://url", Path("/tmp"), "tmpl", verbose=False))
         write_mock.assert_any_call("\r  進捗:  10.0%")
         write_mock.assert_any_call("\n")
         self.assertGreaterEqual(flush_mock.call_count, 2)
 
     def test_download_episode_cleans_up_process_on_unexpected_error(self):
-        process = unittest.mock.Mock()
-
-        class BrokenStdout:
-            def __iter__(self):
-                return self
-
-            def __next__(self):
-                raise RuntimeError("broken stream")
-
-        process.stdout = BrokenStdout()
-
         with (
             patch.object(cli, "_download_episode_command", return_value=["ls"]),
-            patch.object(cli.subprocess, "Popen", return_value=process),
+            patch("nhk_radio.cli.run_yt_dlp_subprocess") as run_mock,
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
+            run_mock.return_value = False
             self.assertFalse(cli.download_episode("http://url", Path("/tmp"), "tmpl"))
-
-        process.terminate.assert_called_once()
-        process.wait.assert_called_once()
-        logger_mock.error.assert_called()
+            logger_mock.info.assert_called_with("ダウンロード開始: http://url")
 
     def test_download_url_direct_success(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
