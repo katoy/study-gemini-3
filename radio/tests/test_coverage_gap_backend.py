@@ -34,7 +34,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     def test_get_cached_glob_files_oserror_on_stat(self):
         # downloads.py: 191 (OSError on stat)
-        with patch.object(Path, "stat", side_effect=OSError("denied")):
+        with (
+            patch.object(Path, "is_dir", return_value=True),
+            patch.object(Path, "stat", side_effect=OSError("denied")),
+        ):
             self.assertEqual(downloads._get_cached_glob_files(Path("/tmp/any")), [])
 
     def test_get_cached_glob_files_oserror_on_iterdir(self):
