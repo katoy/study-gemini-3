@@ -1,0 +1,71 @@
+name: radio CI
+
+on:
+  push:
+    paths:
+      - "radio/**"
+      - ".github/workflows/radio-ci.yml"
+  pull_request:
+    paths:
+      - "radio/**"
+      - ".github/workflows/radio-ci.yml"
+
+defaults:
+  run:
+    working-directory: radio
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run ruff check .
+
+  typecheck:
+    name: Mypy Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run mypy .
+
+  non-gui-coverage:
+    name: Non-GUI Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: >
+          uv run pytest
+          tests/test_cache.py
+          tests/test_cli.py
+          tests/test_cli_extended.py
+          tests/test_config.py
+          tests/test_core.py
+          tests/test_coverage_gap.py
+          tests/test_coverage_gap_backend.py
+          tests/test_downloads.py
+          tests/test_entrypoints.py
+          tests/test_text.py
+          --cov=src/nhk_radio
+          --cov-report=term-missing
+          --cov-report=json
+          -q
+      - run: uv run python scripts/check_non_gui_coverage.py coverage.json

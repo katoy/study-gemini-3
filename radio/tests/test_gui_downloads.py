@@ -1,13 +1,15 @@
-import unittest
 import queue
 import threading
-import time
+import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+from nhk_radio.gui.download_manager import DownloadManager
 from nhk_radio.gui.downloads import GuiDownloadsMixin
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
+
 
 class MockGui(GuiDownloadsMixin):
     def __init__(self):
@@ -22,17 +24,17 @@ class MockGui(GuiDownloadsMixin):
         self.output_dir = Path("/tmp/radio")
         self.audio_only = True
         self._palette = {"surface": "white", "row_odd": "gray", "dl_even": "blue", "dl_odd": "lightblue"}
-        
+
         # Managers (Composition)
         self.data_manager = MagicMock()
         self.download_manager = MagicMock()
-        
+
         # UI vars
         self.status_var = MagicMock()
         self.episode_message_var = MagicMock()
         self.fetch_button_var = MagicMock()
         self.progress_text_var = MagicMock()
-        
+
         # UI widgets
         self.fetch_button = MagicMock()
         self.download_jobs_canvas = MagicMock()
@@ -50,7 +52,7 @@ class MockGui(GuiDownloadsMixin):
 
     def _refresh_downloaded_column(self, *args):
         pass
-    
+
     def _reset_ui_state_after_cache_clear(self):
         pass
 
@@ -149,7 +151,7 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_create_download_job_widgets(self):
         episode = Episode(id="E1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         with (
-            patch("nhk_radio.gui.downloads.ttk.Frame") as frame_mock,
+            patch("nhk_radio.gui.downloads.ttk.Frame"),
             patch("nhk_radio.gui.downloads.ttk.Label"),
             patch("nhk_radio.gui.downloads.tk.StringVar"),
             patch("nhk_radio.gui.downloads.ttk.Button"),
@@ -165,6 +167,72 @@ class GuiDownloadsTest(unittest.TestCase):
             # 完了通知
             self.gui._on_cache_cleared_success()
             self.gui.status_var.set.assert_any_call("キャッシュを削除しました。")
+
+
+class DownloadManagerTest(unittest.TestCase):
+    def setUp(self):
+        self.program = Program(site_id="S1", corner_id="01", title="Prog", display_title="Prog", display_date="----", url="U")
+        self.episode = Episode(
+            id="E1",
+            title="Ep",
+            display_title="Ep",
+            date="2024",
+            display_date="2024",
+            broadcast_time="",
+            duration_str="",
+            url="http://example.com",
+        )
+
+    def test_terminal_event_is_emitted_before_manager_becomes_inactive(self):
+        observed_active_states = []
+
+        with TemporaryDirectory() as tmp_dir:
+            manager: DownloadManager | None = None
+
+            def on_result(kind, key, program, episode, data):
+                if kind == "done_one":
+                    observed_active_states.append(manager.is_active())
+
+            manager = DownloadManager(Path(tmp_dir), True, on_result)
+            process = MagicMock()
+            process.stdout = []
+            process.wait.return_value = 0
+
+            with (
+                patch("nhk_radio.gui.download_manager._download_episode_command", return_value=["yt-dlp"]),
+                patch("nhk_radio.gui.download_manager.subprocess.Popen", return_value=process),
+                patch("nhk_radio.gui.download_manager._program_output_dir", return_value=Path(tmp_dir)),
+                patch("nhk_radio.gui.download_manager.sync_episode_download_history", return_value=Path(tmp_dir) / "done.mp3"),
+            ):
+                manager._download_worker(self.program, self.episode, "E1", threading.Event())
+
+        self.assertEqual(observed_active_states, [True])
+        self.assertFalse(manager.is_active())
+
+    def test_cancelled_worker_terminates_even_before_output(self):
+        events = []
+
+        with TemporaryDirectory() as tmp_dir:
+            manager = DownloadManager(
+                Path(tmp_dir),
+                True,
+                lambda kind, key, program, episode, data: events.append(kind),
+            )
+            process = MagicMock()
+            process.stdout = []
+            process.wait.return_value = 1
+            cancel_event = threading.Event()
+            cancel_event.set()
+
+            with (
+                patch("nhk_radio.gui.download_manager._download_episode_command", return_value=["yt-dlp"]),
+                patch("nhk_radio.gui.download_manager.subprocess.Popen", return_value=process),
+                patch("nhk_radio.gui.download_manager._program_output_dir", return_value=Path(tmp_dir)),
+            ):
+                manager._download_worker(self.program, self.episode, "E1", cancel_event)
+
+        process.terminate.assert_called_once()
+        self.assertIn("cancelled_one", events)
 
 if __name__ == "__main__":
     unittest.main()

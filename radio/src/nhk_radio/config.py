@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unicodedata
+from contextlib import suppress
 from pathlib import Path
 
 CACHE_TTL_SECONDS = 3600
@@ -156,11 +157,14 @@ def _load_ui_settings() -> dict[str, str | list[str] | int]:
         settings["theme"] = theme
 
     font_size = payload.get("font_size_pt") or payload.get("font_size")
-    try:
-        font_size_pt = min(max(int(font_size), 9), 18)
-        settings["font_size_pt"] = font_size_pt
-    except (TypeError, ValueError):
-        pass
+    if isinstance(font_size, bool):
+        font_size = int(font_size)
+    if isinstance(font_size, int | str):
+        try:
+            font_size_pt = min(max(int(font_size), 9), 18)
+            settings["font_size_pt"] = font_size_pt
+        except ValueError:
+            pass
 
     search_history = payload.get("program_search_history")
     if isinstance(search_history, list):
@@ -187,8 +191,6 @@ def _save_ui_settings(theme: str, font_size: int, program_search_history: list[s
             f.write(text)
         Path(tmp_path).replace(path)
     except BaseException:
-        try:
+        with suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise

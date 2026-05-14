@@ -1,14 +1,12 @@
 """Data management logic (fetching and caching) decoupled from UI."""
 
-import queue
 import threading
 import time
 from collections import OrderedDict
-from typing import Callable
+from collections.abc import Callable
 
 from ..core import fetch_program_list, refresh_episode_list
 from ..types import Episode, Program
-from .logic import filter_programs
 
 
 class DataManager:
@@ -25,7 +23,7 @@ class DataManager:
         self.programs: list[Program] = []
         self.filtered_programs: list[Program] = []
         self.episodes_cache: OrderedDict[tuple[str, str], tuple[float, list[Episode]]] = OrderedDict()
-        
+
         self._fetching_programs = False
         self._fetching_episodes: set[tuple[str, str]] = set()
 
@@ -33,9 +31,9 @@ class DataManager:
         """Fetches the full program list in the background."""
         if self._fetching_programs:
             return
-        
+
         self._fetching_programs = True
-        
+
         def _worker():
             try:
                 progs = fetch_program_list(genre)
@@ -44,7 +42,7 @@ class DataManager:
                 self.on_program_result([], str(e))
             finally:
                 self._fetching_programs = False
-        
+
         threading.Thread(target=_worker, daemon=True).start()
 
     def start_fetch_episodes(self, program: Program):
@@ -52,9 +50,9 @@ class DataManager:
         key = (program.site_id, program.corner_id)
         if key in self._fetching_episodes:
             return
-        
+
         self._fetching_episodes.add(key)
-        
+
         def _worker():
             try:
                 episodes, source = refresh_episode_list(program)
@@ -64,7 +62,7 @@ class DataManager:
                 self.on_episode_result(program, [], "", str(e))
             finally:
                 self._fetching_episodes.discard(key)
-        
+
         threading.Thread(target=_worker, daemon=True).start()
 
     def get_cached_episodes(self, program: Program, ttl_seconds: int) -> list[Episode] | None:
@@ -93,7 +91,7 @@ class DataManager:
         key = (program.site_id, program.corner_id)
         self.episodes_cache[key] = (time.time(), episodes)
         self.episodes_cache.move_to_end(key)
-        
+
         # Capacity limit (100 programs)
         if len(self.episodes_cache) > 100:
             self.episodes_cache.popitem(last=False)

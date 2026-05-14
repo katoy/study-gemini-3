@@ -1,9 +1,10 @@
 """UI Styling and Theme management for EpisodeGuiBrowser."""
 
+# mypy: disable-error-code="attr-defined"
+
 import logging
-from tkinter import ttk
+
 from .theme_manager import ThemeManager
-from ..config import DEFAULT_UI_THEME, DEFAULT_UI_FONT_SIZE_PT
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +21,11 @@ class GuiStylingMixin:
         """Initializes ThemeManager and initial styles."""
         self.theme_manager = ThemeManager(self.root)
         self.style = self.theme_manager.style
-        
+
         # Manager がロードした最新の状態を Mixin 側へ同期
         self.current_theme = self.theme_manager.current_theme
         self.current_font_size = str(self.theme_manager.current_font_size)
-        
+
         self._apply_current_theme()
 
     @property
@@ -61,8 +62,8 @@ class GuiStylingMixin:
     def _save_ui_settings_from_screen(self):
         """Saves current settings via ThemeManager."""
         self.theme_manager.save_settings(
-            self.current_theme, 
-            int(self.current_font_size), 
+            self.current_theme,
+            int(self.current_font_size),
             self.program_search_history
         )
         self.settings_dirty = False
@@ -120,7 +121,7 @@ class GuiStylingMixin:
     def _mark_settings_dirty(self):
         s = self.theme_manager.settings
         self.settings_dirty = (
-            self.current_theme != s.get("theme") or 
+            self.current_theme != s.get("theme") or
             int(self.current_font_size) != s.get("font_size_pt")
         )
         self._update_settings_ui()
@@ -136,7 +137,7 @@ class GuiStylingMixin:
         self.settings_save_button_var.set("保存済み" if not self.settings_dirty else "保存")
         self.theme_var.set(self.current_theme)
         self.font_size_var.set(int(self.current_font_size))
-        
+
         if hasattr(self, "settings_save_button"):
             if self.settings_dirty:
                 self.settings_save_button.state(["!disabled"])

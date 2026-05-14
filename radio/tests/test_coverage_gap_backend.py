@@ -1,17 +1,16 @@
 import unittest
-import tempfile
-import json
-import os
-import subprocess
-import httpx
-import yt_dlp
 from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
-from nhk_radio import downloads, text, config, cache, cli, core
-from nhk_radio.types import Program, Episode
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import yt_dlp  # type: ignore[import-untyped]
+
+from nhk_radio import cache, cli, config, core, downloads, text
+from nhk_radio.types import Program
+
 
 class BackendCoverageCompletionTest(unittest.TestCase):
-    
+
     # --- downloads.py ---
     def test_downloads_file_scan_cache_lru_eviction(self):
         # downloads.py: 204 (LRU eviction logic)
@@ -35,7 +34,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     def test_get_cached_glob_files_oserror_on_stat(self):
         # downloads.py: 191 (OSError on stat)
-        with patch.object(Path, "stat", side_effect=OSError("denied")):
+        with (
+            patch.object(Path, "is_dir", return_value=True),
+            patch.object(Path, "stat", side_effect=OSError("denied")),
+        ):
             self.assertEqual(downloads._get_cached_glob_files(Path("/tmp/any")), [])
 
     def test_get_cached_glob_files_oserror_on_iterdir(self):
@@ -72,11 +74,11 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         with (
             patch("os.fdopen", return_value=MagicMock()),
             patch("tempfile.mkstemp", return_value=(99, "/tmp/tmp123")),
-            patch.object(config.Path, "replace", side_effect=Exception("critical fail")),
+            patch.object(config.Path, "replace", side_effect=RuntimeError("critical fail")),
             patch("os.unlink") as unlink_mock,
             patch.object(config, "_MIGRATION_DONE", True)
         ):
-            with self.assertRaises(Exception):
+            with self.assertRaises(RuntimeError):
                 config._save_ui_settings("dark", "12")
             unlink_mock.assert_called_with("/tmp/tmp123")
 
@@ -132,7 +134,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         # core.py: 50-54, 64-69, 78-80 (HTTP errors)
         import asyncio
         client = MagicMock(spec=httpx.AsyncClient)
-        
+
         # 1) HTTPStatusError
         resp = MagicMock(spec=httpx.Response)
         resp.status_code = 500
@@ -165,14 +167,14 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     def test_fetch_episodes_yt_dlp_error_classification(self):
         # core.py: 312-320 (yt-dlp error msg classification)
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
-        
+
         # ffmpeg missing
         with patch("yt_dlp.YoutubeDL") as ydl:
             instance = ydl.return_value.__enter__.return_value
             instance.extract_info.side_effect = yt_dlp.utils.DownloadError("ffmpeg not found")
             with self.assertRaisesRegex(RuntimeError, "ffmpeg"):
                 core.fetch_episodes(program)
-            
+
             # Connection timeout
             instance.extract_info.side_effect = yt_dlp.utils.DownloadError("connection timeout")
             with self.assertRaisesRegex(RuntimeError, "ネットワーク接続"):

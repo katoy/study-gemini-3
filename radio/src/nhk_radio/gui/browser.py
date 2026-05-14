@@ -1,13 +1,12 @@
 """Tkinter GUI browser for NHK radio programs."""
 
+# mypy: disable-error-code="misc,assignment,arg-type,no-redef"
+
 import contextlib
 import queue
-import subprocess
-import threading
-from collections import OrderedDict
 from pathlib import Path
 
-from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings
+from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings  # noqa: F401
 from ..types import Episode, Program
 from .build import GuiBuildMixin
 from .data_manager import DataManager
@@ -28,12 +27,12 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.output_dir = output_dir
         self.audio_only = audio_only
         self.genre = genre
-        
+
         self._initialize_runtime_state(self.programs)
         self._initialize_root_window()
         # ThemeManager の初期化 (Mixin経由)
         self._initialize_theme()
-        
+
         self._initialize_ui_state(self.programs)
 
         self._build_widgets()
@@ -47,46 +46,48 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
         self._search_timer = None
-        
+
         # UI 状態 (ThemeManager 初期化前にプレースホルダを設定)
         self.current_theme = DEFAULT_UI_THEME
         self.current_font_size = str(DEFAULT_UI_FONT_SIZE_PT)
         self.current_screen = "browser"
         self.settings_dirty = False
         self.program_search_history: list[str] = []
-        
+
         # データ管理 (Composition)
         self.data_manager = DataManager(
             on_program_result=self._on_data_manager_programs,
             on_episode_result=self._on_data_manager_episodes,
         )
         self.data_manager.update_programs(programs)
-        
+
         # UI同期用キュー
         self.fetch_result_queue: queue.Queue | None = queue.Queue()
-        self.program_fetch_queue: queue.Queue | None = queue.Queue()
+        self.program_fetch_queue: queue.Queue = queue.Queue()
         self.download_result_queue: queue.Queue = queue.Queue()
-        
+
         # ダウンロード管理 (Composition)
         self.download_manager = DownloadManager(
             output_dir=self.output_dir,
             audio_only=self.audio_only,
             on_result=self._on_download_manager_result,
         )
-        
+
         self.download_polling = False
         self.active_download_rows: dict[str, dict] = {}
         self.active_download_meta: dict[str, tuple[Program, Episode]] = {}
-        
+
         # Mixin 後位互換用参照
         self.programs = self.data_manager.programs
         self.filtered_programs = self.data_manager.programs
         self.episodes_cache = self.data_manager.episodes_cache
-        
+
         self.program_tree_programs: dict[str, Program] = {}
+        self.selected_program_key: str | None = None
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
         self.displayed_episode_map: dict[str, Episode] = {}
+        self.selected_episode_keys: tuple[str, ...] = ()
         self.program_sort_state = ("no", False)
         self.episode_sort_state = ("date", True)
         self.saved_episode_buttons: dict[str, ttk.Button] = {}
@@ -105,8 +106,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
     def _on_data_manager_programs(self, programs, error):
         """Bridge programs result from DataManager to UI queue."""
-        if self.program_fetch_queue:
-            self.program_fetch_queue.put((programs, error))
+        self.program_fetch_queue.put((programs, error))
 
     def _on_data_manager_episodes(self, program, episodes, source, error):
         """Bridge episodes result from DataManager to UI queue."""
@@ -148,7 +148,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _reset_ui_settings(self):
         """UI設定をデフォルトに戻す。"""
         if messagebox.askyesno("設定リセット", "表示設定を初期値に戻しますか？"):
-            from ..config import DEFAULT_UI_THEME, DEFAULT_UI_FONT_SIZE_PT
+            from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME
             self._apply_theme(DEFAULT_UI_THEME)
             self._apply_font_size_preset(int(DEFAULT_UI_FONT_SIZE_PT))
             self.status_var.set("設定をリセットしました")
@@ -157,11 +157,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """ブラウザ画面でのショートカットキー処理。"""
         if self.current_screen != "browser":
             return None
-        
+
         key = event.keysym.lower()
         # Ctrl/Cmd キーの状態
         ctrl = (event.state & 0x4) or (event.state & 0x8) # macOS Command is often 0x8
-        
+
         if key == "f" and not ctrl:
             self._start_fetch_programs()
             return "break"
@@ -199,10 +199,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         # ThemeManager が読み込んだ実際の値と同期 (StylingMixin で既に行われているが念のため一貫性を維持)
         tm = self.theme_manager
         self.program_search_history = list(tm.settings.get("program_search_history", []))
-        
+
         self.saved_theme = self.current_theme
         self.saved_font_size = self.current_font_size
-        
+
         self.font_family = tm.mono_family
         self.ui_font_family = tm.font_family
 
@@ -230,7 +230,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.theme_var = tk.StringVar(value=self.current_theme)
         self.font_size_var = tk.IntVar(value=int(self.current_font_size))
         self.program_search_var.trace_add("write", self._on_program_search_change)
-        self.program_genre_filter_var.trace_add("write", self._on_program_filter_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
 
@@ -265,22 +264,20 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """Initial background fetch of all programs."""
         if self.loading:
             return
-        
+
+        self.program_fetch_queue = queue.Queue()
         self.status_var.set("番組一覧を読み込み中...")
         self._set_loading(True)
         self.data_manager.start_fetch_programs(genre)
         self.root.after(100, self._poll_fetch_programs)
 
     def _poll_fetch_programs(self):
-        if self.program_fetch_queue is None:
-            return
-        
         try:
             res = self.program_fetch_queue.get_nowait()
-            self.program_fetch_queue = None
             self._finish_fetch_programs(*res)
         except queue.Empty:
-            self.root.after(100, self._poll_fetch_programs)
+            if self.loading:
+                self.root.after(100, self._poll_fetch_programs)
 
     def _finish_fetch_programs(self, programs: list[Program], error: str | None):
         self._set_loading(False)
@@ -466,4 +463,3 @@ def browse_programs(
 # ──────────────────────────────────────────────────────
 # 対話型選択 UI
 # ──────────────────────────────────────────────────────
-

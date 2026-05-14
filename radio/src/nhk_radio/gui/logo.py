@@ -39,7 +39,7 @@ def _draw_brand_logo(canvas, palette: dict[str, str], size: int):
     # 既存の palette 構造に合わせます。
     # 暫定的に primary を使用しつつ、透明度や明るさを調整します。
     primary_color = palette["primary"]
-    
+
     # 円の背景 (薄い青系)
     bg_circle = "#E7F5FF" if palette["bg"].startswith("#F") else "#1A2533"
 

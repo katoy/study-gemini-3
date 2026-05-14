@@ -115,6 +115,17 @@ class CacheHelpersTest(unittest.TestCase):
                 self.assertEqual(payload["schema_version"], cache.CACHE_SCHEMA_VERSION)
                 self.assertTrue(payload["ok"])
 
+    def test_save_json_cache_cleanup_ignores_unlink_error(self):
+        with (
+            patch("tempfile.mkstemp", return_value=(99, "/tmp/cache.tmp")),
+            patch("os.fdopen") as fdopen_mock,
+            patch.object(Path, "replace", side_effect=RuntimeError("boom")),
+            patch("os.unlink", side_effect=OSError("deny")),
+        ):
+            fdopen_mock.return_value.__enter__.return_value.write.return_value = None
+            with self.assertRaises(RuntimeError):
+                cache._save_json_cache(Path("/tmp/cache.json"), {"ok": True})
+
     def test_clear_cache_helpers(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

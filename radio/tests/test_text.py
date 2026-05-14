@@ -12,6 +12,10 @@ class TextHelpersTest(unittest.TestCase):
 
     def test_format_onair_date_normalizes_weekday(self):
         self.assertEqual(text._format_onair_date("2024年04月15日(月)放送"), "2024-04-15(月)")
+        self.assertEqual(
+            text._format_onair_date("2024年04月01日", started_at="2024-04-15T10:00:00+09:00"),
+            "2024-04-15(月)",
+        )
 
     def test_format_onair_date_handles_empty_and_invalid_dates(self):
         self.assertEqual(text._format_onair_date(""), "----------(-)")

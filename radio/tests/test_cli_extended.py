@@ -2,11 +2,12 @@ import argparse
 import subprocess
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from nhk_radio import cli
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
+
 
 class CliExtendedTest(unittest.TestCase):
     def test_select_program_cancel(self):
@@ -53,12 +54,12 @@ class CliExtendedTest(unittest.TestCase):
     def test_select_episodes_with_meta(self):
         episodes = [
             Episode(
-                id="ep1", 
-                title="E1", 
+                id="ep1",
+                title="E1",
                 display_title="E1",
-                date="20240415", 
+                date="20240415",
                 display_date="20240415",
-                broadcast_time="10:00", 
+                broadcast_time="10:00",
                 duration_str="15:00",
                 url=""
             )
@@ -151,6 +152,15 @@ class CliExtendedTest(unittest.TestCase):
         ):
             cli.interactive_mode(Path("/tmp"))
             download_mock.assert_called_once_with(program, episodes, Path("/tmp"), audio_only=True)
+
+    def test_interactive_mode_sets_tk_silence_deprecation_on_darwin(self):
+        with (
+            patch.object(cli.sys, "platform", "darwin"),
+            patch.dict(cli.os.environ, {}, clear=True),
+            patch.object(cli, "browse_programs", return_value=(None, None)),
+        ):
+            cli.interactive_mode(Path("/tmp"))
+            self.assertEqual(cli.os.environ["TK_SILENCE_DEPRECATION"], "1")
 
     def test_interactive_mode_no_programs(self):
         # GUI 起動に失敗し、フォールバックで番組が見つからないケース

@@ -1,9 +1,9 @@
 import asyncio
-import subprocess
 import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import yt_dlp  # type: ignore[import-untyped]
 
 from nhk_radio import core
 from nhk_radio.types import Episode, Program
@@ -23,6 +23,25 @@ class CoreHelpersTest(unittest.TestCase):
         mock_resp.text = "hello"
         with patch("httpx.Client.get", return_value=mock_resp):
             self.assertEqual(core.http_get_text("https://example.com"), "hello")
+
+    def test_http_get_helpers_error_paths(self):
+        error_response = unittest.mock.Mock()
+        error_response.status_code = 500
+        request = unittest.mock.Mock()
+        status_error = httpx.HTTPStatusError("bad", request=request, response=error_response)
+        error_response.raise_for_status.side_effect = status_error
+
+        with patch("httpx.Client.get", return_value=error_response), self.assertRaises(httpx.HTTPStatusError):
+            core.http_get_json("https://example.com")
+
+        request_error = httpx.RequestError("offline", request=request)
+        with patch("httpx.Client.get", side_effect=request_error), self.assertRaises(httpx.RequestError):
+            core.http_get_json("https://example.com")
+
+        text_response = unittest.mock.Mock()
+        text_response.raise_for_status.side_effect = httpx.HTTPError("text fail")
+        with patch("httpx.Client.get", return_value=text_response), self.assertRaises(httpx.HTTPError):
+            core.http_get_text("https://example.com")
 
     def test_http_get_text(self):
         mock_resp = unittest.mock.Mock()
@@ -175,18 +194,18 @@ class CoreHelpersTest(unittest.TestCase):
 
     def test_fetch_episodes_success_and_failure(self):
         program = Program(site_id="SITE", corner_id="01", title="番組A", url="https://example.com/program", display_title="番組A", display_date="----")
-        
+
         # yt_dlp.YoutubeDL をモック
         mock_info = {
             "entries": [
                 {"id": "ep-1", "title": "第1回", "url": "https://example.com/ep1"}
             ]
         }
-        
+
         with patch("yt_dlp.YoutubeDL") as ydl_mock:
             instance = ydl_mock.return_value.__enter__.return_value
             instance.extract_info.return_value = mock_info
-            
+
             episodes = core.fetch_episodes(program, verbose=False)
             self.assertEqual(len(episodes), 1)
             self.assertEqual(episodes[0].id, "ep-1")
@@ -194,8 +213,15 @@ class CoreHelpersTest(unittest.TestCase):
         with patch("yt_dlp.YoutubeDL") as ydl_mock:
             instance = ydl_mock.return_value.__enter__.return_value
             instance.extract_info.side_effect = Exception("failed to fetch")
-            
+
             with self.assertRaisesRegex(RuntimeError, "failed to fetch"):
+                core.fetch_episodes(program, verbose=False)
+
+        with patch("yt_dlp.YoutubeDL") as ydl_mock:
+            instance = ydl_mock.return_value.__enter__.return_value
+            instance.extract_info.side_effect = yt_dlp.utils.DownloadError("playlist parse error")
+
+            with self.assertRaisesRegex(RuntimeError, "番組情報の解析に失敗しました: playlist parse error"):
                 core.fetch_episodes(program, verbose=False)
 
     def test_get_episode_list_and_refresh_episode_list_paths(self):

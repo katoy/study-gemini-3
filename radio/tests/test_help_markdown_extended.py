@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from nhk_radio.gui import help_markdown
 from nhk_radio.types import Program
@@ -63,7 +63,7 @@ Normal paragraph with **strong** and `code`.
 
         # Basic verification of calls
         self.assertTrue(text_widget.insert.called)
-        
+
         # Check H1
         text_widget.insert.assert_any_call("end", "H1 Title", ("h1",))
         # Check Bullet
@@ -80,7 +80,7 @@ Normal paragraph with **strong** and `code`.
         text_widget = MagicMock()
         palette = MagicMock()
         fonts = MagicMock()
-        
+
         markdown = "\n\n\n"
         help_markdown.render_help_markdown(text_widget, markdown, palette, fonts)
         text_widget.insert.assert_any_call("end", "\n")
@@ -89,7 +89,7 @@ Normal paragraph with **strong** and `code`.
         text_widget = MagicMock()
         palette = MagicMock()
         fonts = MagicMock()
-        
+
         markdown = "Line 1\nLine 2\nLine 3"
         help_markdown.render_help_markdown(text_widget, markdown, palette, fonts)
         # "Line 1 Line 2 Line 3" as a single call to _insert_inline_segments
@@ -104,11 +104,11 @@ Normal paragraph with **strong** and `code`.
             match_mock = MagicMock()
             match_mock.span.return_value = (0, 5)
             match_mock.group.return_value = "dummy"
-            
+
             pattern_mock = MagicMock()
             pattern_mock.finditer.return_value = [match_mock]
             compile_mock.return_value = pattern_mock
-            
+
             segments = help_markdown._split_inline_markdown("dummy")
             self.assertEqual(segments, [("text", "dummy")])
 

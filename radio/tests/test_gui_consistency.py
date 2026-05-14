@@ -1,10 +1,12 @@
-import unittest
 import re
-import time
+import tkinter as tk
+import unittest
+from contextlib import suppress
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import tkinter as tk
+
 from nhk_radio.gui.browser import EpisodeGuiBrowser
+
 
 class GuiConsistencyTest(unittest.TestCase):
     """GUIクラスとそのMixin間の属性・メソッドの整合性を検証するテスト。"""
@@ -44,7 +46,7 @@ class GuiConsistencyTest(unittest.TestCase):
         ]
         for p in self.patchers:
             p.start()
-        
+
         # 3) EpisodeGuiBrowser を作成 (初期化時のクラッシュをこの時点で検知)
         try:
             self.browser = EpisodeGuiBrowser([], Path("/tmp"))
@@ -56,10 +58,8 @@ class GuiConsistencyTest(unittest.TestCase):
     def tearDown(self):
         for p in self.patchers:
             p.stop()
-        try:
+        with suppress(Exception):
             self.root.destroy()
-        except Exception:
-            pass
 
     def test_all_self_references_exist(self):
         """
@@ -72,12 +72,12 @@ class GuiConsistencyTest(unittest.TestCase):
 
         gui_dir = Path(__file__).parent.parent / "src" / "nhk_radio" / "gui"
         files = ["browser.py", "build.py", "listing.py", "styling.py", "downloads.py"]
-        
+
         # 除外リスト (外部/標準/動的属性)
         ignored = {
             "root", "master", "data_manager", "theme_manager", "download_manager",
             "programs", "output_dir", "audio_only", "genre", "loading",
-            "after", "bind", "unbind", "focus_get", "destroy", "winfo_exists", 
+            "after", "bind", "unbind", "focus_get", "destroy", "winfo_exists",
             "update_idletasks", "protocol", "mainloop", "geometry", "minsize",
             "nametowidget", "tk", "children", "selection", "item", "delete", "insert",
             "set", "get", "tag_configure", "column", "heading", "yview", "xview",
@@ -93,16 +93,18 @@ class GuiConsistencyTest(unittest.TestCase):
 
         for filename in files:
             file_path = gui_dir / filename
-            if not file_path.exists(): continue
-                
+            if not file_path.exists():
+                continue
+
             content = file_path.read_text(encoding="utf-8")
             lines = [line for line in content.splitlines() if not line.strip().startswith("#")]
-            
+
             for line_no, line in enumerate(lines, 1):
                 for match in pattern.finditer(line):
                     attr_name = match.group(1)
-                    if attr_name in ignored: continue
-                    
+                    if attr_name in ignored:
+                        continue
+
                     if not hasattr(self.browser, attr_name):
                         errors.append(f"{filename}:{line_no} - 'self.{attr_name}' is missing")
 
@@ -113,7 +115,7 @@ class GuiConsistencyTest(unittest.TestCase):
         """過去にエラーが発生した主要なメソッドをモック環境で実行する。"""
         if self.browser is None:
             self.fail(f"Browser failed to initialize: {self._setup_error}")
-        
+
         b = self.browser
         # 1. 状態変更
         b._set_loading(True)
@@ -146,38 +148,47 @@ class GuiConsistencyTest(unittest.TestCase):
 
         gui_dir = Path(__file__).parent.parent / "src" / "nhk_radio" / "gui"
         files = ["browser.py", "build.py", "listing.py", "styling.py", "downloads.py"]
-        
+
         errors = []
         for filename in files:
             path = gui_dir / filename
-            if not path.exists(): continue
-            
+            if not path.exists():
+                continue
+
             tree = ast.parse(path.read_text(encoding="utf-8"))
-            
+
             for node in ast.walk(tree):
                 # self.method(...) 呼び出し
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                    if isinstance(node.func.value, ast.Name) and node.func.value.id == "self":
-                        method_name = node.func.attr
-                        
-                        if method_name in signatures:
-                            sig = signatures[method_name]
-                            params = list(sig.parameters.values())
-                            
-                            # スター付き引数 (*args, **kwargs) がある呼び出しは静的判定が難しいため除外
-                            if any(isinstance(a, ast.Starred) for a in node.args):
-                                continue
-                            
-                            # 呼び出し側の引数カウント
-                            call_arg_count = len(node.args) + len(node.keywords)
-                            
-                            # 定義側の期待範囲
-                            min_args = sum(1 for p in params if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD))
-                            has_varargs = any(p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in params)
-                            max_args = len(params) if not has_varargs else float("inf")
-                            
-                            if call_arg_count < min_args or (call_arg_count > max_args and not has_varargs):
-                                errors.append(f"{filename}:{node.lineno} - {method_name} expected {min_args}-{max_args} args, but got {call_arg_count}")
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "self"
+                ):
+                    method_name = node.func.attr
+
+                    if method_name in signatures:
+                        sig = signatures[method_name]
+                        params = list(sig.parameters.values())
+
+                        # スター付き引数 (*args, **kwargs) がある呼び出しは静的判定が難しいため除外
+                        if any(isinstance(a, ast.Starred) for a in node.args):
+                            continue
+
+                        # 呼び出し側の引数カウント
+                        call_arg_count = len(node.args) + len(node.keywords)
+
+                        # 定義側の期待範囲
+                        min_args = sum(
+                            1 for p in params if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)
+                        )
+                        has_varargs = any(p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in params)
+                        max_args = len(params) if not has_varargs else float("inf")
+
+                        if call_arg_count < min_args or (call_arg_count > max_args and not has_varargs):
+                            errors.append(
+                                f"{filename}:{node.lineno} - {method_name} expected {min_args}-{max_args} args, but got {call_arg_count}"
+                            )
 
         if errors:
             self.fail("Method arity mismatch found:\n" + "\n".join(errors))
