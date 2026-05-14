@@ -328,6 +328,38 @@ def mark_episode_downloaded(
         return saved
 
 
+def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: list[Episode]) -> set[str]:
+    """複数エピソードの保存状態を効率的に判定する（バッチ処理）。
+
+    マニフェスト 1 回読み込みとディレクトリスキャン共有で N+1 問題を解決。
+    """
+    downloaded_keys: set[str] = set()
+    saved_paths = _load_download_manifest(program, output_dir)
+
+    # ステップ 1: マニフェスト確認
+    for episode in episodes:
+        episode_key = _episode_key(episode)
+        saved_path_str = saved_paths.get(episode_key)
+        if saved_path_str:
+            resolved = Path(saved_path_str)
+            if not resolved.is_absolute():
+                resolved = _program_output_dir(output_dir, program) / resolved
+            if resolved.exists():
+                downloaded_keys.add(episode_key)
+
+    # ステップ 2: ディレクトリスキャン (マニフェスト未記録のエピソードのみ)
+    program_dirs = _program_search_dirs(output_dir, program)
+    for program_dir in program_dirs:
+        files = _get_cached_glob_files(program_dir)
+        for episode in episodes:
+            if _episode_key(episode) in downloaded_keys:
+                continue
+            if any(_episode_output_matches(f, program, episode) for f in files):
+                downloaded_keys.add(_episode_key(episode))
+
+    return downloaded_keys
+
+
 def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
     # キャッシュはディレクトリの mtime で自動無効化されるため明示クリアは不要
 
