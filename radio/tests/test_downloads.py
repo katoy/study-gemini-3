@@ -233,8 +233,9 @@ class DownloadHelpersTest(unittest.TestCase):
             file_path = program_dir / "20240415_番組A_第1回.mp3"
             file_path.write_text("dummy", encoding="utf-8")
 
+            # アトミック書き込みで tempfile.mkstemp をモック
             with (
-                patch.object(Path, "write_text", side_effect=OSError("disk full")),
+                patch("tempfile.mkstemp", side_effect=OSError("disk full")),
                 self.assertLogs("nhk_radio.downloads", level="WARNING") as logs,
             ):
                 result = downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, file_path)

@@ -181,11 +181,27 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
 
 
 def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
-    """マニフェストを保存する。失敗時は warning を出して False を返す。"""
+    """マニフェストをアトミックに保存する。失敗時は warning を出して False を返す。
+
+    一時ファイルへ書き込み後に rename するため、プロセスクラッシュ時も破損しない。
+    """
+    import os
+    import tempfile
+    from contextlib import suppress
+
     manifest_path = _download_manifest_path(program, output_dir)
     try:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(json.dumps({"paths": paths}, ensure_ascii=False), encoding="utf-8")
+        text = json.dumps({"paths": paths}, ensure_ascii=False)
+        fd, tmp_path = tempfile.mkstemp(dir=manifest_path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(text)
+            Path(tmp_path).replace(manifest_path)
+        except BaseException:
+            with suppress(OSError):
+                os.unlink(tmp_path)
+            raise
     except OSError as e:
         logger.warning(f"ダウンロード履歴の保存に失敗: {manifest_path} ({e})")
         return False
