@@ -153,6 +153,15 @@ class CliExtendedTest(unittest.TestCase):
             cli.interactive_mode(Path("/tmp"))
             download_mock.assert_called_once_with(program, episodes, Path("/tmp"), audio_only=True)
 
+    def test_interactive_mode_sets_tk_silence_deprecation_on_darwin(self):
+        with (
+            patch.object(cli.sys, "platform", "darwin"),
+            patch.dict(cli.os.environ, {}, clear=True),
+            patch.object(cli, "browse_programs", return_value=(None, None)),
+        ):
+            cli.interactive_mode(Path("/tmp"))
+            self.assertEqual(cli.os.environ["TK_SILENCE_DEPRECATION"], "1")
+
     def test_interactive_mode_no_programs(self):
         # GUI 起動に失敗し、フォールバックで番組が見つからないケース
         with (

@@ -54,6 +54,19 @@ class ConfigHelpersTest(unittest.TestCase):
             self.assertEqual(config._program_cache_dir(), Path("/home/tester/.cache/nhk_radio/programs"))
             self.assertEqual(config._episode_cache_dir(), Path("/home/tester/.cache/nhk_radio/episodes"))
 
+        with (
+            patch.object(config.sys, "platform", "darwin"),
+            patch.object(config.os, "name", "posix"),
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(Path, "home", return_value=Path("/Users/tester")),
+            patch("nhk_radio.config._find_project_root", return_value=None),
+        ):
+            self.assertEqual(config._default_user_cache_root(), Path("/Users/tester/Library/Caches/nhk_radio"))
+            self.assertEqual(
+                config._default_user_config_root(),
+                Path("/Users/tester/Library/Application Support/nhk_radio"),
+            )
+
     def test_find_project_root_returns_none_when_markers_missing(self):
         with (
             patch.object(Path, "exists", return_value=False),
