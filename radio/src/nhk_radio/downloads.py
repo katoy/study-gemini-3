@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import threading
+import time
 from collections import OrderedDict
 from pathlib import Path
 
@@ -25,6 +26,13 @@ _MANIFEST_LOCKS_GUARD = threading.Lock()
 _FILE_SCAN_CACHE_MAX_SIZE = 200
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
+
+# マニフェスト読み込み結果のキャッシュ（短期 TTL）。
+# GUI レンダリングで is_episode_downloaded が何度も呼ばれるため、
+# 番組単位で manifest の読み込み結果を時間限定で保持する。
+_MANIFEST_CACHE_TTL_SECONDS = 10
+_MANIFEST_CACHE: dict[Path, tuple[float, dict[str, str]]] = {}
+_MANIFEST_CACHE_LOCK = threading.Lock()
 
 
 def _program_output_dir(output_dir: Path, program: Program) -> Path:
@@ -122,9 +130,30 @@ def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLo
 
 
 def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str]:
-    """保存済みエピソードのパス辞書を返す (key: episode_key, value: 相対or絶対パス)"""
+    """保存済みエピソードのパス辞書を返す (key: episode_key, value: 相対or絶対パス)
+
+    短期キャッシュにより、同一番組への繰り返しアクセスの I/O 負荷を削減。
+    ファイルの mtime 変化を検出してキャッシュを無効化。
+    """
+    primary_manifest_path = _download_manifest_path(program, output_dir)
+
+    # プライマリマニフェストの mtime を取得
+    try:
+        primary_mtime = primary_manifest_path.stat().st_mtime if primary_manifest_path.exists() else -1.0
+    except OSError:
+        primary_mtime = -1.0
+
+    # キャッシュをチェック: TTL と mtime の両方を確認
+    with _MANIFEST_CACHE_LOCK:
+        if primary_manifest_path in _MANIFEST_CACHE:
+            cached_at, cached_mtime, cached_data = _MANIFEST_CACHE[primary_manifest_path]
+            if (time.time() - cached_at < _MANIFEST_CACHE_TTL_SECONDS and
+                cached_mtime == primary_mtime):
+                return cached_data
+
+    # キャッシュミス: ディスクから読み込み
     saved_paths: dict[str, str] = {}
-    manifest_paths = [_download_manifest_path(program, output_dir)]
+    manifest_paths = [primary_manifest_path]
     for legacy_dir in _legacy_program_output_dirs(output_dir, program):
         manifest_path = legacy_dir / ".downloaded.json"
         if manifest_path not in manifest_paths:
@@ -143,6 +172,10 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
         if isinstance(paths, dict):
             for key, value in paths.items():
                 saved_paths[str(key)] = str(value)
+
+    # キャッシュに格納 (timestamp, mtime, data)
+    with _MANIFEST_CACHE_LOCK:
+        _MANIFEST_CACHE[primary_manifest_path] = (time.time(), primary_mtime, saved_paths)
 
     return saved_paths
 
@@ -226,6 +259,20 @@ def _clear_file_scan_cache(directory: Path | None = None):
             _FILE_SCAN_CACHE.clear()
 
 
+def _clear_manifest_cache(manifest_path: Path | None = None):
+    """マニフェストキャッシュをクリアする。
+
+    Args:
+        manifest_path: 特定の番組のマニフェストをクリアする場合は指定。
+                      None の場合はすべてクリア。
+    """
+    with _MANIFEST_CACHE_LOCK:
+        if manifest_path:
+            _MANIFEST_CACHE.pop(manifest_path, None)
+        else:
+            _MANIFEST_CACHE.clear()
+
+
 def _episode_output_candidates(program_dir: Path, program: Program, episode: Episode) -> list[Path]:
     candidates: list[Path] = []
     seen: set[Path] = set()
@@ -276,6 +323,8 @@ def mark_episode_downloaded(
                 saved_paths[episode_key] = str(path)
         saved = _save_download_manifest(program, output_dir, saved_paths)
         _clear_file_scan_cache(program_dir)
+        # マニフェストが更新されたので、キャッシュも無効化
+        _clear_manifest_cache(_download_manifest_path(program, output_dir))
         return saved
 
 
