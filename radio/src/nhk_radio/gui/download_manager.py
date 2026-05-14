@@ -121,12 +121,14 @@ class DownloadManager:
         finally:
             terminal_event_data: Any = None
             if success:
-                # 履歴同期（最大3回試行）
-                for _ in range(3):
+                # 履歴同期（最大3回試行、指数バックオフ）
+                # 最初は即座、失敗時に 0.1秒・0.2秒 待機
+                for delay in [0, 0.1, 0.2]:
                     terminal_event_data = sync_episode_download_history(self.output_dir, program, episode)
                     if terminal_event_data:
                         break
-                    time.sleep(0.2)
+                    if delay > 0:
+                        time.sleep(delay)
                 res_type = "done_one"
             else:
                 if not cancel_event.is_set():
