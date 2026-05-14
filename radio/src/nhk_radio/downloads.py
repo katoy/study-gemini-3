@@ -562,7 +562,14 @@ def run_yt_dlp_subprocess(
                     if percent is not None or eta is not None or status is not None:
                         on_progress(percent, eta, status)
 
-        return process.wait() == 0
+        # タイムアウト 120 秒で wait
+        try:
+            return process.wait(timeout=120) == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("yt-dlp プロセスが応答しません。強制終了します。")
+            process.kill()
+            process.wait()
+            return False
     except Exception as e:
         logger.error(f"yt-dlp 実行エラー: {e}")
         if process is not None:
