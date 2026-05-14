@@ -24,7 +24,12 @@ _MANIFEST_LOCKS_GUARD = threading.Lock()
 # 同一セッション内でのファイル走査結果キャッシュ。
 # mtime ベースの自動無効化により古いエントリは再スキャン時に上書きされる。
 # メモリリーク防止のため、最大エントリ数を制限する。
-_FILE_SCAN_CACHE_MAX_SIZE = 200
+# 環境変数 NHK_RADIO_FILE_SCAN_CACHE_SIZE で上書き可能（デフォルト 100）
+def _get_file_scan_cache_max_size() -> int:
+    import os
+    return int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
+
+_FILE_SCAN_CACHE_MAX_SIZE = _get_file_scan_cache_max_size()
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
 
@@ -263,9 +268,10 @@ def _get_cached_glob_files(directory: Path) -> list[Path]:
             return []
 
         _FILE_SCAN_CACHE[directory] = (current_mtime, files)
-        # 容量制限
+        # 容量制限（超過時は最古エントリを削除）
         if len(_FILE_SCAN_CACHE) > _FILE_SCAN_CACHE_MAX_SIZE:
-            _FILE_SCAN_CACHE.popitem(last=False)
+            removed_path, _ = _FILE_SCAN_CACHE.popitem(last=False)
+            logger.debug(f"ファイルスキャンキャッシュ超過。削除: {removed_path}")
         return files
 
 def _clear_file_scan_cache(directory: Path | None = None):
