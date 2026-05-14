@@ -243,5 +243,29 @@ class GuiSmokeTest(unittest.TestCase):
             for patcher in self.patchers:
                 patcher.start()
 
+    def test_start_fetch_programs_can_run_multiple_times(self):
+        """番組一覧再取得を繰り返してもキューが無効化されない。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        browser.root.after = MagicMock()
+        browser.data_manager.start_fetch_programs = MagicMock()
+
+        browser._start_fetch_programs()
+        first_poll = browser.root.after.call_args[0][1]
+        browser.program_fetch_queue.put((self.programs, None))
+        first_poll()
+        self.assertFalse(browser.loading)
+
+        browser.root.after.reset_mock()
+        browser._start_fetch_programs()
+        second_poll = browser.root.after.call_args[0][1]
+        browser.program_fetch_queue.put((self.programs, None))
+        second_poll()
+
+        self.assertFalse(browser.loading)
+        self.assertEqual(browser.data_manager.start_fetch_programs.call_count, 2)
+        self.assertEqual(browser.status_var.get(), "読み込み完了")
+
 if __name__ == "__main__":
     unittest.main()

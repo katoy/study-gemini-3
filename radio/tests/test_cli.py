@@ -83,6 +83,29 @@ class CliHelpersTest(unittest.TestCase):
         write_mock.assert_any_call("\n")
         self.assertGreaterEqual(flush_mock.call_count, 2)
 
+    def test_download_episode_cleans_up_process_on_unexpected_error(self):
+        process = unittest.mock.Mock()
+
+        class BrokenStdout:
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                raise RuntimeError("broken stream")
+
+        process.stdout = BrokenStdout()
+
+        with (
+            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli.subprocess, "Popen", return_value=process),
+            patch("nhk_radio.cli.logger") as logger_mock,
+        ):
+            self.assertFalse(cli.download_episode("http://url", Path("/tmp"), "tmpl"))
+
+        process.terminate.assert_called_once()
+        process.wait.assert_called_once()
+        logger_mock.error.assert_called()
+
     def test_download_url_direct_success(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
         with (

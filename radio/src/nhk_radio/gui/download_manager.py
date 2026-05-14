@@ -115,6 +115,9 @@ class DownloadManager:
             with self.process_lock:
                 self.processes[episode_key] = process
 
+            if cancel_event.is_set():
+                process.terminate()
+
             if process.stdout:
                 for line in process.stdout:
                     if cancel_event.is_set():
@@ -132,24 +135,23 @@ class DownloadManager:
             logger.error(f"Download thread error: {e}")
             success = False
         finally:
+            terminal_event_data: Any = None
+            if success:
+                # 履歴同期
+                for _ in range(3):
+                    terminal_event_data = sync_episode_download_history(self.output_dir, program, episode)
+                    if terminal_event_data:
+                        break
+                    time.sleep(0.2)
+                res_type = "done_one"
+            else:
+                if not cancel_event.is_set():
+                    cleanup_partial_episode_files(self.output_dir, program, episode)
+                res_type = "cancelled_one" if cancel_event.is_set() else "failed_one"
+
+            self.on_result(res_type, episode_key, program, episode, terminal_event_data)
+
             with self.process_lock:
                 self.processes.pop(episode_key, None)
                 self.cancel_events.pop(episode_key, None)
                 self.finished_count += 1
-
-            if success:
-                # 履歴同期
-                downloaded_path = None
-                for _ in range(3):
-                    downloaded_path = sync_episode_download_history(self.output_dir, program, episode)
-                    if downloaded_path:
-                        break
-                    time.sleep(0.2)
-
-                self.on_result("done_one", episode_key, program, episode, downloaded_path)
-            else:
-                if not cancel_event.is_set():
-                    cleanup_partial_episode_files(self.output_dir, program, episode)
-
-                res_type = "cancelled_one" if cancel_event.is_set() else "failed_one"
-                self.on_result(res_type, episode_key, program, episode, None)

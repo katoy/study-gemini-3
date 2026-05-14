@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 from .cache import clear_all_cache
@@ -121,6 +122,7 @@ def download_episode(
     """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
+    process = None
 
     if verbose:
         logger.info(f"ダウンロード開始: {url}")
@@ -148,12 +150,16 @@ def download_episode(
 
         return process.wait() == 0
     except KeyboardInterrupt:
-        if "process" in locals():
+        if process is not None:
             process.terminate()
             process.wait()
         print("\n  中断されました。")
         return False
     except Exception as e:
+        if process is not None:
+            with suppress(Exception):
+                process.terminate()
+                process.wait()
         logger.error(f"ダウンロード実行エラー: {e}")
         return False
 

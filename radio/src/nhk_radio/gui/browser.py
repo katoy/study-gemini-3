@@ -63,7 +63,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
         # UI同期用キュー
         self.fetch_result_queue: queue.Queue | None = queue.Queue()
-        self.program_fetch_queue: queue.Queue | None = queue.Queue()
+        self.program_fetch_queue: queue.Queue = queue.Queue()
         self.download_result_queue: queue.Queue = queue.Queue()
 
         # ダウンロード管理 (Composition)
@@ -106,8 +106,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
     def _on_data_manager_programs(self, programs, error):
         """Bridge programs result from DataManager to UI queue."""
-        if self.program_fetch_queue:
-            self.program_fetch_queue.put((programs, error))
+        self.program_fetch_queue.put((programs, error))
 
     def _on_data_manager_episodes(self, program, episodes, source, error):
         """Bridge episodes result from DataManager to UI queue."""
@@ -266,21 +265,19 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         if self.loading:
             return
 
+        self.program_fetch_queue = queue.Queue()
         self.status_var.set("番組一覧を読み込み中...")
         self._set_loading(True)
         self.data_manager.start_fetch_programs(genre)
         self.root.after(100, self._poll_fetch_programs)
 
     def _poll_fetch_programs(self):
-        if self.program_fetch_queue is None:
-            return
-
         try:
             res = self.program_fetch_queue.get_nowait()
-            self.program_fetch_queue = None
             self._finish_fetch_programs(*res)
         except queue.Empty:
-            self.root.after(100, self._poll_fetch_programs)
+            if self.loading:
+                self.root.after(100, self._poll_fetch_programs)
 
     def _finish_fetch_programs(self, programs: list[Program], error: str | None):
         self._set_loading(False)
