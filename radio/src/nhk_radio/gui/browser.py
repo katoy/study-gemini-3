@@ -113,13 +113,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         if self.fetch_result_queue:
             self.fetch_result_queue.put((program, episodes, source, error))
 
-    def _clear_cache(self):
-        """キャッシュをクリアする。"""
-        if messagebox.askyesno("キャッシュ削除", "番組一覧とエピソードのキャッシュをすべて削除しますか？"):
-            from ..cache import clear_all_cache
-            clear_all_cache()
-            self._reset_ui_state_after_cache_clear()
-
     def _toggle_settings_screen(self):
         """設定画面とブラウザ画面を切り替える。"""
         if self.current_screen == "browser":
@@ -152,23 +145,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             self._apply_theme(DEFAULT_UI_THEME)
             self._apply_font_size_preset(int(DEFAULT_UI_FONT_SIZE_PT))
             self.status_var.set("設定をリセットしました")
-
-    def _handle_browser_shortcut(self, event):
-        """ブラウザ画面でのショートカットキー処理。"""
-        if self.current_screen != "browser":
-            return None
-
-        key = event.keysym.lower()
-        # Ctrl/Cmd キーの状態
-        ctrl = (event.state & 0x4) or (event.state & 0x8) # macOS Command is often 0x8
-
-        if key == "f" and not ctrl:
-            self._start_fetch_programs()
-            return "break"
-        if key == "d" and not ctrl:
-            self._start_download_selected()
-            return "break"
-        return None
 
     def _discard_unsaved_settings(self):
         """保存されていない設定を破棄して現在の状態に戻す。"""
@@ -249,11 +225,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         else:
             self.progress_text_var.set(text)
 
-    def _update_selected_cell_ui(self, meta: str, value: str):
-        """選択されたセルの情報をUIに反映する。"""
-        self.selected_cell_meta_var.set(meta)
-        self.selected_cell_value_var.set(value)
-
     def _reset_ui_state_after_cache_clear(self):
         """キャッシュクリア後にUI表示を初期化する。"""
         self.episodes_cache.clear()
@@ -329,18 +300,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             getattr(self, "episode_search_entry", None),
             getattr(self, "selected_cell_entry", None),
         }
-
-    def _focus_program_search(self, _event=None):
-        if hasattr(self, "program_search_entry"):
-            self.program_search_entry.focus_set()
-            self.program_search_entry.icursor("end")
-        return "break"
-
-    def _focus_episode_search(self, _event=None):
-        if hasattr(self, "episode_search_entry"):
-            self.episode_search_entry.focus_set()
-            self.episode_search_entry.icursor("end")
-        return "break"
 
     def _show_help_dialog(self, _event=None):
         if self.help_popup is not None and self.help_popup.winfo_exists():
