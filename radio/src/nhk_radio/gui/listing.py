@@ -659,7 +659,7 @@ class GuiListingMixin:
 
     def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
         """指定した番組のキャッシュされたエピソードを返す。"""
-        return self.data_manager.load_cached_episodes(program)
+        return self.data_manager.get_cached_episodes(program, ttl_seconds=10**12)
 
 
 __all__ = ["GuiListingMixin"]
