@@ -86,11 +86,11 @@ class TestGuiComprehensive(unittest.TestCase):
 
         with (
             patch.object(browser, "_tree_cell_from_event", return_value=("iid1", "#1", "  ☑")),
-            patch.object(browser, "_open_downloaded_episode_folder") as open_folder_mock,
+            patch.object(browser, "_play_episode_file") as play_file_mock,
         ):
             result = browser._on_episode_tree_click(MagicMock())
-            self.assertEqual(result, "break")  # フォルダ開きで "break" を返す
-            open_folder_mock.assert_called_once_with("iid1")
+            self.assertEqual(result, "break")  # 再生で "break" を返す
+            play_file_mock.assert_called_once_with("iid1")
 
     def test_build_widgets_full(self):
         # 非常に多くのパッチが必要なため、ネストを一段階に抑える

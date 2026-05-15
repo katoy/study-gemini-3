@@ -554,10 +554,10 @@ class GuiListingMixin:
             return None
         item_id, column_id, value = cell
 
-        # ☑ マーク（保存済みインジケータ）クリックでフォルダを開く
+        # ☑ マーク（保存済みインジケータ）クリックでデフォルトプレイヤーで再生
         # column_id は "#1"（saved カラムのインデックス）
         if column_id == "#1" and "☑" in str(value):
-            self._open_downloaded_episode_folder(item_id)
+            self._play_episode_file(item_id)
             return "break"
 
         self._set_selected_tree_cell(self.episode_tree, column_id, value)
@@ -596,7 +596,7 @@ class GuiListingMixin:
         # column_id は "#1"（saved カラムのインデックス）
         if cell and cell[1] == "#1" and "☑" in str(cell[2]):
             self.episode_tree.config(cursor="hand2")
-            self._show_tooltip(event, "クリック: フォルダを開く | 右クリック: メニュー")
+            self._show_tooltip(event, "クリック: 再生 | 右クリック: メニュー")
         else:
             self.episode_tree.config(cursor="")
             self._hide_tooltip()
