@@ -591,17 +591,20 @@ class GuiListingMixin:
         self._render_episode_rows(program, episodes, clear_selection=False)
 
     def _on_episode_tree_motion(self, event):
-        """マウスホバーで saved カラムの ☑ マークに hand cursor を表示。"""
+        """マウスホバーで saved カラムの ☑ マークに hand cursor と tooltip を表示。"""
         cell = self._tree_cell_from_event(self.episode_tree, event)
         # column_id は "#1"（saved カラムのインデックス）
         if cell and cell[1] == "#1" and "☑" in str(cell[2]):
             self.episode_tree.config(cursor="hand2")
+            self._show_tooltip(event, "フォルダを開く")
         else:
             self.episode_tree.config(cursor="")
+            self._hide_tooltip()
 
     def _on_episode_tree_leave(self, _event):
-        """マウスが tree を離れたら cursor をリセット。"""
+        """マウスが tree を離れたら cursor と tooltip をリセット。"""
         self.episode_tree.config(cursor="")
+        self._hide_tooltip()
 
     def _on_episode_tree_configure(self, _event):
         pass
