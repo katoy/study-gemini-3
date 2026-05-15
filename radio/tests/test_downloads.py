@@ -428,36 +428,30 @@ class DownloadHelpersTest(unittest.TestCase):
 
     def test_open_downloaded_folder_success_macos(self):
         """open_downloaded_folder() が macOS で正常に動作することをテスト。"""
-        import subprocess
         with tempfile.TemporaryDirectory() as tmp:
             folder_path = Path(tmp)
-            with patch("sys.platform", "darwin"):
-                with patch("subprocess.run") as run_mock:
-                    result = downloads.open_downloaded_folder(folder_path)
-                    self.assertTrue(result)
-                    run_mock.assert_called_once_with(["open", str(folder_path)], check=True)
+            with patch("sys.platform", "darwin"), patch("subprocess.run") as run_mock:
+                result = downloads.open_downloaded_folder(folder_path)
+                self.assertTrue(result)
+                run_mock.assert_called_once_with(["open", str(folder_path)], check=True)
 
     def test_open_downloaded_folder_success_windows(self):
         """open_downloaded_folder() が Windows で正常に動作することをテスト。"""
-        import subprocess
         with tempfile.TemporaryDirectory() as tmp:
             folder_path = Path(tmp)
-            with patch("sys.platform", "win32"):
-                with patch("subprocess.run") as run_mock:
-                    result = downloads.open_downloaded_folder(folder_path)
-                    self.assertTrue(result)
-                    run_mock.assert_called_once_with(["explorer", str(folder_path)], check=True)
+            with patch("sys.platform", "win32"), patch("subprocess.run") as run_mock:
+                result = downloads.open_downloaded_folder(folder_path)
+                self.assertTrue(result)
+                run_mock.assert_called_once_with(["explorer", str(folder_path)], check=True)
 
     def test_open_downloaded_folder_success_linux(self):
         """open_downloaded_folder() が Linux で正常に動作することをテスト。"""
-        import subprocess
         with tempfile.TemporaryDirectory() as tmp:
             folder_path = Path(tmp)
-            with patch("sys.platform", "linux"):
-                with patch("subprocess.run") as run_mock:
-                    result = downloads.open_downloaded_folder(folder_path)
-                    self.assertTrue(result)
-                    run_mock.assert_called_once_with(["xdg-open", str(folder_path)], check=True)
+            with patch("sys.platform", "linux"), patch("subprocess.run") as run_mock:
+                result = downloads.open_downloaded_folder(folder_path)
+                self.assertTrue(result)
+                run_mock.assert_called_once_with(["xdg-open", str(folder_path)], check=True)
 
     def test_open_downloaded_folder_nonexistent(self):
         """open_downloaded_folder() が存在しないフォルダで False を返すことをテスト。"""
@@ -468,12 +462,14 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_open_downloaded_folder_command_error(self):
         """open_downloaded_folder() がコマンド失敗時に False を返すことをテスト。"""
         import subprocess
-        with tempfile.TemporaryDirectory() as tmp:
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("sys.platform", "darwin"),
+            patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "open")),
+        ):
             folder_path = Path(tmp)
-            with patch("sys.platform", "darwin"):
-                with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "open")):
-                    result = downloads.open_downloaded_folder(folder_path)
-                    self.assertFalse(result)
+            result = downloads.open_downloaded_folder(folder_path)
+            self.assertFalse(result)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from contextlib import suppress
 from tkinter import ttk
 
 from ..config import SEARCH_HISTORY_LIMIT
-from ..downloads import _episode_key, get_downloaded_episode_keys, is_episode_downloaded
+from ..downloads import _episode_key, get_downloaded_episode_keys
 from ..text import (
     _genre_label,
     _sortable_duration_value,

@@ -5,7 +5,6 @@ import logging
 import os
 import subprocess
 import sys
-from contextlib import suppress
 from pathlib import Path
 
 from .cache import clear_all_cache
