@@ -71,6 +71,10 @@ class GuiDownloadsMixin:
 
     def _start_download_selected(self, _event=None):
         """UI event handler for Download button."""
+        import tkinter.messagebox as mb
+
+        from ..downloads import find_episode_downloaded_path
+
         if self.displayed_program is None:
             return "break"
 
@@ -84,6 +88,35 @@ class GuiDownloadsMixin:
             return "break"
 
         program = self.displayed_program
+
+        # 既に保存済みのエピソードをチェック
+        existing_episodes = []
+        for episode in selected:
+            path = find_episode_downloaded_path(self.output_dir, program, episode)
+            if path is not None:
+                existing_episodes.append((episode, path))
+
+        # 上書き確認
+        if existing_episodes:
+            episode_names = "\n".join(f"  • {ep.display_title or ep.title}" for ep, _ in existing_episodes)
+            if not mb.askyesno(
+                "ファイルが既に存在します",
+                f"以下のエピソードは既に保存済みです。\n上書きしてダウンロードしますか？\n\n{episode_names}",
+                parent=self.root,
+            ):
+                return "break"
+
+            # 既存ファイルを削除
+            from ..downloads import remove_episode_from_manifest
+
+            for episode, path in existing_episodes:
+                try:
+                    path.unlink()
+                    remove_episode_from_manifest(self.output_dir, program, episode)
+                except OSError as e:
+                    self.status_var.set(f"既存ファイルの削除に失敗しました: {e}")
+                    return "break"
+
         new_jobs_count = 0
         for episode in selected:
             episode_key = _episode_key(episode)
