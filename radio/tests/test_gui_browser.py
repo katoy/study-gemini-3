@@ -85,7 +85,7 @@ class TestGuiComprehensive(unittest.TestCase):
         browser.displayed_program = self.programs[0]
 
         with (
-            patch.object(browser, "_tree_cell_from_event", return_value=("iid1", "saved", "  ☑")),
+            patch.object(browser, "_tree_cell_from_event", return_value=("iid1", "#1", "  ☑")),
             patch.object(browser, "_open_downloaded_episode_folder") as open_folder_mock,
         ):
             result = browser._on_episode_tree_click(MagicMock())

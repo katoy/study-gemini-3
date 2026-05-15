@@ -555,7 +555,8 @@ class GuiListingMixin:
         item_id, column_id, value = cell
 
         # ☑ マーク（保存済みインジケータ）クリックでフォルダを開く
-        if column_id == "saved" and "☑" in str(value):
+        # column_id は "#1"（saved カラムのインデックス）
+        if column_id == "#1" and "☑" in str(value):
             self._open_downloaded_episode_folder(item_id)
             return "break"
 
@@ -592,7 +593,8 @@ class GuiListingMixin:
     def _on_episode_tree_motion(self, event):
         """マウスホバーで saved カラムの ☑ マークに hand cursor を表示。"""
         cell = self._tree_cell_from_event(self.episode_tree, event)
-        if cell and cell[1] == "saved" and "☑" in str(cell[2]):
+        # column_id は "#1"（saved カラムのインデックス）
+        if cell and cell[1] == "#1" and "☑" in str(cell[2]):
             self.episode_tree.config(cursor="hand2")
         else:
             self.episode_tree.config(cursor="")
