@@ -141,6 +141,34 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(entry.display_title, "コーナー")
         self.assertEqual(entry.genre, "language")
 
+    def test_fetch_all_concurrency_limited(self):
+        """_fetch_all_async() が MAX_CONCURRENT_API_REQUESTS を超える同時リクエストを送らないことを確認"""
+        from nhk_radio.constants import MAX_CONCURRENT_API_REQUESTS
+
+        concurrent_count = 0
+        max_concurrent = 0
+        lock = asyncio.Lock()
+
+        async def mock_http_get_json_async(client, url, **kwargs):
+            nonlocal concurrent_count, max_concurrent
+            async with lock:
+                concurrent_count += 1
+                max_concurrent = max(max_concurrent, concurrent_count)
+            try:
+                await asyncio.sleep(0.05)
+                return {"series": []}
+            finally:
+                async with lock:
+                    concurrent_count -= 1
+
+        with (
+            patch.object(core, "NHK_GENRES", ["language", "music", "news", "drama", "sports", "documentary", "variety"]),
+            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=mock_http_get_json_async),
+            patch("nhk_radio.core.logger"),
+        ):
+            asyncio.run(core._fetch_all_async())
+        self.assertLessEqual(max_concurrent, MAX_CONCURRENT_API_REQUESTS)
+
     def test_fetch_all_merges_genres_and_falls_back(self):
         # http_get_json_async をモック
         with (

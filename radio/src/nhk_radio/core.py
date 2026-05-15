@@ -22,6 +22,7 @@ from .cache import load_episode_cache, load_program_cache, save_episode_cache, s
 from .constants import (
     _HEADERS,
     GENRE_LABELS,
+    MAX_CONCURRENT_API_REQUESTS,
     NHK_API_GENRE,
     NHK_API_NEW_CORNERS,
     NHK_DETAIL_TMPL,
@@ -193,13 +194,16 @@ async def _fetch_all_async() -> list[Program]:
             logger.debug(f"最新追加の取得に失敗 (スキップ): {e}")
 
         # 2) 各ジャンルを追加 (並列取得して補完)
+        sem = asyncio.Semaphore(MAX_CONCURRENT_API_REQUESTS)
+
         async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
-            try:
-                data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
-                return g, data
-            except (httpx.HTTPError, ValueError) as e:
-                logger.debug(f"ジャンル {g} の取得に失敗 (スキップ): {e}")
-                return g, None
+            async with sem:
+                try:
+                    data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
+                    return g, data
+                except (httpx.HTTPError, ValueError) as e:
+                    logger.debug(f"ジャンル {g} の取得に失敗 (スキップ): {e}")
+                    return g, None
 
         tasks = [fetch_genre(g) for g in NHK_GENRES]
         results = await asyncio.gather(*tasks)

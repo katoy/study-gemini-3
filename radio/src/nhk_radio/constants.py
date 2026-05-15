@@ -8,6 +8,9 @@ NHK_EPISODE_TMPL = "https://www.nhk.or.jp/radio/player/ondemand.html?p={site_id}
 
 NHK_GENRES = ["language", "music", "news", "drama", "sports", "documentary", "variety"]
 
+# NHK API への同時リクエスト数の上限。過剰な負荷をかけないための制御。
+MAX_CONCURRENT_API_REQUESTS = 3
+
 # NHK Radio API へのリクエストに使用する User-Agent。
 # ブロックされるようなら Chrome の最新版番号に更新すること (最終確認: 2025-04)。
 _UA = (
