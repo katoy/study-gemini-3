@@ -430,6 +430,21 @@ def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Ep
     return None
 
 
+def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Episode) -> bool:
+    """マニフェストから指定エピソードを削除する。"""
+    with _download_manifest_lock(program, output_dir):
+        saved_paths = _load_download_manifest(program, output_dir)
+        episode_key = _episode_key(episode)
+        if episode_key not in saved_paths:
+            return False
+        del saved_paths[episode_key]
+        saved = _save_download_manifest(program, output_dir, saved_paths)
+        program_dir = _program_output_dir(output_dir, program)
+        _clear_file_scan_cache(program_dir)
+        _clear_manifest_cache(_download_manifest_path(program, output_dir))
+        return saved
+
+
 def sync_episode_download_history(output_dir: Path, program: Program, episode: Episode) -> Path | None:
     """ディスク上の実ファイルを確認し、必要に応じてマニフェストを更新する (明示的な副作用)。"""
     path = find_episode_downloaded_path(output_dir, program, episode)

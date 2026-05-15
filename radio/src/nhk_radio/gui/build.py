@@ -551,6 +551,8 @@ class GuiBuildMixin:
         self.episode_tree.bind("<<TreeviewSelect>>", self._on_episode_selection_change)
         self.episode_tree.bind("<Control-c>", self._copy_selected_cell_to_clipboard)
         self.episode_tree.bind("<Command-c>", self._copy_selected_cell_to_clipboard)
+        self.episode_tree.bind("<Button-2>", self._on_episode_tree_right_click)
+        self.episode_tree.bind("<Button-3>", self._on_episode_tree_right_click)
         self.root.bind_all("<Control-f>", self._focus_program_search, add="+")
         self.root.bind_all("<Command-f>", self._focus_program_search, add="+")
         self.root.bind_all("<Control-l>", self._focus_episode_search, add="+")
