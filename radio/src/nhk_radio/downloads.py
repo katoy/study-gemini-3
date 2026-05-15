@@ -583,3 +583,35 @@ def run_yt_dlp_subprocess(
                 process.terminate()
                 process.wait()
         return False
+
+
+def open_downloaded_folder(folder_path: Path) -> bool:
+    """ダウンロード済みエピソードの保存先フォルダをファイルマネージャーで開く。
+
+    Args:
+        folder_path: 開くフォルダのパス
+
+    Returns:
+        成功時 True、失敗時 False
+    """
+    import subprocess
+    import sys
+
+    if not folder_path.exists():
+        logger.warning(f"フォルダが存在しません: {folder_path}")
+        return False
+
+    try:
+        if sys.platform == "darwin":
+            # macOS
+            subprocess.run(["open", str(folder_path)], check=True)
+        elif sys.platform == "win32":
+            # Windows
+            subprocess.run(["explorer", str(folder_path)], check=True)
+        else:
+            # Linux その他
+            subprocess.run(["xdg-open", str(folder_path)], check=True)
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.error(f"フォルダを開く際にエラー: {e}")
+        return False

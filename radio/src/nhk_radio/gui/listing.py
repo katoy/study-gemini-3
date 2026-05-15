@@ -552,7 +552,13 @@ class GuiListingMixin:
         cell = self._tree_cell_from_event(self.episode_tree, event)
         if cell is None:
             return None
-        _item_id, column_id, value = cell
+        item_id, column_id, value = cell
+
+        # ☑ マーク（保存済みインジケータ）クリックでフォルダを開く
+        if column_id == "#0" and "☑" in str(value):
+            self._open_downloaded_episode_folder(item_id)
+            return "break"
+
         self._set_selected_tree_cell(self.episode_tree, column_id, value)
         return None
 
@@ -669,6 +675,31 @@ class GuiListingMixin:
     def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
         """指定した番組のキャッシュされたエピソードを返す。"""
         return self.data_manager.get_cached_episodes(program, ttl_seconds=10**12)
+
+    def _open_downloaded_episode_folder(self, item_id: str):
+        """保存済みエピソードの保存先フォルダを開く。"""
+        if self.displayed_program is None:
+            return
+
+        # item_id に対応するエピソードを取得
+        episode = self.displayed_episode_map.get(item_id)
+        if episode is None:
+            self.status_var.set("エピソード情報が見つかりません。")
+            return
+
+        # 保存先を確認
+        from ..downloads import _program_output_dir, open_downloaded_folder
+
+        program_dir = _program_output_dir(self.output_dir, self.displayed_program)
+        if not program_dir.exists():
+            self.status_var.set("保存先フォルダが見つかりません。")
+            return
+
+        # フォルダを開く
+        if open_downloaded_folder(program_dir):
+            self.status_var.set(f"フォルダを開きました: {program_dir.name}")
+        else:
+            self.status_var.set("フォルダを開く際にエラーが発生しました。")
 
 
 __all__ = ["GuiListingMixin"]

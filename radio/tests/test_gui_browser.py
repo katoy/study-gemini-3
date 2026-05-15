@@ -79,20 +79,19 @@ class TestGuiComprehensive(unittest.TestCase):
             browser.active_download_rows["key1"]["percent_var"].set.assert_called()
 
     def test_open_saved_folder_interaction(self):
+        """☑ マーククリックでフォルダを開く機能をテスト。"""
         browser = self._create_mock_browser()
         episode = Episode(id="ep1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         browser.displayed_episode_map = {"iid1": episode}
         browser.displayed_program = self.programs[0]
 
-        from nhk_radio import downloads
         with (
-            patch.object(downloads, "find_episode_downloaded_path", return_value=Path("/tmp/file.mp3")),
-            patch("nhk_radio.gui.listing.is_episode_downloaded", return_value=True),
-            patch("nhk_radio.gui.listing.webbrowser.open"),
-            suppress(Exception),
+            patch.object(browser, "_tree_cell_from_event", return_value=("iid1", "#0", "☑ エピソード")),
+            patch.object(browser, "_open_downloaded_episode_folder") as open_folder_mock,
         ):
-            # フォルダを開くロジックを直接検証するのが難しいため、例外が出ないことのみ確認
-            browser._on_episode_tree_click(MagicMock(x=10, y=10))
+            result = browser._on_episode_tree_click(MagicMock())
+            self.assertEqual(result, "break")  # フォルダ開きで "break" を返す
+            open_folder_mock.assert_called_once_with("iid1")
 
     def test_build_widgets_full(self):
         # 非常に多くのパッチが必要なため、ネストを一段階に抑える
