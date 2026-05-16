@@ -1,27 +1,21 @@
 """FastAPI route definitions."""
 
-import asyncio
 import dataclasses
 import json
 import logging
-import uuid
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
 from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.constants import GENRE_LABELS, NHK_GENRES
 from nhk_radio_web.core import fetch_program_list_async, get_episode_list
-from nhk_radio_web.downloads import (
-    _download_episode_command,
-    _program_filename_template,
-    _program_output_dir,
-    is_episode_downloaded,
-    mark_episode_downloaded,
-)
+from nhk_radio_web.downloads import is_episode_downloaded
+from nhk_radio_web.help_content import render_help_html
+from nhk_radio_web.search import filter_episodes, filter_programs
 from nhk_radio_web.types import Episode, Program
 
 logger = logging.getLogger(__name__)
@@ -40,10 +34,6 @@ def _dataclass_to_json(obj) -> str:
 
 
 templates.env.filters["tojson"] = _dataclass_to_json
-
-# ダウンロードジョブ管理 (メモリ内)
-# job_id -> {"status": str, "program": Program, "episode": Episode, "error": str}
-_jobs: dict[str, dict[str, Any]] = {}
 
 GENRE_OPTIONS = [{"value": "", "label": "すべて"}] + [
     {"value": g, "label": GENRE_LABELS[g]} for g in NHK_GENRES
@@ -79,8 +69,12 @@ async def programs_partial(request: Request, genre: str = ""):
 
 
 @router.get("/programs/{program_id}/episodes", response_class=HTMLResponse)
-async def episodes_partial(request: Request, program_id: str):
-    """htmx からのエピソード一覧取得リクエスト用。program_id は {site_id}_{corner_id}。"""
+async def episodes_partial(request: Request, program_id: str, q: str = ""):
+    """htmx からのエピソード一覧取得リクエスト用。program_id は {site_id}_{corner_id}。
+
+    Query params:
+        q: エピソード検索キーワード
+    """
     parts = program_id.split("_", 1)
     if len(parts) != 2:
         raise HTTPException(status_code=400, detail="Invalid program_id")
@@ -113,6 +107,10 @@ async def episodes_partial(request: Request, program_id: str):
             {"program": program, "episodes_with_status": [], "error": str(e)},
         )
 
+    # キーワード検索
+    if q:
+        episodes = filter_episodes(episodes, needle=q)
+
     output_dir = _default_download_dir()
     episodes_with_status = [
         {
@@ -136,7 +134,7 @@ async def episodes_partial(request: Request, program_id: str):
 
 @router.post("/download", response_class=HTMLResponse)
 async def start_download(request: Request, background_tasks: BackgroundTasks):
-    """ダウンロードジョブを登録してステータス HTML フラグメントを返す。"""
+    """単発ダウンロード: ジョブを登録してステータス HTML フラグメントを返す。"""
     try:
         body = await request.json()
     except Exception:
@@ -152,22 +150,103 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
     except (TypeError, KeyError) as e:
         raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}")
 
-    job_id = str(uuid.uuid4())
-    _jobs[job_id] = {"status": "pending", "program": program, "episode": episode, "error": ""}
-    background_tasks.add_task(_run_download, job_id, program, episode)
+    job_manager = request.app.state.job_manager
+    job_id = job_manager.enqueue(program, episode)
+    background_tasks.add_task(job_manager.start, job_id)
+
+    job = job_manager.status_snapshot(job_id)
     return templates.TemplateResponse(
         request,
         "partials/download_status.html",
-        {"job_id": job_id, "job": _jobs[job_id]},
+        {"job_id": job_id, "job": job},
     )
+
+
+@router.post("/download/batch", response_class=HTMLResponse)
+async def batch_download(request: Request, background_tasks: BackgroundTasks):
+    """一括ダウンロード: 複数エピソードをキューに登録。
+
+    JSON body: {
+        "program": {...},
+        "episodes": [{...}, ...]
+    }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません")
+
+    program_dict = body.get("program")
+    episodes_list = body.get("episodes", [])
+    if not isinstance(program_dict, dict) or not isinstance(episodes_list, list):
+        raise HTTPException(status_code=422, detail="program と episodes は dict/list 形式で指定してください")
+
+    try:
+        program = Program(**{k: v for k, v in program_dict.items() if k in Program.__dataclass_fields__})
+    except (TypeError, KeyError) as e:
+        raise HTTPException(status_code=422, detail=f"プログラムデータが不正です: {e}")
+
+    # エピソードを登録
+    job_manager = request.app.state.job_manager
+    job_ids = []
+    for episode_dict in episodes_list:
+        try:
+            episode = Episode(**{k: v for k, v in episode_dict.items() if k in Episode.__dataclass_fields__})
+            job_id = job_manager.enqueue(program, episode)
+            job_ids.append(job_id)
+            background_tasks.add_task(job_manager.start, job_id)
+        except (TypeError, KeyError):
+            # 不正なエピソードはスキップ
+            continue
+
+    # ジョブカード群を返す
+    jobs_html = ""
+    for job_id in job_ids:
+        job = job_manager.status_snapshot(job_id)
+        job_html = templates.get_template("partials/download_status.html").render(
+            request=request,
+            job_id=job_id,
+            job=job,
+        )
+        jobs_html += job_html
+
+    return HTMLResponse(content=jobs_html)
 
 
 @router.get("/api/download/{job_id}/status", response_class=HTMLResponse)
 async def download_status(request: Request, job_id: str):
     """htmx ポーリング用のダウンロード状態 HTML フラグメント。"""
-    job = _jobs.get(job_id)
+    job_manager = request.app.state.job_manager
+    job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
+    return templates.TemplateResponse(
+        request,
+        "partials/download_status.html",
+        {"job_id": job_id, "job": job},
+    )
+
+
+@router.post("/api/download/{job_id}/cancel", response_class=HTMLResponse)
+async def cancel_download(request: Request, job_id: str):
+    """ダウンロードジョブをキャンセルしてステータス HTML フラグメントを返す。"""
+    job_manager = request.app.state.job_manager
+    job = job_manager.status_snapshot(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        await job_manager.cancel(job_id)
+    except Exception as e:
+        logger.error(f"キャンセルエラー (job={job_id}): {e}")
+        job = job_manager.status_snapshot(job_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/download_status.html",
+            {"job_id": job_id, "job": job},
+        )
+
+    job = job_manager.status_snapshot(job_id)
     return templates.TemplateResponse(
         request,
         "partials/download_status.html",
@@ -178,36 +257,36 @@ async def download_status(request: Request, job_id: str):
 @router.get("/downloads", response_class=HTMLResponse)
 async def downloads_page(request: Request):
     """全ダウンロードジョブの一覧ページ。"""
+    job_manager = request.app.state.job_manager
     return templates.TemplateResponse(
         request,
         "downloads.html",
-        {"jobs": dict(_jobs)},
+        {"jobs": job_manager.all_jobs()},
     )
 
 
-async def _run_download(job_id: str, program: Program, episode: Episode):
-    """バックグラウンドで yt-dlp を実行してエピソードをダウンロードする。"""
-    _jobs[job_id]["status"] = "downloading"
-    output_dir = _default_download_dir()
-    program_dir = _program_output_dir(output_dir, program)
-    program_dir.mkdir(parents=True, exist_ok=True)
-    filename_template = _program_filename_template(program)
-    cmd = _download_episode_command(episode.url, program_dir, filename_template)
+@router.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
+    """ヘルプページ。"""
+    help_html = render_help_html()
+    return templates.TemplateResponse(
+        request,
+        "help.html",
+        {"help_content": help_html},
+    )
 
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        await proc.wait()
-        if proc.returncode == 0:
-            _jobs[job_id]["status"] = "done"
-            mark_episode_downloaded(output_dir, program, episode)
-        else:
-            _jobs[job_id]["status"] = "error"
-            _jobs[job_id]["error"] = f"yt-dlp 終了コード: {proc.returncode}"
-    except Exception as e:
-        _jobs[job_id]["status"] = "error"
-        _jobs[job_id]["error"] = str(e)
-        logger.error(f"ダウンロードエラー (job={job_id}): {e}")
+
+@router.post("/api/cache/clear", response_class=HTMLResponse)
+async def clear_cache(request: Request, scope: str = "all"):
+    """キャッシュをクリアし、リダイレクト。
+
+    Query params:
+        scope: "programs" | "episodes" | "all"
+    """
+    if scope in ("programs", "all"):
+        clear_program_cache()
+    if scope in ("episodes", "all"):
+        clear_episode_cache()
+    logger.info(f"キャッシュをクリア: {scope}")
+    # JavaScript で処理するため、204 No Content を返す
+    return HTMLResponse(status_code=204)

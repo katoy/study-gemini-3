@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 CACHE_TTL_SECONDS = 3600
+DEFAULT_MAX_CONCURRENT_DL = 2
 
 
 def _default_user_cache_root() -> Path:

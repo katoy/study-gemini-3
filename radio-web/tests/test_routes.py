@@ -8,6 +8,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from app.main import app
+from nhk_radio_web.job_manager import JobManager
 from nhk_radio_web.types import Episode, Program
 
 # テスト用ダミーデータ
@@ -36,6 +37,8 @@ EPISODE = Episode(
 
 class RoutesTest(unittest.TestCase):
     def setUp(self):
+        # TestClient はデフォルトでは lifespan を実行しないため、手動で JobManager を初期化
+        app.state.job_manager = JobManager(max_concurrent=2)
         self.client = TestClient(app, raise_server_exceptions=True)
 
     # ──────────────────────────────────────────────
@@ -123,6 +126,23 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("済", resp.text)
 
+    def test_episodes_partial_with_search_query(self):
+        """エピソード一覧に検索キーワード (q パラメータ) が効く。"""
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.is_episode_downloaded", return_value=False),
+        ):
+            # マッチする検索
+            resp = self.client.get("/programs/SITE_01/episodes?q=第1回")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("第1回", resp.text)
+
+            # マッチしない検索
+            resp_no_match = self.client.get("/programs/SITE_01/episodes?q=存在しないエピソード")
+            self.assertEqual(resp_no_match.status_code, 200)
+            # マッチしないため、エピソード情報は表示されない (またはテーブルが空)
+
     # ──────────────────────────────────────────────
     # POST /download
     # ──────────────────────────────────────────────
@@ -133,8 +153,7 @@ class RoutesTest(unittest.TestCase):
             "program": dataclasses.asdict(PROGRAM),
             "episode": dataclasses.asdict(EPISODE),
         }
-        with patch("app.routes._run_download", new_callable=AsyncMock):
-            resp = self.client.post("/download", json=payload)
+        resp = self.client.post("/download", json=payload)
         self.assertEqual(resp.status_code, 200)
         # レスポンスは HTML ステータスフラグメント
         self.assertIn("text/html", resp.headers["content-type"])
@@ -153,31 +172,50 @@ class RoutesTest(unittest.TestCase):
     # ──────────────────────────────────────────────
 
     def test_download_status_pending(self):
-        from app import routes
-        job_id = "test-status-pending"
-        routes._jobs[job_id] = {"status": "pending", "program": PROGRAM, "episode": EPISODE, "error": ""}
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
         resp = self.client.get(f"/api/download/{job_id}/status")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("待機中", resp.text)
 
     def test_download_status_done(self):
-        from app import routes
-        job_id = "test-status-done"
-        routes._jobs[job_id] = {"status": "done", "program": PROGRAM, "episode": EPISODE, "error": ""}
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        job_manager._jobs[job_id]["status"] = "done"
         resp = self.client.get(f"/api/download/{job_id}/status")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("完了", resp.text)
 
     def test_download_status_error(self):
-        from app import routes
-        job_id = "test-status-error"
-        routes._jobs[job_id] = {"status": "error", "program": PROGRAM, "episode": EPISODE, "error": "失敗しました"}
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        job_manager._jobs[job_id]["status"] = "error"
+        job_manager._jobs[job_id]["error"] = "失敗しました"
         resp = self.client.get(f"/api/download/{job_id}/status")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("失敗しました", resp.text)
 
     def test_download_status_not_found(self):
         resp = self.client.get("/api/download/nonexistent-job/status")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_cancel_download_job(self):
+        """キャンセルエンドポイントでジョブをキャンセルできる。"""
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+
+        # キャンセルリクエスト
+        resp = self.client.post(f"/api/download/{job_id}/cancel")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("キャンセル", resp.text)
+
+        # ジョブが cancelled 状態になっている
+        job = job_manager.status_snapshot(job_id)
+        self.assertEqual(job["status"], "cancelled")
+
+    def test_cancel_download_job_not_found(self):
+        """存在しないジョブをキャンセルすると 404 を返す。"""
+        resp = self.client.post("/api/download/nonexistent-job/cancel")
         self.assertEqual(resp.status_code, 404)
 
     # ──────────────────────────────────────────────
@@ -190,45 +228,33 @@ class RoutesTest(unittest.TestCase):
         self.assertIn("ダウンロード", resp.text)
 
     # ──────────────────────────────────────────────
-    # _run_download の非同期動作
+    # GET /help
     # ──────────────────────────────────────────────
 
-    def test_run_download_success(self):
-        import asyncio
-        from app.routes import _jobs, _run_download
+    def test_help_page_returns_200(self):
+        """ヘルプページが 200 を返す。"""
+        resp = self.client.get("/help")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("ヘルプ", resp.text)
 
-        job_id = "test-run-success"
-        _jobs[job_id] = {"status": "pending", "program": PROGRAM, "episode": EPISODE, "error": ""}
+    # ──────────────────────────────────────────────
+    # POST /api/cache/clear
+    # ──────────────────────────────────────────────
 
-        async def run():
-            with patch("asyncio.create_subprocess_exec") as m:
-                proc = AsyncMock()
-                proc.returncode = 0
-                proc.wait = AsyncMock(return_value=0)
-                m.return_value = proc
-                with patch("app.routes.mark_episode_downloaded"):
-                    await _run_download(job_id, PROGRAM, EPISODE)
+    def test_cache_clear_all(self):
+        """キャッシュクリアエンドポイント（全体）が 204 を返す。"""
+        resp = self.client.post("/api/cache/clear?scope=all")
+        self.assertEqual(resp.status_code, 204)
 
-        asyncio.run(run())
-        self.assertEqual(_jobs[job_id]["status"], "done")
+    def test_cache_clear_programs(self):
+        """キャッシュクリアエンドポイント（番組）が 204 を返す。"""
+        resp = self.client.post("/api/cache/clear?scope=programs")
+        self.assertEqual(resp.status_code, 204)
 
-    def test_run_download_failure(self):
-        import asyncio
-        from app.routes import _jobs, _run_download
-
-        job_id = "test-run-fail"
-        _jobs[job_id] = {"status": "pending", "program": PROGRAM, "episode": EPISODE, "error": ""}
-
-        async def run():
-            with patch("asyncio.create_subprocess_exec") as m:
-                proc = AsyncMock()
-                proc.returncode = 1
-                proc.wait = AsyncMock(return_value=1)
-                m.return_value = proc
-                await _run_download(job_id, PROGRAM, EPISODE)
-
-        asyncio.run(run())
-        self.assertEqual(_jobs[job_id]["status"], "error")
+    def test_cache_clear_episodes(self):
+        """キャッシュクリアエンドポイント（エピソード）が 204 を返す。"""
+        resp = self.client.post("/api/cache/clear?scope=episodes")
+        self.assertEqual(resp.status_code, 204)
 
 
 if __name__ == "__main__":

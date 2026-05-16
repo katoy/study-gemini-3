@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/themes.css">
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <script>
     async function startDL(btn) {
@@ -35,30 +36,73 @@
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
-    header { background: #1a3a5c; color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
+    body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); }
+    header { background: #1a3a5c; color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
     header h1 { font-size: 1.2rem; }
-    header nav a { color: #cde; text-decoration: none; margin-left: 1rem; font-size: 0.9rem; }
+    .header-nav { display: flex; align-items: center; gap: 1rem; }
+    header nav a { color: #cde; text-decoration: none; font-size: 0.9rem; }
     header nav a:hover { text-decoration: underline; }
+    .theme-toggle { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.5rem 0.8rem; font-size: 0.85rem; }
+    .theme-toggle:hover { background: rgba(255, 255, 255, 0.3); }
+    .font-size-btn { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.4rem 0.6rem; width: 2.2rem; height: 2.2rem; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .font-size-btn:hover { background: rgba(255, 255, 255, 0.3); }
     main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
     .htmx-request .htmx-indicator { opacity: 1; }
     .htmx-request.htmx-indicator { opacity: 1; }
     .spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid #aaa; border-top-color: #1a3a5c; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal.show { display: flex; }
+    .modal-content { background: var(--color-bg); color: var(--color-text); border-radius: 8px; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; }
   </style>
+  <script>
+    // テーマ・フォントサイズの初期化
+    function initTheme() {
+      const saved = localStorage.getItem('theme') || 'auto';
+      const html = document.documentElement;
+      if (saved === 'auto') {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        html.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } else {
+        html.setAttribute('data-theme', saved);
+      }
+    }
+    function initFontSize() {
+      const saved = localStorage.getItem('fontSize') || 'medium';
+      const html = document.documentElement;
+      if (saved === 'medium') {
+        html.removeAttribute('data-font-size');
+      } else {
+        html.setAttribute('data-font-size', saved === 'small' ? 'small' : 'large');
+      }
+    }
+    initTheme();
+    initFontSize();
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body>
   <header>
     <h1>📻 NHK ラジオ聞き逃し</h1>
-    <nav>
-      <a href="/">番組一覧</a>
-      <a href="/downloads">ダウンロード</a>
-    </nav>
+    <div class="header-nav">
+      <nav>
+        <a href="/">番組一覧</a>
+        <a href="/downloads">ダウンロード</a>
+        <a href="/help">ヘルプ</a>
+      </nav>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</button>
+      <div class="font-size-controls" style="display: flex; gap: 0.25rem;">
+        <button class="font-size-btn" onclick="setFontSize('small')" title="フォント小" style="font-size: 0.8rem;">A</button>
+        <button class="font-size-btn" onclick="setFontSize('medium')" title="フォント中" style="font-size: 1rem;">A</button>
+        <button class="font-size-btn" onclick="setFontSize('large')" title="フォント大" style="font-size: 1.2rem;">A</button>
+      </div>
+    </div>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script src="/static/js/app.js"></script>
 </body>
 </html>

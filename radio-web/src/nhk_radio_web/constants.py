@@ -28,3 +28,7 @@ GENRE_LABELS = {
     "documentary": "ドキュメンタリー",
     "variety": "バラエティ",
 }
+
+# HTTP リトライ設定 (指数バックオフ)
+HTTP_RETRY_MAX_ATTEMPTS = 3  # 最大試行回数
+HTTP_RETRY_BACKOFF_BASE = 1  # 初回待機時間 (秒)

@@ -3,6 +3,8 @@
   <span style="color:#2e7d32;font-size:0.8rem;">✔ 完了</span>
 {% elif status == "error" %}
   <span style="color:#c00;font-size:0.8rem;">✖ {{ job.error or 'エラー' }}</span>
+{% elif status == "cancelled" %}
+  <span style="color:#f57c00;font-size:0.8rem;">⊘ キャンセル済み</span>
 {% else %}
   <span style="font-size:0.8rem;"
         hx-get="/api/download/{{ job_id }}/status"

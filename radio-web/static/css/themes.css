@@ -1,0 +1,120 @@
+/* テーマシステム - light/dark モード + フォントサイズ */
+
+:root {
+  /* ライトテーマのカラー (デフォルト) */
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-border: #e0e0e0;
+  --color-text: #212121;
+  --color-text-secondary: #757575;
+  --color-accent: #1976d2;
+  --color-success: #388e3c;
+  --color-error: #d32f2f;
+  --color-warning: #f57c00;
+
+  /* フォントサイズ (デフォルト: M) */
+  --font-size-base: 16px;
+  --font-size-sm: 0.875rem;
+  --font-size-lg: 1.125rem;
+  --line-height-base: 1.5;
+}
+
+/* ダークテーマ */
+:root[data-theme="dark"] {
+  --color-bg: #121212;
+  --color-surface: #1e1e1e;
+  --color-border: #383838;
+  --color-text: #ffffff;
+  --color-text-secondary: #bdbdbd;
+  --color-accent: #90caf9;
+  --color-success: #81c784;
+  --color-error: #e57373;
+  --color-warning: #ffb74d;
+}
+
+/* フォントサイズ小 */
+:root[data-font-size="small"] {
+  --font-size-base: 14px;
+  --font-size-sm: 0.75rem;
+  --font-size-lg: 1rem;
+}
+
+/* フォントサイズ大 */
+:root[data-font-size="large"] {
+  --font-size-base: 18px;
+  --font-size-sm: 0.9375rem;
+  --font-size-lg: 1.3125rem;
+}
+
+/* グローバルスタイル */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* テーマトグルボタン */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.theme-toggle:hover {
+  background-color: var(--color-surface);
+}
+
+/* 汎用スタイル */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: var(--color-border);
+}
+
+button.primary {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+button.primary:hover {
+  opacity: 0.9;
+}
+
+input, select {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+}
+
+/* エラー・成功・警告色 */
+.success { color: var(--color-success); }
+.error { color: var(--color-error); }
+.warning { color: var(--color-warning); }
