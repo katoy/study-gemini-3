@@ -163,7 +163,7 @@ class GuiBuildMixin:
     def _build_detail_panel(self, right_panes: "ttk.Panedwindow") -> None:
         detail = ttk.Frame(right_panes, style="Card.TFrame", padding=18, width=860, height=300)
         detail.columnconfigure(0, weight=1)
-        detail.rowconfigure(2, weight=1)
+        detail.rowconfigure(3, weight=1)  # episode_tree (row=3) が expand する
         self._build_hero_section(detail)
         self._build_episode_tree(detail)
         right_panes.add(detail, weight=1)
@@ -235,6 +235,28 @@ class GuiBuildMixin:
         ttk.Label(filter_summary, textvariable=self.episode_selection_summary_var, style="CardMeta.TLabel").grid(
             row=0, column=1, sticky="e"
         )
+        # エラーバナーフレーム（通常は非表示）
+        self.error_banner_frame = ttk.Frame(detail, style="ErrorBanner.TFrame")
+        self.error_banner_frame.grid(row=2, column=0, sticky="ew", pady=(16, 8))
+        self.error_banner_frame.columnconfigure(0, weight=1)
+        self.error_banner_label = ttk.Label(
+            self.error_banner_frame, text="", style="ErrorBanner.TLabel"
+        )
+        self.error_banner_label.grid(row=0, column=0, sticky="w", padx=(10, 8), pady=6)
+        self.error_retry_button = ttk.Button(
+            self.error_banner_frame,
+            text="↺ 再試行",
+            style="Quiet.TButton",
+            command=self._start_fetch_selected,
+        )
+        self.error_retry_button.grid(row=0, column=1, padx=(0, 4), pady=4)
+        ttk.Button(
+            self.error_banner_frame,
+            text="✕",
+            style="Quiet.TButton",
+            command=self._hide_error_banner,
+        ).grid(row=0, column=2, padx=(0, 8), pady=4)
+        self.error_banner_frame.grid_remove()
         self.episode_tree = ttk.Treeview(
             detail,
             columns=("saved", "date", "duration", "title"),
@@ -269,8 +291,8 @@ class GuiBuildMixin:
         self._update_episode_tree_headings()
         self.episode_scroll = ttk.Scrollbar(detail, orient="vertical", command=self._on_episode_tree_scroll)
         self.episode_tree.configure(yscrollcommand=self._on_episode_tree_yscroll)
-        self.episode_tree.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
-        self.episode_scroll.grid(row=2, column=1, sticky="ns", pady=(8, 0))
+        self.episode_tree.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
+        self.episode_scroll.grid(row=3, column=1, sticky="ns", pady=(8, 0))
 
     def _build_activity_panel(self, right_panes: "ttk.Panedwindow") -> None:
         activity = ttk.Frame(right_panes, style="Card.TFrame", padding=6, height=140)

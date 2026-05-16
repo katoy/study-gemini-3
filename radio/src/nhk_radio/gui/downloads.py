@@ -232,6 +232,7 @@ class GuiDownloadsMixin:
             # エラー時はキャッシュに空リストを書き込まない
             # （期限切れキャッシュが再利用できるようにするため）
             self.status_var.set(f"取得失敗: {error}")
+            self._show_error_banner(f"取得に失敗しました: {error}")
             fallback = self._cached_episodes_for(program)
             if fallback:
                 self._update_program_overview(program, fallback, "キャッシュ表示")
@@ -246,6 +247,7 @@ class GuiDownloadsMixin:
             self.episodes_cache.move_to_end(key)
             source_label = {"stale-cache": "期限切れキャッシュ"}.get(source, "最新取得")
             self.status_var.set("")
+            self._hide_error_banner()
             self._update_program_overview(program, episodes, source_label)
             self._show_episodes(program, episodes, message=f"{source_label}で {len(episodes)} 件を表示中")
             if episodes:
@@ -406,6 +408,15 @@ class GuiDownloadsMixin:
     def _on_settings_mousewheel(self, event):
         if self.settings_canvas.winfo_exists():
             self.settings_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _show_error_banner(self, message: str) -> None:
+        """Display error banner with the given message."""
+        self.error_banner_label.config(text=message)
+        self.error_banner_frame.grid()
+
+    def _hide_error_banner(self) -> None:
+        """Hide error banner."""
+        self.error_banner_frame.grid_remove()
 
 
 __all__ = ["GuiDownloadsMixin"]

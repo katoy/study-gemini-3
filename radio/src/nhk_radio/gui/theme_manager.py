@@ -82,6 +82,7 @@ class ThemeManager:
                 "selected_bg": "#2B5A8C", "selected_fg": "#FFFFFF",
                 "row_odd": "#1A1A1A", "dl_even": "#121212", "dl_odd": "#1A1A1A",
                 "input_bg": "#2D2D2D", "on_accent": "#FFFFFF",
+                "error_bg": "#450A0A", "error_fg": "#FECACA",
             }
         return {
             "bg": "#F8F9FA", "surface": "#FFFFFF", "surface_alt": "#F1F3F5",
@@ -91,6 +92,7 @@ class ThemeManager:
             "selected_bg": "#E7F5FF", "selected_fg": "#000000",
             "row_odd": "#F1F3F5", "dl_even": "#F8F9FA", "dl_odd": "#F1F3F5",
             "input_bg": "#FFFFFF", "on_accent": "#FFFFFF",
+            "error_bg": "#FEE2E2", "error_fg": "#991B1B",
         }
 
     def _get_font_profile(self, size_pt: int | str) -> dict[str, Any]:
@@ -133,6 +135,7 @@ class ThemeManager:
         self.style.configure("SidebarInner.TFrame", background=p["surface_alt"])
         self.style.configure("Hero.TFrame", background=p["accent_soft"], relief="solid", borderwidth=1, bordercolor=p["border"])
         self.style.configure("HeroInner.TFrame", background=p["accent_soft"])
+        self.style.configure("ErrorBanner.TFrame", background=p["error_bg"], relief="solid", borderwidth=1, bordercolor=p["error_fg"])
 
     def _configure_treeviews(self, p, f):
         self.style.configure("Treeview",
@@ -196,3 +199,4 @@ class ThemeManager:
         self.style.configure("CardTitle.TLabel", font=f["card_title"], foreground=p["text"], background=p["surface"])
         self.style.configure("HeroTitle.TLabel", font=f["hero_title"], foreground=p["text"], background=p["accent_soft"])
         self.style.configure("Status.TLabel", font=f["ui_small"], foreground=p["text_sub"], background=p["bg"])
+        self.style.configure("ErrorBanner.TLabel", font=f["ui_base"], foreground=p["error_fg"], background=p["error_bg"])

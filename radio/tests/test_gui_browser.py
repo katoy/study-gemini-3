@@ -1,4 +1,5 @@
 import unittest
+from collections import OrderedDict
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -150,6 +151,73 @@ class TestGuiComprehensive(unittest.TestCase):
 
             browser = EpisodeGuiBrowser(self.programs, self.output_dir)
             self.assertIsNotNone(browser.root)
+
+    def test_show_error_banner(self):
+        """Test that _show_error_banner displays the banner with the given message."""
+        browser = self._create_mock_browser()
+        browser.error_banner_frame = MagicMock()
+        browser.error_banner_label = MagicMock()
+
+        message = "テスト エラーメッセージ"
+        browser._show_error_banner(message)
+
+        browser.error_banner_label.config.assert_called_once_with(text=message)
+        browser.error_banner_frame.grid.assert_called_once()
+
+    def test_hide_error_banner(self):
+        """Test that _hide_error_banner hides the banner."""
+        browser = self._create_mock_browser()
+        browser.error_banner_frame = MagicMock()
+
+        browser._hide_error_banner()
+
+        browser.error_banner_frame.grid_remove.assert_called_once()
+
+    def test_finish_fetch_shows_error_banner_on_error(self):
+        """Test that _finish_fetch displays error banner when error occurs."""
+        browser = self._create_mock_browser()
+        browser.error_banner_frame = MagicMock()
+        browser.error_banner_label = MagicMock()
+        browser.status_var = MagicMock()
+        browser._set_loading = MagicMock()
+        browser._set_progress = MagicMock()
+        browser._cached_episodes_for = MagicMock(return_value=[])
+        browser._update_program_overview = MagicMock()
+        browser._show_episodes = MagicMock()
+        browser.episodes_cache = {}
+
+        program = self.programs[0]
+        error = "API 接続エラー"
+
+        browser._finish_fetch(program, [], "api", error)
+
+        browser.error_banner_label.config.assert_called_once_with(text=f"取得に失敗しました: {error}")
+        browser.error_banner_frame.grid.assert_called_once()
+
+    def test_finish_fetch_hides_error_banner_on_success(self):
+        """Test that _finish_fetch hides error banner on success."""
+        browser = self._create_mock_browser()
+        browser.error_banner_frame = MagicMock()
+        browser.status_var = MagicMock()
+        browser._set_loading = MagicMock()
+        browser._set_progress = MagicMock()
+        browser._update_program_overview = MagicMock()
+        browser._show_episodes = MagicMock()
+        browser.episodes_cache = OrderedDict()
+        browser.episode_tree = MagicMock()
+
+        program = self.programs[0]
+        episodes = [
+            Episode(
+                id="EP001", title="エピソード1", display_title="エピソード1",
+                date="2024-04-15", display_date="2024-04-15(月)",
+                broadcast_time="10:00", duration_str="30:00", url="http://example.com/ep1"
+            )
+        ]
+
+        browser._finish_fetch(program, episodes, "api", None)
+
+        browser.error_banner_frame.grid_remove.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()
