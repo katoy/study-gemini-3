@@ -6,7 +6,13 @@ import contextlib
 import queue
 from pathlib import Path
 
-from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME, _load_ui_settings  # noqa: F401
+from ..config import (  # noqa: F401
+    DEFAULT_UI_FONT_SIZE_PT,
+    DEFAULT_UI_THEME,
+    HELP_CONTENT_VERSION,
+    _load_ui_settings,
+    _save_help_seen_version,
+)
 from ..types import Episode, Program
 from .build import GuiBuildMixin
 from .data_manager import DataManager
@@ -37,6 +43,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
         self._build_widgets()
         self._populate_programs()
+
+        seen_ver = int(self.theme_manager.settings.get("help_seen_version", 0))
+        if seen_ver < HELP_CONTENT_VERSION:
+            _save_help_seen_version(HELP_CONTENT_VERSION)
+            self.root.after(600, self._show_help_dialog)
 
         if programs is None:
             # 起動後に非同期取得を開始

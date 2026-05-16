@@ -47,5 +47,35 @@ class ThemeManagerTest(unittest.TestCase):
         self.assertEqual(self.tm.current_theme, "dark")
         self.assertEqual(self.tm.current_font_size, 12)
 
+    def test_wcag_accent_button_contrast(self):
+        """アクセントボタンの on_accent / accent 組み合わせが WCAG AA (4.5:1) を満たす。"""
+        def hex_to_rgb(hex_color: str) -> tuple[float, float, float]:
+            hex_color = hex_color.lstrip("#")
+            return tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore
+
+        def relative_luminance(rgb: tuple[float, float, float]) -> float:
+            r, g, b = rgb
+            rsrgb = r / 12.92 if r <= 0.03928 else ((r + 0.055) / 1.055) ** 2.4
+            gsrgb = g / 12.92 if g <= 0.03928 else ((g + 0.055) / 1.055) ** 2.4
+            bsrgb = b / 12.92 if b <= 0.03928 else ((b + 0.055) / 1.055) ** 2.4
+            return 0.2126 * rsrgb + 0.7152 * gsrgb + 0.0722 * bsrgb
+
+        def contrast_ratio(fg: str, bg: str) -> float:
+            fg_lum = relative_luminance(hex_to_rgb(fg))
+            bg_lum = relative_luminance(hex_to_rgb(bg))
+            lighter = max(fg_lum, bg_lum)
+            darker = min(fg_lum, bg_lum)
+            return (lighter + 0.05) / (darker + 0.05)
+
+        # ライトテーマの検証
+        light_palette = self.tm._get_palette("light")
+        light_ratio = contrast_ratio(light_palette["on_accent"], light_palette["accent"])
+        self.assertGreaterEqual(light_ratio, 4.5, f"Light theme accent button contrast {light_ratio:.2f} is below WCAG AA (4.5:1)")
+
+        # ダークテーマの検証
+        dark_palette = self.tm._get_palette("dark")
+        dark_ratio = contrast_ratio(dark_palette["on_accent"], dark_palette["accent"])
+        self.assertGreaterEqual(dark_ratio, 4.5, f"Dark theme accent button contrast {dark_ratio:.2f} is below WCAG AA (4.5:1)")
+
 if __name__ == "__main__":
     unittest.main()

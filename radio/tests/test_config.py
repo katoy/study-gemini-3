@@ -221,9 +221,69 @@ class ConfigHelpersTest(unittest.TestCase):
             patch("tempfile.mkstemp", return_value=(99, "/tmp/ui.tmp")),
             patch("os.fdopen", mocked_file),
             patch.object(Path, "replace", side_effect=RuntimeError("boom")),
-            patch("os.unlink", side_effect=OSError("deny")),self.assertRaises(RuntimeError)
+            patch("os.unlink", side_effect=OSError("deny")),
         ):
-            config._save_ui_settings("dark", 12, [])
+            self.assertRaises(RuntimeError, config._save_ui_settings, "dark", 12, [])
+
+    def test_save_ui_settings_preserves_help_seen_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                # 初回保存で help_seen_version を含める
+                config._save_ui_settings("light", 11, [])
+                config._save_help_seen_version(1)
+
+                # 再度 _save_ui_settings を呼び出す
+                config._save_ui_settings("dark", 12, ["search"])
+
+            # help_seen_version が保持されているか確認
+            payload = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["help_seen_version"], 1)
+            self.assertEqual(payload["theme"], "dark")
+            self.assertEqual(payload["font_size_pt"], 12)
+
+    def test_save_help_seen_version_creates_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "nested" / "ui.json"
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_help_seen_version(1)
+
+            self.assertTrue(settings_path.exists())
+            payload = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["help_seen_version"], 1)
+
+    def test_save_help_seen_version_preserves_existing_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                # 既存設定を保存
+                config._save_ui_settings("light", 11, ["search1", "search2"])
+                # help_seen_version を追加
+                config._save_help_seen_version(1)
+
+            payload = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["help_seen_version"], 1)
+            self.assertEqual(payload["theme"], "light")
+            self.assertEqual(payload["font_size_pt"], 11)
+            self.assertEqual(payload["program_search_history"], ["search1", "search2"])
+
+    def test_load_ui_settings_reads_help_seen_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text(json.dumps({"help_seen_version": 1}), encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                settings = config._load_ui_settings()
+
+            self.assertEqual(settings.get("help_seen_version"), 1)
+
+    def test_load_ui_settings_ignores_invalid_help_seen_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text(json.dumps({"help_seen_version": "invalid"}), encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                settings = config._load_ui_settings()
+
+            self.assertNotIn("help_seen_version", settings)
 
 
 if __name__ == "__main__":

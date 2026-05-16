@@ -112,6 +112,7 @@ def _migrate_legacy_ui_settings():
 DEFAULT_UI_THEME = "light"
 DEFAULT_UI_FONT_SIZE_PT = "11"
 SEARCH_HISTORY_LIMIT = 30
+HELP_CONTENT_VERSION = 1
 
 
 def _normalize_search_term(text: str) -> str:
@@ -172,6 +173,10 @@ def _load_ui_settings() -> dict[str, str | list[str] | int]:
         if normalized:
             settings["program_search_history"] = normalized
 
+    help_ver = payload.get("help_seen_version")
+    if isinstance(help_ver, int):
+        settings["help_seen_version"] = help_ver
+
     return settings
 
 
@@ -179,11 +184,45 @@ def _save_ui_settings(theme: str, font_size: int, program_search_history: list[s
     _migrate_legacy_ui_settings()
     path = _ui_settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        existing = {}
+    if not isinstance(existing, dict):
+        existing = {}
+
     payload = {
         "theme": theme,
         "font_size_pt": font_size,
         "program_search_history": program_search_history or [],
     }
+    if isinstance(existing.get("help_seen_version"), int):
+        payload["help_seen_version"] = existing["help_seen_version"]
+
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        Path(tmp_path).replace(path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(tmp_path)
+        raise
+
+
+def _save_help_seen_version(version: int) -> None:
+    """ヘルプ表示済みバージョンを設定ファイルに保存（既存キーを保持）。"""
+    _migrate_legacy_ui_settings()
+    path = _ui_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        payload: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    payload["help_seen_version"] = version
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:

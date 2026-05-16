@@ -310,5 +310,44 @@ class GuiSmokeTest(unittest.TestCase):
             "2番目の _populate_programs() の結果だけが反映される"
         )
 
+    def test_help_not_shown_when_already_seen(self):
+        """help_seen_version が設定済みなら after (help dialog schedule) が呼ばれない。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_dir = Path(tmp_dir) / "config"
+            config_dir.mkdir(parents=True)
+
+            # root.after を MagicMock に置き換え
+            self.root.after = MagicMock()
+
+            with patch.dict("os.environ", {"NHK_RADIO_CONFIG_DIR": str(config_dir)}), \
+                 patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+
+                import nhk_radio.config as cfg
+                cfg._MIGRATION_DONE = False
+
+                # 初回起動: help dialog が schedule される
+                try:
+                    browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    # after(600, _show_help_dialog) が呼ばれたことを確認
+                    self.assertTrue(self.root.after.called)
+                finally:
+                    cfg._MIGRATION_DONE = False
+
+                # after をリセット
+                self.root.after.reset_mock()
+
+                # 2 回目起動: help_seen_version が設定済みなので after が呼ばれない
+                try:
+                    browser2 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    # help dialog schedule に関連する after 呼び出しを検索
+                    help_scheduled = any(
+                        call[0][1].__name__ == "_show_help_dialog" if callable(call[0][1])
+                        else False
+                        for call in self.root.after.call_args_list
+                    )
+                    self.assertFalse(help_scheduled, "help_seen_version が設定済みなら help dialog は schedule されない")
+                finally:
+                    cfg._MIGRATION_DONE = False
+
 if __name__ == "__main__":
     unittest.main()

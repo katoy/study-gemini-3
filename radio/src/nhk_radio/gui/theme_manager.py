@@ -81,13 +81,13 @@ class ThemeManager:
                 "border": "#333333", "border_strong": "#404040", "head_bg": "#252525",
                 "selected_bg": "#2B5A8C", "selected_fg": "#FFFFFF",
                 "row_odd": "#1A1A1A", "dl_even": "#121212", "dl_odd": "#1A1A1A",
-                "input_bg": "#2D2D2D", "on_accent": "#FFFFFF",
+                "input_bg": "#2D2D2D", "on_accent": "#000000",
                 "error_bg": "#450A0A", "error_fg": "#FECACA",
             }
         return {
             "bg": "#F8F9FA", "surface": "#FFFFFF", "surface_alt": "#F1F3F5",
             "text": "#212529", "text_sub": "#495057", "primary": "#1971C2",
-            "accent": "#E8590C", "accent_soft": "#FFF4E6", "accent_dark": "#D9480F",
+            "accent": "#C44102", "accent_soft": "#FFF4E6", "accent_dark": "#A33702",
             "border": "#DEE2E6", "border_strong": "#CED4DA", "head_bg": "#E9ECEF",
             "selected_bg": "#E7F5FF", "selected_fg": "#000000",
             "row_odd": "#F1F3F5", "dl_even": "#F8F9FA", "dl_odd": "#F1F3F5",
