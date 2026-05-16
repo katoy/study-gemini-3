@@ -267,5 +267,48 @@ class GuiSmokeTest(unittest.TestCase):
         self.assertEqual(browser.data_manager.start_fetch_programs.call_count, 2)
         self.assertEqual(browser.status_var.get(), "読み込み完了")
 
+    def test_populate_programs_chunk_cancels_stale(self):
+        """チャンク挿入中に _populate_programs() が再度呼ばれると、古いチャンクは放棄される。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+
+        large_programs = self.programs + [
+            Program(
+                title=f"P{i}", display_title=f"P{i}",
+                display_date="2024-05-16(金)", site_id=f"S{i}", corner_id=f"C{i}",
+                url=f"http://ex.com/{i}", genre="language"
+            )
+            for i in range(51, 55)
+        ]
+        browser.filtered_programs = large_programs
+
+        first_gen = getattr(browser, "_populate_generation", 0)
+
+        browser._populate_programs()
+        self.assertEqual(browser._populate_generation, first_gen + 1)
+
+        first_children = len(browser.program_tree.get_children())
+        self.assertGreater(
+            first_children, 0,
+            "最初のチャンクは同期的に挿入される"
+        )
+
+        second_gen = browser._populate_generation
+        browser.filtered_programs = self.programs
+
+        browser._populate_programs()
+        self.assertEqual(
+            browser._populate_generation, second_gen + 1,
+            "世代カウンタが増加する"
+        )
+
+        self.root.update()
+
+        second_children = len(browser.program_tree.get_children())
+        self.assertEqual(
+            second_children, len(self.programs),
+            "2番目の _populate_programs() の結果だけが反映される"
+        )
+
 if __name__ == "__main__":
     unittest.main()

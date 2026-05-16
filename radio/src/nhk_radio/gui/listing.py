@@ -20,6 +20,8 @@ from ..types import Episode, Program
 
 logger = logging.getLogger(__name__)
 
+_PROGRAM_INSERT_CHUNK = 50
+
 
 class GuiListingMixin:
     """Logic for program and episode listing, filtering, and selection."""
@@ -59,48 +61,75 @@ class GuiListingMixin:
 
     def _populate_programs(self, preserve_selection: bool = True):
         self._update_program_genre_filter_values()
-        # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
         current_key = None
         if preserve_selection:
             current_program = self._selected_program()
-            current_key = self._program_key(current_program) if current_program is not None else self.selected_program_key
+            current_key = (
+                self._program_key(current_program)
+                if current_program is not None
+                else self.selected_program_key
+            )
         programs = self._sorted_programs(self.filtered_programs)
         self.program_tree_programs.clear()
         for item_id in self.program_tree.get_children():
             self.program_tree.delete(item_id)
-        selected_item_id = ""
-        for index, program in enumerate(programs, 1):
-            item_id = f"program-{index - 1}"
-            self.program_tree.insert(
-                "",
-                "end",
-                iid=item_id,
-                # tag による背景色指定を行わない
-                values=(
-                    self.program_order_map.get(self._program_key(program), index),
-                    program.display_date or "----",
-                    program.display_title or program.title,
-                ),
+
+        self._populate_generation = getattr(self, "_populate_generation", 0) + 1
+        generation = self._populate_generation
+
+        def _insert_chunk(start: int, selected_so_far: str) -> None:
+            if self._populate_generation != generation:
+                return
+            chunk = programs[start : start + _PROGRAM_INSERT_CHUNK]
+            sel = selected_so_far
+            for i, program in enumerate(chunk):
+                idx = start + i
+                item_id = f"program-{idx}"
+                self.program_tree.insert(
+                    "",
+                    "end",
+                    iid=item_id,
+                    values=(
+                        self.program_order_map.get(self._program_key(program), idx + 1),
+                        program.display_date or "----",
+                        program.display_title or program.title,
+                    ),
+                )
+                self.program_tree_programs[item_id] = program
+                if current_key is not None and self._program_key(program) == current_key:
+                    sel = item_id
+            next_start = start + _PROGRAM_INSERT_CHUNK
+            if next_start < len(programs):
+                self.root.after(0, lambda s=sel: _insert_chunk(next_start, s))
+            else:
+                _finalize(sel)
+
+        def _finalize(selected_item_id: str) -> None:
+            if self._populate_generation != generation:
+                return
+            if selected_item_id:
+                self.program_tree.selection_set(selected_item_id)
+                self.program_tree.see(selected_item_id)
+                self.selected_program_key = self._program_key(
+                    self.program_tree_programs.get(selected_item_id)
+                )
+            elif programs:
+                self.program_tree.selection_set("program-0")
+                self.program_tree.see("program-0")
+                self.selected_program_key = self._program_key(
+                    self.program_tree_programs.get("program-0")
+                )
+            else:
+                self.selected_program_key = None
+            self.program_list_summary_var.set(
+                f"{len(programs)} / {len(self.programs)} 番組"
+                + (" (検索中)" if len(programs) < len(self.programs) else "")
             )
-            self.program_tree_programs[item_id] = program
-            if current_key is not None and self._program_key(program) == current_key:
-                selected_item_id = item_id
 
-        if selected_item_id:
-            self.program_tree.selection_set(selected_item_id)
-            self.program_tree.see(selected_item_id)
-            self.selected_program_key = self._program_key(self.program_tree_programs.get(selected_item_id))
-        elif programs:
-            self.program_tree.selection_set("program-0")
-            self.program_tree.see("program-0")
-            self.selected_program_key = self._program_key(self.program_tree_programs.get("program-0"))
+        if programs:
+            _insert_chunk(0, "")
         else:
-            self.selected_program_key = None
-
-        self.program_list_summary_var.set(
-            f"{len(programs)} / {len(self.programs)} 番組"
-            + (" (検索中)" if len(programs) < len(self.programs) else "")
-        )
+            _finalize("")
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
         preserved_episode_keys: tuple[str, ...] = ()
