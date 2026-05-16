@@ -298,7 +298,7 @@ class GuiDownloadsMixin:
             "state": "running",
             **widgets,
         }
-        self._reflow_download_rows()
+        self._reflow_download_rows(auto_scroll=True)
 
     def _finish_download_row(self, episode_key: str, status: str):
         row = self.active_download_rows.get(episode_key)
@@ -335,13 +335,15 @@ class GuiDownloadsMixin:
         else:
             self.progress_text_var.set(f"実行中: {active} / 全体: {total}")
 
-    def _reflow_download_rows(self):
+    def _reflow_download_rows(self, *, auto_scroll: bool = False):
         # Canvas 内のアイテムを上から順に再配置
         for i, row in enumerate(self.active_download_rows.values()):
             row["frame"].grid(row=i, column=0, sticky="ew", padx=5, pady=2)
 
         self.root.update_idletasks()
         self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
+        if auto_scroll:
+            self.download_jobs_canvas.yview_moveto(1.0)
 
     def _create_download_job_widgets(self, index: int, episode: Episode, episode_key: str) -> dict:
         frame = ttk.Frame(self.download_jobs_inner, style="Card.TFrame")

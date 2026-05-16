@@ -141,6 +141,29 @@ class GuiDownloadsTest(unittest.TestCase):
         self.gui._reflow_download_rows()
         row_frame.grid.assert_called_once()
 
+    def test_reflow_download_rows_with_autoscroll_calls_yview_moveto(self):
+        """Test that yview_moveto(1.0) is called when auto_scroll=True."""
+        row_frame = MagicMock()
+        self.gui.active_download_rows = {"k1": {"frame": row_frame, "state": "running"}}
+        self.gui._reflow_download_rows(auto_scroll=True)
+        self.gui.download_jobs_canvas.yview_moveto.assert_called_once_with(1.0)
+
+    def test_reflow_download_rows_without_autoscroll_no_yview_moveto(self):
+        """Test that yview_moveto is not called when auto_scroll=False (default)."""
+        row_frame = MagicMock()
+        self.gui.active_download_rows = {"k1": {"frame": row_frame, "state": "running"}}
+        self.gui._reflow_download_rows(auto_scroll=False)
+        self.gui.download_jobs_canvas.yview_moveto.assert_not_called()
+
+    def test_add_download_row_triggers_autoscroll(self):
+        """Test that _add_download_row calls _reflow_download_rows with auto_scroll=True."""
+        program = Program(title="P", display_title="P", display_date="2024-01-01(月)", site_id="S", corner_id="C", url="", genre="language")
+        episode = Episode(id="E1", title="E", display_title="E", date="2024-01-01", display_date="2024-01-01(月)", broadcast_time="10:00", duration_str="30:00", url="")
+        with patch.object(self.gui, "_create_download_job_widgets", return_value={"frame": MagicMock()}):
+            with patch.object(self.gui, "_reflow_download_rows") as mock_reflow:
+                self.gui._add_download_row(program, episode)
+                mock_reflow.assert_called_once_with(auto_scroll=True)
+
     def test_remove_download_row(self):
         row_frame = MagicMock()
         self.gui.active_download_rows = {"k1": {"frame": row_frame, "state": "done"}}
