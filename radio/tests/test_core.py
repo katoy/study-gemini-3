@@ -50,8 +50,103 @@ class CoreHelpersTest(unittest.TestCase):
         with patch("httpx.Client.get", return_value=mock_resp):
             self.assertEqual(core.http_get_text("https://example.com"), "hello")
 
+    def test_http_get_json_async_retries_on_request_error(self):
+        # リクエストエラー → バックオフ → 成功
+        mock_resp = unittest.mock.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.raise_for_status.return_value = None
+
+        mock_client = unittest.mock.AsyncMock()
+        mock_client.get = unittest.mock.AsyncMock(
+            side_effect=[
+                httpx.RequestError("connection 1"),
+                httpx.RequestError("connection 2"),
+                mock_resp,
+            ]
+        )
+
+        with patch("nhk_radio.core.logger"):
+            result = asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_client.get.call_count, 3)
+
+    def test_http_get_json_async_retries_on_429(self):
+        # 429 エラー → バックオフ → 成功
+        mock_resp = unittest.mock.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.raise_for_status.return_value = None
+
+        error_resp = unittest.mock.Mock()
+        error_resp.status_code = 429
+        error_resp.headers = {}
+
+        mock_client = unittest.mock.AsyncMock()
+        mock_client.get = unittest.mock.AsyncMock(
+            side_effect=[
+                httpx.HTTPStatusError("429", request=unittest.mock.Mock(), response=error_resp),
+                httpx.HTTPStatusError("429", request=unittest.mock.Mock(), response=error_resp),
+                mock_resp,
+            ]
+        )
+
+        with patch("nhk_radio.core.logger"):
+            result = asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_client.get.call_count, 3)
+
+    def test_http_get_json_async_retries_on_5xx(self):
+        # 500 エラー → バックオフ → 成功
+        mock_resp = unittest.mock.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.raise_for_status.return_value = None
+
+        error_resp = unittest.mock.Mock()
+        error_resp.status_code = 503
+        error_resp.headers = {}
+
+        mock_client = unittest.mock.AsyncMock()
+        mock_client.get = unittest.mock.AsyncMock(
+            side_effect=[
+                httpx.HTTPStatusError("503", request=unittest.mock.Mock(), response=error_resp),
+                mock_resp,
+            ]
+        )
+
+        with patch("nhk_radio.core.logger"):
+            result = asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(mock_client.get.call_count, 2)
+
+    def test_http_get_json_async_429_retry_after_header(self):
+        # 429 + Retry-After ヘッダー → ヘッダー値を使用
+        mock_resp = unittest.mock.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.raise_for_status.return_value = None
+
+        error_resp = unittest.mock.Mock()
+        error_resp.status_code = 429
+        error_resp.headers = {"Retry-After": "1.5"}
+
+        mock_client = unittest.mock.AsyncMock()
+        mock_client.get = unittest.mock.AsyncMock(
+            side_effect=[
+                httpx.HTTPStatusError("429", request=unittest.mock.Mock(), response=error_resp),
+                mock_resp,
+            ]
+        )
+
+        with (
+            patch("nhk_radio.core.logger"),
+            patch("nhk_radio.core.asyncio.sleep", new_callable=AsyncMock) as sleep_mock,
+        ):
+            result = asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+        self.assertEqual(result, {"ok": True})
+        sleep_mock.assert_called_once_with(1.5)
+
     def test_fetch_by_genre_async_error(self):
         # ジャンル取得失敗時の空リスト返却 (language 以外)
+        # 注: http_get_json_async がリトライするようになったため、
+        # RequestError が複数回発生してから最終的に例外になる
         with (
             patch.object(core, "http_get_json_async", side_effect=httpx.RequestError("API Error")),
             patch("nhk_radio.core.logger") as logger_mock
@@ -292,14 +387,14 @@ class CoreHelpersTest(unittest.TestCase):
 
         stale_ep = [Episode(id="stale", title="t", display_title="t", date="2024-04-15", display_date="2024-04-15", broadcast_time="", duration_str="", url="")]
         with (
-            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout")]),
+            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout"), RuntimeError("timeout")]),
             patch.object(core, "load_episode_cache", return_value=stale_ep),
             patch.object(core.time, "sleep"),
         ):
             self.assertEqual(core.refresh_episode_list(program), (stale_ep, "stale-cache"))
 
         with (
-            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout")]),
+            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), RuntimeError("timeout"), RuntimeError("timeout")]),
             patch.object(core, "load_episode_cache", return_value=None),
             patch.object(core.time, "sleep"),
             self.assertRaisesRegex(RuntimeError, "timeout"),

@@ -20,6 +20,11 @@ _UA = (
 )
 _HEADERS = {"User-Agent": _UA, "Accept-Language": "ja,en;q=0.9"}
 
+# HTTP リトライ設定
+HTTP_RETRY_COUNT = 3          # 最大試行回数（初回含む）
+HTTP_RETRY_BASE_DELAY = 0.5   # バックオフ基準秒数 (0.5s → 1s → 2s)
+HTTP_RETRY_MAX_DELAY = 10.0   # バックオフ上限秒数
+
 JP_WEEKDAYS = "月火水木金土日"
 
 GENRE_LABELS = {

@@ -22,6 +22,9 @@ from .cache import load_episode_cache, load_program_cache, save_episode_cache, s
 from .constants import (
     _HEADERS,
     GENRE_LABELS,
+    HTTP_RETRY_BASE_DELAY,
+    HTTP_RETRY_COUNT,
+    HTTP_RETRY_MAX_DELAY,
     MAX_CONCURRENT_API_REQUESTS,
     NHK_API_GENRE,
     NHK_API_NEW_CORNERS,
@@ -43,16 +46,43 @@ logger = logging.getLogger(__name__)
 
 
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 60) -> dict | list:
-    try:
-        resp = await client.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTPエラー (ステータスコード: {e.response.status_code}): {url}")
-        raise
-    except httpx.RequestError as e:
-        logger.error(f"ネットワークエラー: {e} ({url})")
-        raise
+    last_exc: Exception | None = None
+    for attempt in range(HTTP_RETRY_COUNT):
+        try:
+            resp = await client.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429:
+                # Retry-After ヘッダーを優先、なければバックオフ計算
+                retry_after = e.response.headers.get("Retry-After")
+                delay = float(retry_after) if retry_after else min(
+                    HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY
+                )
+                logger.warning(f"429 Too Many Requests: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            if status >= 500 and attempt < HTTP_RETRY_COUNT - 1:
+                delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                logger.warning(f"HTTPエラー {status}: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            logger.error(f"HTTPエラー (ステータスコード: {status}): {url}")
+            raise
+        except httpx.RequestError as e:
+            if attempt < HTTP_RETRY_COUNT - 1:
+                delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                logger.warning(f"ネットワークエラー: {e} ({url}) — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            logger.error(f"ネットワークエラー: {e} ({url})")
+            raise
+    assert last_exc is not None
+    raise last_exc
 
 
 def http_get_json(url: str, timeout: int = 60) -> dict | list:
@@ -345,16 +375,17 @@ def get_episode_list(
 
 def refresh_episode_list(
     program: Program,
-    retry_delay: float = 1.0,
+    retry_delay: float = HTTP_RETRY_BASE_DELAY,
 ) -> tuple[list[Episode], str]:
     last_error = ""
-    for attempt in range(2):
+    for attempt in range(HTTP_RETRY_COUNT):
         try:
             episodes = fetch_episodes(program, verbose=False)
         except Exception as e:
             last_error = str(e)
-            if attempt == 0:
-                time.sleep(retry_delay)
+            if attempt < HTTP_RETRY_COUNT - 1:
+                delay = min(retry_delay * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                time.sleep(delay)
             continue
 
         # 取得成功: キャッシュ保存の失敗は警告のみに留め、取得データを返す
