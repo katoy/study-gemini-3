@@ -10,6 +10,7 @@ from collections import OrderedDict
 from contextlib import suppress
 from pathlib import Path
 
+from .constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
 from .text import _genre_label, _safe_name
 from .types import Episode, Program
 
@@ -532,6 +533,9 @@ def _yt_dlp_command(
         cmd.append("--newline")
     # AES-128 暗号化 HLS ストリームで ffmpeg が aac_adtstoasc フィルタに失敗するのを防ぐ
     cmd.append("--hls-use-mpegts")
+    # HLS フラグメントの並列ダウンロードとソケットタイムアウトを設定
+    cmd += ["--concurrent-fragments", str(YTDLP_CONCURRENT_FRAGMENTS)]
+    cmd += ["--socket-timeout", str(YTDLP_SOCKET_TIMEOUT)]
     if audio_only:
         cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
     cmd += ["-o", output_template]

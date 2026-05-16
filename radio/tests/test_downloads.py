@@ -380,6 +380,16 @@ class DownloadHelpersTest(unittest.TestCase):
             "--hls-use-mpegts", downloads._yt_dlp_command("https://e", "x", audio_only=True, no_playlist=True)
         )
 
+    def test_yt_dlp_command_contains_concurrency_and_timeout_flags(self):
+        """yt-dlp コマンドが HLS フラグメント並列化とソケットタイムアウトオプションを含む"""
+        from nhk_radio.constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
+
+        cmd = downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=True)
+        self.assertIn("--concurrent-fragments", cmd)
+        self.assertIn(str(YTDLP_CONCURRENT_FRAGMENTS), cmd)
+        self.assertIn("--socket-timeout", cmd)
+        self.assertIn(str(YTDLP_SOCKET_TIMEOUT), cmd)
+
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertFalse(downloads.is_episode_downloaded(Path(tmp), PROGRAM, EPISODE))

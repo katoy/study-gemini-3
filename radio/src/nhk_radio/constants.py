@@ -25,6 +25,10 @@ HTTP_RETRY_COUNT = 3          # 最大試行回数（初回含む）
 HTTP_RETRY_BASE_DELAY = 0.5   # バックオフ基準秒数 (0.5s → 1s → 2s)
 HTTP_RETRY_MAX_DELAY = 10.0   # バックオフ上限秒数
 
+# yt-dlp ダウンロード設定
+YTDLP_CONCURRENT_FRAGMENTS = 4  # HLS フラグメント並列数
+YTDLP_SOCKET_TIMEOUT = 30       # ソケットタイムアウト秒数
+
 JP_WEEKDAYS = "月火水木金土日"
 
 GENRE_LABELS = {
