@@ -1,33 +1,57 @@
 {% extends "base.html" %}
 
-{% block head %}
-<style>
-  .filter-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
-  .filter-bar label { font-weight: 600; }
-  .filter-bar select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
-  #program-list-area { min-height: 4rem; }
-</style>
-{% endblock %}
+{% block body_class %}app-page{% endblock %}
+{% block main_class %}app-layout{% endblock %}
 
 {% block content %}
-<section class="filter-bar">
-  <label for="genre-select">ジャンル</label>
-  <select id="genre-select"
-          hx-get="/programs"
-          hx-target="#program-list-area"
-          hx-trigger="change"
-          hx-indicator="#loading"
-          name="genre">
-    {% for opt in genre_options %}
-    <option value="{{ opt.value }}" {% if opt.value == selected_genre %}selected{% endif %}>
-      {{ opt.label }}
-    </option>
-    {% endfor %}
-  </select>
-  <span id="loading" class="htmx-indicator"><span class="spinner"></span> 読み込み中…</span>
+<!-- 左サイドバー -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <span>📻 番組一覧</span>
+    <a href="https://www.nhk.or.jp/radio/ondemand/" target="_blank">らじる★ ↗</a>
+  </div>
+  <div class="sidebar-filters">
+    <label for="genre-filter">ジャンル</label>
+    <select id="genre-filter" name="genre"
+      hx-get="/programs" hx-target="#sidebar-program-list"
+      hx-trigger="change" hx-indicator="#sidebar-spinner">
+      <option value="">すべて</option>
+      {% for opt in genre_options %}
+      <option value="{{ opt.value }}" {% if opt.value == selected_genre %}selected{% endif %}>{{ opt.label }}</option>
+      {% endfor %}
+    </select>
+    <label for="search-box">番組を検索</label>
+    <input id="search-box" type="text" placeholder="番組名を入力..."
+      hx-get="/programs" hx-target="#sidebar-program-list"
+      hx-trigger="keyup changed delay:300ms"
+      name="q" autocomplete="off">
+    <span id="sidebar-spinner" class="htmx-indicator" style="display:inline-block; margin-top:4px;">
+      <span class="spinner"></span>
+    </span>
+  </div>
+  <div id="sidebar-program-list" class="sidebar-program-list">
+    {% include "partials/program_list.html" %}
+  </div>
+</aside>
+
+<!-- 右上: エピソード詳細 -->
+<section class="main-panel" id="episode-panel">
+  <div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--color-text-secondary); font-size:0.95rem;">
+    ← 左のリストから番組を選択してください
+  </div>
 </section>
 
-<div id="program-list-area">
-  {% include "partials/program_list.html" %}
-</div>
+<!-- 右下: ダウンロード活動 -->
+<section class="activity-panel">
+  <div class="activity-header">
+    <span>ダウンロード活動</span>
+    <a href="/downloads">すべて →</a>
+  </div>
+  <div id="job-activity"
+    hx-get="/api/jobs/recent"
+    hx-trigger="load, every 3s"
+    hx-swap="innerHTML">
+    <div class="activity-empty">ジョブがありません</div>
+  </div>
+</section>
 {% endblock %}

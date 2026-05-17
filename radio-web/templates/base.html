@@ -46,7 +46,7 @@
     .theme-toggle:hover { background: rgba(255, 255, 255, 0.3); }
     .font-size-btn { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0.4rem 0.6rem; width: 2.2rem; height: 2.2rem; display: flex; align-items: center; justify-content: center; font-weight: bold; }
     .font-size-btn:hover { background: rgba(255, 255, 255, 0.3); }
-    main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+    main.page-main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
     .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
     .htmx-request .htmx-indicator { opacity: 1; }
     .htmx-request.htmx-indicator { opacity: 1; }
@@ -83,7 +83,7 @@
   </script>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <header>
     <h1>📻 NHK ラジオ聞き逃し</h1>
     <div class="header-nav">
@@ -100,9 +100,28 @@
       </div>
     </div>
   </header>
-  <main>
+  <main class="{% block main_class %}page-main{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+  <!-- ステータスバー -->
+  <footer class="status-bar">
+    <span id="status-message">準備完了</span>
+    <div class="shortcut-hints">
+      <kbd>/</kbd> 検索 &nbsp; <kbd>g</kbd> ジャンル &nbsp;
+      <kbd>F1</kbd> ヘルプ &nbsp; <kbd>Esc</kbd> 閉じる
+    </div>
+  </footer>
+  <!-- 右クリックコンテキストメニュー -->
+  <div id="context-menu" class="context-menu" style="display:none;">
+    <ul>
+      <li data-action="open-nhk">🔗 番組ページを開く</li>
+      <li data-action="copy-title">📋 タイトルをコピー</li>
+      <li data-action="copy-filename">📋 ファイル名をコピー</li>
+      <li class="separator"></li>
+      <li data-action="redownload">↩ 再ダウンロード</li>
+      <li data-action="delete-file" class="destructive">🗑 ファイルを削除</li>
+    </ul>
+  </div>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

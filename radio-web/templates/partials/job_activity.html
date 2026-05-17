@@ -1,0 +1,27 @@
+{% if jobs %}
+{% for job in jobs %}
+<div class="job-row">
+  <span class="job-title" title="{{ job.episode.title }}">{{ job.episode.title[:35] }}</span>
+  <span class="job-status">
+    {% if job.status == 'done' %}<span style="color:var(--color-success);">✔</span>
+    {% elif job.status == 'error' %}<span style="color:var(--color-error);">✖</span>
+    {% elif job.status == 'cancelled' %}<span style="color:var(--color-warning);">⊘</span>
+    {% elif job.status == 'pending' %}待機中
+    {% else %}DL中{% endif %}
+  </span>
+  {% if job.status in ('downloading', 'pending') %}
+  <div class="job-progress-wrap">
+    <div class="job-progress-bar-bg">
+      <div class="job-progress-bar" style="width:{% if job.progress %}{{ job.progress.percent }}{% else %}0{% endif %}%;"></div>
+    </div>
+    <span class="job-meta">
+      {% if job.progress %}{{ job.progress.percent }}% {% if job.progress.eta %}/ {{ job.progress.eta }}{% endif %}{% endif %}
+    </span>
+  </div>
+  <button class="job-cancel-btn" onclick="cancelJob('{{ job.id }}')">中止</button>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="activity-empty">実行中のジョブがありません</div>
+{% endif %}

@@ -12,6 +12,19 @@
   --color-error: #d32f2f;
   --color-warning: #f57c00;
 
+  /* UI デザイン専用色 */
+  --color-primary: #1a3a5c;
+  --color-primary-hover: #1557a0;
+  --color-accent-soft: #fff4e6;
+  --color-selected-bg: #e7f5ff;
+  --color-row-odd: #f8f9fa;
+
+  /* レイアウト寸法 */
+  --sidebar-width: 280px;
+  --activity-height: 220px;
+  --header-height: 62px;
+  --status-bar-height: 34px;
+
   /* フォントサイズ (デフォルト: M) */
   --font-size-base: 16px;
   --font-size-sm: 0.875rem;
@@ -30,6 +43,13 @@
   --color-success: #81c784;
   --color-error: #e57373;
   --color-warning: #ffb74d;
+
+  /* UI デザイン専用色 */
+  --color-primary: #4dabf7;
+  --color-primary-hover: #339af0;
+  --color-accent-soft: #2c2014;
+  --color-selected-bg: #2b5a8c;
+  --color-row-odd: #252525;
 }
 
 /* フォントサイズ小 */
@@ -118,3 +138,437 @@ input, select {
 .success { color: var(--color-success); }
 .error { color: var(--color-error); }
 .warning { color: var(--color-warning); }
+
+/* === 3パネルレイアウト === */
+body.app-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr var(--activity-height);
+  gap: 8px;
+  padding: 8px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.sidebar {
+  grid-row: 1 / 3;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-panel {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.activity-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* === ステータスバー === */
+.status-bar {
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 0.3rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.status-bar kbd {
+  background: var(--color-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* === コンテキストメニュー === */
+.context-menu {
+  position: fixed;
+  z-index: 2000;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  padding: 4px 0;
+}
+
+.context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.context-menu li {
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.context-menu li:hover {
+  background: var(--color-selected-bg);
+}
+
+.context-menu li.separator {
+  border-top: 1px solid var(--color-border);
+  margin: 4px 0;
+  padding: 0;
+}
+
+.context-menu li.destructive {
+  color: var(--color-error);
+}
+
+/* === サイドバー内ウィジェット === */
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0.75rem 0.4rem;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.sidebar-header a {
+  font-size: 0.75rem;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.sidebar-filters {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-filters label {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 2px;
+  margin-top: 6px;
+}
+
+.sidebar-filters select,
+.sidebar-filters input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* === サイドバー番組リスト === */
+.sidebar-program-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar-program-item {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-program-item:hover {
+  background: var(--color-selected-bg);
+}
+
+.sidebar-program-item.active {
+  background: var(--color-selected-bg);
+  border-left: 3px solid var(--color-accent);
+  padding-left: calc(0.75rem - 3px);
+}
+
+.sidebar-program-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.sidebar-program-meta {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  margin-top: 1px;
+}
+
+.sidebar-genre-badge {
+  display: inline-block;
+  background: var(--color-accent-soft);
+  color: var(--color-primary);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.68rem;
+}
+
+/* === エピソード Hero セクション === */
+.program-hero {
+  background: var(--color-accent-soft);
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 1.25rem;
+}
+
+.hero-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+  color: var(--color-text);
+}
+
+.hero-meta {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.6rem;
+}
+
+.hero-stats {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.7rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-quiet {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.2s;
+}
+
+.btn-quiet:hover {
+  background: var(--color-border);
+}
+
+.btn-accent {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: opacity 0.2s;
+}
+
+.btn-accent:hover {
+  opacity: 0.85;
+}
+
+/* === エピソードツールバー === */
+.ep-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.ep-toolbar input[type="text"] {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  min-width: 160px;
+}
+
+.ep-summary,
+.ep-selected-count {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-left: auto;
+}
+
+/* === エピソードテーブル === */
+.ep-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ep-table th {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 2px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ep-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.ep-table tr:nth-child(odd) td {
+  background: var(--color-row-odd);
+}
+
+.ep-table tr:hover td {
+  background: var(--color-selected-bg);
+}
+
+.ep-table tr.ep-row-saved .ep-saved-mark {
+  color: var(--color-success);
+  font-weight: bold;
+}
+
+.ep-date-col {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.ep-dl-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.ep-dl-btn:hover {
+  opacity: 0.85;
+}
+
+.ep-dl-btn.done {
+  background: var(--color-success);
+  cursor: default;
+}
+
+/* === DL 活動パネル === */
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.activity-header a {
+  font-size: 0.78rem;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.job-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.8rem;
+}
+
+.job-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-status {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.job-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 120px;
+}
+
+.job-progress-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.job-progress-bar {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.job-meta {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.job-cancel-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.job-cancel-btn:hover {
+  background: var(--color-error);
+  color: #fff;
+  border-color: var(--color-error);
+}
+
+.activity-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+}

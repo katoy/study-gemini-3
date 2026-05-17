@@ -4,13 +4,13 @@
 
 {% block head %}
 <style>
-  table { width: 100%; border-collapse: collapse; background: #fff; }
-  th, td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #eee; font-size: 0.88rem; text-align: left; }
-  th { background: #f0f0f0; font-weight: 600; }
-  .status-done { color: #2e7d32; }
-  .status-error { color: #c00; }
-  .status-pending, .status-downloading { color: #666; }
-  .empty-msg { text-align: center; color: #888; padding: 2rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--color-bg); }
+  th, td { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--color-border); font-size: 0.88rem; text-align: left; }
+  th { background: var(--color-surface); font-weight: 600; }
+  .status-done { color: var(--color-success); }
+  .status-error { color: var(--color-error); }
+  .status-pending, .status-downloading { color: var(--color-text-secondary); }
+  .empty-msg { text-align: center; color: var(--color-text-secondary); padding: 2rem; }
 </style>
 {% endblock %}
 

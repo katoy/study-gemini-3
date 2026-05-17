@@ -256,6 +256,40 @@ class RoutesTest(unittest.TestCase):
         resp = self.client.post("/api/cache/clear?scope=episodes")
         self.assertEqual(resp.status_code, 204)
 
+    # ──────────────────────────────────────────────
+    # GET /api/jobs/recent
+    # ──────────────────────────────────────────────
+
+    def test_recent_jobs_returns_200(self):
+        """最近のジョブ一覧エンドポイントが 200 を返す。"""
+        resp = self.client.get("/api/jobs/recent")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/html", resp.headers["content-type"])
+
+    def test_recent_jobs_empty(self):
+        """ジョブがない場合、エンドポイントが成功する。"""
+        resp = self.client.get("/api/jobs/recent")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("ジョブがありません", resp.text)
+
+    def test_recent_jobs_with_job(self):
+        """ジョブが存在する場合、エンドポイントが HTML に反映される。"""
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        resp = self.client.get("/api/jobs/recent")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("第1回", resp.text)
+
+    def test_recent_jobs_limit_parameter(self):
+        """limit パラメータで取得件数を制限できる。"""
+        job_manager = app.state.job_manager
+        # 複数のジョブを登録
+        for i in range(5):
+            job_manager.enqueue(PROGRAM, EPISODE)
+        # limit=2 で取得
+        resp = self.client.get("/api/jobs/recent?limit=2")
+        self.assertEqual(resp.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

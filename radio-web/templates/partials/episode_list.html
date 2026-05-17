@@ -1,40 +1,69 @@
-<style>
-  .ep-list { list-style: none; margin-top: 0.5rem; }
-  .ep-list li { padding: 0.45rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.82rem; }
-  .ep-list li:last-child { border-bottom: none; }
-  .ep-meta-row { display: flex; align-items: center; gap: 0.5rem; }
-  .ep-date { color: #888; white-space: nowrap; }
-  .ep-duration { color: #999; white-space: nowrap; font-size: 0.75rem; margin-left: auto; }
-  .ep-title { margin-top: 0.2rem; color: #333; word-break: break-all; line-height: 1.4; }
-  .dl-btn { background: #1a3a5c; color: #fff; border: none; border-radius: 3px; padding: 0.2rem 0.5rem; cursor: pointer; font-size: 0.75rem; white-space: nowrap; margin-left: 0.4rem; }
-  .dl-btn:disabled { background: #aaa; cursor: default; }
-  .dl-btn.done { background: #2e7d32; }
-  .ep-error { color: #c00; font-size: 0.82rem; }
-</style>
+<!-- Hero セクション -->
+<div class="program-hero">
+  <h2 class="hero-title">{{ program.display_title }}</h2>
+  <div class="hero-meta">{{ program.area }} / {{ program.genre_label }}</div>
+  <div class="hero-stats">{{ episodes_with_status | length }} エピソード</div>
+  <div class="hero-actions">
+    <button class="btn-accent" id="batch-dl-btn" onclick="batchDownload()">選択をダウンロード</button>
+  </div>
+</div>
 
+<!-- エラーバナー -->
 {% if error %}
-  <p class="ep-error">⚠ {{ error }}</p>
-{% elif episodes_with_status %}
-  <ul class="ep-list">
+<div style="background:var(--color-error); color:#fff; padding:0.5rem 1rem; font-size:0.85rem;">
+  ⚠ {{ error }}
+</div>
+{% endif %}
+
+<!-- エピソードツールバー -->
+<div class="ep-toolbar">
+  <input type="text" id="ep-filter-input" placeholder="絞り込み..." oninput="filterEpisodes(this.value)">
+  <label style="font-size:0.82rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+    <input type="checkbox" id="show-saved-only" onchange="filterEpisodes()"> 保存済みのみ
+  </label>
+  <span class="ep-summary" id="ep-summary">全 {{ episodes_with_status | length }} 件</span>
+  <span class="ep-selected-count" id="ep-selected-count" style="display:none;">0 件選択</span>
+</div>
+
+<!-- エピソードテーブル -->
+{% if episodes_with_status %}
+<table class="ep-table">
+  <thead>
+    <tr>
+      <th style="width:2rem;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"></th>
+      <th style="width:2rem;">保存</th>
+      <th style="width:7rem;">放送日</th>
+      <th>タイトル</th>
+      <th style="width:5rem;">操作</th>
+    </tr>
+  </thead>
+  <tbody id="ep-tbody">
   {% for item in episodes_with_status %}
-    {% set ep = item.episode %}
-    <li>
-      <div class="ep-meta-row">
-        <span class="ep-date">{{ ep.display_date }}</span>
-        <span class="ep-duration">{{ ep.duration_str }}</span>
+    <tr class="ep-row {% if item.downloaded %}ep-row-saved{% endif %}"
+      data-title="{{ item.episode.display_title }}"
+      data-saved="{{ item.downloaded | int }}"
+      data-episode='{{ item.episode | tojson }}'
+      data-program='{{ program | tojson }}'>
+      <td><input type="checkbox" class="ep-checkbox" onchange="updateSelectedCount()"></td>
+      <td class="ep-saved-mark">{% if item.downloaded %}✓{% endif %}</td>
+      <td class="ep-date-col">{{ item.episode.display_date[:10] if item.episode.display_date else '' }}</td>
+      <td>{{ item.episode.display_title }}</td>
+      <td>
         {% if item.downloaded %}
-          <button class="dl-btn done" disabled>済</button>
+          <button class="ep-dl-btn done" disabled>済</button>
         {% else %}
-          <button class="dl-btn"
-                  data-program="{{ program | tojson }}"
-                  data-episode="{{ ep | tojson }}"
-                  onclick="startDL(this)">DL</button>
+          <button class="ep-dl-btn"
+            data-program='{{ program | tojson }}'
+            data-episode='{{ item.episode | tojson }}'
+            onclick="startDL(this)">DL</button>
         {% endif %}
-      </div>
-      <div class="ep-title">{{ ep.display_title }}</div>
-    </li>
+      </td>
+    </tr>
   {% endfor %}
-  </ul>
+  </tbody>
+</table>
 {% else %}
-  <p style="font-size:0.82rem;color:#999;">エピソードがありません。</p>
+<div style="text-align:center; padding:2rem; color:var(--color-text-secondary); font-size:0.85rem;">
+  エピソードがありません
+</div>
 {% endif %}

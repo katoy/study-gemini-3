@@ -290,3 +290,20 @@ async def clear_cache(request: Request, scope: str = "all"):
     logger.info(f"キャッシュをクリア: {scope}")
     # JavaScript で処理するため、204 No Content を返す
     return HTMLResponse(status_code=204)
+
+
+@router.get("/api/jobs/recent", response_class=HTMLResponse)
+async def recent_jobs(request: Request, limit: int = 10):
+    """最近のジョブ一覧（活動パネル用）。
+
+    Query params:
+        limit: 最大取得件数（デフォルト 10）
+    """
+    job_manager = request.app.state.job_manager
+    jobs_dict = job_manager.all_jobs()
+    jobs = list(reversed(list(jobs_dict.values())))[:limit]
+    return templates.TemplateResponse(
+        request,
+        "partials/job_activity.html",
+        {"jobs": jobs},
+    )
