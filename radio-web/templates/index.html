@@ -1,57 +1,211 @@
 {% extends "base.html" %}
 
-{% block body_class %}app-page{% endblock %}
-{% block main_class %}app-layout{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+
+{% block main_class %}{% endblock %}
+
+{% block head %}
+<style>
+  main { padding: 0 !important; max-width: none !important; }
+  .dashboard-layout { display: flex; height: 100%; }
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- 左サイドバー -->
-<aside class="sidebar">
-  <div class="sidebar-header">
-    <span>📻 番組一覧</span>
-    <a href="https://www.nhk.or.jp/radio/ondemand/" target="_blank">らじる★ ↗</a>
-  </div>
-  <div class="sidebar-filters">
-    <label for="genre-filter">ジャンル</label>
-    <select id="genre-filter" name="genre"
-      hx-get="/programs" hx-target="#sidebar-program-list"
-      hx-trigger="change" hx-indicator="#sidebar-spinner">
-      <option value="">すべて</option>
-      {% for opt in genre_options %}
-      <option value="{{ opt.value }}" {% if opt.value == selected_genre %}selected{% endif %}>{{ opt.label }}</option>
+<div class="db-sidebar-overlay" id="db-overlay" onclick="closeSidebar()"></div>
+
+<div class="dashboard-layout">
+  <!-- 左サイドバー -->
+  <nav class="db-sidebar" id="db-sidebar">
+    <div class="db-sidebar-logo">📻 NHK Radio</div>
+
+    <div class="db-sidebar-section">
+      <div class="db-nav-item active" id="nav-all" onclick="filterByGenre('', this)">
+        <span class="db-nav-icon">≡</span>
+        <span class="db-nav-text">すべて</span>
+        <span class="db-nav-count" id="nav-all-count">{{ programs|length }}</span>
+      </div>
+    </div>
+
+    <div class="db-sidebar-section">
+      <div class="db-sidebar-section-label">ジャンル</div>
+      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪'} %}
+      {% for opt in genre_options if opt.value %}
+      {% set cnt = programs|selectattr('genre','equalto',opt.value)|list|length %}
+      {% if cnt > 0 %}
+      <div class="db-nav-item" id="nav-{{ opt.value }}" onclick="filterByGenre('{{ opt.value }}', this)">
+        <span class="db-nav-icon">{{ genre_icons.get(opt.value, '📂') }}</span>
+        <span class="db-nav-text">{{ opt.label }}</span>
+        <span class="db-nav-count">{{ cnt }}</span>
+      </div>
+      {% endif %}
       {% endfor %}
-    </select>
-    <label for="search-box">番組を検索</label>
-    <input id="search-box" type="text" placeholder="番組名を入力..."
-      hx-get="/programs" hx-target="#sidebar-program-list"
-      hx-trigger="keyup changed delay:300ms"
-      name="q" autocomplete="off">
-    <span id="sidebar-spinner" class="htmx-indicator" style="display:inline-block; margin-top:4px;">
-      <span class="spinner"></span>
-    </span>
-  </div>
-  <div id="sidebar-program-list" class="sidebar-program-list">
-    {% include "partials/program_list.html" %}
-  </div>
-</aside>
+    </div>
 
-<!-- 右上: エピソード詳細 -->
-<section class="main-panel" id="episode-panel">
-  <div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--color-text-secondary); font-size:0.95rem;">
-    ← 左のリストから番組を選択してください
-  </div>
-</section>
+    <!-- DL 活動パネル -->
+    <div class="db-activity-panel">
+      <div class="db-activity-header">
+        <span>DL 活動</span>
+        <a href="/downloads">すべて表示</a>
+      </div>
+      <div id="db-activity-content">
+        <div class="activity-empty">実行中のジョブがありません</div>
+      </div>
+    </div>
+  </nav>
 
-<!-- 右下: ダウンロード活動 -->
-<section class="activity-panel">
-  <div class="activity-header">
-    <span>ダウンロード活動</span>
-    <a href="/downloads">すべて →</a>
+  <!-- メインコンテンツ -->
+  <div class="db-main">
+    <!-- コマンドバー -->
+    <div class="db-command-bar">
+      <div class="db-command-bar-top">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button class="db-hamburger" onclick="toggleSidebar()">☰</button>
+          <h1 class="db-page-title">番組一覧</h1>
+        </div>
+        <div class="db-command-bar-actions">
+          <div class="db-view-toggle">
+            <button class="db-view-btn active" id="view-list-btn" onclick="setView('list')" title="リスト">≡</button>
+            <button class="db-view-btn" id="view-grid-btn" onclick="setView('grid')" title="グリッド">⊞</button>
+          </div>
+          <button class="db-refresh-btn" onclick="refreshPrograms()">↻ 更新</button>
+          <span class="db-count-badge"><span id="db-visible-count">{{ programs|length }}</span> 件</span>
+        </div>
+      </div>
+      <div class="db-filter-bar">
+        <div class="db-search-wrapper">
+          <input type="text" id="program-search"
+                 placeholder="番組名で絞り込み…"
+                 class="db-program-search"
+                 oninput="debounceSearchPrograms(this.value); showSearchHistory();"
+                 onfocus="showSearchHistory()"
+                 autocomplete="off" />
+          <button class="db-search-clear" id="program-search-clear"
+                  onclick="clearSearchInput()" style="display: none;" title="クリア">✕</button>
+          <div class="db-search-history" id="program-search-history" style="display: none;"></div>
+        </div>
+        <select class="db-status-filter" id="db-status-filter" onchange="filterByStatus(this.value)">
+          <option value="">状態: すべて</option>
+          <option value="undl">未 DL のみ</option>
+          <option value="done">DL 済のみ</option>
+        </select>
+        <span class="htmx-indicator spinner" id="db-spinner"></span>
+      </div>
+    </div>
+
+    <!-- プログラムリスト -->
+    <div class="db-content">
+      <div id="db-program-list"
+           hx-get="/programs{% if selected_genre %}?genre={{ selected_genre }}{% endif %}"
+           hx-trigger="load"
+           hx-swap="innerHTML"
+           hx-indicator="#db-spinner"></div>
+    </div>
   </div>
-  <div id="job-activity"
-    hx-get="/api/jobs/recent"
-    hx-trigger="load, every 3s"
-    hx-swap="innerHTML">
-    <div class="activity-empty">ジョブがありません</div>
-  </div>
-</section>
+</div>
+
+<script>
+let currentView = localStorage.getItem('dbView') || 'list';
+
+document.addEventListener('htmx:afterSwap', e => {
+  if (e.detail.target.id === 'db-program-list') {
+    applyCurrentView();
+    updateVisibleCount();
+  }
+});
+
+function setView(view, persist = true) {
+  window.currentView = view;
+  if (persist) localStorage.setItem('dbView', view);
+  document.getElementById('view-list-btn')?.classList.toggle('active', view === 'list');
+  document.getElementById('view-grid-btn')?.classList.toggle('active', view === 'grid');
+  applyCurrentView();
+}
+
+function applyCurrentView() {
+  const v = window.currentView || 'list';
+  const listEl = document.getElementById('db-view-list');
+  const gridEl = document.getElementById('db-view-grid');
+  if (listEl) listEl.style.display = v === 'grid' ? 'none' : 'block';
+  if (gridEl) gridEl.style.display = v === 'grid' ? 'grid' : 'none';
+}
+
+function filterByGenre(genre, navItem) {
+  document.querySelectorAll('.db-nav-item').forEach(el => el.classList.remove('active'));
+  if (navItem) navItem.classList.add('active');
+  activateFilterChip(document.querySelector(`.db-filter-chip[data-genre="${genre}"]`), genre, false);
+  htmx.ajax('GET', `/programs?genre=${encodeURIComponent(genre)}`, '#db-program-list');
+}
+
+function activateFilterChip(chip, genre, triggerFetch = true) {
+  document.querySelectorAll('.db-filter-chip').forEach(el => el.classList.remove('active'));
+  if (chip) chip.classList.add('active');
+  document.querySelectorAll('.db-nav-item').forEach(el => el.classList.remove('active'));
+  const navItem = document.getElementById(`nav-${genre || 'all'}`);
+  if (navItem) navItem.classList.add('active');
+  if (triggerFetch) htmx.ajax('GET', `/programs?genre=${encodeURIComponent(genre)}`, '#db-program-list');
+}
+
+function filterByStatus(status) {
+  document.querySelectorAll('.db-list-row, .db-grid-card').forEach(el => {
+    const s = el.dataset.dlStatus || 'undl';
+    el.style.display = (!status || s === status) ? '' : 'none';
+  });
+  updateVisibleCount();
+}
+
+function updateVisibleCount(count = null) {
+  const badge = document.getElementById('db-visible-count');
+  if (!badge) return;
+  if (count !== null) { badge.textContent = count; return; }
+  const visible = Array.from(document.querySelectorAll('.db-list-row')).filter(r => r.style.display !== 'none').length;
+  badge.textContent = visible;
+}
+
+async function refreshPrograms() {
+  const btn = document.querySelector('.db-refresh-btn');
+  if (btn) { btn.textContent = '↻ 更新中…'; btn.disabled = true; }
+  try { await fetch('/api/cache/clear?scope=programs', { method: 'POST' }); } catch(e) {}
+  const genre = document.querySelector('.db-filter-chip.active')?.dataset.genre || '';
+  htmx.ajax('GET', `/programs?genre=${encodeURIComponent(genre)}`, '#db-program-list');
+  setTimeout(() => { if (btn) { btn.textContent = '↻ 更新'; btn.disabled = false; } }, 1500);
+}
+
+function toggleSidebar() {
+  document.getElementById('db-sidebar')?.classList.toggle('drawer-open');
+  document.getElementById('db-overlay')?.classList.toggle('show');
+}
+
+function closeSidebar() {
+  document.getElementById('db-sidebar')?.classList.remove('drawer-open');
+  document.getElementById('db-overlay')?.classList.remove('show');
+}
+
+async function loadProgramEpisodes(programId) {
+  try {
+    const response = await fetch(`/programs/${programId}/episodes`);
+    if (!response.ok) return;
+    const html = await response.text();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.cssText = 'max-width:90vw;width:860px;max-height:88vh;position:relative;';
+    content.innerHTML = html;
+    const btn = document.createElement('button');
+    btn.className = 'modal-close'; btn.textContent = '✕';
+    btn.onclick = () => modal.remove();
+    content.appendChild(btn);
+    modal.appendChild(content);
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+    htmx.process(content);
+  } catch (err) {
+    console.error('Failed to load episodes:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => setView(currentView, false));
+</script>
 {% endblock %}

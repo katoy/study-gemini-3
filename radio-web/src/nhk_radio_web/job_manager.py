@@ -35,6 +35,7 @@ class JobManager:
         self._jobs: dict[str, dict[str, Any]] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._task_map: dict[str, asyncio.Task] = {}
+        self._subscribers: set[asyncio.Queue] = set()
 
     def enqueue(self, program: Program, episode: Episode) -> str:
         """ダウンロード job を登録し job_id を返す。
@@ -119,6 +120,47 @@ class JobManager:
         """全ジョブのスナップショットを返す。"""
         return dict(self._jobs)
 
+    def subscribe(self) -> asyncio.Queue:
+        """ジョブイベントを受け取るキューを登録して返す。
+
+        Returns:
+            asyncio.Queue: ジョブ状態変更を受け取るキュー
+        """
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, queue: asyncio.Queue) -> None:
+        """キューの登録を解除する。
+
+        Args:
+            queue: 登録を解除するキュー
+        """
+        self._subscribers.discard(queue)
+
+    async def _notify(self, job_id: str) -> None:
+        """全購読者にジョブ状態変更を通知する。
+
+        Args:
+            job_id: ジョブ ID
+        """
+        job = self._jobs.get(job_id)
+        if not job:
+            return
+        payload = {
+            "job_id": job_id,
+            "status": job["status"],
+            "title": job["episode"].title,
+            "error": job.get("error", ""),
+            "progress": (
+                {"percent": job["progress"].percent, "eta": job["progress"].eta}
+                if job.get("progress")
+                else None
+            ),
+        }
+        for q in list(self._subscribers):
+            await q.put(payload)
+
     async def _run_download(self, job_id: str) -> None:
         """バックグラウンドで yt-dlp を実行してエピソードをダウンロードする。
 
@@ -132,6 +174,7 @@ class JobManager:
         episode: Episode = job["episode"]
 
         self._jobs[job_id]["status"] = "downloading"
+        await self._notify(job_id)
         output_dir = _default_download_dir()
         program_dir = _program_output_dir(output_dir, program)
         program_dir.mkdir(parents=True, exist_ok=True)
@@ -149,6 +192,7 @@ class JobManager:
                 await proc.wait()
                 if proc.returncode == 0:
                     self._jobs[job_id]["status"] = "done"
+                    await self._notify(job_id)
                     mark_episode_downloaded(output_dir, program, episode)
                     return
                 # HTTP エラー系は リトライ対象
@@ -160,6 +204,7 @@ class JobManager:
                 # 最後の試行で失敗
                 self._jobs[job_id]["status"] = "error"
                 self._jobs[job_id]["error"] = f"yt-dlp 終了コード: {proc.returncode}"
+                await self._notify(job_id)
                 return
             except asyncio.CancelledError:
                 # キャンセルされた場合はすでに status が set されているはず
@@ -174,5 +219,6 @@ class JobManager:
                 # 最後の試行で失敗
                 self._jobs[job_id]["status"] = "error"
                 self._jobs[job_id]["error"] = str(e)
+                await self._notify(job_id)
                 logger.error(f"ダウンロードエラー (job={job_id}, 試行数={HTTP_RETRY_MAX_ATTEMPTS}): {e}")
                 return

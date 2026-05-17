@@ -7,7 +7,10 @@ function toggleTheme() {
   const next = current === 'light' ? 'dark' : 'light';
   html.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
+  // console.log で確認用: Theme changed to, next
   updateThemeButton();
+  // 遅延して更新（確実に反映させる）
+  setTimeout(() => updateThemeButton(), 50);
 }
 
 function updateThemeButton() {
@@ -45,32 +48,61 @@ function getSearchHistory() {
   return JSON.parse(localStorage.getItem('searchHistory') || '[]');
 }
 
+// 検索ヒストリードロップダウンの外部クリック閉じる
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('program-search')?.closest('.db-search-wrapper');
+  if (!wrapper || !wrapper.contains(e.target)) {
+    hideSearchHistory();
+  }
+});
+
 // キーボードショートカット
 document.addEventListener('keydown', function(e) {
-  // / キーで検索ボックスにフォーカス
-  if (e.key === '/') {
+  const isTextInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+  const contentDiv = document.querySelector('.db-content');
+
+  // / キーで検索ボックスにフォーカス（入力フィールド外のみ）
+  if (e.key === '/' && !isTextInput) {
     e.preventDefault();
-    const searchBox = document.querySelector('input[type="text"][placeholder*="検索"]');
+    const searchBox = document.getElementById('program-search');
     if (searchBox) searchBox.focus();
   }
-  // ? or F1 キーでヘルプを表示
-  if (e.key === '?' || e.key === 'F1') {
+  // ? or F1 キーでヘルプを表示（入力フィールド外のみ）
+  if ((e.key === '?' || e.key === 'F1') && !isTextInput) {
     e.preventDefault();
     // ヘルプページへナビゲート
     window.location.href = '/help';
   }
-  // Esc キーでモーダルを閉じる
+  // Esc キーでモーダルを閉じる（全体で有効）
   if (e.key === 'Escape') {
     const modal = document.querySelector('.modal.show');
     if (modal) {
       modal.classList.remove('show');
     }
   }
-  // g キーでジャンルセレクタにフォーカス
-  if (e.key === 'g') {
+  // g キーでジャンルセレクタにフォーカス（入力フィールド外のみ）
+  if (e.key === 'g' && !isTextInput) {
     e.preventDefault();
     const genreSelect = document.querySelector('select');
     if (genreSelect) genreSelect.focus();
+  }
+
+  // === スクロール操作（入力フィールド外のみ） ===
+  if (!isTextInput && contentDiv) {
+    // 矢印キー（↑↓）でスクロール（1 行分）
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      contentDiv.scrollBy(0, -40);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      contentDiv.scrollBy(0, 40);
+    }
+    // SPACE でページダウン、Shift+SPACE でページアップ
+    else if (e.code === 'Space') {
+      e.preventDefault();
+      const direction = e.shiftKey ? -1 : 1;
+      contentDiv.scrollBy(0, direction * contentDiv.clientHeight * 0.8);
+    }
   }
 });
 
@@ -156,6 +188,95 @@ document.getElementById('context-menu')?.addEventListener('click', (e) => {
 
   document.getElementById('context-menu').style.display = 'none';
 });
+
+// === 番組名絞り込み ===
+let _programSearchTimer = null;
+
+function addToSearchHistory(query) {
+  if (!query.trim()) return;
+  let history = JSON.parse(localStorage.getItem('programSearchHistory') || '[]');
+  history = history.filter(h => h !== query);
+  history.unshift(query);
+  if (history.length > 10) history = history.slice(0, 10);
+  localStorage.setItem('programSearchHistory', JSON.stringify(history));
+}
+
+function getSearchHistory() {
+  return JSON.parse(localStorage.getItem('programSearchHistory') || '[]');
+}
+
+function updateSearchClearButton() {
+  const input = document.getElementById('program-search');
+  const clearBtn = document.getElementById('program-search-clear');
+  if (clearBtn) {
+    clearBtn.style.display = input && input.value ? 'flex' : 'none';
+  }
+}
+
+function clearSearchInput() {
+  const input = document.getElementById('program-search');
+  if (input) {
+    input.value = '';
+    input.focus();
+    debounceSearchPrograms('');
+    updateSearchClearButton();
+    showSearchHistory();
+  }
+}
+
+function showSearchHistory() {
+  const input = document.getElementById('program-search');
+  const historyDiv = document.getElementById('program-search-history');
+  if (!historyDiv) return;
+
+  const query = input?.value.trim() || '';
+  const allHistory = getSearchHistory();
+  const filtered = query
+    ? allHistory.filter(h => h.toLowerCase().includes(query.toLowerCase()))
+    : allHistory;
+
+  if (filtered.length === 0) {
+    historyDiv.style.display = 'none';
+    return;
+  }
+
+  historyDiv.innerHTML = filtered.map(item =>
+    `<div class="db-search-history-item" onclick="selectSearchHistoryItem('${item.replace(/'/g, "\\'")}')">
+      <span class="db-search-history-icon">🕐</span>${item}
+    </div>`
+  ).join('');
+  historyDiv.style.display = 'block';
+}
+
+function hideSearchHistory() {
+  const historyDiv = document.getElementById('program-search-history');
+  if (historyDiv) historyDiv.style.display = 'none';
+}
+
+function selectSearchHistoryItem(query) {
+  const input = document.getElementById('program-search');
+  if (input) {
+    input.value = query;
+    updateSearchClearButton();
+    hideSearchHistory();
+    debounceSearchPrograms(query);
+    addToSearchHistory(query);
+  }
+}
+
+function debounceSearchPrograms(value) {
+  clearTimeout(_programSearchTimer);
+  updateSearchClearButton();
+  _programSearchTimer = setTimeout(() => {
+    const genre = document.querySelector('.db-nav-item.active')?.dataset.genre || '';
+    const q = value.trim();
+    if (q) addToSearchHistory(q);
+    const url = q
+      ? `/programs?genre=${encodeURIComponent(genre)}&q=${encodeURIComponent(q)}`
+      : `/programs?genre=${encodeURIComponent(genre)}`;
+    htmx.ajax('GET', url, '#db-program-list');
+  }, 300);
+}
 
 // === エピソードフィルタ・選択管理 ===
 function filterEpisodes(searchText = null) {
@@ -302,3 +423,208 @@ function updateStatusMessage(msg) {
     }, 3000);
   }
 }
+
+// === プレーヤーバー ===
+function togglePlayback() {
+  const btn = document.getElementById('player-play-btn');
+  if (!btn) return;
+  const isPlaying = btn.textContent === '⏸';
+  btn.textContent = isPlaying ? '▶' : '⏸';
+  // 実装は Phase D HLS streaming 統合時に実施
+}
+
+function closePlayer() {
+  const playerBar = document.getElementById('player-bar');
+  if (playerBar) {
+    playerBar.style.display = 'none';
+  }
+}
+
+// === ダッシュボード: ビュー切替 ===
+function setView(view, persist = true) {
+  window.currentView = view;
+  if (persist) localStorage.setItem('dbView', view);
+  document.getElementById('view-list-btn')?.classList.toggle('active', view === 'list');
+  document.getElementById('view-grid-btn')?.classList.toggle('active', view === 'grid');
+  applyCurrentView();
+}
+
+function applyCurrentView() {
+  const v = window.currentView || 'list';
+  const listEl = document.getElementById('db-view-list');
+  const gridEl = document.getElementById('db-view-grid');
+  if (listEl) listEl.style.display = v === 'grid' ? 'none' : 'block';
+  if (gridEl) gridEl.style.display = v === 'grid' ? 'grid' : 'none';
+}
+
+// === ダッシュボード: ソート機能 ===
+let _currentSortColumn = null;
+let _currentSortAscending = true;
+
+function sortProgramList(column) {
+  const listView = document.getElementById('db-view-list');
+  if (!listView) return;
+
+  const rows = Array.from(listView.querySelectorAll('.db-list-row'));
+  if (rows.length === 0) return;
+
+  const isAscending = _currentSortColumn === column ? !_currentSortAscending : true;
+  _currentSortColumn = column;
+  _currentSortAscending = isAscending;
+
+  rows.sort((a, b) => {
+    let aVal, bVal;
+
+    switch (column) {
+      case 'number':
+        aVal = parseInt(a.querySelector('.db-row-number')?.textContent || 0);
+        bVal = parseInt(b.querySelector('.db-row-number')?.textContent || 0);
+        break;
+      case 'title':
+        aVal = a.dataset.title || '';
+        bVal = b.dataset.title || '';
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+        break;
+      case 'genre':
+        aVal = a.dataset.genre || '';
+        bVal = b.dataset.genre || '';
+        break;
+      case 'date':
+        aVal = a.dataset.date || '';
+        bVal = b.dataset.date || '';
+        break;
+      default:
+        return 0;
+    }
+
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return isAscending ? aVal.localeCompare(bVal, 'ja') : bVal.localeCompare(aVal, 'ja');
+    } else {
+      return isAscending ? aVal - bVal : bVal - aVal;
+    }
+  });
+
+  rows.forEach(row => listView.appendChild(row));
+
+  updateSortIndicators(column);
+}
+
+function updateSortIndicators(column) {
+  const headers = document.querySelectorAll('.db-list-header-cell');
+  headers.forEach(header => {
+    const icon = header.querySelector('.sort-icon');
+    if (icon) {
+      icon.textContent = '';
+      if (header.onclick && header.onclick.toString().includes(`'${column}'`)) {
+        icon.textContent = _currentSortAscending ? '▲' : '▼';
+      }
+    }
+  });
+}
+
+// === ダッシュボード: ジャンルフィルタ ===
+function filterByGenre(genre, navItem) {
+  document.querySelectorAll('.db-nav-item').forEach(el => el.classList.remove('active'));
+  if (navItem) navItem.classList.add('active');
+  activateFilterChip(document.querySelector(`.db-filter-chip[data-genre="${genre}"]`), genre, false);
+  const q = document.getElementById('program-search')?.value.trim() || '';
+  const url = q
+    ? `/programs?genre=${encodeURIComponent(genre)}&q=${encodeURIComponent(q)}`
+    : `/programs?genre=${encodeURIComponent(genre)}`;
+  htmx.ajax('GET', url, '#db-program-list');
+}
+
+function activateFilterChip(chip, genre, triggerFetch = true) {
+  document.querySelectorAll('.db-filter-chip').forEach(el => el.classList.remove('active'));
+  if (chip) chip.classList.add('active');
+  document.querySelectorAll('.db-nav-item').forEach(el => el.classList.remove('active'));
+  const navItem = document.getElementById(`nav-${genre || 'all'}`);
+  if (navItem) navItem.classList.add('active');
+  if (triggerFetch) htmx.ajax('GET', `/programs?genre=${encodeURIComponent(genre)}`, '#db-program-list');
+}
+
+// === ダッシュボード: ステータスフィルタ ===
+function filterByStatus(status) {
+  document.querySelectorAll('.db-list-row, .db-grid-card').forEach(el => {
+    const s = el.dataset.dlStatus || 'undl';
+    el.style.display = (!status || s === status) ? '' : 'none';
+  });
+  updateVisibleCount();
+}
+
+// === ダッシュボード: 件数更新 ===
+function updateVisibleCount(count = null) {
+  const badge = document.getElementById('db-visible-count');
+  if (!badge) return;
+  if (count !== null) { badge.textContent = count; return; }
+  const visible = Array.from(document.querySelectorAll('.db-list-row')).filter(r => r.style.display !== 'none').length;
+  badge.textContent = visible;
+}
+
+// === ダッシュボード: 番組更新 ===
+async function refreshPrograms() {
+  const btn = document.querySelector('.db-refresh-btn');
+  if (btn) { btn.textContent = '↻ 更新中…'; btn.disabled = true; }
+  try { await fetch('/api/cache/clear?scope=programs', { method: 'POST' }); } catch(e) {}
+  const genre = document.querySelector('.db-nav-item.active')?.dataset.genre || '';
+  const q = document.getElementById('program-search')?.value.trim() || '';
+  const url = q
+    ? `/programs?genre=${encodeURIComponent(genre)}&q=${encodeURIComponent(q)}`
+    : `/programs?genre=${encodeURIComponent(genre)}`;
+  htmx.ajax('GET', url, '#db-program-list');
+  setTimeout(() => { if (btn) { btn.textContent = '↻ 更新'; btn.disabled = false; } }, 1500);
+}
+
+// === ダッシュボード: サイドバードロワー ===
+function toggleSidebar() {
+  document.getElementById('db-sidebar')?.classList.toggle('drawer-open');
+  document.getElementById('db-overlay')?.classList.toggle('show');
+}
+
+function closeSidebar() {
+  document.getElementById('db-sidebar')?.classList.remove('drawer-open');
+  document.getElementById('db-overlay')?.classList.remove('show');
+}
+
+// === WebSocket ジョブリアルタイム更新 ===
+(function() {
+  const _jobsMap = {};
+
+  function renderJobActivity() {
+    const container = document.getElementById('db-activity-content');
+    if (!container) return;
+    const jobs = Object.values(_jobsMap).slice(-5).reverse();
+    if (jobs.length === 0) {
+      container.innerHTML = '<div class="activity-empty">実行中のジョブがありません</div>';
+      return;
+    }
+    container.innerHTML = jobs.map(job => `
+      <div class="job-row">
+        <div class="job-title">${job.title}</div>
+        <div class="job-status">${job.status === 'done' ? '✓ 完了' : job.status === 'downloading' ? '↓ DL中' : job.status === 'error' ? '✗ エラー' : '待機中'}</div>
+      </div>
+    `).join('');
+  }
+
+  function connectJobsWebSocket() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${proto}//${location.host}/ws/jobs`);
+
+    ws.onmessage = (e) => {
+      const payload = JSON.parse(e.data);
+      _jobsMap[payload.job_id] = payload;
+      renderJobActivity();
+    };
+
+    ws.onclose = () => {
+      setTimeout(connectJobsWebSocket, 3000);
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', connectJobsWebSocket);
+})();

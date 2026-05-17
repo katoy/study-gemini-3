@@ -30,6 +30,36 @@
   --font-size-sm: 0.875rem;
   --font-size-lg: 1.125rem;
   --line-height-base: 1.5;
+
+  /* ─── Linear/Notion ダッシュボード用 ─── */
+  --color-dashboard-bg: #f7f7f8;
+  --color-sidebar-bg: #fbfbfc;
+  --color-sidebar-hover: #ebebed;
+  --color-sidebar-active: #e5e5ea;
+  --color-sidebar-text: #37352f;
+  --color-sidebar-text-secondary: #9b9b9b;
+  --color-dashboard-accent: #5e6ad2;
+  --color-dashboard-accent-hover: #4c58c8;
+  --color-dashboard-accent-soft: #eef0fb;
+  --dashboard-sidebar-width: 240px;
+  --font-mono: "SF Mono", "Fira Code", ui-monospace, monospace;
+  --font-size-meta: 0.78rem;
+
+  /* ジャンル別バッジ色 */
+  --color-badge-language: #e8f4fd;
+  --color-badge-language-text: #1565c0;
+  --color-badge-music: #f3e5f5;
+  --color-badge-music-text: #6a1b9a;
+  --color-badge-news: #fff3e0;
+  --color-badge-news-text: #e65100;
+  --color-badge-drama: #fce4ec;
+  --color-badge-drama-text: #880e4f;
+  --color-badge-sports: #e8f5e9;
+  --color-badge-sports-text: #2e7d32;
+  --color-badge-documentary: #f3f3f3;
+  --color-badge-documentary-text: #424242;
+  --color-badge-variety: #fff8e1;
+  --color-badge-variety-text: #f57f17;
 }
 
 /* ダークテーマ */
@@ -50,6 +80,16 @@
   --color-accent-soft: #2c2014;
   --color-selected-bg: #2b5a8c;
   --color-row-odd: #252525;
+
+  /* ─── Linear/Notion ダッシュボード用（ダーク） ─── */
+  --color-dashboard-bg: #16161a;
+  --color-sidebar-bg: #1c1c21;
+  --color-sidebar-hover: #2a2a32;
+  --color-sidebar-active: #313139;
+  --color-sidebar-text: #e8e8ea;
+  --color-sidebar-text-secondary: #6b6b76;
+  --color-dashboard-accent: #7c87e8;
+  --color-dashboard-accent-soft: #1e2040;
 }
 
 /* フォントサイズ小 */
@@ -419,6 +459,13 @@ body.app-page {
 }
 
 /* === エピソードテーブル === */
+.ep-table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
 .ep-table {
   width: 100%;
   border-collapse: collapse;
@@ -571,4 +618,980 @@ body.app-page {
   text-align: center;
   color: var(--color-text-secondary);
   font-size: 0.82rem;
+}
+
+/* === メディアアプリ向け新スタイル === */
+
+/* 永続プレーヤーバー */
+.player-bar {
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 0.75rem 1rem;
+  flex-shrink: 0;
+}
+
+.player-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.player-info {
+  flex: 0 0 200px;
+  min-width: 0;
+}
+
+.player-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.player-time {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.player-controls {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.player-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  transition: background-color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.player-btn:hover {
+  background: var(--color-selected-bg);
+  border-color: var(--color-accent);
+}
+
+.player-progress {
+  flex: 1;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.player-progress-bar {
+  height: 100%;
+  background: var(--color-accent);
+  width: 0%;
+  transition: width 0.1s;
+}
+
+/* Hero フィーチャーセクション */
+.featured-hero {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+  color: #fff;
+  padding: 2rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.featured-artwork {
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.featured-info h2 {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.featured-info p {
+  font-size: 0.95rem;
+  opacity: 0.9;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.featured-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.featured-actions button {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0.6rem 1.2rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.featured-actions button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.featured-actions button.primary {
+  background: #fff;
+  color: var(--color-primary);
+  border: none;
+  font-weight: 600;
+}
+
+.featured-actions button.primary:hover {
+  opacity: 0.9;
+}
+
+/* カロセルセクション */
+.carousel-section {
+  margin-bottom: 2.5rem;
+}
+
+.carousel-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.carousel-title a {
+  font-size: 0.85rem;
+  color: var(--color-accent);
+}
+
+.carousel-container {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0 0 0.5rem 0;
+  scroll-behavior: smooth;
+}
+
+.carousel-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.carousel-container::-webkit-scrollbar-track {
+  background: var(--color-surface);
+  border-radius: 3px;
+}
+
+.carousel-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.carousel-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* プログラムカード */
+.program-card {
+  flex: 0 0 auto;
+  width: 160px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.program-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.program-card-artwork {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.program-card-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 0.3rem;
+}
+
+.program-card-genre {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+/* Continue Listening バッジ */
+.episode-continue-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  z-index: 10;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .featured-hero {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .featured-artwork {
+    font-size: 3rem;
+  }
+
+  .featured-info h2 {
+    font-size: 1.4rem;
+  }
+
+  .program-card {
+    width: 140px;
+  }
+
+  .carousel-section {
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* === Linear/Notion ダッシュボード === */
+body.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-dashboard-bg);
+}
+
+.dashboard-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 左サイドバー */
+.db-sidebar {
+  width: var(--dashboard-sidebar-width);
+  background: var(--color-sidebar-bg);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.db-sidebar-logo {
+  padding: 1rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-sidebar-text);
+}
+
+.db-sidebar-section {
+  padding: 0.5rem 0.4rem;
+}
+
+.db-sidebar-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--color-sidebar-text-secondary);
+  padding: 0.5rem 0.75rem 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.db-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  margin: 1px 0.4rem;
+  cursor: pointer;
+  color: var(--color-sidebar-text);
+  font-size: 0.85rem;
+  transition: background-color 0.15s;
+}
+
+.db-nav-item:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.db-nav-item.active {
+  background: var(--color-sidebar-active);
+  font-weight: 500;
+}
+
+.db-nav-icon {
+  font-size: 0.85rem;
+  width: 1.2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.db-nav-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-nav-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  background: var(--color-sidebar-hover);
+  border-radius: 8px;
+  padding: 0.1rem 0.35rem;
+  flex-shrink: 0;
+}
+
+.db-activity-panel {
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.db-activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-sidebar-text);
+}
+
+.db-activity-header a {
+  font-size: 0.7rem;
+  color: var(--color-dashboard-accent);
+  text-decoration: none;
+}
+
+/* メインコンテンツエリア */
+.db-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* コマンドバー */
+.db-command-bar {
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.db-command-bar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.db-page-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.db-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.3rem;
+  color: var(--color-text);
+}
+
+.db-command-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.db-view-toggle {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: flex;
+  background: var(--color-surface);
+}
+
+.db-view-btn {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.db-view-btn.active {
+  background: var(--color-dashboard-accent);
+  color: #fff;
+}
+
+.db-refresh-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.db-refresh-btn:hover {
+  background: var(--color-border);
+}
+
+.db-count-badge {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  padding: 0.2rem 0.5rem;
+}
+
+/* フィルタバー */
+.db-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.35rem 1.25rem 0.55rem;
+  align-items: center;
+}
+
+.db-search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.db-program-search {
+  width: 100%;
+  padding: 0.28rem 2rem 0.28rem 0.7rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: border-color 0.2s;
+  font-family: system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+.db-program-search:focus {
+  outline: none;
+  border-color: var(--color-dashboard-accent);
+}
+
+.db-search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.2rem 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.db-search-clear:hover {
+  color: var(--color-text);
+}
+
+.db-search-history {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 10;
+}
+
+.db-search-history-item {
+  padding: 0.5rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.db-search-history-item:last-child {
+  border-bottom: none;
+}
+
+.db-search-history-item:hover {
+  background: var(--color-surface);
+}
+
+.db-search-history-icon {
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.db-filter-chip {
+  border-radius: 20px;
+  font-size: 0.78rem;
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.7rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.db-filter-chip:hover {
+  background: var(--color-border);
+}
+
+.db-filter-chip.active {
+  background: var(--color-dashboard-accent-soft);
+  border-color: var(--color-dashboard-accent);
+  color: var(--color-dashboard-accent);
+  font-weight: 500;
+}
+
+.db-status-filter {
+  border-radius: 20px;
+  font-size: 0.78rem;
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.7rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* コンテンツエリア */
+.db-content {
+  flex: 1;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  background: var(--color-dashboard-bg);
+}
+
+.db-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.db-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.db-content::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.db-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+  background-clip: content-box;
+}
+
+/* Firefox */
+.db-content {
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+/* リストビュー */
+.db-list-view {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.db-list-header {
+  display: grid;
+  grid-template-columns: 3rem 1fr 7rem 7rem 6rem;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-size: var(--font-size-meta);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  align-items: center;
+}
+
+.db-list-row {
+  display: grid;
+  grid-template-columns: 3rem 1fr 7rem 7rem 6rem;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  min-height: 2.5rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+  background: var(--color-bg);
+}
+
+.db-list-row:hover {
+  background: var(--color-dashboard-accent-soft);
+}
+
+.db-list-row:hover .db-row-action {
+  opacity: 1;
+}
+
+.db-list-header-cell {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.db-list-header-cell:hover {
+  color: var(--color-text);
+}
+
+.db-col-number {
+  text-align: center;
+}
+
+.db-row-number {
+  text-align: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.sort-icon {
+  display: inline-block;
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.db-list-header-cell:hover .sort-icon {
+  opacity: 1;
+}
+
+.db-row-status {
+  font-size: 1rem;
+  text-align: center;
+}
+
+.db-row-status.status-done {
+  color: var(--color-success);
+}
+
+.db-row-status.status-downloading {
+  color: var(--color-dashboard-accent);
+}
+
+.db-row-title {
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-row-genre {
+  font-size: var(--font-size-meta);
+}
+
+.db-row-date {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.db-row-count {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.db-row-action {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.db-action-btn {
+  background: var(--color-dashboard-accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.db-action-btn:hover {
+  opacity: 0.85;
+}
+
+/* グリッドビュー */
+.db-grid-view {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+.db-grid-card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.db-grid-card:hover {
+  border-color: var(--color-dashboard-accent);
+  box-shadow: 0 2px 12px rgba(94, 106, 210, 0.12);
+}
+
+.db-grid-artwork {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, var(--color-dashboard-accent) 0%, var(--color-dashboard-accent-hover) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.db-grid-title {
+  padding: 0.75rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 2.7rem;
+}
+
+.db-grid-meta {
+  padding: 0 0.75rem 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+/* 空状態 */
+.db-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--color-text-secondary);
+}
+
+.db-empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.db-empty-state-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.db-empty-state-desc {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+/* ジャンルバッジ */
+.genre-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.genre-badge.language {
+  background: var(--color-badge-language);
+  color: var(--color-badge-language-text);
+}
+
+.genre-badge.music {
+  background: var(--color-badge-music);
+  color: var(--color-badge-music-text);
+}
+
+.genre-badge.news {
+  background: var(--color-badge-news);
+  color: var(--color-badge-news-text);
+}
+
+.genre-badge.drama {
+  background: var(--color-badge-drama);
+  color: var(--color-badge-drama-text);
+}
+
+.genre-badge.sports {
+  background: var(--color-badge-sports);
+  color: var(--color-badge-sports-text);
+}
+
+.genre-badge.documentary {
+  background: var(--color-badge-documentary);
+  color: var(--color-badge-documentary-text);
+}
+
+.genre-badge.variety {
+  background: var(--color-badge-variety);
+  color: var(--color-badge-variety-text);
+}
+
+/* モバイルドロワー */
+.db-sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 400;
+}
+
+.db-sidebar-overlay.show {
+  display: block;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .db-hamburger {
+    display: block;
+  }
+
+  .db-sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 500;
+    transition: left 0.25s ease-out;
+    max-width: 80vw;
+  }
+
+  .db-sidebar.drawer-open {
+    left: 0;
+  }
+
+  .db-grid-view {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .db-list-header,
+  .db-list-row {
+    grid-template-columns: 1fr 6rem;
+  }
+
+  .db-col-number,
+  .db-row-number {
+    display: none;
+  }
+
+  .db-row-date {
+    display: none;
+  }
+
+  .db-command-bar-top {
+    padding: 0.6rem 1rem;
+  }
+
+  .db-filter-bar {
+    padding: 0.3rem 1rem 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .db-grid-view {
+    grid-template-columns: 1fr;
+  }
 }

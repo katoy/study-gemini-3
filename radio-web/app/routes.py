@@ -5,7 +5,7 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -33,6 +33,21 @@ def _dataclass_to_json(obj) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
+def _job_to_payload(job_id: str, job: dict) -> dict:
+    """ジョブをWebSocket 送信用 payload に変換。"""
+    return {
+        "job_id": job_id,
+        "status": job["status"],
+        "title": job["episode"].title,
+        "error": job.get("error", ""),
+        "progress": (
+            {"percent": job["progress"].percent, "eta": job["progress"].eta}
+            if job.get("progress")
+            else None
+        ),
+    }
+
+
 templates.env.filters["tojson"] = _dataclass_to_json
 
 GENRE_OPTIONS = [{"value": "", "label": "すべて"}] + [
@@ -43,11 +58,15 @@ GENRE_OPTIONS = [{"value": "", "label": "すべて"}] + [
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, genre: str = ""):
     programs = await fetch_program_list_async(genre or None)
+    programs_by_genre: dict[str, list] = {}
+    for p in programs:
+        programs_by_genre.setdefault(p.genre or "", []).append(p)
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "programs": programs,
+            "programs_by_genre": programs_by_genre,
             "genre_options": GENRE_OPTIONS,
             "selected_genre": genre,
         },
@@ -55,9 +74,16 @@ async def index(request: Request, genre: str = ""):
 
 
 @router.get("/programs", response_class=HTMLResponse)
-async def programs_partial(request: Request, genre: str = ""):
-    """htmx からのジャンルフィルタ更新リクエスト用。"""
+async def programs_partial(request: Request, genre: str = "", q: str = ""):
+    """htmx からのジャンルフィルタ更新リクエスト用。
+
+    Query params:
+        genre: ジャンルフィルタ
+        q: 番組名検索キーワード
+    """
     programs = await fetch_program_list_async(genre or None)
+    if q:
+        programs = filter_programs(programs, needle=q)
     return templates.TemplateResponse(
         request,
         "partials/program_list.html",
@@ -219,7 +245,9 @@ async def download_status(request: Request, job_id: str):
     job_manager = request.app.state.job_manager
     job = job_manager.status_snapshot(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+        # ジョブが見つからない場合、ポーリングを停止（hx-polling-stop）
+        from fastapi.responses import Response
+        return Response(status_code=286, headers={"HX-Trigger": "hx-polling-stop"})
     return templates.TemplateResponse(
         request,
         "partials/download_status.html",
@@ -302,8 +330,35 @@ async def recent_jobs(request: Request, limit: int = 10):
     job_manager = request.app.state.job_manager
     jobs_dict = job_manager.all_jobs()
     jobs = list(reversed(list(jobs_dict.values())))[:limit]
+    # テンプレートに job_id を注入
+    for job_id, job in zip(list(reversed(list(jobs_dict.keys())))[:limit], jobs):
+        job["id"] = job_id
     return templates.TemplateResponse(
         request,
         "partials/job_activity.html",
         {"jobs": jobs},
     )
+
+
+@router.websocket("/ws/jobs")
+async def ws_jobs(websocket: WebSocket):
+    """ジョブ状態変更をリアルタイム配信する WebSocket エンドポイント。"""
+    await websocket.accept()
+    job_manager = websocket.app.state.job_manager
+
+    # 既存ジョブをすべて送信
+    for job_id, job in job_manager.all_jobs().items():
+        await websocket.send_text(
+            json.dumps(_job_to_payload(job_id, job), ensure_ascii=False)
+        )
+
+    # キューを購読
+    queue = job_manager.subscribe()
+    try:
+        while True:
+            payload = await queue.get()
+            await websocket.send_text(json.dumps(payload, ensure_ascii=False))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        job_manager.unsubscribe(queue)

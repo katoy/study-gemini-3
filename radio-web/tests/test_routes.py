@@ -196,8 +196,10 @@ class RoutesTest(unittest.TestCase):
         self.assertIn("失敗しました", resp.text)
 
     def test_download_status_not_found(self):
+        """ジョブが見つからない場合、htmx ポーリング停止レスポンス（286）を返す。"""
         resp = self.client.get("/api/download/nonexistent-job/status")
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 286)
+        self.assertIn("hx-polling-stop", resp.headers.get("HX-Trigger", ""))
 
     def test_cancel_download_job(self):
         """キャンセルエンドポイントでジョブをキャンセルできる。"""
@@ -289,6 +291,86 @@ class RoutesTest(unittest.TestCase):
         # limit=2 で取得
         resp = self.client.get("/api/jobs/recent?limit=2")
         self.assertEqual(resp.status_code, 200)
+
+    # ──────────────────────────────────────────────
+    # ダッシュボードレイアウト
+    # ──────────────────────────────────────────────
+
+    def test_index_has_dashboard_layout(self):
+        """インデックスページにダッシュボードレイアウトが含まれている。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("dashboard-layout", resp.text)
+        self.assertIn("db-sidebar", resp.text)
+        self.assertIn("db-command-bar", resp.text)
+
+    def test_index_sidebar_genre_nav_rendered(self):
+        """インデックスページのサイドバーにジャンルナビが表示される。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp = self.client.get("/")
+        self.assertIn("filterByGenre", resp.text)
+        self.assertIn("語学", resp.text)
+        self.assertIn("db-nav-item", resp.text)
+
+
+    def test_programs_partial_has_list_view_rows(self):
+        """program_list パーシャルにリストビュー行が含まれている。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp = self.client.get("/programs")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("db-list-row", resp.text)
+        self.assertIn("テスト番組", resp.text)
+
+    def test_programs_partial_has_grid_view_cards(self):
+        """program_list パーシャルにグリッドビューカードが含まれている。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp = self.client.get("/programs")
+        self.assertIn("db-grid-card", resp.text)
+        self.assertIn("db-grid-title", resp.text)
+
+    def test_programs_partial_q_param_filters(self):
+        """q パラメータで番組名フィルタが機能する。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp_match = self.client.get("/programs?q=テスト")
+            self.assertIn("テスト番組", resp_match.text)
+
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp_no = self.client.get("/programs?q=存在しないXYZ")
+            self.assertNotIn("テスト番組", resp_no.text)
+
+    # ──────────────────────────────────────────────
+    # _job_to_payload ヘルパー関数
+    # ──────────────────────────────────────────────
+
+    def test_job_to_payload_basic(self):
+        """_job_to_payload が基本的なジョブ情報をペイロードに変換する。"""
+        from app.routes import _job_to_payload
+        job = {
+            "status": "downloading",
+            "episode": EPISODE,
+            "error": "",
+            "progress": None,
+        }
+        payload = _job_to_payload("job-123", job)
+        self.assertEqual(payload["job_id"], "job-123")
+        self.assertEqual(payload["status"], "downloading")
+        self.assertEqual(payload["title"], "第1回")
+        self.assertEqual(payload["error"], "")
+        self.assertIsNone(payload["progress"])
+
+    def test_job_to_payload_with_error(self):
+        """_job_to_payload がエラーメッセージを含める。"""
+        from app.routes import _job_to_payload
+        job = {
+            "status": "error",
+            "episode": EPISODE,
+            "error": "ダウンロード失敗",
+            "progress": None,
+        }
+        payload = _job_to_payload("job-456", job)
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["error"], "ダウンロード失敗")
 
 
 if __name__ == "__main__":

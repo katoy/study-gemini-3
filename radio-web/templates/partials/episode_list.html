@@ -26,44 +26,46 @@
 </div>
 
 <!-- エピソードテーブル -->
-{% if episodes_with_status %}
-<table class="ep-table">
-  <thead>
-    <tr>
-      <th style="width:2rem;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"></th>
-      <th style="width:2rem;">保存</th>
-      <th style="width:7rem;">放送日</th>
-      <th>タイトル</th>
-      <th style="width:5rem;">操作</th>
-    </tr>
-  </thead>
-  <tbody id="ep-tbody">
-  {% for item in episodes_with_status %}
-    <tr class="ep-row {% if item.downloaded %}ep-row-saved{% endif %}"
-      data-title="{{ item.episode.display_title }}"
-      data-saved="{{ item.downloaded | int }}"
-      data-episode='{{ item.episode | tojson }}'
-      data-program='{{ program | tojson }}'>
-      <td><input type="checkbox" class="ep-checkbox" onchange="updateSelectedCount()"></td>
-      <td class="ep-saved-mark">{% if item.downloaded %}✓{% endif %}</td>
-      <td class="ep-date-col">{{ item.episode.display_date[:10] if item.episode.display_date else '' }}</td>
-      <td>{{ item.episode.display_title }}</td>
-      <td>
-        {% if item.downloaded %}
-          <button class="ep-dl-btn done" disabled>済</button>
-        {% else %}
-          <button class="ep-dl-btn"
-            data-program='{{ program | tojson }}'
-            data-episode='{{ item.episode | tojson }}'
-            onclick="startDL(this)">DL</button>
-        {% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<div style="text-align:center; padding:2rem; color:var(--color-text-secondary); font-size:0.85rem;">
-  エピソードがありません
+<div class="ep-table-container">
+  {% if episodes_with_status %}
+  <table class="ep-table">
+    <thead>
+      <tr>
+        <th style="width:2rem;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"></th>
+        <th style="width:2rem;">保存</th>
+        <th style="width:7rem;">放送日</th>
+        <th>タイトル</th>
+        <th style="width:5rem;">操作</th>
+      </tr>
+    </thead>
+    <tbody id="ep-tbody">
+    {% for item in episodes_with_status %}
+      <tr class="ep-row {% if item.downloaded %}ep-row-saved{% endif %}"
+        data-title="{{ item.episode.display_title }}"
+        data-saved="{{ item.downloaded | int }}"
+        data-episode='{{ item.episode | tojson }}'
+        data-program='{{ program | tojson }}'>
+        <td><input type="checkbox" class="ep-checkbox" onchange="updateSelectedCount()"></td>
+        <td class="ep-saved-mark">{% if item.downloaded %}✓{% endif %}</td>
+        <td class="ep-date-col">{{ item.episode.display_date[:10] if item.episode.display_date else '' }}</td>
+        <td>{{ item.episode.display_title }}</td>
+        <td>
+          {% if item.downloaded %}
+            <button class="ep-dl-btn done" disabled>済</button>
+          {% else %}
+            <button class="ep-dl-btn"
+              data-program='{{ program | tojson }}'
+              data-episode='{{ item.episode | tojson }}'
+              onclick="startDL(this)">DL</button>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center; padding:2rem; color:var(--color-text-secondary); font-size:0.85rem;">
+    エピソードがありません
+  </div>
+  {% endif %}
 </div>
-{% endif %}

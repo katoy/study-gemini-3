@@ -281,3 +281,46 @@ async def test_run_download_exception_handling(job_manager, sample_program, samp
                         assert "subprocess exec failed" in job["error"]
                         # リトライは 3 回試行されたはず
                         assert mock_exec.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_subscribe_returns_queue(job_manager):
+    """subscribe がキューを返し、購読者リストに追加される。"""
+    q = job_manager.subscribe()
+    assert isinstance(q, asyncio.Queue)
+    assert q in job_manager._subscribers
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_removes_queue(job_manager):
+    """unsubscribe がキューを購読者リストから削除する。"""
+    q = job_manager.subscribe()
+    assert q in job_manager._subscribers
+    job_manager.unsubscribe(q)
+    assert q not in job_manager._subscribers
+
+
+@pytest.mark.asyncio
+async def test_notify_sends_to_subscribers(job_manager, sample_program, sample_episode):
+    """_notify が全購読者にジョブ状態変更を送信する。"""
+    job_id = job_manager.enqueue(sample_program, sample_episode)
+    job_manager._jobs[job_id]["status"] = "downloading"
+
+    q = job_manager.subscribe()
+    await job_manager._notify(job_id)
+
+    payload = await asyncio.wait_for(q.get(), timeout=1.0)
+    assert payload["job_id"] == job_id
+    assert payload["status"] == "downloading"
+    assert payload["title"] == sample_episode.title
+    assert payload["error"] == ""
+
+
+@pytest.mark.asyncio
+async def test_notify_missing_job_returns_early(job_manager):
+    """_notify は存在しないジョブで early return する。"""
+    q = job_manager.subscribe()
+    await job_manager._notify("nonexistent-job")
+    # キューに何も入らないはず
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(q.get(), timeout=0.1)

@@ -1,18 +1,62 @@
 {% if programs %}
-{% for program in programs %}
-<div class="sidebar-program-item"
-  hx-get="/programs/{{ program.site_id }}_{{ program.corner_id }}/episodes"
-  hx-target="#episode-panel"
-  hx-indicator="#sidebar-spinner"
-  hx-vals='{"program": {{ program | tojson }}}'
-  hx-on::after-request="document.querySelectorAll('.sidebar-program-item').forEach(el=>el.classList.remove('active')); this.classList.add('active')">
-  <span class="sidebar-program-name">{{ program.display_title }}</span>
-  <span class="sidebar-program-meta">
-    <span class="sidebar-genre-badge">{{ program.genre_label }}</span>
-    {{ program.area }}
-  </span>
+<!-- リストビュー -->
+<div class="db-list-view" id="db-view-list">
+  <div class="db-list-header">
+    <div class="db-list-header-cell db-col-number" onclick="sortProgramList('number')">
+      №<span class="sort-icon"></span>
+    </div>
+    <div class="db-list-header-cell" onclick="sortProgramList('title')">
+      番組名<span class="sort-icon"></span>
+    </div>
+    <div class="db-list-header-cell" onclick="sortProgramList('genre')">
+      ジャンル<span class="sort-icon"></span>
+    </div>
+    <div class="db-list-header-cell" onclick="sortProgramList('date')">
+      放送日<span class="sort-icon"></span>
+    </div>
+    <div class="db-list-header-cell"></div>
+  </div>
+  {% for program in programs %}
+  {% set pid = program.site_id ~ '_' ~ program.corner_id %}
+  <div class="db-list-row"
+       data-program-id="{{ pid }}" data-genre="{{ program.genre or '' }}"
+       data-title="{{ program.display_title }}"
+       data-date="{{ program.display_date[:10] if program.display_date else '' }}"
+       onclick="loadProgramEpisodes('{{ pid }}')">
+    <div class="db-row-number">{{ loop.index }}</div>
+    <div class="db-row-title">{{ program.display_title }}</div>
+    <div class="db-row-genre">
+      {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
+    </div>
+    <div class="db-row-date">{{ program.display_date[:10] if program.display_date else '----' }}</div>
+    <div class="db-row-action" onclick="event.stopPropagation()">
+      <button class="db-action-btn" onclick="loadProgramEpisodes('{{ pid }}')">表示</button>
+    </div>
+  </div>
+  {% endfor %}
 </div>
-{% endfor %}
+
+<!-- グリッドビュー -->
+<div class="db-grid-view" id="db-view-grid" style="display:none;">
+  {% for program in programs %}
+  {% set pid = program.site_id ~ '_' ~ program.corner_id %}
+  <div class="db-grid-card"
+       data-program-id="{{ pid }}" data-genre="{{ program.genre or '' }}"
+       onclick="loadProgramEpisodes('{{ pid }}')">
+    <div class="db-grid-artwork">🎙️</div>
+    <div class="db-grid-title">{{ program.display_title }}</div>
+    <div class="db-grid-meta">
+      {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
+      <span style="font-family:var(--font-mono);font-size:0.72rem;">{{ program.display_date[:10] if program.display_date else '' }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 {% else %}
-<div class="activity-empty">番組が見つかりません</div>
+<div class="db-empty-state">
+  <div class="db-empty-state-icon">📻</div>
+  <div class="db-empty-state-title">番組が見つかりません</div>
+  <div class="db-empty-state-desc">フィルタを変更するか、↻ 更新してください。</div>
+</div>
 {% endif %}
