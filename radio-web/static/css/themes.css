@@ -1335,11 +1335,23 @@ body.dashboard-page {
   display: inline-block;
   margin-left: 0.3rem;
   font-size: 0.7rem;
-  opacity: 0;
+  opacity: 0.3;
   transition: opacity 0.2s;
+  min-width: 0.7rem;
+  text-align: center;
+  color: var(--color-primary);
+}
+
+.sort-icon.active {
+  opacity: 0.9;
+  font-weight: bold;
 }
 
 .db-list-header-cell:hover .sort-icon {
+  opacity: 0.7;
+}
+
+.db-list-header-cell:hover .sort-icon.active {
   opacity: 1;
 }
 

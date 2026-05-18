@@ -534,8 +534,10 @@ function updateSortIndicators(column) {
     const icon = header.querySelector('.sort-icon');
     if (icon) {
       icon.textContent = '';
+      icon.classList.remove('active');
       if (header.onclick && header.onclick.toString().includes(`'${column}'`)) {
         icon.textContent = _currentSortAscending ? '▲' : '▼';
+        icon.classList.add('active');
       }
     }
   });
