@@ -12,12 +12,12 @@
       ジャンル<span class="sort-icon"></span>
     </div>
     <div class="db-list-header-cell" onclick="sortProgramList('date')">
-      放送日<span class="sort-icon"></span>
+      放送開始<span class="sort-icon"></span>
     </div>
-    <div class="db-list-header-cell"></div>
   </div>
   {% for program in programs %}
   {% set pid = program.site_id ~ '_' ~ program.corner_id %}
+  {% set start_date = program.started_at[:10] if program.started_at else program.display_date[:10] if program.display_date else '----' %}
   <div class="db-list-row"
        data-program-id="{{ pid }}" data-genre="{{ program.genre or '' }}"
        data-title="{{ program.display_title }}"
@@ -28,10 +28,7 @@
     <div class="db-row-genre">
       {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
     </div>
-    <div class="db-row-date">{{ program.display_date[:10] if program.display_date else '----' }}</div>
-    <div class="db-row-action" onclick="event.stopPropagation()">
-      <button class="db-action-btn" onclick="loadProgramEpisodes('{{ pid }}')">表示</button>
-    </div>
+    <div class="db-row-date">{{ start_date }}</div>
   </div>
   {% endfor %}
 </div>

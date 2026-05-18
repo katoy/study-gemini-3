@@ -112,13 +112,10 @@
       }
     }
     function initFontSize() {
-      const saved = localStorage.getItem('fontSize') || 'medium';
+      const saved = localStorage.getItem('fontSize') || '100';
+      const percentage = parseInt(saved);
       const html = document.documentElement;
-      if (saved === 'medium') {
-        html.removeAttribute('data-font-size');
-      } else {
-        html.setAttribute('data-font-size', saved === 'small' ? 'small' : 'large');
-      }
+      html.style.setProperty('--font-size-scale', percentage / 100);
     }
     initTheme();
     initFontSize();
@@ -128,13 +125,13 @@
     });
 
     // 表示設定モーダル管理
-    let settingsBackup = { theme: 'auto', fontSize: 'medium' };
+    let settingsBackup = { theme: 'auto', fontSize: 100 };
 
     function openSettingsModal() {
       const modal = document.getElementById('settingsModal');
       const theme = localStorage.getItem('theme') || 'auto';
-      const fontSize = localStorage.getItem('fontSize') || 'medium';
-      settingsBackup = { theme, fontSize };
+      const fontSize = localStorage.getItem('fontSize') || '100';
+      settingsBackup = { theme, fontSize: parseInt(fontSize) };
       updateModalUI(theme, fontSize);
       modal.classList.add('show');
     }
@@ -152,30 +149,24 @@
         opt.querySelector('input').checked = isSelected;
       });
       // フォントサイズスライダーと表示を更新
-      const sliderValue = fontSize === 'small' ? 1 : fontSize === 'medium' ? 2 : 3;
+      const sliderValue = parseInt(fontSize) || 100;
       document.getElementById('fontSizeSlider').value = sliderValue;
       updateFontSizeDisplay(sliderValue);
     }
 
     function updateFontSizeDisplay(sliderValue) {
-      const displayLabels = ['', '小（80%）', '中（100%）', '大（125%）'];
       const display = document.getElementById('fontSizeDisplay');
-      if (display) display.textContent = displayLabels[sliderValue];
+      if (display) display.textContent = sliderValue + '%';
     }
 
     function handleFontSizeChange(sliderValue) {
-      const fontSizeMap = { 1: 'small', 2: 'medium', 3: 'large' };
-      const fontSize = fontSizeMap[sliderValue];
-      localStorage.setItem('fontSize', fontSize);
-      updateFontSizeDisplay(sliderValue);
-      // テーマ・フォントサイズを直ちに反映
+      const percentage = parseInt(sliderValue);
+      localStorage.setItem('fontSize', percentage.toString());
+      updateFontSizeDisplay(percentage);
+      // フォントサイズスケールを CSS 変数で反映
       const html = document.documentElement;
-      if (fontSize === 'medium') {
-        html.removeAttribute('data-font-size');
-      } else {
-        html.setAttribute('data-font-size', fontSize);
-      }
-      settingsBackup.fontSize = fontSize;
+      html.style.setProperty('--font-size-scale', percentage / 100);
+      settingsBackup.fontSize = percentage;
     }
 
     function applyTheme(theme) {
@@ -276,11 +267,11 @@
         <div class="setting-group">
           <label>フォントサイズ</label>
           <div class="font-size-slider-container">
-            <span class="font-size-label">小</span>
-            <input type="range" id="fontSizeSlider" name="fontSize" min="1" max="3" value="2" class="font-size-slider" oninput="handleFontSizeChange(this.value)">
-            <span class="font-size-label">大</span>
+            <span class="font-size-label">50%</span>
+            <input type="range" id="fontSizeSlider" name="fontSize" min="50" max="200" step="10" value="100" class="font-size-slider" oninput="handleFontSizeChange(this.value)">
+            <span class="font-size-label">200%</span>
           </div>
-          <div class="font-size-display" id="fontSizeDisplay">中（100%）</div>
+          <div class="font-size-display" id="fontSizeDisplay">100%</div>
         </div>
       </div>
       <div class="modal-footer">

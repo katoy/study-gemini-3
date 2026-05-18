@@ -30,6 +30,7 @@
   --font-size-sm: 0.875rem;
   --font-size-lg: 1.125rem;
   --line-height-base: 1.5;
+  --font-size-scale: 1;
 
   /* ─── Linear/Notion ダッシュボード用 ─── */
   --color-dashboard-bg: #f7f7f8;
@@ -92,25 +93,11 @@
   --color-dashboard-accent-soft: #1e2040;
 }
 
-/* フォントサイズ小 */
-:root[data-font-size="small"] {
-  --font-size-base: 14px;
-  --font-size-sm: 0.75rem;
-  --font-size-lg: 1rem;
-}
-
-/* フォントサイズ大 */
-:root[data-font-size="large"] {
-  --font-size-base: 18px;
-  --font-size-sm: 0.9375rem;
-  --font-size-lg: 1.3125rem;
-}
-
 /* グローバルスタイル */
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font-size: calc(var(--font-size-base) * var(--font-size-scale));
   line-height: var(--line-height-base);
   transition: background-color 0.2s, color 0.2s;
 }
@@ -506,6 +493,21 @@ body.app-page {
 .ep-date-col {
   white-space: nowrap;
   color: var(--color-text-secondary);
+}
+
+.ep-time-col {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+}
+
+.ep-duration-col {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-meta);
+  text-align: center;
 }
 
 .ep-dl-btn {
