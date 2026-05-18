@@ -82,16 +82,22 @@
     .modal-btn { padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s, color 0.2s; }
     .modal-btn-cancel { background: rgba(0, 0, 0, 0.1); color: var(--color-text); }
     .modal-btn-cancel:hover { background: rgba(0, 0, 0, 0.15); }
-    .modal-btn-apply { background: rgba(0, 0, 0, 0.1); color: var(--color-text); }
-    .modal-btn-apply:hover { background: rgba(0, 0, 0, 0.15); }
     .modal-btn-ok { background: var(--color-primary); color: #fff; }
     .modal-btn-ok:hover { opacity: 0.9; }
     html[data-theme="dark"] .modal-header { border-bottom-color: rgba(255, 255, 255, 0.2); }
     html[data-theme="dark"] .modal-footer { border-top-color: rgba(255, 255, 255, 0.2); }
     html[data-theme="dark"] .modal-btn-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
     html[data-theme="dark"] .modal-btn-cancel:hover { background: rgba(255, 255, 255, 0.15); }
-    html[data-theme="dark"] .modal-btn-apply { background: rgba(255, 255, 255, 0.1); color: #fff; }
-    html[data-theme="dark"] .modal-btn-apply:hover { background: rgba(255, 255, 255, 0.15); }
+    .font-size-slider-container { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .font-size-label { font-size: 0.9rem; font-weight: 500; white-space: nowrap; min-width: 24px; text-align: center; }
+    .font-size-slider { flex: 1; height: 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.1); outline: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+    html[data-theme="dark"] .font-size-slider { background: rgba(255, 255, 255, 0.2); }
+    .font-size-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--color-primary); cursor: pointer; transition: box-shadow 0.2s; }
+    .font-size-slider::-webkit-slider-thumb:hover { box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb), 0.2); }
+    .font-size-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--color-primary); border: none; cursor: pointer; transition: box-shadow 0.2s; }
+    .font-size-slider::-moz-range-thumb:hover { box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb), 0.2); }
+    .font-size-display { text-align: center; font-size: 0.9rem; color: rgba(0, 0, 0, 0.7); font-weight: 500; }
+    html[data-theme="dark"] .font-size-display { color: rgba(255, 255, 255, 0.7); }
   </style>
   <script>
     // テーマ・フォントサイズの初期化
@@ -139,26 +145,41 @@
     }
 
     function updateModalUI(theme, fontSize) {
-      document.querySelectorAll('.radio-option').forEach(opt => {
-        opt.classList.remove('selected');
-        const input = opt.querySelector('input');
-        const optTheme = opt.dataset.theme;
-        const optFontSize = opt.dataset.fontSize;
-        if ((optTheme && optTheme === theme) || (optFontSize && optFontSize === fontSize)) {
-          opt.classList.add('selected');
-          input.checked = true;
-        } else {
-          input.checked = false;
-        }
+      // テーマラジオボタンを更新
+      document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
+        const isSelected = opt.dataset.theme === theme;
+        opt.classList.toggle('selected', isSelected);
+        opt.querySelector('input').checked = isSelected;
       });
+      // フォントサイズスライダーと表示を更新
+      const sliderValue = fontSize === 'small' ? 1 : fontSize === 'medium' ? 2 : 3;
+      document.getElementById('fontSizeSlider').value = sliderValue;
+      updateFontSizeDisplay(sliderValue);
     }
 
-    function applySettings() {
-      const theme = document.querySelector('input[name="theme"]:checked')?.value || 'auto';
-      const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'medium';
-      localStorage.setItem('theme', theme);
+    function updateFontSizeDisplay(sliderValue) {
+      const displayLabels = ['', '小（80%）', '中（100%）', '大（125%）'];
+      const display = document.getElementById('fontSizeDisplay');
+      if (display) display.textContent = displayLabels[sliderValue];
+    }
+
+    function handleFontSizeChange(sliderValue) {
+      const fontSizeMap = { 1: 'small', 2: 'medium', 3: 'large' };
+      const fontSize = fontSizeMap[sliderValue];
       localStorage.setItem('fontSize', fontSize);
+      updateFontSizeDisplay(sliderValue);
       // テーマ・フォントサイズを直ちに反映
+      const html = document.documentElement;
+      if (fontSize === 'medium') {
+        html.removeAttribute('data-font-size');
+      } else {
+        html.setAttribute('data-font-size', fontSize);
+      }
+      settingsBackup.fontSize = fontSize;
+    }
+
+    function applyTheme(theme) {
+      localStorage.setItem('theme', theme);
       const html = document.documentElement;
       if (theme === 'auto') {
         const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -166,34 +187,30 @@
       } else {
         html.setAttribute('data-theme', theme);
       }
-      if (fontSize === 'medium') {
-        html.removeAttribute('data-font-size');
-      } else {
-        html.setAttribute('data-font-size', fontSize);
-      }
-      // モーダル UI を最新状態に保つ
-      updateModalUI(theme, fontSize);
-      settingsBackup = { theme, fontSize };
+      settingsBackup.theme = theme;
     }
 
     function cancelSettings() {
       const theme = settingsBackup.theme;
       const fontSize = settingsBackup.fontSize;
       updateModalUI(theme, fontSize);
+      // テーマを復元
+      applyTheme(theme);
       closeSettingsModal();
     }
 
-    function closeSettingsModalAfterApply() {
-      applySettings();
+    function confirmSettings() {
+      // 現在の設定は既に適用済み
       closeSettingsModal();
     }
 
-    // モーダル内のラジオボタンをクリック可能にする
+    // モーダル内のテーマラジオボタンをクリック可能にする
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.radio-option').forEach(opt => {
+      document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
         opt.addEventListener('click', function() {
           const input = this.querySelector('input');
           input.checked = true;
+          applyTheme(input.value);
         });
       });
     });
@@ -258,26 +275,17 @@
         </div>
         <div class="setting-group">
           <label>フォントサイズ</label>
-          <div class="radio-group">
-            <label class="radio-option" data-font-size="small">
-              <input type="radio" name="fontSize" value="small">
-              <span>A 小</span>
-            </label>
-            <label class="radio-option" data-font-size="medium">
-              <input type="radio" name="fontSize" value="medium">
-              <span>A 中</span>
-            </label>
-            <label class="radio-option" data-font-size="large">
-              <input type="radio" name="fontSize" value="large">
-              <span>A 大</span>
-            </label>
+          <div class="font-size-slider-container">
+            <span class="font-size-label">小</span>
+            <input type="range" id="fontSizeSlider" name="fontSize" min="1" max="3" value="2" class="font-size-slider" oninput="handleFontSizeChange(this.value)">
+            <span class="font-size-label">大</span>
           </div>
+          <div class="font-size-display" id="fontSizeDisplay">中（100%）</div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="cancelSettings()">キャンセル</button>
-        <button class="modal-btn modal-btn-apply" onclick="applySettings()">適用</button>
-        <button class="modal-btn modal-btn-ok" onclick="closeSettingsModalAfterApply()">OK</button>
+        <button class="modal-btn modal-btn-ok" onclick="confirmSettings()">OK</button>
       </div>
     </div>
   </div>
