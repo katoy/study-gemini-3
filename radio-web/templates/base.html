@@ -36,7 +36,7 @@
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); display: flex; flex-direction: column; min-height: 100vh; }
+    body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); display: flex; flex-direction: column; min-height: 100vh; font-size: calc(var(--font-size-base) * var(--font-size-scale) * 1px); }
     header { background: var(--color-primary); color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
     header h1 { font-size: 1.3rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; color: #fff; letter-spacing: -0.5px; }
     .header-nav { display: flex; align-items: center; gap: 0.8rem; flex-shrink: 0; margin-left: auto; }
@@ -161,11 +161,13 @@
 
     function handleFontSizeChange(sliderValue) {
       const percentage = parseInt(sliderValue);
+      const scale = percentage / 100;
       localStorage.setItem('fontSize', percentage.toString());
       updateFontSizeDisplay(percentage);
       // フォントサイズスケールを CSS 変数で反映
       const html = document.documentElement;
-      html.style.setProperty('--font-size-scale', percentage / 100);
+      html.style.setProperty('--font-size-scale', scale);
+      console.log('[FontSize] Set scale:', scale, 'percentage:', percentage);
       settingsBackup.fontSize = percentage;
     }
 
@@ -185,8 +187,10 @@
       const theme = settingsBackup.theme;
       const fontSize = settingsBackup.fontSize;
       updateModalUI(theme, fontSize);
-      // テーマを復元
+      // テーマとフォントサイズを復元
       applyTheme(theme);
+      const html = document.documentElement;
+      html.style.setProperty('--font-size-scale', fontSize / 100);
       closeSettingsModal();
     }
 
