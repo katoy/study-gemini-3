@@ -569,6 +569,35 @@ function filterByGenre(genre, navItem) {
   htmx.ajax('GET', url, '#db-program-list');
 }
 
+// 左メニュー件数を動的に更新
+function updateGenreCount(genre, count) {
+  const item = document.getElementById(`nav-${genre || 'all'}`);
+  if (item) {
+    const countSpan = item.querySelector('.db-nav-count');
+    if (countSpan) {
+      countSpan.textContent = count;
+    }
+  }
+}
+
+// プログラムリスト更新後、左メニューの件数を再計算
+function updateAllGenreCounts() {
+  const rows = document.querySelectorAll('.db-list-row');
+  const genreCount = {};
+  rows.forEach(row => {
+    const genre = row.dataset.genre || '';
+    genreCount[genre] = (genreCount[genre] || 0) + 1;
+  });
+
+  // すべてのジャンルの件数を更新
+  const allItems = document.querySelectorAll('.db-nav-item');
+  allItems.forEach(item => {
+    const genre = item.id?.replace('nav-', '') || '';
+    const count = genreCount[genre] || 0;
+    updateGenreCount(genre, count);
+  });
+}
+
 function activateFilterChip(chip, genre, triggerFetch = true) {
   document.querySelectorAll('.db-filter-chip').forEach(el => el.classList.remove('active'));
   if (chip) chip.classList.add('active');
@@ -627,12 +656,13 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
 });
 
-// htmx がプログラムリストを更新した後、ソート状態を復元
+// htmx がプログラムリストを更新した後、ソート状態を復元＋件数を更新
 document.addEventListener('htmx:afterSettle', (e) => {
   const target = e.detail?.target;
   if (target && target.id === 'db-program-list') {
     console.log('[DEBUG] Program list updated via htmx');
     restoreSortAfterListUpdate();
+    updateAllGenreCounts();
   }
 });
 
