@@ -1,15 +1,13 @@
 // テーマ、フォントサイズ、検索履歴、キーボードショートカット管理
 
-// テーマ切替
+// テーマ切替（後方互換性）
 function toggleTheme() {
   const html = document.documentElement;
   const current = html.getAttribute('data-theme') || 'light';
   const next = current === 'light' ? 'dark' : 'light';
   html.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
-  // console.log で確認用: Theme changed to, next
   updateThemeButton();
-  // 遅延して更新（確実に反映させる）
   setTimeout(() => updateThemeButton(), 50);
 }
 
@@ -20,8 +18,10 @@ function updateThemeButton() {
   btn.textContent = current === 'dark' ? '☀️' : '🌙';
 }
 
-// 初期化時にボタンを更新
-updateThemeButton();
+// 初期化時にボタンを更新（モーダルベースの新UIではボタンが存在しないため、チェック）
+if (document.getElementById('themeToggle')) {
+  updateThemeButton();
+}
 
 // フォントサイズ変更
 function setFontSize(size) {

@@ -43,11 +43,8 @@
     header nav { display: flex; gap: 1.8rem; font-size: 0.96rem; font-weight: 500; }
     header nav a { color: #fff; text-decoration: none; transition: color 0.2s, opacity 0.2s; border-bottom: 2px solid transparent; padding-bottom: 2px; }
     header nav a:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.6); opacity: 0.95; }
-    .theme-toggle { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); padding: 0.55rem 0.85rem; font-size: 1.1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s, border-color 0.2s; font-weight: 600; display: flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; }
-    .theme-toggle:hover { background: rgba(255, 255, 255, 0.3); border-color: rgba(255, 255, 255, 0.5); }
-    .font-size-controls { display: flex; gap: 0.35rem; }
-    .font-size-btn { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); padding: 0.45rem 0.55rem; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s, border-color 0.2s; font-size: 0.85rem; }
-    .font-size-btn:hover { background: rgba(255, 255, 255, 0.3); border-color: rgba(255, 255, 255, 0.5); }
+    .settings-btn { background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); padding: 0.55rem 0.85rem; font-size: 1.1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s, border-color 0.2s; font-weight: 600; display: flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; }
+    .settings-btn:hover { background: rgba(255, 255, 255, 0.3); border-color: rgba(255, 255, 255, 0.5); }
     @media (max-width: 768px) {
       header { padding: 0.85rem 1rem; gap: 0.8rem; }
       .header-search { min-width: 160px; max-width: 250px; }
@@ -61,31 +58,40 @@
     .htmx-request.htmx-indicator { opacity: 1; }
     .spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid #aaa; border-top-color: var(--color-primary); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; }
-    .modal.show { display: flex; }
-    .modal-content { background: var(--color-bg); color: var(--color-text); border-radius: 8px; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-    .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; }
-    /* ダークモード向けヘッダースタイル */
-    html[data-theme="dark"] header nav a {
-      color: #fff;
-      font-weight: 600;
-    }
-    html[data-theme="dark"] .theme-toggle {
-      background: rgba(0,0,0,0.3);
-      border-color: rgba(255,255,255,0.6);
-    }
-    html[data-theme="dark"] .theme-toggle:hover {
-      background: rgba(0,0,0,0.4);
-      border-color: rgba(255,255,255,0.8);
-    }
-    html[data-theme="dark"] .font-size-btn {
-      background: rgba(0,0,0,0.3);
-      border-color: rgba(255,255,255,0.6);
-    }
-    html[data-theme="dark"] .font-size-btn:hover {
-      background: rgba(0,0,0,0.4);
-      border-color: rgba(255,255,255,0.8);
-    }
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease-in-out; }
+    .modal.show { display: flex; opacity: 1; }
+    .modal-content { background: var(--color-bg); color: var(--color-text); border-radius: 8px; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: scale(0.95); transition: transform 0.3s ease-in-out; }
+    .modal.show .modal-content { transform: scale(1); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(0, 0, 0, 0.1); padding-bottom: 1rem; }
+    .modal-header h2 { font-size: 1.3rem; font-weight: 600; margin: 0; }
+    .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text); opacity: 0.6; transition: opacity 0.2s; }
+    .modal-close:hover { opacity: 1; }
+    .modal-body { margin-bottom: 1.5rem; }
+    .setting-group { margin-bottom: 1.5rem; }
+    .setting-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .setting-group .description { font-size: 0.85rem; color: rgba(0, 0, 0, 0.6); margin-top: 0.25rem; }
+    html[data-theme="dark"] .setting-group .description { color: rgba(255, 255, 255, 0.5); }
+    .radio-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .radio-option { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 2px solid transparent; border-radius: 6px; cursor: pointer; transition: border-color 0.2s, background 0.2s; background: rgba(0, 0, 0, 0.05); }
+    .radio-option:hover { background: rgba(0, 0, 0, 0.1); }
+    html[data-theme="dark"] .radio-option { background: rgba(255, 255, 255, 0.1); }
+    html[data-theme="dark"] .radio-option:hover { background: rgba(255, 255, 255, 0.15); }
+    .radio-option input { cursor: pointer; }
+    .radio-option.selected { border-color: var(--color-primary); background: rgba(var(--color-primary-rgb), 0.1); font-weight: 600; }
+    .modal-footer { display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid rgba(0, 0, 0, 0.1); }
+    .modal-btn { padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s, color 0.2s; }
+    .modal-btn-cancel { background: rgba(0, 0, 0, 0.1); color: var(--color-text); }
+    .modal-btn-cancel:hover { background: rgba(0, 0, 0, 0.15); }
+    .modal-btn-apply { background: rgba(0, 0, 0, 0.1); color: var(--color-text); }
+    .modal-btn-apply:hover { background: rgba(0, 0, 0, 0.15); }
+    .modal-btn-ok { background: var(--color-primary); color: #fff; }
+    .modal-btn-ok:hover { opacity: 0.9; }
+    html[data-theme="dark"] .modal-header { border-bottom-color: rgba(255, 255, 255, 0.2); }
+    html[data-theme="dark"] .modal-footer { border-top-color: rgba(255, 255, 255, 0.2); }
+    html[data-theme="dark"] .modal-btn-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    html[data-theme="dark"] .modal-btn-cancel:hover { background: rgba(255, 255, 255, 0.15); }
+    html[data-theme="dark"] .modal-btn-apply { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    html[data-theme="dark"] .modal-btn-apply:hover { background: rgba(255, 255, 255, 0.15); }
   </style>
   <script>
     // テーマ・フォントサイズの初期化
@@ -114,24 +120,96 @@
     document.addEventListener('DOMContentLoaded', () => {
       if (typeof updateThemeButton === 'function') updateThemeButton();
     });
+
+    // 表示設定モーダル管理
+    let settingsBackup = { theme: 'auto', fontSize: 'medium' };
+
+    function openSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      const theme = localStorage.getItem('theme') || 'auto';
+      const fontSize = localStorage.getItem('fontSize') || 'medium';
+      settingsBackup = { theme, fontSize };
+      updateModalUI(theme, fontSize);
+      modal.classList.add('show');
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.remove('show');
+    }
+
+    function updateModalUI(theme, fontSize) {
+      document.querySelectorAll('.radio-option').forEach(opt => {
+        opt.classList.remove('selected');
+        const input = opt.querySelector('input');
+        const optTheme = opt.dataset.theme;
+        const optFontSize = opt.dataset.fontSize;
+        if ((optTheme && optTheme === theme) || (optFontSize && optFontSize === fontSize)) {
+          opt.classList.add('selected');
+          input.checked = true;
+        } else {
+          input.checked = false;
+        }
+      });
+    }
+
+    function applySettings() {
+      const theme = document.querySelector('input[name="theme"]:checked')?.value || 'auto';
+      const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || 'medium';
+      localStorage.setItem('theme', theme);
+      localStorage.setItem('fontSize', fontSize);
+      // テーマ・フォントサイズを直ちに反映
+      const html = document.documentElement;
+      if (theme === 'auto') {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        html.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } else {
+        html.setAttribute('data-theme', theme);
+      }
+      if (fontSize === 'medium') {
+        html.removeAttribute('data-font-size');
+      } else {
+        html.setAttribute('data-font-size', fontSize);
+      }
+      // モーダル UI を最新状態に保つ
+      updateModalUI(theme, fontSize);
+      settingsBackup = { theme, fontSize };
+    }
+
+    function cancelSettings() {
+      const theme = settingsBackup.theme;
+      const fontSize = settingsBackup.fontSize;
+      updateModalUI(theme, fontSize);
+      closeSettingsModal();
+    }
+
+    function closeSettingsModalAfterApply() {
+      applySettings();
+      closeSettingsModal();
+    }
+
+    // モーダル内のラジオボタンをクリック可能にする
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.radio-option').forEach(opt => {
+        opt.addEventListener('click', function() {
+          const input = this.querySelector('input');
+          input.checked = true;
+        });
+      });
+    });
   </script>
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <header>
-    <h1>📻</h1>
+    <h1>📻 NHK Radio</h1>
     <div class="header-nav">
       <nav>
         <a href="/">ホーム</a>
         <a href="/downloads">ダウンロード</a>
         <a href="/help">ヘルプ</a>
       </nav>
-      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</button>
-      <div class="font-size-controls" style="display: flex; gap: 0.25rem;">
-        <button class="font-size-btn" onclick="setFontSize('small')" title="フォント小" style="font-size: 0.8rem;">A</button>
-        <button class="font-size-btn" onclick="setFontSize('medium')" title="フォント中" style="font-size: 1rem;">A</button>
-        <button class="font-size-btn" onclick="setFontSize('large')" title="フォント大" style="font-size: 1.2rem;">A</button>
-      </div>
+      <button class="settings-btn" id="settingsBtn" onclick="openSettingsModal()" title="表示設定">⚙️</button>
     </div>
   </header>
   <main class="{% block main_class %}page-main{% endblock %}">
@@ -150,6 +228,56 @@
           <div class="player-progress-bar" id="player-progress-bar"></div>
         </div>
         <button id="player-close-btn" class="player-btn" onclick="closePlayer()" title="プレーヤーを閉じる">✕</button>
+      </div>
+    </div>
+  </div>
+  <!-- 表示設定モーダル -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>表示機能設定</h2>
+        <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>テーマ</label>
+          <div class="radio-group">
+            <label class="radio-option" data-theme="light">
+              <input type="radio" name="theme" value="light">
+              <span>☀️ ライト</span>
+            </label>
+            <label class="radio-option" data-theme="dark">
+              <input type="radio" name="theme" value="dark">
+              <span>🌙 ダーク</span>
+            </label>
+            <label class="radio-option" data-theme="auto">
+              <input type="radio" name="theme" value="auto">
+              <span>🔄 自動</span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-group">
+          <label>フォントサイズ</label>
+          <div class="radio-group">
+            <label class="radio-option" data-font-size="small">
+              <input type="radio" name="fontSize" value="small">
+              <span>A 小</span>
+            </label>
+            <label class="radio-option" data-font-size="medium">
+              <input type="radio" name="fontSize" value="medium">
+              <span>A 中</span>
+            </label>
+            <label class="radio-option" data-font-size="large">
+              <input type="radio" name="fontSize" value="large">
+              <span>A 大</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="cancelSettings()">キャンセル</button>
+        <button class="modal-btn modal-btn-apply" onclick="applySettings()">適用</button>
+        <button class="modal-btn modal-btn-ok" onclick="closeSettingsModalAfterApply()">OK</button>
       </div>
     </div>
   </div>
