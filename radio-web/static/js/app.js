@@ -461,6 +461,16 @@ function applyCurrentView() {
 let _currentSortColumn = null;
 let _currentSortAscending = true;
 
+function saveSortState() {
+  localStorage.setItem('dbSortColumn', _currentSortColumn || '');
+  localStorage.setItem('dbSortAscending', _currentSortAscending ? '1' : '0');
+}
+
+function loadSortState() {
+  _currentSortColumn = localStorage.getItem('dbSortColumn') || null;
+  _currentSortAscending = localStorage.getItem('dbSortAscending') !== '0';
+}
+
 function sortProgramList(column) {
   const listView = document.getElementById('db-view-list');
   if (!listView) return;
@@ -508,6 +518,7 @@ function sortProgramList(column) {
   rows.forEach(row => listView.appendChild(row));
 
   updateSortIndicators(column);
+  saveSortState();
 }
 
 function updateSortIndicators(column) {
@@ -521,6 +532,12 @@ function updateSortIndicators(column) {
       }
     }
   });
+}
+
+function restoreSortAfterListUpdate() {
+  if (!_currentSortColumn) return;
+  // ソート状態を復元（クリック動作をシミュレート）
+  setTimeout(() => sortProgramList(_currentSortColumn), 50);
 }
 
 // === ダッシュボード: ジャンルフィルタ ===
@@ -586,6 +603,17 @@ function closeSidebar() {
   document.getElementById('db-sidebar')?.classList.remove('drawer-open');
   document.getElementById('db-overlay')?.classList.remove('show');
 }
+
+// ページロード時にソート状態を復元し、htmx リスト更新後も状態を保持
+document.addEventListener('DOMContentLoaded', () => {
+  loadSortState();
+  // htmx がプログラムリストを更新した後、ソート状態を復元
+  document.addEventListener('htmx:afterSwap', (e) => {
+    if (e.detail.xhr.responseURL && e.detail.xhr.responseURL.includes('/programs')) {
+      restoreSortAfterListUpdate();
+    }
+  });
+});
 
 // === WebSocket ジョブリアルタイム更新 ===
 (function() {
