@@ -478,10 +478,17 @@ function sortProgramList(column) {
   const rows = Array.from(listView.querySelectorAll('.db-list-row'));
   if (rows.length === 0) return;
 
+  // 同じ列をクリックしたら昇順/降順を反転、異なる列なら昇順で開始
   const isAscending = _currentSortColumn === column ? !_currentSortAscending : true;
   _currentSortColumn = column;
   _currentSortAscending = isAscending;
 
+  applySortToRows(rows, column, isAscending);
+  updateSortIndicators(column);
+  saveSortState();
+}
+
+function applySortToRows(rows, column, isAscending) {
   rows.sort((a, b) => {
     let aVal, bVal;
 
@@ -515,10 +522,10 @@ function sortProgramList(column) {
     }
   });
 
-  rows.forEach(row => listView.appendChild(row));
-
-  updateSortIndicators(column);
-  saveSortState();
+  const listView = document.getElementById('db-view-list');
+  if (listView) {
+    rows.forEach(row => listView.appendChild(row));
+  }
 }
 
 function updateSortIndicators(column) {
@@ -536,8 +543,16 @@ function updateSortIndicators(column) {
 
 function restoreSortAfterListUpdate() {
   if (!_currentSortColumn) return;
-  // ソート状態を復元（クリック動作をシミュレート）
-  setTimeout(() => sortProgramList(_currentSortColumn), 50);
+  const listView = document.getElementById('db-view-list');
+  if (!listView) return;
+
+  const rows = Array.from(listView.querySelectorAll('.db-list-row'));
+  if (rows.length === 0) return;
+
+  console.log('[DEBUG] Restoring sort:', _currentSortColumn, _currentSortAscending);
+  // 保存されたソート状態を適用
+  applySortToRows(rows, _currentSortColumn, _currentSortAscending);
+  updateSortIndicators(_currentSortColumn);
 }
 
 // === ダッシュボード: ジャンルフィルタ ===
@@ -604,15 +619,19 @@ function closeSidebar() {
   document.getElementById('db-overlay')?.classList.remove('show');
 }
 
-// ページロード時にソート状態を復元し、htmx リスト更新後も状態を保持
+// ページロード時にソート状態を復元
 document.addEventListener('DOMContentLoaded', () => {
   loadSortState();
-  // htmx がプログラムリストを更新した後、ソート状態を復元
-  document.addEventListener('htmx:afterSwap', (e) => {
-    if (e.detail.xhr.responseURL && e.detail.xhr.responseURL.includes('/programs')) {
-      restoreSortAfterListUpdate();
-    }
-  });
+  console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
+});
+
+// htmx がプログラムリストを更新した後、ソート状態を復元
+document.addEventListener('htmx:afterSettle', (e) => {
+  const target = e.detail?.target;
+  if (target && target.id === 'db-program-list') {
+    console.log('[DEBUG] Program list updated via htmx');
+    restoreSortAfterListUpdate();
+  }
 });
 
 // === WebSocket ジョブリアルタイム更新 ===
