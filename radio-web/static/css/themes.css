@@ -1334,16 +1334,17 @@ body.dashboard-page {
 .sort-icon {
   display: inline-block;
   margin-left: 0.3rem;
-  font-size: 0.7rem;
-  opacity: 0.3;
+  font-size: 0.75rem;
+  opacity: 0.5;
   transition: opacity 0.2s;
-  min-width: 0.7rem;
+  min-width: 0.75rem;
   text-align: center;
   color: var(--color-primary);
+  font-weight: 600;
 }
 
 .sort-icon.active {
-  opacity: 0.9;
+  opacity: 1;
   font-weight: bold;
 }
 
@@ -1352,6 +1353,14 @@ body.dashboard-page {
 }
 
 .db-list-header-cell:hover .sort-icon.active {
+  opacity: 1;
+}
+
+html[data-theme="dark"] .sort-icon {
+  opacity: 0.6;
+}
+
+html[data-theme="dark"] .sort-icon.active {
   opacity: 1;
 }
 
