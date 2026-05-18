@@ -26,9 +26,9 @@
   --status-bar-height: 34px;
 
   /* フォントサイズ (デフォルト: M) */
-  --font-size-base: 16px;
-  --font-size-sm: 0.875rem;
-  --font-size-lg: 1.125rem;
+  --font-size-base: 16;
+  --font-size-sm: 0.875;
+  --font-size-lg: 1.125;
   --line-height-base: 1.5;
   --font-size-scale: 1;
 
@@ -97,7 +97,7 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-size: calc(var(--font-size-base) * var(--font-size-scale));
+  font-size: calc(var(--font-size-base) * var(--font-size-scale) * 1px);
   line-height: var(--line-height-base);
   transition: background-color 0.2s, color 0.2s;
 }
