@@ -569,22 +569,6 @@ function filterByGenre(genre, navItem) {
   htmx.ajax('GET', url, '#db-program-list');
 }
 
-// グローバル：初期ロード時のジャンル別件数を保持
-let _initialGenreCounts = {};
-
-// 初期化時に左メニューの件数をキャッシュ（ページロード時）
-function initializeGenreCounts() {
-  const allItems = document.querySelectorAll('.db-nav-item');
-  allItems.forEach(item => {
-    const genre = item.id?.replace('nav-', '') || '';
-    const countSpan = item.querySelector('.db-nav-count');
-    if (countSpan) {
-      _initialGenreCounts[genre] = parseInt(countSpan.textContent) || 0;
-    }
-  });
-  console.log('[DEBUG] Initialized genre counts:', _initialGenreCounts);
-}
-
 // 左メニュー件数を更新
 function updateGenreCount(genre, count) {
   const item = document.getElementById(`nav-${genre || 'all'}`);
@@ -596,14 +580,29 @@ function updateGenreCount(genre, count) {
   }
 }
 
-// 初期化された件数から復元（ジャンルフィルタの影響を受けない）
+// 全プログラムから各ジャンルの件数を動的に計算
 function updateAllGenreCounts() {
-  // キャッシュから各ジャンルの件数を復元
-  Object.entries(_initialGenreCounts).forEach(([genre, count]) => {
-    updateGenreCount(genre, count);
+  // 全プログラムリスト（初期ロード時）から件数を計算
+  const genreCount = {};
+  const rows = document.querySelectorAll('.db-list-row');
+
+  rows.forEach(row => {
+    const genre = row.dataset.genre || '';
+    genreCount[genre] = (genreCount[genre] || 0) + 1;
   });
 
-  console.log('[DEBUG] Genre counts restored from initial state:', _initialGenreCounts);
+  // 全プログラムの件数
+  const totalCount = rows.length;
+  updateGenreCount('all', totalCount);
+
+  // 各ジャンルの件数を更新
+  Object.entries(genreCount).forEach(([genre, count]) => {
+    if (genre) {
+      updateGenreCount(genre, count);
+    }
+  });
+
+  console.log('[DEBUG] Genre counts updated from current list:', genreCount);
 }
 
 function activateFilterChip(chip, genre, triggerFetch = true) {
@@ -662,8 +661,8 @@ function closeSidebar() {
 document.addEventListener('DOMContentLoaded', () => {
   loadSortState();
   console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
-  initializeGenreCounts();
-  console.log('[DEBUG] Cached genre counts from initial state');
+  updateAllGenreCounts();
+  console.log('[DEBUG] Updated genre counts from current list');
 });
 
 // htmx がプログラムリストを更新した後、ソート状態を復元＋件数を更新
