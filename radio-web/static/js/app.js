@@ -569,7 +569,20 @@ function filterByGenre(genre, navItem) {
   htmx.ajax('GET', url, '#db-program-list');
 }
 
-// 左メニュー件数を動的に更新
+// グローバル：全プログラムをキャッシュ（初期化時のみ）
+let _allPrograms = [];
+
+// 全プログラムを初期化（ページロード時）
+function initializeAllPrograms() {
+  const rows = document.querySelectorAll('.db-list-row');
+  _allPrograms = Array.from(rows).map(row => ({
+    genre: row.dataset.genre || '',
+    id: row.dataset.programId || ''
+  }));
+  console.log('[DEBUG] Initialized all programs:', _allPrograms.length);
+}
+
+// 左メニュー件数を更新
 function updateGenreCount(genre, count) {
   const item = document.getElementById(`nav-${genre || 'all'}`);
   if (item) {
@@ -580,22 +593,34 @@ function updateGenreCount(genre, count) {
   }
 }
 
-// プログラムリスト更新後、左メニューの件数を再計算
+// 全プログラムから各ジャンルの件数を計算
 function updateAllGenreCounts() {
-  const rows = document.querySelectorAll('.db-list-row');
+  if (_allPrograms.length === 0) {
+    // キャッシュがない場合は、現在の表示から初期化
+    initializeAllPrograms();
+  }
+
   const genreCount = {};
-  rows.forEach(row => {
-    const genre = row.dataset.genre || '';
+  _allPrograms.forEach(prog => {
+    const genre = prog.genre || '';
     genreCount[genre] = (genreCount[genre] || 0) + 1;
   });
 
-  // すべてのジャンルの件数を更新
+  // 全プログラムの件数を計算
+  const totalCount = _allPrograms.length;
+  updateGenreCount('all', totalCount);
+
+  // 各ジャンルの件数を更新
   const allItems = document.querySelectorAll('.db-nav-item');
   allItems.forEach(item => {
     const genre = item.id?.replace('nav-', '') || '';
     const count = genreCount[genre] || 0;
-    updateGenreCount(genre, count);
+    if (genre && genre !== 'all') {
+      updateGenreCount(genre, count);
+    }
   });
+
+  console.log('[DEBUG] Genre counts updated:', genreCount);
 }
 
 function activateFilterChip(chip, genre, triggerFetch = true) {
@@ -650,10 +675,12 @@ function closeSidebar() {
   document.getElementById('db-overlay')?.classList.remove('show');
 }
 
-// ページロード時にソート状態を復元
+// ページロード時に初期化
 document.addEventListener('DOMContentLoaded', () => {
   loadSortState();
   console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
+  initializeAllPrograms();
+  console.log('[DEBUG] Initialized all programs cache');
 });
 
 // htmx がプログラムリストを更新した後、ソート状態を復元＋件数を更新
