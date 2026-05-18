@@ -569,17 +569,20 @@ function filterByGenre(genre, navItem) {
   htmx.ajax('GET', url, '#db-program-list');
 }
 
-// グローバル：全プログラムをキャッシュ（初期化時のみ）
-let _allPrograms = [];
+// グローバル：初期ロード時のジャンル別件数を保持
+let _initialGenreCounts = {};
 
-// 全プログラムを初期化（ページロード時）
-function initializeAllPrograms() {
-  const rows = document.querySelectorAll('.db-list-row');
-  _allPrograms = Array.from(rows).map(row => ({
-    genre: row.dataset.genre || '',
-    id: row.dataset.programId || ''
-  }));
-  console.log('[DEBUG] Initialized all programs:', _allPrograms.length);
+// 初期化時に左メニューの件数をキャッシュ（ページロード時）
+function initializeGenreCounts() {
+  const allItems = document.querySelectorAll('.db-nav-item');
+  allItems.forEach(item => {
+    const genre = item.id?.replace('nav-', '') || '';
+    const countSpan = item.querySelector('.db-nav-count');
+    if (countSpan) {
+      _initialGenreCounts[genre] = parseInt(countSpan.textContent) || 0;
+    }
+  });
+  console.log('[DEBUG] Initialized genre counts:', _initialGenreCounts);
 }
 
 // 左メニュー件数を更新
@@ -593,34 +596,14 @@ function updateGenreCount(genre, count) {
   }
 }
 
-// 全プログラムから各ジャンルの件数を計算
+// 初期化された件数から復元（ジャンルフィルタの影響を受けない）
 function updateAllGenreCounts() {
-  if (_allPrograms.length === 0) {
-    // キャッシュがない場合は、現在の表示から初期化
-    initializeAllPrograms();
-  }
-
-  const genreCount = {};
-  _allPrograms.forEach(prog => {
-    const genre = prog.genre || '';
-    genreCount[genre] = (genreCount[genre] || 0) + 1;
+  // キャッシュから各ジャンルの件数を復元
+  Object.entries(_initialGenreCounts).forEach(([genre, count]) => {
+    updateGenreCount(genre, count);
   });
 
-  // 全プログラムの件数を計算
-  const totalCount = _allPrograms.length;
-  updateGenreCount('all', totalCount);
-
-  // 各ジャンルの件数を更新
-  const allItems = document.querySelectorAll('.db-nav-item');
-  allItems.forEach(item => {
-    const genre = item.id?.replace('nav-', '') || '';
-    const count = genreCount[genre] || 0;
-    if (genre && genre !== 'all') {
-      updateGenreCount(genre, count);
-    }
-  });
-
-  console.log('[DEBUG] Genre counts updated:', genreCount);
+  console.log('[DEBUG] Genre counts restored from initial state:', _initialGenreCounts);
 }
 
 function activateFilterChip(chip, genre, triggerFetch = true) {
@@ -679,8 +662,8 @@ function closeSidebar() {
 document.addEventListener('DOMContentLoaded', () => {
   loadSortState();
   console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
-  initializeAllPrograms();
-  console.log('[DEBUG] Initialized all programs cache');
+  initializeGenreCounts();
+  console.log('[DEBUG] Cached genre counts from initial state');
 });
 
 // htmx がプログラムリストを更新した後、ソート状態を復元＋件数を更新
