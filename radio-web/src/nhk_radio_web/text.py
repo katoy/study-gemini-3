@@ -78,7 +78,7 @@ def _format_broadcast_time(timestamp) -> str:
 
 
 def _format_duration(seconds) -> str:
-    """秒数を HH:MM:SS 形式に変換する。時間がない場合は --:MM:SS"""
+    """秒数を HH:MM:SS 形式に変換する。時間がない場合は --:MM:SS、分もない場合は --:--:SS"""
     if seconds is None:
         return ""
     try:
@@ -89,7 +89,9 @@ def _format_duration(seconds) -> str:
         m, s = divmod(remainder, 60)
         if h:
             return f"{h:02d}:{m:02d}:{s:02d}"
-        return f"--:{m:02d}:{s:02d}"
+        if m:
+            return f"--:{m:02d}:{s:02d}"
+        return f"--:--:{s:02d}"
     except (ValueError, TypeError):
         return ""
 

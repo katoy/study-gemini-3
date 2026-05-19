@@ -34,7 +34,7 @@ class TextHelpersTest(unittest.TestCase):
     def test_format_duration_handles_variants(self):
         self.assertEqual(text._format_duration(None), "")
         self.assertEqual(text._format_duration(0), "")
-        self.assertEqual(text._format_duration(7), "--:00:07")
+        self.assertEqual(text._format_duration(7), "--:--:07")
         self.assertEqual(text._format_duration(125), "--:02:05")
         self.assertEqual(text._format_duration(3661), "01:01:01")
         self.assertEqual(text._format_duration("bad"), "")
