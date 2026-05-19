@@ -1,11 +1,11 @@
 <!-- Hero セクション -->
 <div class="program-hero">
-  <h2 class="hero-title">{{ program.display_title }}</h2>
-  <div class="hero-meta">{{ program.area }} / {{ program.genre_label }}</div>
-  <div class="hero-stats">{{ episodes_with_status | length }} エピソード</div>
-  <div class="hero-actions">
-    <button class="btn-accent" id="batch-dl-btn" onclick="batchDownload()">選択をダウンロード</button>
+  <div class="hero-info">
+    <h2 class="hero-title">{{ program.display_title }}</h2>
+    {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
+    <span class="hero-stats">{{ episodes_with_status | length }} 件</span>
   </div>
+  <button class="btn-accent btn-compact" id="batch-dl-btn" onclick="batchDownload()">↓ 一括DL</button>
 </div>
 
 <!-- エラーバナー -->
@@ -22,7 +22,6 @@
     <input type="checkbox" id="show-saved-only" onchange="filterEpisodes()"> 保存済みのみ
   </label>
   <span class="ep-summary" id="ep-summary">全 {{ episodes_with_status | length }} 件</span>
-  <span class="ep-selected-count" id="ep-selected-count" style="display:none;">0 件選択</span>
 </div>
 
 <!-- エピソードテーブル -->
@@ -31,12 +30,11 @@
   <table class="ep-table">
     <thead>
       <tr>
-        <th style="width:2rem;"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"></th>
-        <th style="width:2rem;">保存</th>
+        <th style="width:2.5rem;">✓</th>
+        <th>タイトル</th>
         <th style="width:7rem;">放送日</th>
         <th style="width:6rem;">放送時間</th>
         <th style="width:5rem;">長さ</th>
-        <th>タイトル</th>
         <th style="width:5rem;">操作</th>
       </tr>
     </thead>
@@ -47,12 +45,11 @@
         data-saved="{{ item.downloaded | int }}"
         data-episode='{{ item.episode | tojson }}'
         data-program='{{ program | tojson }}'>
-        <td><input type="checkbox" class="ep-checkbox" onchange="updateSelectedCount()"></td>
         <td class="ep-saved-mark">{% if item.downloaded %}✓{% endif %}</td>
+        <td>{{ item.episode.display_title }}</td>
         <td class="ep-date-col">{{ item.episode.display_date[:10] if item.episode.display_date else '' }}</td>
         <td class="ep-time-col">{{ item.episode.broadcast_time or '---' }}</td>
         <td class="ep-duration-col">{{ item.episode.duration_str or '---' }}</td>
-        <td>{{ item.episode.display_title }}</td>
         <td>
           {% if item.downloaded %}
             <button class="ep-dl-btn done" disabled>済</button>
