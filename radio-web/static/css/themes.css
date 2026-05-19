@@ -478,6 +478,7 @@ body.app-page {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
+  table-layout: fixed;
 }
 
 .ep-table th {
