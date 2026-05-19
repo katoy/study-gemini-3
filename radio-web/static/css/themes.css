@@ -511,14 +511,16 @@ body.app-page {
   font-weight: bold;
 }
 
-.ep-date-col {
-  white-space: nowrap;
+.ep-datetime-col {
   color: var(--color-text-secondary);
 }
 
-.ep-time-col {
-  white-space: nowrap;
-  color: var(--color-text-secondary);
+.ep-datetime-col div:first-child {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.ep-datetime-col div:last-child {
   font-family: var(--font-mono);
   font-size: var(--font-size-meta);
 }
