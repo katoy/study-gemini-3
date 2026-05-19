@@ -281,7 +281,8 @@ function debounceSearchPrograms(value) {
 // === エピソードフィルタ・選択管理 ===
 function filterEpisodes(searchText = null) {
   const filterInput = document.getElementById('ep-filter-input');
-  const showSavedOnly = document.getElementById('show-saved-only')?.checked || false;
+  const filterSaved = document.getElementById('filter-saved')?.checked || false;
+  const filterUnsaved = document.getElementById('filter-unsaved')?.checked || false;
   const query = searchText !== null ? searchText : (filterInput?.value || '').toLowerCase();
 
   const tbody = document.getElementById('ep-tbody');
@@ -293,7 +294,11 @@ function filterEpisodes(searchText = null) {
     const saved = parseInt(row.dataset.saved) || 0;
 
     const matchesQuery = !query || title.includes(query);
-    const matchesSavedFilter = !showSavedOnly || saved === 1;
+    // OR logic: チェックボックスが両方未チェックの場合はフィルタしない。
+    // チェックボックスが1つ以上チェックされた場合は、そのステータスにマッチするものを表示
+    const matchesSavedFilter = !filterSaved && !filterUnsaved
+      ? true
+      : (filterSaved && saved === 1) || (filterUnsaved && saved === 0);
     const shouldShow = matchesQuery && matchesSavedFilter;
 
     row.style.display = shouldShow ? '' : 'none';
