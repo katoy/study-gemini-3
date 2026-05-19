@@ -19,10 +19,10 @@
 <div class="ep-toolbar">
   <input type="text" id="ep-filter-input" placeholder="絞り込み..." oninput="filterEpisodes(this.value)">
   <label style="font-size:0.82rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
-    <input type="checkbox" id="filter-saved" onchange="filterEpisodes()"> 保存済み
+    <input type="checkbox" id="filter-saved" onchange="setEpisodeFilter('saved')"> 保存済み
   </label>
   <label style="font-size:0.82rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
-    <input type="checkbox" id="filter-unsaved" onchange="filterEpisodes()"> 未保存
+    <input type="checkbox" id="filter-unsaved" onchange="setEpisodeFilter('unsaved')"> 未保存
   </label>
   <span class="ep-summary" id="ep-summary">全 {{ episodes_with_status | length }} 件</span>
 </div>

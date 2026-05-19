@@ -279,6 +279,19 @@ function debounceSearchPrograms(value) {
 }
 
 // === エピソードフィルタ・選択管理 ===
+function setEpisodeFilter(type) {
+  if (type === 'saved') {
+    if (document.getElementById('filter-saved').checked) {
+      document.getElementById('filter-unsaved').checked = false;
+    }
+  } else if (type === 'unsaved') {
+    if (document.getElementById('filter-unsaved').checked) {
+      document.getElementById('filter-saved').checked = false;
+    }
+  }
+  filterEpisodes();
+}
+
 function filterEpisodes(searchText = null) {
   const filterInput = document.getElementById('ep-filter-input');
   const filterSaved = document.getElementById('filter-saved')?.checked || false;
@@ -294,11 +307,15 @@ function filterEpisodes(searchText = null) {
     const saved = parseInt(row.dataset.saved) || 0;
 
     const matchesQuery = !query || title.includes(query);
-    // OR logic: チェックボックスが両方未チェックの場合はフィルタしない。
-    // チェックボックスが1つ以上チェックされた場合は、そのステータスにマッチするものを表示
-    const matchesSavedFilter = !filterSaved && !filterUnsaved
-      ? true
-      : (filterSaved && saved === 1) || (filterUnsaved && saved === 0);
+    // 保存済み チェック → 保存済みのみ表示
+    // 未保存 チェック → 未保存のみ表示
+    // 両方未チェック → 全表示
+    let matchesSavedFilter = true;
+    if (filterSaved) {
+      matchesSavedFilter = saved === 1;
+    } else if (filterUnsaved) {
+      matchesSavedFilter = saved === 0;
+    }
     const shouldShow = matchesQuery && matchesSavedFilter;
 
     row.style.display = shouldShow ? '' : 'none';
