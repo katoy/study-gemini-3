@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,6 +15,8 @@ from nhk_radio_web.job_manager import JobManager
 
 from .routes import router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,8 +24,11 @@ async def lifespan(app: FastAPI):
     max_concurrent = int(os.getenv("NHK_RADIO_MAX_CONCURRENT_DL", str(DEFAULT_MAX_CONCURRENT_DL)))
     app.state.job_manager = JobManager(max_concurrent=max_concurrent)
     yield
-    # 終了時: 全ジョブをキャンセル
-    await app.state.job_manager.cancel_all()
+    # 終了時: 全ジョブをキャンセル（タイムアウト付き）
+    try:
+        await asyncio.wait_for(app.state.job_manager.cancel_all(), timeout=5.0)
+    except asyncio.TimeoutError:
+        logger.warning("Job cancellation timed out during shutdown")
 
 
 app = FastAPI(title="NHK ラジオ聞き逃し Web", lifespan=lifespan)
