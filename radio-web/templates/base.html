@@ -36,7 +36,7 @@
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); display: flex; flex-direction: column; min-height: 100vh; font-size: calc(var(--font-size-base) * var(--font-size-scale) * 1px); }
+    body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); display: flex; flex-direction: column; min-height: 100vh; }
     header { background: var(--color-primary); color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
     header h1 { font-size: 1.3rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; color: #fff; letter-spacing: -0.5px; }
     .header-nav { display: flex; align-items: center; gap: 0.8rem; flex-shrink: 0; margin-left: auto; }
@@ -114,8 +114,10 @@
     function initFontSize() {
       const saved = localStorage.getItem('fontSize') || '100';
       const percentage = parseInt(saved);
-      const html = document.documentElement;
-      html.style.setProperty('--font-size-scale', percentage / 100);
+      const baseFontSize = 16; // px
+      const newFontSize = (baseFontSize * percentage) / 100;
+      document.documentElement.style.fontSize = newFontSize + 'px';
+      console.log('[initFontSize] Set root font-size to:', newFontSize + 'px');
     }
     initTheme();
     initFontSize();
@@ -161,13 +163,13 @@
 
     function handleFontSizeChange(sliderValue) {
       const percentage = parseInt(sliderValue);
-      const scale = percentage / 100;
+      const baseFontSize = 16; // px
+      const newFontSize = (baseFontSize * percentage) / 100;
       localStorage.setItem('fontSize', percentage.toString());
       updateFontSizeDisplay(percentage);
-      // フォントサイズスケールを CSS 変数で反映
-      const html = document.documentElement;
-      html.style.setProperty('--font-size-scale', scale);
-      console.log('[FontSize] Set scale:', scale, 'percentage:', percentage);
+      // root 要素の font-size を直接設定
+      document.documentElement.style.fontSize = newFontSize + 'px';
+      console.log('[handleFontSizeChange] Set root font-size to:', newFontSize + 'px', 'percentage:', percentage);
       settingsBackup.fontSize = percentage;
     }
 
@@ -189,8 +191,9 @@
       updateModalUI(theme, fontSize);
       // テーマとフォントサイズを復元
       applyTheme(theme);
-      const html = document.documentElement;
-      html.style.setProperty('--font-size-scale', fontSize / 100);
+      const baseFontSize = 16; // px
+      const newFontSize = (baseFontSize * fontSize) / 100;
+      document.documentElement.style.fontSize = newFontSize + 'px';
       closeSettingsModal();
     }
 

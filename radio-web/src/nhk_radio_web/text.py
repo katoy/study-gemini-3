@@ -67,18 +67,18 @@ def _format_episode_date(date_text: str) -> str:
 
 
 def _format_broadcast_time(timestamp) -> str:
-    """Unix timestamp を HH:MM 形式 (ローカル時刻) に変換する"""
+    """Unix timestamp を HH:MM:SS 形式 (ローカル時刻) に変換する"""
     if timestamp is None:
         return ""
     try:
         dt = datetime.fromtimestamp(float(timestamp))
-        return dt.strftime("%H:%M")
+        return dt.strftime("%H:%M:%S")
     except (ValueError, OSError, OverflowError):
         return ""
 
 
 def _format_duration(seconds) -> str:
-    """秒数を「15分3秒」「1時間5分3秒」形式に変換する"""
+    """秒数を HH:MM:SS 形式に変換する。時間がない場合は --:MM:SS"""
     if seconds is None:
         return ""
     try:
@@ -88,10 +88,8 @@ def _format_duration(seconds) -> str:
         h, remainder = divmod(total, 3600)
         m, s = divmod(remainder, 60)
         if h:
-            return f"{h}時間{m}分{s}秒"
-        if m:
-            return f"{m}分{s}秒"
-        return f"{s}秒"
+            return f"{h:02d}:{m:02d}:{s:02d}"
+        return f"--:{m:02d}:{s:02d}"
     except (ValueError, TypeError):
         return ""
 

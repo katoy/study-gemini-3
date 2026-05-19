@@ -28,15 +28,15 @@ class TextHelpersTest(unittest.TestCase):
         self.assertEqual(text._format_broadcast_time("bad"), "")
         self.assertEqual(
             text._format_broadcast_time(1713188400),
-            datetime.fromtimestamp(1713188400).strftime("%H:%M"),
+            datetime.fromtimestamp(1713188400).strftime("%H:%M:%S"),
         )
 
     def test_format_duration_handles_variants(self):
         self.assertEqual(text._format_duration(None), "")
         self.assertEqual(text._format_duration(0), "")
-        self.assertEqual(text._format_duration(7), "7秒")
-        self.assertEqual(text._format_duration(125), "2分5秒")
-        self.assertEqual(text._format_duration(3661), "1時間1分1秒")
+        self.assertEqual(text._format_duration(7), "--:00:07")
+        self.assertEqual(text._format_duration(125), "--:02:05")
+        self.assertEqual(text._format_duration(3661), "01:01:01")
         self.assertEqual(text._format_duration("bad"), "")
 
     def test_sortable_day_value(self):
