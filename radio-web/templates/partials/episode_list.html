@@ -50,7 +50,7 @@
         <td class="ep-saved-mark">{% if item.downloaded %}✓{% endif %}</td>
         <td>{{ item.episode.display_title }}</td>
         <td class="ep-datetime-col">
-          <div>{{ item.episode.display_date[:10] if item.episode.display_date else '' }}</div>
+          <div>{{ item.episode.display_date if item.episode.display_date else '' }}</div>
           <div style="font-size:0.9rem; color:var(--color-text-secondary);">{{ item.episode.broadcast_time or '---' }}</div>
         </td>
         <td class="ep-duration-col">{{ item.episode.duration_str or '---' }}</td>
