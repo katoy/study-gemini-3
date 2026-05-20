@@ -9,11 +9,12 @@ from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.constants import HTTP_RETRY_BACKOFF_BASE, HTTP_RETRY_MAX_ATTEMPTS
 from nhk_radio_web.downloads import (
     _download_episode_command,
+    _parse_yt_dlp_progress,
     _program_filename_template,
     _program_output_dir,
     mark_episode_downloaded,
 )
-from nhk_radio_web.types import Episode, Program
+from nhk_radio_web.types import Episode, Progress, Program
 
 logger = logging.getLogger(__name__)
 
@@ -189,9 +190,22 @@ class JobManager:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.STDOUT,
                 )
+                # stdout をリアルタイムで読んで進捗を抽出
+                if proc.stdout:
+                    while True:
+                        line = await proc.stdout.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace")
+                        percent, eta, status = _parse_yt_dlp_progress(text)
+                        if percent is not None or eta is not None:
+                            self._jobs[job_id]["progress"] = Progress(percent=percent, eta=eta, status=status)
+                            await self._notify(job_id)
+
                 await proc.wait()
                 if proc.returncode == 0:
                     self._jobs[job_id]["status"] = "done"
+                    self._jobs[job_id]["progress"] = None
                     await self._notify(job_id)
                     mark_episode_downloaded(output_dir, program, episode)
                     return
@@ -204,6 +218,7 @@ class JobManager:
                 # 最後の試行で失敗
                 self._jobs[job_id]["status"] = "error"
                 self._jobs[job_id]["error"] = f"yt-dlp 終了コード: {proc.returncode}"
+                self._jobs[job_id]["progress"] = None
                 await self._notify(job_id)
                 return
             except asyncio.CancelledError:
@@ -219,6 +234,7 @@ class JobManager:
                 # 最後の試行で失敗
                 self._jobs[job_id]["status"] = "error"
                 self._jobs[job_id]["error"] = str(e)
+                self._jobs[job_id]["progress"] = None
                 await self._notify(job_id)
                 logger.error(f"ダウンロードエラー (job={job_id}, 試行数={HTTP_RETRY_MAX_ATTEMPTS}): {e}")
                 return

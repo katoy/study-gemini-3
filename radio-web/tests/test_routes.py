@@ -184,7 +184,7 @@ class RoutesTest(unittest.TestCase):
         job_manager._jobs[job_id]["status"] = "done"
         resp = self.client.get(f"/api/download/{job_id}/status")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("完了", resp.text)
+        self.assertIn("済", resp.text)
 
     def test_download_status_error(self):
         job_manager = app.state.job_manager

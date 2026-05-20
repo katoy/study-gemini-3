@@ -1,15 +1,26 @@
 {% set status = job.status %}
 {% if status == "done" %}
-  <span style="color:#2e7d32;font-size:0.8rem;">✔ 完了</span>
+  <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
 {% elif status == "error" %}
   <span style="color:#c00;font-size:0.8rem;">✖ {{ job.error or 'エラー' }}</span>
 {% elif status == "cancelled" %}
   <span style="color:#f57c00;font-size:0.8rem;">⊘ キャンセル済み</span>
 {% else %}
-  <span style="font-size:0.8rem;"
-        hx-get="/api/download/{{ job_id }}/status"
-        hx-trigger="every 2s"
-        hx-swap="outerHTML">
-    <span class="spinner"></span> {{ "ダウンロード中" if status == "downloading" else "待機中" }}…
-  </span>
+  <div style="font-size:0.8rem;"
+       hx-get="/api/download/{{ job_id }}/status"
+       hx-trigger="every 2s"
+       hx-swap="outerHTML">
+    {% if job.progress %}
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <div style="flex:1;background:#e0e0e0;border-radius:4px;height:20px;overflow:hidden;">
+          <div style="background:#42a5f5;height:100%;width:{{ job.progress.percent or 0 }}%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:0.75rem;">
+            {% if job.progress.percent %}{{ (job.progress.percent|round)|int }}%{% endif %}
+          </div>
+        </div>
+        <span style="min-width:3rem;text-align:right;">{{ job.progress.eta or '--:--' }}</span>
+      </div>
+    {% else %}
+      <span class="spinner"></span> {{ "ダウンロード中" if status == "downloading" else "待機中" }}…
+    {% endif %}
+  </div>
 {% endif %}

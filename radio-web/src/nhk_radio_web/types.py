@@ -48,3 +48,12 @@ class Episode:
     broadcast_time: str
     duration_str: str
     url: str
+
+
+@dataclass
+class Progress:
+    """Download progress tracking."""
+
+    percent: float | None
+    eta: str | None
+    status: str | None = None
