@@ -38,12 +38,13 @@ class JobManager:
         self._task_map: dict[str, asyncio.Task] = {}
         self._subscribers: set[asyncio.Queue] = set()
 
-    def enqueue(self, program: Program, episode: Episode) -> str:
+    def enqueue(self, program: Program, episode: Episode, download_dir: str = "") -> str:
         """ダウンロード job を登録し job_id を返す。
 
         Args:
             program: 番組情報
             episode: エピソード情報
+            download_dir: クライアント側で指定されたダウンロード先パス（オプション）
 
         Returns:
             job_id: 登録されたジョブの一意識別子
@@ -55,6 +56,7 @@ class JobManager:
             "episode": episode,
             "error": "",
             "progress": None,
+            "download_dir": download_dir,
         }
         return job_id
 
@@ -173,10 +175,15 @@ class JobManager:
         job = self._jobs[job_id]
         program: Program = job["program"]
         episode: Episode = job["episode"]
+        download_dir_str = job.get("download_dir", "")
 
         self._jobs[job_id]["status"] = "downloading"
         await self._notify(job_id)
-        output_dir = _default_download_dir()
+        # download_dir が指定されていればそれを使用、なければデフォルト
+        if download_dir_str:
+            output_dir = Path(download_dir_str).resolve()
+        else:
+            output_dir = _default_download_dir()
         program_dir = _program_output_dir(output_dir, program)
         program_dir.mkdir(parents=True, exist_ok=True)
         filename_template = _program_filename_template(program)

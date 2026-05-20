@@ -12,12 +12,14 @@
       btn.disabled = true;
       btn.textContent = '…';
       try {
+        const downloadDir = localStorage.getItem('downloadDir') || '';
         const resp = await fetch('/download', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             program: JSON.parse(btn.dataset.program),
-            episode: JSON.parse(btn.dataset.episode)
+            episode: JSON.parse(btn.dataset.episode),
+            downloadDir: downloadDir
           })
         });
         const html = await resp.text();
@@ -98,6 +100,8 @@
     .font-size-slider::-moz-range-thumb:hover { box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb), 0.2); }
     .font-size-display { text-align: center; font-size: 0.9rem; color: rgba(0, 0, 0, 0.7); font-weight: 500; }
     html[data-theme="dark"] .font-size-display { color: rgba(255, 255, 255, 0.7); }
+    #downloadDirInput { background: #fff; color: #000; }
+    html[data-theme="dark"] #downloadDirInput { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.2); }
   </style>
   <script>
     // テーマ・フォントサイズの初期化
@@ -127,14 +131,15 @@
     });
 
     // 表示設定モーダル管理
-    let settingsBackup = { theme: 'auto', fontSize: 100 };
+    let settingsBackup = { theme: 'auto', fontSize: 100, downloadDir: '' };
 
     function openSettingsModal() {
       const modal = document.getElementById('settingsModal');
       const theme = localStorage.getItem('theme') || 'auto';
       const fontSize = localStorage.getItem('fontSize') || '100';
-      settingsBackup = { theme, fontSize: parseInt(fontSize) };
-      updateModalUI(theme, fontSize);
+      const downloadDir = localStorage.getItem('downloadDir') || '';
+      settingsBackup = { theme, fontSize: parseInt(fontSize), downloadDir };
+      updateModalUI(theme, fontSize, downloadDir);
       modal.classList.add('show');
     }
 
@@ -143,7 +148,7 @@
       modal.classList.remove('show');
     }
 
-    function updateModalUI(theme, fontSize) {
+    function updateModalUI(theme, fontSize, downloadDir) {
       // テーマラジオボタンを更新
       document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
         const isSelected = opt.dataset.theme === theme;
@@ -154,6 +159,9 @@
       const sliderValue = parseInt(fontSize) || 100;
       document.getElementById('fontSizeSlider').value = sliderValue;
       updateFontSizeDisplay(sliderValue);
+      // ダウンロード先パスを更新
+      const downloadDirInput = document.getElementById('downloadDirInput');
+      if (downloadDirInput) downloadDirInput.value = downloadDir || '';
     }
 
     function updateFontSizeDisplay(sliderValue) {
@@ -188,13 +196,19 @@
     function cancelSettings() {
       const theme = settingsBackup.theme;
       const fontSize = settingsBackup.fontSize;
-      updateModalUI(theme, fontSize);
+      const downloadDir = settingsBackup.downloadDir;
+      updateModalUI(theme, fontSize, downloadDir);
       // テーマとフォントサイズを復元
       applyTheme(theme);
       const baseFontSize = 16; // px
       const newFontSize = (baseFontSize * fontSize) / 100;
       document.documentElement.style.fontSize = newFontSize + 'px';
       closeSettingsModal();
+    }
+
+    function handleDownloadDirChange(value) {
+      localStorage.setItem('downloadDir', value);
+      settingsBackup.downloadDir = value;
     }
 
     function confirmSettings() {
@@ -279,6 +293,11 @@
             <span class="font-size-label">200%</span>
           </div>
           <div class="font-size-display" id="fontSizeDisplay">100%</div>
+        </div>
+        <div class="setting-group">
+          <label for="downloadDirInput">ダウンロード先パス</label>
+          <input type="text" id="downloadDirInput" name="downloadDir" placeholder="/home/user/Downloads など" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-size:0.95rem;" oninput="handleDownloadDirChange(this.value)">
+          <div class="description">クライアントマシン上の絶対パス。空白の場合はサーバー側のデフォルト設定を使用。</div>
         </div>
       </div>
       <div class="modal-footer">

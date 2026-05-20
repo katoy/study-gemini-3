@@ -58,6 +58,15 @@ def test_enqueue_creates_job(job_manager, sample_program, sample_episode):
     assert job["error"] == ""
 
 
+def test_enqueue_with_download_dir(job_manager, sample_program, sample_episode):
+    """enqueue がダウンロード先パスを保持する。"""
+    download_dir = "/custom/download/path"
+    job_id = job_manager.enqueue(sample_program, sample_episode, download_dir)
+
+    job = job_manager.status_snapshot(job_id)
+    assert job["download_dir"] == download_dir
+
+
 def test_status_snapshot_returns_none_for_missing_job(job_manager):
     """status_snapshot は存在しないジョブに対して None を返す。"""
     result = job_manager.status_snapshot("nonexistent")
