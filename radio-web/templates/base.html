@@ -33,6 +33,34 @@
         btn.disabled = false;
       }
     }
+
+    async function downloadFile(jobId) {
+      try {
+        const resp = await fetch(`/api/download/${jobId}/file`);
+        if (!resp.ok) {
+          alert('ファイルダウンロードに失敗しました');
+          return;
+        }
+        const blob = await resp.blob();
+        const contentDisposition = resp.headers.get('content-disposition');
+        let filename = 'download';
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (match) filename = match[1];
+        }
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (err) {
+        console.error('ダウンロードエラー:', err);
+        alert('ファイルダウンロードに失敗しました');
+      }
+    }
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
