@@ -167,7 +167,6 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません")
     program_dict = body.get("program")
     episode_dict = body.get("episode")
-    download_dir = body.get("downloadDir", "")
     if not isinstance(program_dict, dict) or not isinstance(episode_dict, dict):
         raise HTTPException(status_code=422, detail="program と episode は dict 形式で指定してください")
 
@@ -178,7 +177,7 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}")
 
     job_manager = request.app.state.job_manager
-    job_id = job_manager.enqueue(program, episode, download_dir)
+    job_id = job_manager.enqueue(program, episode)
     background_tasks.add_task(job_manager.start, job_id)
 
     job = job_manager.status_snapshot(job_id)
@@ -195,8 +194,7 @@ async def batch_download(request: Request, background_tasks: BackgroundTasks):
 
     JSON body: {
         "program": {...},
-        "episodes": [{...}, ...],
-        "downloadDir": "..."
+        "episodes": [{...}, ...]
     }
     """
     try:
@@ -206,7 +204,6 @@ async def batch_download(request: Request, background_tasks: BackgroundTasks):
 
     program_dict = body.get("program")
     episodes_list = body.get("episodes", [])
-    download_dir = body.get("downloadDir", "")
     if not isinstance(program_dict, dict) or not isinstance(episodes_list, list):
         raise HTTPException(status_code=422, detail="program と episodes は dict/list 形式で指定してください")
 
@@ -221,7 +218,7 @@ async def batch_download(request: Request, background_tasks: BackgroundTasks):
     for episode_dict in episodes_list:
         try:
             episode = Episode(**{k: v for k, v in episode_dict.items() if k in Episode.__dataclass_fields__})
-            job_id = job_manager.enqueue(program, episode, download_dir)
+            job_id = job_manager.enqueue(program, episode)
             job_ids.append(job_id)
             background_tasks.add_task(job_manager.start, job_id)
         except (TypeError, KeyError):
@@ -282,6 +279,31 @@ async def cancel_download(request: Request, job_id: str):
         request,
         "partials/download_status.html",
         {"job_id": job_id, "job": job},
+    )
+
+
+@router.get("/api/download/{job_id}/file")
+async def download_file(request: Request, job_id: str):
+    """ダウンロード済みファイルをブラウザでダウンロード。"""
+    job_manager = request.app.state.job_manager
+    job = job_manager.status_snapshot(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    file_path = job.get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_path_obj = Path(file_path)
+    if not file_path_obj.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    from fastapi.responses import FileResponse
+    filename = file_path_obj.name
+    return FileResponse(
+        path=str(file_path_obj),
+        filename=filename,
+        media_type="application/octet-stream"
     )
 
 

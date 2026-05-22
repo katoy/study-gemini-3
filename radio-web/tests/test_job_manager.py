@@ -58,15 +58,6 @@ def test_enqueue_creates_job(job_manager, sample_program, sample_episode):
     assert job["error"] == ""
 
 
-def test_enqueue_with_download_dir(job_manager, sample_program, sample_episode):
-    """enqueue がダウンロード先パスを保持する。"""
-    download_dir = "/custom/download/path"
-    job_id = job_manager.enqueue(sample_program, sample_episode, download_dir)
-
-    job = job_manager.status_snapshot(job_id)
-    assert job["download_dir"] == download_dir
-
-
 def test_status_snapshot_returns_none_for_missing_job(job_manager):
     """status_snapshot は存在しないジョブに対して None を返す。"""
     result = job_manager.status_snapshot("nonexistent")
@@ -112,12 +103,15 @@ async def test_start_updates_status_to_downloading(job_manager, sample_program, 
                     with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
                         mock_cmd.return_value = ["echo", "test"]
 
-                        with patch("nhk_radio_web.job_manager.mark_episode_downloaded") as mock_mark:
+                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                            from pathlib import Path
+                            mock_sync.return_value = Path("/tmp/test/episode.mp3")
                             await job_manager.start(job_id)
                             await asyncio.sleep(0.1)  # wait for task
 
                             job = job_manager.status_snapshot(job_id)
                             assert job["status"] == "done"
+                            assert job.get("file_path") == "/tmp/test/episode.mp3"
 
 
 @pytest.mark.asyncio
@@ -219,7 +213,7 @@ async def test_semaphore_limits_concurrent_downloads(sample_program, sample_epis
 
                 with patch("nhk_radio_web.job_manager._program_filename_template"):
                     with patch("nhk_radio_web.job_manager._download_episode_command"):
-                        with patch("nhk_radio_web.job_manager.mark_episode_downloaded"):
+                        with patch("nhk_radio_web.job_manager.sync_episode_download_history"):
                             await job_manager.start(job_id_1)
                             await job_manager.start(job_id_2)
                             await asyncio.sleep(0.2)
@@ -356,3 +350,40 @@ async def test_notify_missing_job_returns_early(job_manager):
     # キューに何も入らないはず
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(q.get(), timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_run_download_success_without_file_path(job_manager, sample_program, sample_episode):
+    """sync_episode_download_history が None を返した場合、file_path を設定しない。"""
+    job_id = job_manager.enqueue(sample_program, sample_episode)
+
+    with patch("nhk_radio_web.job_manager.asyncio.create_subprocess_exec") as mock_exec:
+        mock_proc = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=None)
+        mock_proc.returncode = 0
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.readline = AsyncMock(side_effect=[b''])
+        mock_exec.return_value = mock_proc
+
+        with patch("nhk_radio_web.job_manager._default_download_dir") as mock_dir:
+            mock_dir.return_value = "/tmp/test"
+
+            with patch("nhk_radio_web.job_manager._program_output_dir") as mock_out:
+                mock_path = MagicMock()
+                mock_path.mkdir = MagicMock()
+                mock_out.return_value = mock_path
+
+                with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
+                    mock_tpl.return_value = "test_{title}"
+
+                    with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
+                        mock_cmd.return_value = ["echo", "test"]
+
+                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                            mock_sync.return_value = None
+                            await job_manager.start(job_id)
+                            await asyncio.sleep(0.1)
+
+                            job = job_manager.status_snapshot(job_id)
+                            assert job["status"] == "done"
+                            assert "file_path" not in job
