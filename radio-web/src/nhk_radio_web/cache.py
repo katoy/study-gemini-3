@@ -1,12 +1,12 @@
 """Cache helpers for program and episode data."""
 
+import contextlib
 import functools
 import json
 import logging
 import os
 import tempfile
 import time
-
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 CACHE_SCHEMA_VERSION = 1
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _dataclass_field_names(cls) -> frozenset[str]:
     return frozenset(f.name for f in fields(cls))
 
@@ -70,10 +70,8 @@ def _save_json_cache(cache_path: Path, payload: dict):
             f.write(text)
         Path(tmp_path).replace(cache_path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 

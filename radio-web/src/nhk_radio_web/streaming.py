@@ -6,7 +6,6 @@ HLS マスタープレイリストを取得し、セグメント URL をサー�
 
 import logging
 import re
-from typing import Optional
 
 import httpx
 from Cryptodome.Cipher import AES
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 KEY_PATTERN = re.compile(r'EXT-X-KEY:METHOD=([^,]+),URI="([^"]+)"(?:,IV=([^,\s]+))?')
 
 
-async def fetch_hls_master(stream_url: str) -> Optional[str]:
+async def fetch_hls_master(stream_url: str) -> str | None:
     """HLS マスタープレイリストを取得。
 
     Args:
@@ -37,7 +36,7 @@ async def fetch_hls_master(stream_url: str) -> Optional[str]:
         return None
 
 
-def parse_hls_key(manifest_content: str) -> tuple[Optional[str], Optional[str], Optional[bytes]]:
+def parse_hls_key(manifest_content: str) -> tuple[str | None, str | None, bytes | None]:
     """HLS マニフェストから EXT-X-KEY を抽出。
 
     Returns:
@@ -61,8 +60,8 @@ def parse_hls_key(manifest_content: str) -> tuple[Optional[str], Optional[str], 
 async def fetch_and_decrypt_segment(
     segment_url: str,
     key_uri: str,
-    iv: Optional[bytes] = None,
-) -> Optional[bytes]:
+    iv: bytes | None = None,
+) -> bytes | None:
     """HLS セグメントを取得し、AES-128-CBC で復号。
 
     Args:

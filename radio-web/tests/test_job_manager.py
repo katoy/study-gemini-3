@@ -353,6 +353,51 @@ async def test_notify_missing_job_returns_early(job_manager):
 
 
 @pytest.mark.asyncio
+async def test_run_download_with_progress_output(job_manager, sample_program, sample_episode):
+    """yt-dlp の進捗出力を処理できる。"""
+    job_id = job_manager.enqueue(sample_program, sample_episode)
+
+    with patch("nhk_radio_web.job_manager.asyncio.create_subprocess_exec") as mock_exec:
+        mock_proc = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=None)
+        mock_proc.returncode = 0
+        # stdout に進捗出力を含める
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.readline = AsyncMock(side_effect=[
+            b'[download] 25% of video',
+            b'[download] 50% of video ETA 00:30',
+            b'[download] 75% of video ETA 00:15',
+            b'[download] 100% of video',
+            b'',  # EOF
+        ])
+        mock_exec.return_value = mock_proc
+
+        with patch("nhk_radio_web.job_manager._default_download_dir") as mock_dir:
+            mock_dir.return_value = "/tmp/test"
+
+            with patch("nhk_radio_web.job_manager._program_output_dir") as mock_out:
+                mock_path = MagicMock()
+                mock_path.mkdir = MagicMock()
+                mock_out.return_value = mock_path
+
+                with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
+                    mock_tpl.return_value = "test_{title}"
+
+                    with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
+                        mock_cmd.return_value = ["echo", "test"]
+
+                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                            from pathlib import Path
+                            mock_sync.return_value = Path("/tmp/test/episode.mp3")
+                            await job_manager.start(job_id)
+                            await asyncio.sleep(0.1)
+
+                            job = job_manager.status_snapshot(job_id)
+                            assert job["status"] == "done"
+                            assert job.get("progress") is None
+
+
+@pytest.mark.asyncio
 async def test_run_download_success_without_file_path(job_manager, sample_program, sample_episode):
     """sync_episode_download_history が None を返した場合、file_path を設定しない。"""
     job_id = job_manager.enqueue(sample_program, sample_episode)

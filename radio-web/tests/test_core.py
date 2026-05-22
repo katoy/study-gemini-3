@@ -241,7 +241,7 @@ class CoreHelpersTest(unittest.TestCase):
         with (
             patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), expected]) as fetch_mock,
             patch.object(core, "save_episode_cache") as save_cache_mock,
-            patch.object(core.time, "sleep") as sleep_mock,
+            patch.object(core.time, "sleep"),
         ):
             episodes, source = core.refresh_episode_list(program, retry_delay=0.25)
         self.assertEqual((episodes, source), (expected, "network"))

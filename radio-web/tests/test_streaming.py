@@ -1,7 +1,8 @@
 """HLS ストリーミング機能のテスト。"""
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from nhk_radio_web.streaming import (
     fetch_and_decrypt_segment,

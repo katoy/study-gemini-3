@@ -114,18 +114,16 @@ class CacheCoverageTest(unittest.TestCase):
         # lines 72-77: BaseException 発生時に tmp ファイルを削除して re-raise
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "out.json"
-            with patch("os.fdopen", side_effect=RuntimeError("io error")):
-                with self.assertRaises(RuntimeError):
-                    cache._save_json_cache(cache_path, {"ok": True})
+            with patch("os.fdopen", side_effect=RuntimeError("io error")), self.assertRaises(RuntimeError):
+                cache._save_json_cache(cache_path, {"ok": True})
 
     def test_save_json_cache_swallows_unlink_oserror(self):
         # lines 75-76: tmp 削除も失敗する場合でも元の例外を re-raise する
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "out.json"
             with patch("os.fdopen", side_effect=RuntimeError("io error")), \
-                 patch("os.unlink", side_effect=OSError("unlink failed")):
-                with self.assertRaises(RuntimeError):
-                    cache._save_json_cache(cache_path, {"ok": True})
+                 patch("os.unlink", side_effect=OSError("unlink failed")), self.assertRaises(RuntimeError):
+                cache._save_json_cache(cache_path, {"ok": True})
 
     def test_load_program_cache_returns_none(self):
         # line 83: _load_json_ttl_cache が None → load_program_cache が None を返す
@@ -204,20 +202,17 @@ class CoreCoverageTest(unittest.TestCase):
         mock_resp = MagicMock()
         mock_resp.status_code = 500
         error = httpx.HTTPStatusError("server error", request=MagicMock(), response=mock_resp)
-        with patch("httpx.Client.get", side_effect=error):
-            with self.assertRaises(httpx.HTTPStatusError):
-                core.http_get_json("https://example.com")
+        with patch("httpx.Client.get", side_effect=error), self.assertRaises(httpx.HTTPStatusError):
+            core.http_get_json("https://example.com")
 
     def test_http_get_json_request_error(self):
-        with patch("httpx.Client.get", side_effect=httpx.RequestError("timeout")):
-            with self.assertRaises(httpx.RequestError):
-                core.http_get_json("https://example.com")
+        with patch("httpx.Client.get", side_effect=httpx.RequestError("timeout")), self.assertRaises(httpx.RequestError):
+            core.http_get_json("https://example.com")
 
     # lines 72-74: http_get_text のエラーパス
     def test_http_get_text_http_error(self):
-        with patch("httpx.Client.get", side_effect=httpx.HTTPError("bad")):
-            with self.assertRaises(httpx.HTTPError):
-                core.http_get_text("https://example.com")
+        with patch("httpx.Client.get", side_effect=httpx.HTTPError("bad")), self.assertRaises(httpx.HTTPError):
+            core.http_get_text("https://example.com")
 
     # line 213-214: _fetch_all_async が空リストを返す場合の warning
     def test_fetch_all_async_returns_empty_with_warning(self):
@@ -305,9 +300,8 @@ class CoreCoverageTest(unittest.TestCase):
         program = self._make_program()
         with patch.object(core, "fetch_episodes", side_effect=RuntimeError("fail")), \
              patch.object(core, "load_episode_cache", return_value=None), \
-             patch("time.sleep"):
-            with self.assertRaises(RuntimeError):
-                core.refresh_episode_list(program)
+             patch("time.sleep"), self.assertRaises(RuntimeError):
+            core.refresh_episode_list(program)
 
 
 # ─────────────────────────────────────────

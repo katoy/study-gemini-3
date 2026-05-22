@@ -1,10 +1,8 @@
 """FastAPI ルートのテスト (httpx.AsyncClient + ASGITransport)"""
 
-import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
-import httpx
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -277,7 +275,7 @@ class RoutesTest(unittest.TestCase):
     def test_recent_jobs_with_job(self):
         """ジョブが存在する場合、エンドポイントが HTML に反映される。"""
         job_manager = app.state.job_manager
-        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        job_manager.enqueue(PROGRAM, EPISODE)
         resp = self.client.get("/api/jobs/recent")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("第1回", resp.text)
@@ -286,7 +284,7 @@ class RoutesTest(unittest.TestCase):
         """limit パラメータで取得件数を制限できる。"""
         job_manager = app.state.job_manager
         # 複数のジョブを登録
-        for i in range(5):
+        for _ in range(5):
             job_manager.enqueue(PROGRAM, EPISODE)
         # limit=2 で取得
         resp = self.client.get("/api/jobs/recent?limit=2")

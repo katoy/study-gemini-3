@@ -1,6 +1,7 @@
 """ダウンロードジョブ管理とキューイング。"""
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from typing import Any
@@ -14,7 +15,7 @@ from nhk_radio_web.downloads import (
     _program_output_dir,
     sync_episode_download_history,
 )
-from nhk_radio_web.types import Episode, Progress, Program
+from nhk_radio_web.types import Episode, Program, Progress
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +92,8 @@ class JobManager:
         if job_id in self._task_map:
             task = self._task_map[job_id]
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         self._jobs[job_id]["status"] = "cancelled"
         self._jobs[job_id]["error"] = "ユーザーがキャンセルしました"

@@ -145,7 +145,7 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
         corner_id=corner_id,
         onair_date=onair_date,
         display_date=_format_onair_date(onair_date, started_at),
-        display_title=_program_display_title(title, corner_name),
+        display_title=_program_display_title(title, corner_name or ""),
         started_at=started_at,
         url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
     )
@@ -183,10 +183,10 @@ async def _fetch_all_async() -> list[Program]:
         tasks = [fetch_genre(g) for g in NHK_GENRES]
         results = await asyncio.gather(*tasks)
 
-        for g, data in results:
-            if not isinstance(data, dict):
+        for g, raw_data in results:  # type: ignore[misc]
+            if not isinstance(raw_data, dict):
                 continue
-            for s_raw in data.get("series", []):
+            for s_raw in raw_data.get("series", []):
                 s = cast(ApiProgramRaw, s_raw)
                 key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
                 if key not in seen:

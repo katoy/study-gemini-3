@@ -1,6 +1,5 @@
 """進捗パース機能テスト。"""
 
-import pytest
 
 from nhk_radio_web.progress import parse_progress_line
 
