@@ -56,7 +56,7 @@
         <td class="ep-duration-col">{{ item.episode.duration_str or '---' }}</td>
         <td>
           {% if item.downloaded %}
-            <button class="ep-dl-btn done" disabled>済</button>
+            <button class="ep-dl-btn done" onclick="downloadSavedEpisode('{{ program.site_id }}', '{{ program.corner_id }}', '{{ item.episode.id }}', '{{ item.episode.date or '' }}', '{{ item.episode.title or item.episode.display_title or 'episode' }}')">済</button>
           {% else %}
             <button class="ep-dl-btn"
               data-program='{{ program | tojson }}'

@@ -1,21 +1,23 @@
 """FastAPI route definitions."""
 
 import dataclasses
+import fnmatch
 import json
 import logging
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
 from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.constants import GENRE_LABELS, NHK_GENRES
 from nhk_radio_web.core import fetch_program_list_async, get_episode_list
-from nhk_radio_web.downloads import is_episode_downloaded
+from nhk_radio_web.downloads import _episode_output_identity, _program_search_dirs, is_episode_downloaded
 from nhk_radio_web.help_content import render_help_html
 from nhk_radio_web.search import filter_episodes, filter_programs
+from nhk_radio_web.text import _safe_name
 from nhk_radio_web.types import Episode, Program
 
 logger = logging.getLogger(__name__)
@@ -317,6 +319,59 @@ async def download_file(request: Request, job_id: str):
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@router.get("/api/episodes/{site_id}/{corner_id}/{episode_id}/file")
+async def download_episode_file(request: Request, site_id: str, corner_id: str, episode_id: str):
+    """既にダウンロード済みのエピソードファイルをダウンロード。"""
+    # キャッシュから Program を取得
+    all_programs = await fetch_program_list_async(None)
+    program = next(
+        (p for p in all_programs if p.site_id == site_id and p.corner_id == corner_id),
+        None,
+    )
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    # キャッシュからエピソードを取得
+    try:
+        episodes, _ = get_episode_list(program)
+    except RuntimeError as e:
+        raise HTTPException(status_code=404, detail="Episodes not found") from e
+
+    episode = next(
+        (ep for ep in episodes if ep.id == episode_id),
+        None,
+    )
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    # ダウンロード済みファイルを探す
+    output_dir = _default_download_dir()
+    program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
+    for prog_dir in _program_search_dirs(output_dir, program):
+        if not prog_dir.exists():
+            continue
+        for file_path in prog_dir.glob("*"):
+            if file_path.is_file() and fnmatch.fnmatch(
+                file_path.name,
+                f"*{_safe_name(episode_title)}*",
+            ):
+                # ファイルが見つかった
+                filename = (
+                    f"{episode_date}-{_safe_name(episode.title or episode.display_title or 'episode')}.mp3"
+                    if episode_date
+                    else f"{_safe_name(episode.title or episode.display_title or 'episode')}.mp3"
+                )
+                response = FileResponse(
+                    path=str(file_path),
+                    filename=filename,
+                    media_type="application/octet-stream"
+                )
+                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                return response
+
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.get("/downloads", response_class=HTMLResponse)
