@@ -5,6 +5,7 @@ import fnmatch
 import json
 import logging
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
@@ -316,8 +317,9 @@ async def download_file(request: Request, job_id: str):
         filename=filename,
         media_type="application/octet-stream"
     )
-    # RFC 5987: UTF-8 エンコードされたファイル名を指定
-    response.headers["Content-Disposition"] = f'attachment; filename*=UTF-8\'\'{filename}'
+    # RFC 5987: UTF-8 エンコードされたファイル名を指定（URL エンコード必須）
+    encoded_filename = quote(filename, safe="")
+    response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
     return response
 
 
@@ -368,8 +370,9 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
                     filename=filename,
                     media_type="application/octet-stream"
                 )
-                # RFC 5987: UTF-8 エンコードされたファイル名を指定
-                response.headers["Content-Disposition"] = f'attachment; filename*=UTF-8\'\'{filename}'
+                # RFC 5987: UTF-8 エンコードされたファイル名を指定（URL エンコード必須）
+                encoded_filename = quote(filename, safe="")
+                response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
                 return response
 
     raise HTTPException(status_code=404, detail="File not found")
