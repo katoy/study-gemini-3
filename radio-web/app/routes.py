@@ -310,11 +310,13 @@ async def download_file(request: Request, job_id: str):
     filename = f"{episode_date}-{safe_title}.mp3" if episode_date else f"{safe_title}.mp3"
 
     from fastapi.responses import FileResponse
-    return FileResponse(
+    response = FileResponse(
         path=str(file_path_obj),
         filename=filename,
         media_type="application/octet-stream"
     )
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @router.get("/downloads", response_class=HTMLResponse)
