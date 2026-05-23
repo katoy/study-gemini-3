@@ -3,16 +3,17 @@
   <div style="display:flex;align-items:center;gap:0.5rem;">
     <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
     {% if job.file_path %}
-      <button onclick="downloadFile('{{ job_id }}')" style="padding:0.25rem 0.5rem;font-size:0.75rem;background:#1976d2;color:#fff;border:none;border-radius:3px;cursor:pointer;">[済]ダウンロード</button>
+      <button id="dl-btn-{{ job_id }}" style="padding:0.25rem 0.5rem;font-size:0.75rem;background:#1976d2;color:#fff;border:none;border-radius:3px;cursor:pointer;">[済]ダウンロード</button>
       <script>
-        // ページロード直後に自動ダウンロード開始
-        window.addEventListener('load', function() { downloadFile('{{ job_id }}'); }, { once: true });
-        // またはすぐに実行
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function() { downloadFile('{{ job_id }}'); });
-        } else {
-          downloadFile('{{ job_id }}');
-        }
+        (function() {
+          const jobId = '{{ job_id }}';
+          const btn = document.getElementById('dl-btn-' + jobId);
+          if (btn) {
+            btn.onclick = function() { downloadFile(jobId); };
+            // 自動ダウンロード実行
+            setTimeout(function() { downloadFile(jobId); }, 100);
+          }
+        })();
       </script>
     {% endif %}
   </div>
