@@ -28,6 +28,7 @@ class TestParseArgs:
             args = parse_args()
         assert args.output_dir == "./output"
         assert args.cdp_url == "http://localhost:9222"
+        assert args.browser == "chrome"
         assert args.launch_chrome is False
         assert args.screenshots == "delete"
         assert args.page_delay == 0.8
@@ -39,6 +40,16 @@ class TestParseArgs:
         with patch("sys.argv", ["main.py", "--launch-chrome"]):
             args = parse_args()
         assert args.launch_chrome is True
+
+    def test_browser_choice_edge(self):
+        with patch("sys.argv", ["main.py", "--browser", "edge"]):
+            args = parse_args()
+        assert args.browser == "edge"
+
+    def test_invalid_browser_choice(self):
+        with patch("sys.argv", ["main.py", "--browser", "firefox"]):
+            with pytest.raises(SystemExit):
+                parse_args()
 
     def test_output_dir_short_flag(self):
         with patch("sys.argv", ["main.py", "-o", "/tmp/out"]):
@@ -164,19 +175,19 @@ class TestPrepareScreenshots:
         (shots / "page_0001.png").write_bytes(b"x")
         (shots / "page_0002.png").write_bytes(b"x")
 
-        args = argparse.Namespace(images_dir=str(shots), cdp_url="http://x", page_delay=0.0)
+        args = argparse.Namespace(images_dir=str(shots), cdp_url="http://x", page_delay=0.0, browser="chrome")
         title, files, returned_dir = asyncio.run(_prepare_screenshots(args, tmp_path))
         assert title == "book"
         assert len(files) == 2
         assert returned_dir is None  # delete 対象から外す
 
     def test_missing_images_dir_raises(self, tmp_path):
-        args = argparse.Namespace(images_dir=str(tmp_path / "missing"), cdp_url="x", page_delay=0.0)
+        args = argparse.Namespace(images_dir=str(tmp_path / "missing"), cdp_url="x", page_delay=0.0, browser="chrome")
         with pytest.raises(FileNotFoundError, match="見つかりません"):
             asyncio.run(_prepare_screenshots(args, tmp_path))
 
     def test_calls_capture_kindle_pages(self, tmp_path, monkeypatch):
-        async def fake_capture(output_dir, cdp_url, page_delay):
+        async def fake_capture(output_dir, cdp_url, page_delay, browser_type):
             book_dir = Path(output_dir) / "Book"
             book_dir.mkdir(parents=True, exist_ok=True)
             shot = book_dir / "page_0001.png"
@@ -184,17 +195,17 @@ class TestPrepareScreenshots:
             return "Book", [str(shot)]
 
         monkeypatch.setattr(main, "capture_kindle_pages", fake_capture)
-        args = argparse.Namespace(images_dir=None, cdp_url="x", page_delay=0.0)
+        args = argparse.Namespace(images_dir=None, cdp_url="x", page_delay=0.0, browser="chrome")
         title, files, returned_dir = asyncio.run(_prepare_screenshots(args, tmp_path))
         assert title == "Book"
         assert returned_dir == tmp_path / "Book"
 
     def test_capture_returns_empty_handles_none_dir(self, tmp_path, monkeypatch):
-        async def fake_capture(output_dir, cdp_url, page_delay):
+        async def fake_capture(output_dir, cdp_url, page_delay, browser_type):
             return "Book", []
 
         monkeypatch.setattr(main, "capture_kindle_pages", fake_capture)
-        args = argparse.Namespace(images_dir=None, cdp_url="x", page_delay=0.0)
+        args = argparse.Namespace(images_dir=None, cdp_url="x", page_delay=0.0, browser="chrome")
         title, files, returned_dir = asyncio.run(_prepare_screenshots(args, tmp_path))
         assert returned_dir is None
 
@@ -203,6 +214,7 @@ def _make_args(**overrides):
     base = dict(
         output_dir="./output",
         cdp_url="http://localhost:9222",
+        browser="chrome",
         launch_chrome=False,
         chrome_user_data_dir=None,
         images_dir=None,
@@ -262,7 +274,7 @@ class TestRun:
     def test_pipeline_deletes_screenshots_when_capture_used(self, tmp_path, monkeypatch):
         args = _make_args(output_dir=str(tmp_path / "out"), screenshots="delete")
 
-        async def fake_capture(output_dir, cdp_url, page_delay):
+        async def fake_capture(output_dir, cdp_url, page_delay, browser_type):
             book_dir = Path(output_dir) / "Book"
             book_dir.mkdir(parents=True, exist_ok=True)
             shot = book_dir / "page_0001.png"
@@ -300,7 +312,7 @@ class TestRun:
         proc = MagicMock()
         proc.poll.return_value = None
         monkeypatch.setattr(main, "find_free_port", lambda: 12345)
-        monkeypatch.setattr(main, "launch_chrome", lambda **kw: proc)
+        monkeypatch.setattr(main, "launch_browser", lambda **kw: proc)
         monkeypatch.setattr(main, "_terminate_process", lambda p: None)
         monkeypatch.setattr("builtins.input", lambda _prompt: "q")
         asyncio.run(run(args))
@@ -313,7 +325,7 @@ class TestRun:
         def boom(**kw):
             raise FileNotFoundError("chrome missing")
 
-        monkeypatch.setattr(main, "launch_chrome", boom)
+        monkeypatch.setattr(main, "launch_browser", boom)
 
         with pytest.raises(SystemExit) as excinfo:
             asyncio.run(run(args))
@@ -332,7 +344,7 @@ class TestRun:
         proc = MagicMock()
         proc.poll.return_value = None
         monkeypatch.setattr(main, "find_free_port", lambda: 12345)
-        monkeypatch.setattr(main, "launch_chrome", lambda **kw: proc)
+        monkeypatch.setattr(main, "launch_browser", lambda **kw: proc)
         monkeypatch.setattr(main, "_terminate_process", lambda p: None)
         monkeypatch.setattr("builtins.input", lambda _prompt: "q")
         asyncio.run(run(args))

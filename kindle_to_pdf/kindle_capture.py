@@ -40,6 +40,7 @@ async def capture_kindle_pages(
     output_dir: str,
     cdp_url: str = DEFAULT_CDP_URL,
     page_delay: float = 0.8,
+    browser_type: str = "chrome",
 ) -> Tuple[str, List[str]]:
     """
     Kindle Cloud Reader のページを全てキャプチャします。
@@ -48,7 +49,7 @@ async def capture_kindle_pages(
         (book_title, [screenshot_path, ...])
     """
     async with async_playwright() as p:
-        browser = await _connect_to_chrome(p, cdp_url)
+        browser = await _connect_to_browser(p, cdp_url, browser_type)
         try:
             kindle_page = _find_kindle_tab(browser)
 
@@ -76,46 +77,81 @@ async def capture_kindle_pages(
             await browser.close()
 
 
-async def _connect_to_chrome(p, cdp_url: str) -> Browser:
-    """Chrome のリモートデバッグポートに接続します。"""
+async def _connect_to_browser(p, cdp_url: str, browser_type: str = "chrome") -> Browser:
+    """ブラウザのリモートデバッグポートに接続します。"""
     try:
         return await p.chromium.connect_over_cdp(cdp_url)
     except Exception as e:
         os_name = platform.system()
-        if os_name == "Darwin":
-            chrome_cmd = (
-                "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "
-                "--remote-debugging-port=9222 --no-first-run"
-            )
-        elif os_name == "Windows":
-            chrome_cmd = '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222'
+        browser_name = "Edge" if browser_type == "edge" else "Chrome"
+
+        if browser_type == "edge":
+            if os_name == "Darwin":
+                browser_cmd = (
+                    "/Applications/Microsoft\\ Edge.app/Contents/MacOS/Microsoft\\ Edge "
+                    "--remote-debugging-port=9222 --no-first-run"
+                )
+            elif os_name == "Windows":
+                browser_cmd = (
+                    '"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" '
+                    "--remote-debugging-port=9222"
+                )
+            else:
+                browser_cmd = "microsoft-edge --remote-debugging-port=9222"
         else:
-            chrome_cmd = "google-chrome --remote-debugging-port=9222"
+            if os_name == "Darwin":
+                browser_cmd = (
+                    "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome "
+                    "--remote-debugging-port=9222 --no-first-run"
+                )
+            elif os_name == "Windows":
+                browser_cmd = (
+                    '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" '
+                    "--remote-debugging-port=9222"
+                )
+            else:
+                browser_cmd = "google-chrome --remote-debugging-port=9222"
 
         raise RuntimeError(
-            f"Chrome に接続できません: {e}\n\n"
-            "以下のコマンドで Chrome を起動してから再実行してください:\n"
-            f"  {chrome_cmd}\n"
-            "※ すでに Chrome が起動している場合は一度終了してから実行してください。"
+            f"{browser_name} に接続できません: {e}\n\n"
+            f"以下のコマンドで {browser_name} を起動してから再実行してください:\n"
+            f"  {browser_cmd}\n"
+            f"※ すでに {browser_name} が起動している場合は一度終了してから実行してください。"
         ) from e
 
 
-def _get_chrome_executable() -> str:
-    """OS に応じた Chrome の実行ファイルパスを返します。"""
+def _get_browser_executable(browser_type: str = "chrome") -> str:
+    """OS とブラウザの種類に応じた実行ファイルパスを返します。"""
     os_name = platform.system()
-    if os_name == "Darwin":
-        return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    elif os_name == "Windows":
-        candidates = [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        ]
-        for path in candidates:
-            if Path(path).exists():
-                return path
-        return candidates[0]
+    if browser_type == "edge":
+        if os_name == "Darwin":
+            return "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+        elif os_name == "Windows":
+            candidates = [
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            ]
+            for path in candidates:
+                if Path(path).exists():
+                    return path
+            return candidates[0]
+        else:
+            return "microsoft-edge"
     else:
-        return "google-chrome"
+        # Default to Chrome
+        if os_name == "Darwin":
+            return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        elif os_name == "Windows":
+            candidates = [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files\Google (x86)\Chrome\Application\chrome.exe",
+            ]
+            for path in candidates:
+                if Path(path).exists():
+                    return path
+            return candidates[0]
+        else:
+            return "google-chrome"
 
 
 def find_free_port() -> int:
@@ -134,32 +170,35 @@ def _is_port_open(port: int, timeout: float = 1.0) -> bool:
         return False
 
 
-def launch_chrome(
+def launch_browser(
     cdp_port: int = 9222,
     user_data_dir: Optional[str] = None,
     initial_url: Optional[str] = None,
+    browser_type: str = "chrome",
 ) -> subprocess.Popen:
     """
-    空のプロファイルで Chrome を新たに起動します。
+    空のプロファイルでブラウザを新たに起動します。
 
     Args:
         cdp_port: CDP (リモートデバッグ) ポート番号 (デフォルト: 9222)
         user_data_dir: ユーザーデータディレクトリ。None の場合は一時ディレクトリを使用。
         initial_url: 起動時に開く URL
+        browser_type: ブラウザの種類 (chrome or edge)
 
     Returns:
-        起動した Chrome プロセス
+        起動したブラウザプロセス
     """
-    chrome_path = _get_chrome_executable()
+    browser_path = _get_browser_executable(browser_type)
+    browser_name = "Edge" if browser_type == "edge" else "Chrome"
 
-    if not Path(chrome_path).exists() and platform.system() != "Linux":
-        raise FileNotFoundError(f"Chrome が見つかりません: {chrome_path}")
+    if not Path(browser_path).exists() and platform.system() != "Linux":
+        raise FileNotFoundError(f"{browser_name} が見つかりません: {browser_path}")
 
     if user_data_dir is None:
-        user_data_dir = tempfile.mkdtemp(prefix="kindle_chrome_")
+        user_data_dir = tempfile.mkdtemp(prefix=f"kindle_{browser_type}_")
 
     cmd = [
-        chrome_path,
+        browser_path,
         f"--remote-debugging-port={cdp_port}",
         f"--user-data-dir={user_data_dir}",
         "--no-first-run",
@@ -168,9 +207,9 @@ def launch_chrome(
     if initial_url:
         cmd.append(initial_url)
 
-    # Chrome のクラッシュ原因を診断できるよう stderr を一時ファイルに保存する
-    stderr_log = Path(tempfile.mkstemp(prefix="kindle_chrome_", suffix=".log")[1])
-    logger.info("Chrome を起動中: port=%d (stderr: %s)", cdp_port, stderr_log)
+    # ブラウザのクラッシュ原因を診断できるよう stderr を一時ファイルに保存する
+    stderr_log = Path(tempfile.mkstemp(prefix=f"kindle_{browser_type}_", suffix=".log")[1])
+    logger.info("%s を起動中: port=%d (stderr: %s)", browser_name, cdp_port, stderr_log)
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
@@ -183,10 +222,10 @@ def launch_chrome(
         if proc.poll() is not None:
             stderr_tail = _tail_log(stderr_log)
             raise RuntimeError(
-                f"Chrome プロセスが exit code {proc.returncode} で終了しました。\nstderr (末尾):\n{stderr_tail}"
+                f"{browser_name} プロセスが exit code {proc.returncode} で終了しました。\nstderr (末尾):\n{stderr_tail}"
             )
         if _is_port_open(cdp_port):
-            logger.debug("Chrome が CDP ポート %d で起動しました", cdp_port)
+            logger.debug("%s が CDP ポート %d で起動しました", browser_name, cdp_port)
             return proc
         time.sleep(0.5)
 
@@ -194,7 +233,7 @@ def launch_chrome(
     _terminate_process(proc)
     stderr_tail = _tail_log(stderr_log)
     raise RuntimeError(
-        f"Chrome が {CHROME_LAUNCH_TIMEOUT:.0f} 秒以内に CDP ポート {cdp_port} で応答しませんでした。\n"
+        f"{browser_name} が {CHROME_LAUNCH_TIMEOUT:.0f} 秒以内に CDP ポート {cdp_port} で応答しませんでした。\n"
         f"stderr (末尾):\n{stderr_tail}"
     )
 

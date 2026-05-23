@@ -8,7 +8,7 @@ Kindle Cloud Reader で開いている本を自動でキャプチャし、高品
 - **macOS Live Text 最適化**: OCR を内蔵せず、生成した PDF は macOS の「テキスト認識表示 (Live Text)」と相性が良く、高精度なテキスト選択・コピーが可能です。
 - **賢い終端検出**: ページのハッシュ値（MD5）を比較し、同じ画面が続いた場合に「書籍の終わり」と自動判定して停止します。
 - **レンダリング安定待機**: ページ遷移後、画像のロードが完了して表示が安定するまで待機してからキャプチャします。
-- **自動 Chrome 起動**: `--launch-chrome` オプションで、専用のクリーンな Chrome セッションを自動で立ち上げ、CDP 経由で接続します。
+- **自動ブラウザ起動**: `--launch-chrome` オプションで、専用のクリーンなブラウザセッション（Chrome または Edge）を自動で立ち上げ、CDP 経由で接続します。
 
 ---
 
@@ -55,14 +55,17 @@ uv run playwright install chromium
 
 ### macOS / Linux
 
-- 自動で Chrome を起動してキャプチャ（推奨）:
+- 自動でブラウザを起動してキャプチャ（推奨）:
 
 ```bash
-# 付属スクリプトで簡単起動
+# 付属スクリプトで簡単起動（デフォルトは Chrome）
 ./run.sh
 
 # あるいは uv 経由で明示的に起動
 uv run python main.py --launch-chrome
+
+# Microsoft Edge を使用する場合
+uv run python main.py --launch-chrome --browser edge
 ```
 
 - 既存のキャプチャ画像から PDF を生成する場合:
@@ -102,11 +105,13 @@ uv run python main.py --images-dir .\output\書籍タイトル
 | オプション | 省略形 | デフォルト | 説明 |
 |---|---|---:|---|
 | `--output-dir` | `-o` | `./output` | 生成物の保存先 |
-| `--launch-chrome` | なし | なし | 専用の Chrome インスタンスを自動起動し、CDP で接続する |
+| `--browser` | なし | `chrome` | 使用するブラウザ（`chrome` または `edge`） |
+| `--launch-chrome` | なし | なし | 専用のブラウザインスタンスを自動起動し、CDP で接続する |
 | `--screenshots` | なし | `delete` | `delete`（画像を削除）または `keep`（画像を保持） |
 | `--page-delay` | なし | `0.8` | ページ遷移後の最低待機秒数（秒） |
 | `--images-dir DIR` | なし | なし | 指定した画像ディレクトリを入力として PDF を生成 |
-| `--chrome-user-data-dir DIR` | なし | 一時フォルダ | `--launch-chrome` 使用時の Chrome プロファイル保存先 |
+| `--chrome-user-data-dir DIR` | なし | 一時フォルダ | `--launch-chrome` 使用時のユーザーデータディレクトリ |
+
 
 注意: Windows のパスはバックスラッシュ（\）または PowerShell の場合はエスケープ済みパスを使用してください。
 

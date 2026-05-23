@@ -14,7 +14,7 @@ from kindle_capture import (
     _calculate_md5,
     _capture_all_pages,
     _extract_title,
-    _get_chrome_executable,
+    _get_browser_executable,
     _is_port_open,
     _tail_log,
     _terminate_process,
@@ -69,23 +69,38 @@ class TestExtractTitle:
         assert '"' not in result
 
 
-class TestGetChromeExecutable:
-    """_get_chrome_executable のテスト。"""
+class TestGetBrowserExecutable:
+    """_get_browser_executable のテスト。"""
 
     @patch("kindle_capture.platform.system", return_value="Darwin")
-    def test_macos(self, _mock):
-        path = _get_chrome_executable()
+    def test_macos_chrome(self, _mock):
+        path = _get_browser_executable("chrome")
         assert "Google Chrome" in path
         assert "MacOS" in path
 
+    @patch("kindle_capture.platform.system", return_value="Darwin")
+    def test_macos_edge(self, _mock):
+        path = _get_browser_executable("edge")
+        assert "Microsoft Edge" in path
+        assert "MacOS" in path
+
     @patch("kindle_capture.platform.system", return_value="Linux")
-    def test_linux(self, _mock):
-        assert _get_chrome_executable() == "google-chrome"
+    def test_linux_chrome(self, _mock):
+        assert _get_browser_executable("chrome") == "google-chrome"
+
+    @patch("kindle_capture.platform.system", return_value="Linux")
+    def test_linux_edge(self, _mock):
+        assert _get_browser_executable("edge") == "microsoft-edge"
 
     @patch("kindle_capture.platform.system", return_value="Windows")
-    def test_windows(self, _mock):
-        path = _get_chrome_executable()
+    def test_windows_chrome(self, _mock):
+        path = _get_browser_executable("chrome")
         assert "chrome.exe" in path
+
+    @patch("kindle_capture.platform.system", return_value="Windows")
+    def test_windows_edge(self, _mock):
+        path = _get_browser_executable("edge")
+        assert "msedge.exe" in path
 
 
 class TestFindFreePort:
@@ -402,10 +417,10 @@ class TestIsPortOpenSuccess:
             assert _is_port_open(port, timeout=1.0) is True
 
 
-class TestGetChromeExecutableWindowsExisting:
-    """Windows の Chrome 検出で実在パスを返す分岐をテスト。"""
+class TestGetBrowserExecutableWindowsExisting:
+    """Windows のブラウザ検出で実在パスを返す分岐をテスト。"""
 
-    def test_windows_returns_first_existing(self, monkeypatch):
+    def test_windows_chrome_returns_first_existing(self, monkeypatch):
         monkeypatch.setattr(kindle_capture.platform, "system", lambda: "Windows")
         # candidates の先頭パスのみ存在することにする
         from pathlib import Path as _Path
@@ -417,14 +432,30 @@ class TestGetChromeExecutableWindowsExisting:
 
         monkeypatch.setattr(_Path, "exists", fake_exists)
         try:
-            result = _get_chrome_executable()
+            result = _get_browser_executable("chrome")
             assert result == r"C:\Program Files\Google\Chrome\Application\chrome.exe"
         finally:
             monkeypatch.setattr(_Path, "exists", original_exists)
 
+    def test_windows_edge_returns_first_existing(self, monkeypatch):
+        monkeypatch.setattr(kindle_capture.platform, "system", lambda: "Windows")
+        from pathlib import Path as _Path
 
-class TestConnectToChromeFailure:
-    """_connect_to_chrome の例外パス（OS 別）。"""
+        original_exists = _Path.exists
+
+        def fake_exists(self):
+            return str(self) == r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+
+        monkeypatch.setattr(_Path, "exists", fake_exists)
+        try:
+            result = _get_browser_executable("edge")
+            assert result == r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        finally:
+            monkeypatch.setattr(_Path, "exists", original_exists)
+
+
+class TestConnectToBrowserFailure:
+    """_connect_to_browser の例外パス（OS 別）。"""
 
     @pytest.mark.parametrize(
         "os_name,expected_substr",
@@ -435,7 +466,7 @@ class TestConnectToChromeFailure:
         ],
     )
     def test_raises_runtime_error_with_chrome_command(self, monkeypatch, os_name, expected_substr):
-        from kindle_capture import _connect_to_chrome
+        from kindle_capture import _connect_to_browser
 
         class FailingPlaywright:
             class chromium:
@@ -446,9 +477,32 @@ class TestConnectToChromeFailure:
         monkeypatch.setattr(kindle_capture.platform, "system", lambda: os_name)
 
         with pytest.raises(RuntimeError, match="Chrome に接続できません") as excinfo:
-            asyncio.run(_connect_to_chrome(FailingPlaywright(), "http://localhost:9999"))
+            asyncio.run(_connect_to_browser(FailingPlaywright(), "http://localhost:9999", "chrome"))
         assert expected_substr in str(excinfo.value)
         assert excinfo.value.__cause__ is not None  # raise ... from e のチェーン
+
+    @pytest.mark.parametrize(
+        "os_name,expected_substr",
+        [
+            ("Darwin", "Microsoft\\ Edge.app"),
+            ("Windows", "msedge.exe"),
+            ("Linux", "microsoft-edge"),
+        ],
+    )
+    def test_raises_runtime_error_with_edge_command(self, monkeypatch, os_name, expected_substr):
+        from kindle_capture import _connect_to_browser
+
+        class FailingPlaywright:
+            class chromium:
+                @staticmethod
+                async def connect_over_cdp(_url):
+                    raise ConnectionRefusedError("nope")
+
+        monkeypatch.setattr(kindle_capture.platform, "system", lambda: os_name)
+
+        with pytest.raises(RuntimeError, match="Edge に接続できません") as excinfo:
+            asyncio.run(_connect_to_browser(FailingPlaywright(), "http://localhost:9999", "edge"))
+        assert expected_substr in str(excinfo.value)
 
 
 class TestFindKindleTab:
@@ -550,26 +604,26 @@ class TestFocusReader:
         assert any("リーダーへのフォーカス" in rec.message for rec in caplog.records)
 
 
-class TestLaunchChrome:
-    """launch_chrome のテスト。"""
+class TestLaunchBrowser:
+    """launch_browser のテスト。"""
 
-    def test_raises_when_chrome_not_found(self, monkeypatch, tmp_path):
-        from kindle_capture import launch_chrome
+    def test_raises_when_browser_not_found(self, monkeypatch, tmp_path):
+        from kindle_capture import launch_browser
 
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(tmp_path / "missing"))
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(tmp_path / "missing"))
         monkeypatch.setattr(kindle_capture.platform, "system", lambda: "Darwin")
         with pytest.raises(FileNotFoundError, match="Chrome が見つかりません"):
-            launch_chrome(cdp_port=12345, user_data_dir=str(tmp_path))
+            launch_browser(cdp_port=12345, user_data_dir=str(tmp_path), browser_type="chrome")
 
     def test_success_after_port_opens(self, monkeypatch, tmp_path):
-        from kindle_capture import launch_chrome
+        from kindle_capture import launch_browser
 
         # 実在するダミー実行ファイル
-        fake_chrome = tmp_path / "chrome"
-        fake_chrome.write_text("#!/bin/sh\nsleep 60\n")
-        fake_chrome.chmod(0o755)
+        fake_browser = tmp_path / "browser"
+        fake_browser.write_text("#!/bin/sh\nsleep 60\n")
+        fake_browser.chmod(0o755)
 
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(fake_chrome))
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(fake_browser))
 
         proc_mock = MagicMock()
         proc_mock.poll.return_value = None
@@ -577,17 +631,22 @@ class TestLaunchChrome:
         monkeypatch.setattr(kindle_capture, "_is_port_open", lambda port, timeout=1.0: True)
         monkeypatch.setattr(kindle_capture.time, "sleep", lambda _s: None)
 
-        result = launch_chrome(cdp_port=12345, user_data_dir=str(tmp_path), initial_url="https://example.com")
+        result = launch_browser(
+            cdp_port=12345,
+            user_data_dir=str(tmp_path),
+            initial_url="https://example.com",
+            browser_type="chrome",
+        )
         assert result is proc_mock
 
     def test_raises_when_proc_exits_early(self, monkeypatch, tmp_path):
-        from kindle_capture import launch_chrome
+        from kindle_capture import launch_browser
 
-        fake_chrome = tmp_path / "chrome"
-        fake_chrome.write_text("#!/bin/sh\nexit 1\n")
-        fake_chrome.chmod(0o755)
+        fake_browser = tmp_path / "browser"
+        fake_browser.write_text("#!/bin/sh\nexit 1\n")
+        fake_browser.chmod(0o755)
 
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(fake_chrome))
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(fake_browser))
 
         proc_mock = MagicMock()
         proc_mock.poll.return_value = 1  # 即時 exit
@@ -605,16 +664,16 @@ class TestLaunchChrome:
         monkeypatch.setattr(kindle_capture.time, "sleep", lambda _s: None)
 
         with pytest.raises(RuntimeError, match="exit code 1"):
-            launch_chrome(cdp_port=12345, user_data_dir=str(tmp_path))
+            launch_browser(cdp_port=12345, user_data_dir=str(tmp_path), browser_type="chrome")
 
     def test_raises_on_port_timeout(self, monkeypatch, tmp_path):
-        from kindle_capture import launch_chrome
+        from kindle_capture import launch_browser
 
-        fake_chrome = tmp_path / "chrome"
-        fake_chrome.write_text("#!/bin/sh\nsleep 60\n")
-        fake_chrome.chmod(0o755)
+        fake_browser = tmp_path / "browser"
+        fake_browser.write_text("#!/bin/sh\nsleep 60\n")
+        fake_browser.chmod(0o755)
 
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(fake_chrome))
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(fake_browser))
 
         proc_mock = MagicMock()
         proc_mock.poll.return_value = None
@@ -626,16 +685,16 @@ class TestLaunchChrome:
         monkeypatch.setattr(kindle_capture.time, "sleep", lambda _s: None)
 
         with pytest.raises(RuntimeError, match="応答しませんでした"):
-            launch_chrome(cdp_port=12345, user_data_dir=str(tmp_path))
+            launch_browser(cdp_port=12345, user_data_dir=str(tmp_path), browser_type="chrome")
 
     def test_polls_until_port_opens(self, monkeypatch, tmp_path):
         """ポートが開くまで sleep を挟みつつポーリングするパス。"""
-        from kindle_capture import launch_chrome
+        from kindle_capture import launch_browser
 
-        fake_chrome = tmp_path / "chrome"
-        fake_chrome.write_text("#!/bin/sh\nsleep 60\n")
-        fake_chrome.chmod(0o755)
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(fake_chrome))
+        fake_browser = tmp_path / "browser"
+        fake_browser.write_text("#!/bin/sh\nsleep 60\n")
+        fake_browser.chmod(0o755)
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(fake_browser))
 
         proc_mock = MagicMock()
         proc_mock.poll.return_value = None
@@ -648,18 +707,18 @@ class TestLaunchChrome:
         sleep_calls = []
         monkeypatch.setattr(kindle_capture.time, "sleep", lambda s: sleep_calls.append(s))
 
-        result = launch_chrome(cdp_port=12345, user_data_dir=str(tmp_path))
+        result = launch_browser(cdp_port=12345, user_data_dir=str(tmp_path), browser_type="chrome")
         assert result is proc_mock
         assert sleep_calls  # time.sleep が少なくとも 1 回呼ばれた
 
     def test_creates_temp_user_data_dir_when_none(self, monkeypatch, tmp_path):
-        from kindle_capture import launch_chrome
+        from kindle_capture import launch_browser
 
-        fake_chrome = tmp_path / "chrome"
-        fake_chrome.write_text("#!/bin/sh\nsleep 60\n")
-        fake_chrome.chmod(0o755)
+        fake_browser = tmp_path / "browser"
+        fake_browser.write_text("#!/bin/sh\nsleep 60\n")
+        fake_browser.chmod(0o755)
 
-        monkeypatch.setattr(kindle_capture, "_get_chrome_executable", lambda: str(fake_chrome))
+        monkeypatch.setattr(kindle_capture, "_get_browser_executable", lambda _bt: str(fake_browser))
 
         captured_cmd = {}
 
@@ -673,7 +732,7 @@ class TestLaunchChrome:
         monkeypatch.setattr(kindle_capture, "_is_port_open", lambda port, timeout=1.0: True)
         monkeypatch.setattr(kindle_capture.time, "sleep", lambda _s: None)
 
-        launch_chrome(cdp_port=12345, user_data_dir=None)
+        launch_browser(cdp_port=12345, user_data_dir=None, browser_type="chrome")
         assert any("--user-data-dir=" in arg for arg in captured_cmd["cmd"])
 
 

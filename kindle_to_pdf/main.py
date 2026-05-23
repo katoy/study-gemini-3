@@ -5,6 +5,7 @@ Kindle 本をキャプチャして画像 PDF を生成するツールのエン�
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import shutil
@@ -17,7 +18,7 @@ from kindle_capture import (
     _terminate_process,
     capture_kindle_pages,
     find_free_port,
-    launch_chrome,
+    launch_browser,
     sanitize_filename,
 )
 from pdf_maker import make_pdf
@@ -50,9 +51,15 @@ def parse_args() -> argparse.Namespace:
         help="Chrome CDP URL (デフォルト: http://localhost:9222)",
     )
     parser.add_argument(
+        "--browser",
+        choices=["chrome", "edge"],
+        default="chrome",
+        help="使用するブラウザ (デフォルト: chrome)",
+    )
+    parser.add_argument(
         "--launch-chrome",
         action="store_true",
-        help="空のプロファイルで Chrome を新たに起動する (既存の Chrome とは独立した専用ウィンドウ)",
+        help="空のプロファイルでブラウザを新たに起動する (既存のブラウザとは独立した専用ウィンドウ)",
     )
     parser.add_argument(
         "--chrome-user-data-dir",
@@ -90,83 +97,80 @@ async def run(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Chrome の自動起動
+    # ブラウザの自動起動
     chrome_proc = None
-    chrome_temp_user_data_dir: Optional[str] = None
-    if args.launch_chrome:
-        import urllib.parse
+    with contextlib.ExitStack() as stack:
+        if args.launch_chrome:
+            import urllib.parse
 
-        cdp_port = find_free_port()
-        parsed_url = urllib.parse.urlparse(args.cdp_url)
-        args.cdp_url = f"{parsed_url.scheme}://{parsed_url.hostname}:{cdp_port}{parsed_url.path}"
+            cdp_port = find_free_port()
+            parsed_url = urllib.parse.urlparse(args.cdp_url)
+            args.cdp_url = f"{parsed_url.scheme}://{parsed_url.hostname}:{cdp_port}{parsed_url.path}"
 
-        # ユーザーデータディレクトリが省略されたら明示的に作成し、終了時に削除する
-        if args.chrome_user_data_dir is None:
-            chrome_temp_user_data_dir = tempfile.mkdtemp(prefix="kindle_chrome_")
-            args.chrome_user_data_dir = chrome_temp_user_data_dir
+            # ユーザーデータディレクトリが省略されたら明示的に作成し、終了時に削除する
+            if args.chrome_user_data_dir is None:
+                temp_dir = stack.enter_context(tempfile.TemporaryDirectory(prefix="kindle_browser_"))
+                args.chrome_user_data_dir = temp_dir
+                logger.debug("一時ユーザーデータディレクトリを作成: %s", args.chrome_user_data_dir)
+
+            try:
+                chrome_proc = launch_browser(
+                    cdp_port=cdp_port,
+                    user_data_dir=args.chrome_user_data_dir,
+                    initial_url="https://read.amazon.co.jp/",
+                    browser_type=args.browser,
+                )
+            except (FileNotFoundError, RuntimeError):
+                logger.exception("%s の起動に失敗しました", args.browser.capitalize())
+                sys.exit(1)
 
         try:
-            chrome_proc = launch_chrome(
-                cdp_port=cdp_port,
-                user_data_dir=args.chrome_user_data_dir,
-                initial_url="https://read.amazon.co.jp/",
-            )
-        except (FileNotFoundError, RuntimeError):
-            logger.exception("Chrome の起動に失敗しました")
-            if chrome_temp_user_data_dir is not None:
-                shutil.rmtree(chrome_temp_user_data_dir, ignore_errors=True)
-            sys.exit(1)
+            while True:
+                print("\n" + "!" * 60)
+                if chrome_proc:
+                    print(f"専用の {args.browser.capitalize()} ウィンドウが起動しました。以下の準備をしてください：")
+                    print("1. そのウィンドウで Amazon にログインし、本を開く。")
+                    print("2. 準備ができたら、このターミナルに戻って Enter キーを押す。")
+                else:
+                    print("Kindle Cloud Reader で処理したい本を開き、")
+                    print("準備ができたら Enter キーを押してください。")
+                print("（終了する場合は 'q' を入力して Enter）")
+                print("!" * 60 + "\n")
 
-    try:
-        while True:
-            print("\n" + "!" * 60)
-            if chrome_proc:
-                print("専用の Chrome ウィンドウが起動しました。以下の準備をしてください：")
-                print("1. そのウィンドウで Amazon にログインし、本を開く。")
-                print("2. 準備ができたら、このターミナルに戻って Enter キーを押す。")
-            else:
-                print("Kindle Cloud Reader で処理したい本を開き、")
-                print("準備ができたら Enter キーを押してください。")
-            print("（終了する場合は 'q' を入力して Enter）")
-            print("!" * 60 + "\n")
+                try:
+                    user_input = input(">> ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print()  # 改行を入れる
+                    break
 
-            try:
-                user_input = input(">> ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print()  # 改行を入れる
-                break
+                if not user_input:
+                    continue
+                if user_input == "q":
+                    break
 
-            if not user_input:
-                continue
-            if user_input == "q":
-                break
+                try:
+                    # Step 1: キャプチャ（または既存画像の取得）
+                    book_title, screenshots, shot_dir = await _prepare_screenshots(args, output_dir)
 
-            try:
-                # Step 1: キャプチャ（または既存画像の取得）
-                book_title, screenshots, shot_dir = await _prepare_screenshots(args, output_dir)
+                    # Step 2: PDF 生成
+                    pdf_path = _generate_pdf(output_dir, book_title, screenshots)
 
-                # Step 2: PDF 生成
-                pdf_path = _generate_pdf(output_dir, book_title, screenshots)
+                    # Step 3: スクリーンショット削除
+                    if args.screenshots == "delete" and shot_dir is not None:
+                        _delete_screenshots(shot_dir)
 
-                # Step 3: スクリーンショット削除
-                if args.screenshots == "delete" and shot_dir is not None:
-                    _delete_screenshots(shot_dir)
+                    _print_summary(pdf_path)
 
-                _print_summary(pdf_path)
+                    print("\n次の本を処理しますか？")
+                except Exception:
+                    # traceback も含めて出力（--verbose が無くても原因特定できるように）
+                    logger.exception("エラーが発生しました")
+                    print("修正して再試行するか、'q' で終了してください。")
 
-                print("\n次の本を処理しますか？")
-            except Exception:
-                # traceback も含めて出力（--verbose が無くても原因特定できるように）
-                logger.exception("エラーが発生しました")
-                print("修正して再試行するか、'q' で終了してください。")
-
-    finally:
-        if chrome_proc is not None:
-            _terminate_process(chrome_proc)
-            logger.info("Chrome を終了しました。")
-        if chrome_temp_user_data_dir is not None:
-            shutil.rmtree(chrome_temp_user_data_dir, ignore_errors=True)
-            logger.debug("一時ユーザーデータディレクトリを削除: %s", chrome_temp_user_data_dir)
+        finally:
+            if chrome_proc is not None:
+                _terminate_process(chrome_proc)
+                logger.info("%s を終了しました。", args.browser.capitalize())
 
 
 async def _prepare_screenshots(args: argparse.Namespace, output_dir: Path) -> Tuple[str, List[str], Optional[Path]]:
@@ -188,6 +192,7 @@ async def _prepare_screenshots(args: argparse.Namespace, output_dir: Path) -> Tu
         output_dir=str(output_dir),
         cdp_url=args.cdp_url,
         page_delay=args.page_delay,
+        browser_type=args.browser,
     )
     logger.info("      完了: %s (%d ページ)", book_title, len(screenshots))
     shot_dir = Path(screenshots[0]).parent if screenshots else None
