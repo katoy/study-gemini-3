@@ -45,8 +45,19 @@
         const contentDisposition = resp.headers.get('content-disposition');
         let filename = 'download';
         if (contentDisposition) {
-          const match = contentDisposition.match(/filename="?([^"]+)"?/);
-          if (match) filename = match[1];
+          // RFC 5987 形式: filename*=UTF-8''<encoded>
+          const match5987 = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
+          if (match5987) {
+            try {
+              filename = decodeURIComponent(match5987[1]);
+            } catch (e) {
+              filename = match5987[1];
+            }
+          } else {
+            // 従来形式: filename="..."
+            const match = contentDisposition.match(/filename="?([^";\s]+)"?/);
+            if (match) filename = match[1];
+          }
         }
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -73,8 +84,19 @@
         const contentDisposition = resp.headers.get('content-disposition');
         let filename = 'download';
         if (contentDisposition) {
-          const match = contentDisposition.match(/filename="?([^"]+)"?/);
-          if (match) filename = match[1];
+          // RFC 5987 形式: filename*=UTF-8''<encoded>
+          const match5987 = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
+          if (match5987) {
+            try {
+              filename = decodeURIComponent(match5987[1]);
+            } catch (e) {
+              filename = match5987[1];
+            }
+          } else {
+            // 従来形式: filename="..."
+            const match = contentDisposition.match(/filename="?([^";\s]+)"?/);
+            if (match) filename = match[1];
+          }
         }
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
