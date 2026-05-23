@@ -298,8 +298,18 @@ async def download_file(request: Request, job_id: str):
     if not file_path_obj.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+    # ファイル名を {放送日時}-{エピソード名}.mp3 に
+    episode = job.get("episode")
+    episode_date = (episode.date or "").strip() if episode else ""
+    episode_title = (episode.title or episode.display_title or "episode") if episode else "episode"
+
+    # エピソード名をセーフな形式に
+    from nhk_radio_web.text import _safe_name
+    safe_title = _safe_name(episode_title)
+
+    filename = f"{episode_date}-{safe_title}.mp3" if episode_date else f"{safe_title}.mp3"
+
     from fastapi.responses import FileResponse
-    filename = file_path_obj.name
     return FileResponse(
         path=str(file_path_obj),
         filename=filename,
