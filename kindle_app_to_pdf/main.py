@@ -78,14 +78,20 @@ def run(args: argparse.Namespace) -> None:
             # Step 1: キャプチャ（または既存画像の取得）
             book_title, screenshots, shot_dir = _prepare_screenshots(args, output_dir)
 
-            # Step 2: PDF 生成
-            pdf_path = _generate_pdf(output_dir, book_title, screenshots)
+            try:
+                # Step 2: PDF 生成
+                pdf_path = _generate_pdf(output_dir, book_title, screenshots)
 
-            # Step 3: スクリーンショット削除
-            if args.screenshots == 'delete' and shot_dir is not None:
-                _delete_screenshots(shot_dir)
+                # Step 3: スクリーンショット削除
+                if args.screenshots == 'delete' and shot_dir is not None:
+                    _delete_screenshots(shot_dir)
 
-            _print_summary(pdf_path)
+                _print_summary(pdf_path)
+            except Exception as e:
+                logger.error(f"PDF 生成中にエラーが発生しました: {e}")
+                if shot_dir:
+                    logger.info(f"キャプチャ済みの画像はここに残されています: {shot_dir}")
+                continue # 次の入力待ちへ
 
             print("\n次の本を処理しますか？")
         except Exception as e:

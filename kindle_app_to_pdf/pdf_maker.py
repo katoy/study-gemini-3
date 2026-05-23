@@ -6,7 +6,7 @@ img2pdf を使用して、画像を劣化させることなく PDF に結合し�
 import logging
 from pathlib import Path
 
-import img2pdf
+import img2pdf  # type: ignore
 
 logger = logging.getLogger(__name__)
 
