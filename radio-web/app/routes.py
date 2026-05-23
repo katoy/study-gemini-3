@@ -163,8 +163,8 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
     """単発ダウンロード: ジョブを登録してステータス HTML フラグメントを返す。"""
     try:
         body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
     program_dict = body.get("program")
     episode_dict = body.get("episode")
     if not isinstance(program_dict, dict) or not isinstance(episode_dict, dict):
@@ -174,7 +174,7 @@ async def start_download(request: Request, background_tasks: BackgroundTasks):
         program = Program(**{k: v for k, v in program_dict.items() if k in Program.__dataclass_fields__})
         episode = Episode(**{k: v for k, v in episode_dict.items() if k in Episode.__dataclass_fields__})
     except (TypeError, KeyError) as e:
-        raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}")
+        raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}") from e
 
     job_manager = request.app.state.job_manager
     job_id = job_manager.enqueue(program, episode)
@@ -199,8 +199,8 @@ async def batch_download(request: Request, background_tasks: BackgroundTasks):
     """
     try:
         body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
 
     program_dict = body.get("program")
     episodes_list = body.get("episodes", [])
@@ -210,7 +210,7 @@ async def batch_download(request: Request, background_tasks: BackgroundTasks):
     try:
         program = Program(**{k: v for k, v in program_dict.items() if k in Program.__dataclass_fields__})
     except (TypeError, KeyError) as e:
-        raise HTTPException(status_code=422, detail=f"プログラムデータが不正です: {e}")
+        raise HTTPException(status_code=422, detail=f"プログラムデータが不正です: {e}") from e
 
     # エピソードを登録
     job_manager = request.app.state.job_manager
@@ -356,7 +356,7 @@ async def recent_jobs(request: Request, limit: int = 10):
     jobs_dict = job_manager.all_jobs()
     jobs = list(reversed(list(jobs_dict.values())))[:limit]
     # テンプレートに job_id を注入
-    for job_id, job in zip(list(reversed(list(jobs_dict.keys())))[:limit], jobs):
+    for job_id, job in zip(list(reversed(list(jobs_dict.keys())))[:limit], jobs, strict=False):
         job["id"] = job_id
     return templates.TemplateResponse(
         request,

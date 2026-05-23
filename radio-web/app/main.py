@@ -8,7 +8,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from nhk_radio_web.config import DEFAULT_MAX_CONCURRENT_DL
 from nhk_radio_web.job_manager import JobManager
@@ -27,7 +26,7 @@ async def lifespan(app: FastAPI):
     # 終了時: 全ジョブをキャンセル（タイムアウト付き）
     try:
         await asyncio.wait_for(app.state.job_manager.cancel_all(), timeout=5.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Job cancellation timed out during shutdown")
 
 

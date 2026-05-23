@@ -34,11 +34,11 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=src/nhk_radio_web --cov-report=term-missing --cov-fail-under=80"
+addopts = "--cov=src/nhk_radio_web --cov=app --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["src/nhk_radio_web"]
+source = ["src/nhk_radio_web", "app"]
 
 [tool.coverage.report]
 show_missing = true

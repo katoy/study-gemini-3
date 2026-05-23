@@ -370,6 +370,192 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(payload["status"], "error")
         self.assertEqual(payload["error"], "ダウンロード失敗")
 
+    # ──────────────────────────────────────────────
+    # POST /download (不正リクエスト)
+    # ──────────────────────────────────────────────
+
+    def test_start_download_invalid_json(self):
+        """POST /download に不正な JSON を送信 → 422。"""
+        resp = self.client.post(
+            "/download",
+            content="not json",
+            headers={"content-type": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 422)
+        self.assertIn("JSON", resp.json()["detail"])
+
+    def test_start_download_missing_program(self):
+        """POST /download に program がない → 422。"""
+        resp = self.client.post(
+            "/download",
+            json={"episode": EPISODE.__dict__},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_start_download_invalid_program_type(self):
+        """POST /download に program が dict でない → 422。"""
+        resp = self.client.post(
+            "/download",
+            json={"program": "not a dict", "episode": EPISODE.__dict__},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    # ──────────────────────────────────────────────
+    # POST /download/batch
+    # ──────────────────────────────────────────────
+
+    def test_batch_download_success(self):
+        """POST /download/batch で複数エピソードをキューに登録。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+            resp = self.client.post(
+                "/download/batch",
+                json={
+                    "program": PROGRAM.__dict__,
+                    "episodes": [EPISODE.__dict__, EPISODE.__dict__],
+                },
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/html", resp.headers["content-type"])
+
+    def test_batch_download_invalid_json(self):
+        """POST /download/batch に不正な JSON → 422。"""
+        resp = self.client.post(
+            "/download/batch",
+            content="not json",
+            headers={"content-type": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_batch_download_invalid_episodes_type(self):
+        """POST /download/batch に episodes が list でない → 422。"""
+        resp = self.client.post(
+            "/download/batch",
+            json={
+                "program": PROGRAM.__dict__,
+                "episodes": "not a list",
+            },
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_batch_download_invalid_episode_skipped(self):
+        """POST /download/batch で不正なエピソードはスキップ。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+            resp = self.client.post(
+                "/download/batch",
+                json={
+                    "program": PROGRAM.__dict__,
+                    "episodes": [EPISODE.__dict__, {"invalid": "episode"}],
+                },
+            )
+        self.assertEqual(resp.status_code, 200)
+
+    # ──────────────────────────────────────────────
+    # POST /api/download/{job_id}/cancel
+    # ──────────────────────────────────────────────
+
+    def test_cancel_download_not_found(self):
+        """POST /api/download/{job_id}/cancel でジョブなし → 404。"""
+        resp = self.client.post("/api/download/nonexistent/cancel")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_cancel_download_exception_handling(self):
+        """POST /api/download/{job_id}/cancel で cancel() が例外 → HTML 返却。"""
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+        ):
+            # ジョブを登録
+            resp = self.client.post(
+                "/download",
+                json={"program": PROGRAM.__dict__, "episode": EPISODE.__dict__},
+            )
+            self.assertEqual(resp.status_code, 200)
+
+            # job_id を抽出（簡易版）
+            job_manager = app.state.job_manager
+            job_ids = list(job_manager.all_jobs().keys())
+            if job_ids:
+                job_id = job_ids[0]
+
+                # cancel() が例外を発生させるようにモック
+                job_manager.cancel = AsyncMock(side_effect=Exception("Cancel failed"))
+
+                # キャンセルリクエスト
+                resp = self.client.post(f"/api/download/{job_id}/cancel")
+                self.assertEqual(resp.status_code, 200)
+                self.assertIn("text/html", resp.headers["content-type"])
+
+    # ──────────────────────────────────────────────
+    # GET /api/download/{job_id}/file
+    # ──────────────────────────────────────────────
+
+    def test_download_file_not_found(self):
+        """GET /api/download/{job_id}/file でジョブなし → 404。"""
+        resp = self.client.get("/api/download/nonexistent/file")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_download_file_path_missing(self):
+        """GET /api/download/{job_id}/file で file_path がない → 404。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            # ジョブを登録
+            resp = self.client.post(
+                "/download",
+                json={"program": PROGRAM.__dict__, "episode": EPISODE.__dict__},
+            )
+            self.assertEqual(resp.status_code, 200)
+
+            job_manager = app.state.job_manager
+            job_ids = list(job_manager.all_jobs().keys())
+            if job_ids:
+                job_id = job_ids[0]
+                resp = self.client.get(f"/api/download/{job_id}/file")
+                self.assertEqual(resp.status_code, 404)
+
+    def test_download_file_not_exists_on_disk(self):
+        """GET /api/download/{job_id}/file でファイルがディスク上にない → 404。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            # ジョブを登録
+            resp = self.client.post(
+                "/download",
+                json={"program": PROGRAM.__dict__, "episode": EPISODE.__dict__},
+            )
+            self.assertEqual(resp.status_code, 200)
+
+            job_manager = app.state.job_manager
+            job_ids = list(job_manager.all_jobs().keys())
+            if job_ids:
+                job_id = job_ids[0]
+                job = job_manager.status_snapshot(job_id)
+
+                # 存在しないファイルパスを設定
+                job["file_path"] = "/nonexistent/path/file.m4a"
+                job_manager._jobs[job_id] = job
+
+                resp = self.client.get(f"/api/download/{job_id}/file")
+                self.assertEqual(resp.status_code, 404)
+
+    # ──────────────────────────────────────────────
+    # _dataclass_to_json フィルタ
+    # ──────────────────────────────────────────────
+
+    def test_dataclass_to_json_filter_with_dict(self):
+        """_dataclass_to_json フィルタが dict を処理。"""
+        from app.routes import _dataclass_to_json
+        result = _dataclass_to_json({"key": "value"})
+        self.assertIn("key", result)
+
+    def test_dataclass_to_json_filter_with_string(self):
+        """_dataclass_to_json フィルタが文字列を処理。"""
+        from app.routes import _dataclass_to_json
+        result = _dataclass_to_json("test string")
+        self.assertIn("test string", result)
+
+    def test_dataclass_to_json_filter_with_list(self):
+        """_dataclass_to_json フィルタがリストを処理。"""
+        from app.routes import _dataclass_to_json
+        result = _dataclass_to_json([1, 2, 3])
+        self.assertIn("1", result)
+
 
 if __name__ == "__main__":
     unittest.main()

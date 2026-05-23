@@ -1,6 +1,6 @@
 """HLS ストリーミング機能のテスト。"""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -85,7 +85,7 @@ async def test_fetch_hls_master_success():
         mock_client = AsyncMock()
         mock_response = AsyncMock()
         mock_response.text = mock_content
-        mock_response.raise_for_status.return_value = None
+        mock_response.raise_for_status = MagicMock(return_value=None)
         mock_client.__aenter__.return_value = mock_client
         mock_client.get.return_value = mock_response
         mock_client_class.return_value = mock_client
@@ -127,11 +127,11 @@ async def test_fetch_and_decrypt_segment_success():
         mock_client = AsyncMock()
         mock_response_key = AsyncMock()
         mock_response_key.content = test_key
-        mock_response_key.raise_for_status.return_value = None
+        mock_response_key.raise_for_status = MagicMock(return_value=None)
 
         mock_response_seg = AsyncMock()
         mock_response_seg.content = encrypted
-        mock_response_seg.raise_for_status.return_value = None
+        mock_response_seg.raise_for_status = MagicMock(return_value=None)
 
         mock_client.get.side_effect = [mock_response_key, mock_response_seg]
         mock_client.__aenter__.return_value = mock_client
@@ -164,11 +164,11 @@ async def test_fetch_and_decrypt_segment_without_iv():
         mock_client = AsyncMock()
         mock_response_key = AsyncMock()
         mock_response_key.content = test_key
-        mock_response_key.raise_for_status.return_value = None
+        mock_response_key.raise_for_status = MagicMock(return_value=None)
 
         mock_response_seg = AsyncMock()
         mock_response_seg.content = encrypted
-        mock_response_seg.raise_for_status.return_value = None
+        mock_response_seg.raise_for_status = MagicMock(return_value=None)
 
         mock_client.get.side_effect = [mock_response_key, mock_response_seg]
         mock_client.__aenter__.return_value = mock_client
