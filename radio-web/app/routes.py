@@ -311,13 +311,13 @@ async def download_file(request: Request, job_id: str):
 
     filename = f"{episode_date}-{safe_title}.mp3" if episode_date else f"{safe_title}.mp3"
 
-    from fastapi.responses import FileResponse
     response = FileResponse(
         path=str(file_path_obj),
         filename=filename,
         media_type="application/octet-stream"
     )
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    # RFC 5987: UTF-8 エンコードされたファイル名を指定
+    response.headers["Content-Disposition"] = f'attachment; filename*=UTF-8\'\'{filename}'
     return response
 
 
@@ -368,7 +368,8 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
                     filename=filename,
                     media_type="application/octet-stream"
                 )
-                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+                # RFC 5987: UTF-8 エンコードされたファイル名を指定
+                response.headers["Content-Disposition"] = f'attachment; filename*=UTF-8\'\'{filename}'
                 return response
 
     raise HTTPException(status_code=404, detail="File not found")
