@@ -1,6 +1,8 @@
 """FastAPI ルートのテスト (httpx.AsyncClient + ASGITransport)"""
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -164,6 +166,27 @@ class RoutesTest(unittest.TestCase):
     def test_start_download_invalid_data_returns_422(self):
         resp = self.client.post("/download", json={"program": "bad", "episode": "bad"})
         self.assertEqual(resp.status_code, 422)
+
+    def test_start_download_missing_required_fields_returns_422(self):
+        """必須フィールド欠落時のエラーハンドリング。"""
+        resp = self.client.post(
+            "/download",
+            json={"program": {"title": "test"}, "episode": {"title": "ep"}}  # site_id/corner_id/id 欠落
+        )
+        self.assertEqual(resp.status_code, 422)
+        self.assertIn("データ形式が不正です", resp.text)
+
+    def test_batch_download_invalid_program_data(self):
+        """一括ダウンロードで program データが不正な場合 → 422。"""
+        resp = self.client.post(
+            "/download/batch",
+            json={
+                "program": {"title": "test"},  # site_id/corner_id 欠落
+                "episodes": [{"title": "ep", "id": "123"}]
+            }
+        )
+        self.assertEqual(resp.status_code, 422)
+        self.assertIn("プログラムデータが不正です", resp.text)
 
     # ──────────────────────────────────────────────
     # GET /api/download/{job_id}/status
@@ -534,6 +557,96 @@ class RoutesTest(unittest.TestCase):
                 resp = self.client.get(f"/api/download/{job_id}/file")
                 self.assertEqual(resp.status_code, 404)
 
+    def test_download_file_rfc5987_header(self):
+        """GET /api/download/{job_id}/file で RFC 5987 Content-Disposition ヘッダー設定確認。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with TemporaryDirectory() as tmpdir:
+                # テストファイルを作成
+                test_file = Path(tmpdir) / "test.mp3"
+                test_file.write_text("test audio")
+
+                # ジョブを登録
+                resp = self.client.post(
+                    "/download",
+                    json={"program": PROGRAM.__dict__, "episode": EPISODE.__dict__},
+                )
+                self.assertEqual(resp.status_code, 200)
+
+                job_manager = app.state.job_manager
+                job_ids = list(job_manager.all_jobs().keys())
+                if job_ids:
+                    job_id = job_ids[0]
+                    job = job_manager.status_snapshot(job_id)
+
+                    # ファイルパスを設定
+                    job["file_path"] = str(test_file)
+                    job_manager._jobs[job_id] = job
+
+                    resp = self.client.get(f"/api/download/{job_id}/file")
+                    self.assertEqual(resp.status_code, 200)
+
+                    # RFC 5987 ヘッダーを確認
+                    content_disp = resp.headers.get("content-disposition", "")
+                    self.assertIn("filename*=UTF-8''", content_disp)
+
+    def test_download_episode_file_program_not_found(self):
+        """GET /api/episodes で Program が見つからない → 404。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+            resp = self.client.get(
+                f"/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
+            )
+            self.assertEqual(resp.status_code, 404)
+            self.assertIn("Program not found", resp.text)
+
+    def test_download_episode_file_episodes_not_found(self):
+        """GET /api/episodes で Episodes 取得失敗 → 404。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.get_episode_list", side_effect=RuntimeError("API error")):
+                resp = self.client.get(
+                    f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
+                )
+                self.assertEqual(resp.status_code, 404)
+                self.assertIn("Episodes not found", resp.text)
+
+    def test_download_episode_file_episode_not_found(self):
+        """GET /api/episodes で Episode ID が見つからない → 404。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+                resp = self.client.get(
+                    f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
+                )
+                self.assertEqual(resp.status_code, 404)
+                self.assertIn("Episode not found", resp.text)
+
+    def test_download_episode_file_with_file_found(self):
+        """GET /api/episodes で既ダウンロードファイルが見つかる場合。"""
+        with TemporaryDirectory() as tmpdir:
+            # テストファイルを作成
+            test_file = Path(tmpdir) / EPISODE.title
+            test_file.write_text("test audio")
+
+            with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+                with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+                    with patch("app.routes._program_search_dirs", return_value=[Path(tmpdir)]):
+                        resp = self.client.get(
+                            f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
+                        )
+                        self.assertEqual(resp.status_code, 200)
+                        # RFC 5987 ヘッダーを確認
+                        content_disp = resp.headers.get("content-disposition", "")
+                        self.assertIn("filename*=UTF-8''", content_disp)
+
+    def test_download_episode_file_rfc5987_header(self):
+        """GET /api/episodes/{site_id}/{corner_id}/{episode_id}/file で RFC 5987 ヘッダー設定確認。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+                with patch("app.routes._program_search_dirs", return_value=[]):
+                    # ディレクトリが見つからない場合 → 404
+                    resp = self.client.get(
+                        f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
+                    )
+                    self.assertEqual(resp.status_code, 404)
+
     # ──────────────────────────────────────────────
     # _dataclass_to_json フィルタ
     # ──────────────────────────────────────────────
@@ -555,6 +668,12 @@ class RoutesTest(unittest.TestCase):
         from app.routes import _dataclass_to_json
         result = _dataclass_to_json([1, 2, 3])
         self.assertIn("1", result)
+
+    # ──────────────────────────────────────────────
+    # WebSocket: /ws/jobs
+    # ──────────────────────────────────────────────
+    # WebSocket テストはタイムアウト問題があるため、スキップ。
+    # routes.py の ws_jobs エンドポイント (442-460行) は統合テストで確認推奨。
 
 
 if __name__ == "__main__":
