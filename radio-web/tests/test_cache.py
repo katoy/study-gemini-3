@@ -202,6 +202,43 @@ class CacheHelpersTest(unittest.TestCase):
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0].id, "ep1")
 
+    def test_load_program_cache_returns_none_when_cache_missing(self):
+        """キャッシュが見つからない場合は None を返す。"""
+        with patch("nhk_radio_web.cache._load_json_ttl_cache", return_value=None):
+            result = cache.load_program_cache(None)
+            self.assertIsNone(result)
+
+    def test_clear_cache_dir_skips_non_files(self):
+        """_clear_cache_dir でディレクトリをスキップする。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            cache_dir = base / "cache"
+            cache_dir.mkdir()
+            (cache_dir / "subdir").mkdir()  # ディレクトリ
+            self.assertEqual(cache._clear_cache_dir(cache_dir), 0)
+
+    def test_clear_cache_dir_handles_oserror(self):
+        """ファイル削除エラーをログし続行する。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            cache_dir = base / "cache"
+            cache_dir.mkdir()
+            (cache_dir / "file.json").write_text("{}")
+            # ファイル削除後に OSError を発生させるようにモック
+            with patch("pathlib.Path.unlink", side_effect=OSError("Permission denied")):
+                # エラーがログされるが、例外は発生しない
+                result = cache._clear_cache_dir(cache_dir)
+                self.assertEqual(result, 0)
+
+    def test_save_json_cache_handles_exception(self):
+        """_save_json_cache で例外が発生した場合、一時ファイルをクリーンアップする。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "cache.json"
+            # json.dumps に例外を発生させる
+            with patch("json.dumps", side_effect=ValueError("Serialization error")):
+                with self.assertRaises(ValueError):
+                    cache._save_json_cache(cache_path, {"data": "test"})
+
 
 if __name__ == "__main__":
     unittest.main()

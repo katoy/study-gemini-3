@@ -90,6 +90,17 @@ class TextHelpersTest(unittest.TestCase):
         self.assertEqual(text._program_display_title("番組", "番組"), "番組")
         self.assertEqual(text._program_display_title("", "コーナー"), "コーナー")
         self.assertEqual(text._program_display_title("番組", ""), "番組")
+        # title と corner が異なる場合
+        self.assertEqual(text._program_display_title("番組", "コーナー"), "[番組] コーナー")
+
+    def test_format_onair_date_with_started_at(self):
+        """_format_onair_date が started_at を優先して解析。"""
+        # ISO 形式の started_at
+        result = text._format_onair_date("2024-04-15", started_at="2024-04-15T10:00:00+09:00")
+        self.assertIn("2024-04-15", result)
+        # 無効な started_at は onair_date にフォールバック
+        result = text._format_onair_date("2024-04-15", started_at="invalid")
+        self.assertIn("2024-04-15", result)
 
     def test_genre_label_and_width_helpers(self):
         self.assertEqual(text._genre_label("language"), "語学")

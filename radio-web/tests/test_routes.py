@@ -636,6 +636,17 @@ class RoutesTest(unittest.TestCase):
                         content_disp = resp.headers.get("content-disposition", "")
                         self.assertIn("filename*=UTF-8''", content_disp)
 
+    def test_download_episode_file_directory_not_exists(self):
+        """GET /api/episodes でディレクトリが存在しない場合をスキップ。"""
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+                # 存在しないパスを返す
+                with patch("app.routes._program_search_dirs", return_value=[Path("/nonexistent/dir/path")]):
+                    resp = self.client.get(
+                        f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
+                    )
+                    self.assertEqual(resp.status_code, 404)
+
     def test_download_episode_file_rfc5987_header(self):
         """GET /api/episodes/{site_id}/{corner_id}/{episode_id}/file で RFC 5987 ヘッダー設定確認。"""
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
