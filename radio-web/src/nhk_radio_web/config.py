@@ -1,5 +1,6 @@
 """Configuration helpers for the NHK radio web downloader."""
 
+import contextlib
 import json
 import logging
 import os
@@ -86,10 +87,8 @@ def save_storage_limit(limit_bytes: int) -> bool:
         # 既存設定を読み込み
         data: dict = {}
         if settings_path.exists():
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 data = json.loads(settings_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                pass
         # 容量上限を更新
         data["storage_limit_bytes"] = limit_bytes
         settings_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

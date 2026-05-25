@@ -1,11 +1,13 @@
 """Cache helpers for program and episode data."""
 
+import asyncio
 import contextlib
 import functools
 import json
 import logging
 import os
 import tempfile
+import threading
 import time
 from dataclasses import asdict, fields
 from pathlib import Path
@@ -22,6 +24,20 @@ logger = logging.getLogger(__name__)
 
 # 破壊的変更 (フィールド削除・型変更) 時にインクリメントして旧キャッシュを無効化する。
 CACHE_SCHEMA_VERSION = 1
+
+# キャッシュ書き込みロック。複数クライアントからのキャッシュミスを 1 つの API 呼び出しに集約する。
+# スレッドセーフな asyncio.Lock を保持するための辞書。
+_CACHE_WRITE_LOCKS: dict[str, asyncio.Lock] = {}
+_CACHE_LOCKS_GUARD = threading.Lock()
+
+
+async def _get_cache_write_lock_async(cache_key: str) -> asyncio.Lock:
+    """キャッシュ用の非同期ロックを取得。複数クライアント間で共有。"""
+    # ロック作成をスレッドセーフに
+    with _CACHE_LOCKS_GUARD:
+        if cache_key not in _CACHE_WRITE_LOCKS:
+            _CACHE_WRITE_LOCKS[cache_key] = asyncio.Lock()
+    return _CACHE_WRITE_LOCKS[cache_key]
 
 
 @functools.cache

@@ -90,14 +90,22 @@ class CoreHelpersTest(unittest.TestCase):
                 broadcast_time="", duration_str="", url="",
             )
         ]
-        with (
-            patch.object(core, "fetch_episodes", side_effect=Exception("network-fail")),
-            patch.object(core, "load_episode_cache", return_value=stale),
-            patch("time.sleep"),
-        ):
-            episodes, source = core.refresh_episode_list(program)
-            self.assertEqual(episodes, stale)
-            self.assertEqual(source, "stale-cache")
+        async def run_test():
+            def load_cache_side_effect(prog, ttl_seconds=None):
+                # デフォルト TTL で呼ばれたら None を返す（API 失敗をシミュレート）
+                # ttl_seconds=10**12 で呼ばれたら stale を返す
+                if ttl_seconds is None or ttl_seconds < 10**12:
+                    return None
+                return stale
+            with (
+                patch.object(core, "fetch_episodes", side_effect=Exception("network-fail")),
+                patch.object(core, "load_episode_cache", side_effect=load_cache_side_effect),
+                patch("asyncio.sleep"),
+            ):
+                episodes, source = await core.refresh_episode_list(program)
+                self.assertEqual(episodes, stale)
+                self.assertEqual(source, "stale-cache")
+        asyncio.run(run_test())
 
         cached = [
             Program(
@@ -115,7 +123,7 @@ class CoreHelpersTest(unittest.TestCase):
             )
         ]
         with (
-            patch.object(core, "load_program_cache", side_effect=[None]),
+            patch.object(core, "load_program_cache", side_effect=[None, None]),
             patch.object(core, "_fetch_by_genre_async", new_callable=AsyncMock, return_value=fresh),
             patch.object(core, "save_program_cache") as save_mock,
         ):
@@ -126,7 +134,7 @@ class CoreHelpersTest(unittest.TestCase):
             Program(title="stale", display_title="stale", display_date="----", site_id="S", corner_id="01", url="U")
         ]
         with (
-            patch.object(core, "load_program_cache", side_effect=[None, stale_list]),
+            patch.object(core, "load_program_cache", side_effect=[None, None, stale_list]),
             patch.object(core, "_fetch_all_async", new_callable=AsyncMock, return_value=[]),
         ):
             self.assertEqual(core.fetch_program_list(None), stale_list)
@@ -249,28 +257,30 @@ class CoreHelpersTest(unittest.TestCase):
                 broadcast_time="", duration_str="", url="",
             )
         ]
-        with patch.object(core, "load_episode_cache", return_value=cached):
-            self.assertEqual(core.get_episode_list(program), (cached, "cache"))
+        async def run_test():
+            with patch.object(core, "load_episode_cache", return_value=cached):
+                self.assertEqual(await core.get_episode_list(program), (cached, "cache"))
 
-        with patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock:
-            self.assertEqual(core.get_episode_list(program, use_cache=False), ([], "network"))
-            refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+            with patch.object(core, "refresh_episode_list", new_callable=AsyncMock, return_value=([], "network")) as refresh_mock:
+                self.assertEqual(await core.get_episode_list(program, use_cache=False), ([], "network"))
+                refresh_mock.assert_called_once_with(program, retry_delay=1.0)
 
-        with (
-            patch.object(core, "load_episode_cache", return_value=None),
-            patch.object(core, "refresh_episode_list", return_value=([], "network")) as refresh_mock,
-        ):
-            self.assertEqual(core.get_episode_list(program), ([], "network"))
-            refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+            with (
+                patch.object(core, "load_episode_cache", return_value=None),
+                patch.object(core, "refresh_episode_list", new_callable=AsyncMock, return_value=([], "network")) as refresh_mock,
+            ):
+                self.assertEqual(await core.get_episode_list(program), ([], "network"))
+                refresh_mock.assert_called_once_with(program, retry_delay=1.0)
 
-        with (
-            patch.object(core, "fetch_episodes", return_value=[]) as fetch_mock,
-            patch.object(core, "save_episode_cache") as save_cache_mock,
-        ):
-            episodes, source = core.refresh_episode_list(program)
-        self.assertEqual((episodes, source), ([], "network"))
-        fetch_mock.assert_called_once_with(program, verbose=False)
-        save_cache_mock.assert_called_once_with(program, [])
+            with (
+                patch.object(core, "fetch_episodes", return_value=[]) as fetch_mock,
+                patch.object(core, "save_episode_cache") as save_cache_mock,
+            ):
+                episodes, source = await core.refresh_episode_list(program)
+            self.assertEqual((episodes, source), ([], "network"))
+            fetch_mock.assert_called_once_with(program, verbose=False)
+            save_cache_mock.assert_called_once_with(program, [])
+        asyncio.run(run_test())
 
         expected = [
             Episode(
@@ -279,14 +289,16 @@ class CoreHelpersTest(unittest.TestCase):
                 broadcast_time="", duration_str="", url="https://example.com/ep1",
             )
         ]
-        with (
-            patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), expected]) as fetch_mock,
-            patch.object(core, "save_episode_cache") as save_cache_mock,
-            patch.object(core.time, "sleep"),
-        ):
-            episodes, source = core.refresh_episode_list(program, retry_delay=0.25)
-        self.assertEqual((episodes, source), (expected, "network"))
-        self.assertEqual(fetch_mock.call_count, 2)
+        async def run_test_retry():
+            with (
+                patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), expected]) as fetch_mock,
+                patch.object(core, "save_episode_cache"),
+                patch("asyncio.sleep"),
+            ):
+                episodes, source = await core.refresh_episode_list(program, retry_delay=0.25)
+            self.assertEqual((episodes, source), (expected, "network"))
+            self.assertEqual(fetch_mock.call_count, 2)
+        asyncio.run(run_test_retry())
 
 
 if __name__ == "__main__":

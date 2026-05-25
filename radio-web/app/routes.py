@@ -128,7 +128,7 @@ async def episodes_partial(request: Request, program_id: str, q: str = ""):
         )
 
     try:
-        episodes, source = get_episode_list(program)
+        episodes, source = await get_episode_list(program)
     except RuntimeError as e:
         return templates.TemplateResponse(
             request,
@@ -337,7 +337,7 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
 
     # キャッシュからエピソードを取得
     try:
-        episodes, _ = get_episode_list(program)
+        episodes, _ = await get_episode_list(program)
     except RuntimeError as e:
         raise HTTPException(status_code=404, detail="Episodes not found") from e
 

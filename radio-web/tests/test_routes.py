@@ -657,7 +657,7 @@ class RoutesTest(unittest.TestCase):
         """GET /api/episodes で Program が見つからない → 404。"""
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get(
-                f"/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
+                "/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
             )
             self.assertEqual(resp.status_code, 404)
             self.assertIn("Program not found", resp.text)

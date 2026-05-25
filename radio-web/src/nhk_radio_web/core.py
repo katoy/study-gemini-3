@@ -7,13 +7,18 @@ NHK ラジオ 聞き逃し番組ダウンローダー - コアロジック
 import asyncio
 import logging
 import re
-import time
 from typing import cast
 
 import httpx
 import yt_dlp
 
-from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
+from .cache import (
+    _get_cache_write_lock_async,
+    load_episode_cache,
+    load_program_cache,
+    save_episode_cache,
+    save_program_cache,
+)
 from .constants import (
     _HEADERS,
     GENRE_LABELS,
@@ -79,18 +84,29 @@ def fetch_program_list(genre: str | None = None) -> list[Program]:
 
 
 async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
+    # キャッシュヒット確認
     cached = load_program_cache(genre)
     if cached is not None:
         return cached
 
-    programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
+    # キャッシュミス: ロック取得して API 呼び出し（複数クライアントの重複呼び出しを防ぐ）
+    cache_key = f"program:{genre or 'all'}"
+    lock = await _get_cache_write_lock_async(cache_key)
+    async with lock:
+        # ロック取得後に再度キャッシュ確認（別クライアントが書き込んだ可能性）
+        cached = load_program_cache(genre)
+        if cached is not None:
+            return cached
 
-    if programs:
-        save_program_cache(genre, programs)
-        return programs
+        # API 呼び出し
+        programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
 
-    stale = load_program_cache(genre, ttl_seconds=10**12)
-    return stale or programs
+        if programs:
+            save_program_cache(genre, programs)
+            return programs
+
+        stale = load_program_cache(genre, ttl_seconds=10**12)
+        return stale or programs
 
 
 def _url_to_program(url: str) -> Program | None:
@@ -295,7 +311,7 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         raise RuntimeError(f"エピソード取得失敗: {e}") from e
 
 
-def get_episode_list(
+async def get_episode_list(
     program: Program,
     retry_delay: float = 1.0,
     use_cache: bool = True,
@@ -305,31 +321,40 @@ def get_episode_list(
         if cached is not None:
             return cached, "cache"
 
-    return refresh_episode_list(program, retry_delay=retry_delay)
+    return await refresh_episode_list(program, retry_delay=retry_delay)
 
 
-def refresh_episode_list(
+async def refresh_episode_list(
     program: Program,
     retry_delay: float = 1.0,
 ) -> tuple[list[Episode], str]:
-    last_error = ""
-    for attempt in range(2):
-        try:
-            episodes = fetch_episodes(program, verbose=False)
-        except Exception as e:
-            last_error = str(e)
-            if attempt == 0:
-                time.sleep(retry_delay)
-            continue
+    # キャッシュロック機構を使用（複数クライアントの重複 API 呼び出しを防ぐ）
+    cache_key = f"episode:{program.site_id}_{program.corner_id}"
+    lock = await _get_cache_write_lock_async(cache_key)
+    async with lock:
+        # ロック取得後に再度キャッシュ確認
+        cached = load_episode_cache(program)
+        if cached is not None:
+            return cached, "cache"
 
-        try:
-            save_episode_cache(program, episodes)
-        except Exception as e:
-            logger.warning(f"エピソードキャッシュの保存に失敗: {e}")
-        return episodes, "network"
+        last_error = ""
+        for attempt in range(2):
+            try:
+                episodes = fetch_episodes(program, verbose=False)
+            except Exception as e:
+                last_error = str(e)
+                if attempt == 0:
+                    await asyncio.sleep(retry_delay)
+                continue
 
-    stale = load_episode_cache(program, ttl_seconds=10**12)
-    if stale:
-        return stale, "stale-cache"
+            try:
+                save_episode_cache(program, episodes)
+            except Exception as e:
+                logger.warning(f"エピソードキャッシュの保存に失敗: {e}")
+            return episodes, "network"
 
-    raise RuntimeError(last_error or "エピソード一覧を取得できませんでした")
+        stale = load_episode_cache(program, ttl_seconds=10**12)
+        if stale:
+            return stale, "stale-cache"
+
+        raise RuntimeError(last_error or "エピソード一覧を取得できませんでした")

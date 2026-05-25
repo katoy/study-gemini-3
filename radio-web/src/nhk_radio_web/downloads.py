@@ -1,5 +1,6 @@
 """Download tracking and output helpers."""
 
+import contextlib
 import fnmatch
 import json
 import logging
@@ -361,15 +362,11 @@ def get_download_dir_size(download_dir: Path) -> int:
     total_size = 0
     if not download_dir.exists():
         return total_size
-    try:
+    with contextlib.suppress(OSError):
         for item in download_dir.rglob("*"):
             if item.is_file():
-                try:
+                with contextlib.suppress(OSError):
                     total_size += item.stat().st_size
-                except OSError:
-                    pass
-    except OSError:
-        pass
     return total_size
 
 
