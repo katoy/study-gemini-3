@@ -3,10 +3,15 @@
 
 # 既存プロセスの停止
 echo "既存プロセスを確認中..."
-existing_pid=$(lsof -t -i :8000 2>/dev/null)
-if [ -n "$existing_pid" ]; then
-    echo "ポート 8000 を使用中のプロセス ($existing_pid) を停止します..."
-    kill "$existing_pid" 2>/dev/null
+existing_pids=$(lsof -t -i :8000 2>/dev/null)
+if [ -n "$existing_pids" ]; then
+    echo "ポート 8000 を使用中のプロセスを停止します..."
+    echo "$existing_pids" | while read pid; do
+        if [ -n "$pid" ]; then
+            echo "  PID $pid を kill 中..."
+            kill -9 "$pid" 2>/dev/null
+        fi
+    done
     sleep 1
     echo "プロセス停止完了"
 else
