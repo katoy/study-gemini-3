@@ -37,7 +37,7 @@
         <th>タイトル</th>
         <th style="width:10rem;">放送日時</th>
         <th style="width:4rem;">長さ</th>
-        <th style="width:3.5rem;">操作</th>
+        <th style="width:6rem;">操作</th>
       </tr>
     </thead>
     <tbody id="ep-tbody">
@@ -54,7 +54,14 @@
           <div style="font-size:0.9rem; color:var(--color-text-secondary);">{{ item.episode.broadcast_time or '---' }}</div>
         </td>
         <td class="ep-duration-col">{{ item.episode.duration_str or '---' }}</td>
-        <td>
+        <td class="ep-action-col">
+          {% if item.episode.url %}
+          <a class="ep-action-link"
+             href="{{ item.episode.url }}"
+             target="_blank"
+             rel="noopener noreferrer"
+             title="NHK ページを開く">🔗</a>
+          {% endif %}
           {% if item.downloaded %}
             <button class="ep-dl-btn done" onclick="downloadSavedEpisode('{{ program.site_id }}', '{{ program.corner_id }}', '{{ item.episode.id }}', '{{ item.episode.date or '' }}', '{{ item.episode.title or item.episode.display_title or 'episode' }}')">済</button>
           {% else %}
