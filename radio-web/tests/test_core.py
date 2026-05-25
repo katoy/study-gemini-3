@@ -20,6 +20,47 @@ class CoreHelpersTest(unittest.TestCase):
         with patch("httpx.Client.get", return_value=mock_resp):
             self.assertEqual(core.http_get_text("https://example.com"), "hello")
 
+    def test_http_get_json_error_handling(self):
+        """http_get_json のエラーハンドリング。"""
+        # HTTPStatusError
+        with patch("httpx.Client") as client_mock:
+            instance = client_mock.return_value.__enter__.return_value
+            mock_resp = unittest.mock.Mock()
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "404", request=unittest.mock.Mock(), response=unittest.mock.Mock(status_code=404)
+            )
+            instance.get.return_value = mock_resp
+            with self.assertRaises(httpx.HTTPStatusError):
+                core.http_get_json("https://example.com")
+
+        # RequestError
+        with patch("httpx.Client") as client_mock:
+            instance = client_mock.return_value.__enter__.return_value
+            instance.get.side_effect = httpx.RequestError("Network error")
+            with self.assertRaises(httpx.RequestError):
+                core.http_get_json("https://example.com")
+
+    def test_http_get_json_async_error_handling(self):
+        """http_get_json_async のエラーハンドリング。"""
+        async def run_test():
+            # HTTPStatusError
+            client = AsyncMock(spec=httpx.AsyncClient)
+            mock_resp = unittest.mock.Mock()
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "500", request=unittest.mock.Mock(), response=unittest.mock.Mock(status_code=500)
+            )
+            client.get.return_value = mock_resp
+            with self.assertRaises(httpx.HTTPStatusError):
+                await core.http_get_json_async(client, "https://example.com")
+
+            # RequestError
+            client = AsyncMock(spec=httpx.AsyncClient)
+            client.get.side_effect = httpx.RequestError("Async network error")
+            with self.assertRaises(httpx.RequestError):
+                await core.http_get_json_async(client, "https://example.com")
+
+        asyncio.run(run_test())
+
     def test_fetch_by_genre_async_error(self):
         with (
             patch.object(core, "http_get_json_async", side_effect=httpx.RequestError("API Error")),

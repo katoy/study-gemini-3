@@ -100,6 +100,33 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertFalse(downloads._episode_output_matches(partial, PROGRAM, EPISODE))
             self.assertEqual(downloads._episode_output_candidates(program_dir, PROGRAM, EPISODE)[0], preferred)
 
+    def test_episode_output_matches_date_and_title_conditions(self):
+        """_episode_output_matches の日付とタイトル条件をカバー。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            program_dir = Path(tmp)
+
+            # 日付が異なるファイル → False
+            wrong_date = program_dir / "20240101_番組A_第1回.mp3"
+            wrong_date.write_text("x")
+            self.assertFalse(downloads._episode_output_matches(wrong_date, PROGRAM, EPISODE))
+
+            # エピソードタイトルが異なるファイル → False
+            wrong_title = program_dir / "20240415_番組A_別エピ.mp3"
+            wrong_title.write_text("x")
+            self.assertFalse(downloads._episode_output_matches(wrong_title, PROGRAM, EPISODE))
+
+            # 正しいファイル → True
+            correct = program_dir / "20240415_番組A_第1回.mp3"
+            correct.write_text("x")
+            self.assertTrue(downloads._episode_output_matches(correct, PROGRAM, EPISODE))
+
+    def test_get_cached_glob_files_error_handling(self):
+        """_get_cached_glob_files の OSError ハンドリング。"""
+        # ディレクトリが存在しない場合
+        nonexistent = Path("/nonexistent/directory")
+        result = downloads._get_cached_glob_files(nonexistent)
+        self.assertEqual(result, [])
+
     def test_episode_output_helpers_without_date(self):
         episode = Episode(
             id="", title="第1回", display_title="第1回", date="", display_date="",
