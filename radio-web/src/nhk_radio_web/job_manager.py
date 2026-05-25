@@ -6,13 +6,14 @@ import logging
 import uuid
 from typing import Any
 
-from nhk_radio_web.config import _default_download_dir
+from nhk_radio_web.config import _default_download_dir, load_storage_limit
 from nhk_radio_web.constants import HTTP_RETRY_BACKOFF_BASE, HTTP_RETRY_MAX_ATTEMPTS
 from nhk_radio_web.downloads import (
     _download_episode_command,
     _parse_yt_dlp_progress,
     _program_filename_template,
     _program_output_dir,
+    evict_old_files,
     sync_episode_download_history,
 )
 from nhk_radio_web.types import Episode, Program, Progress
@@ -42,6 +43,8 @@ class JobManager:
     def enqueue(self, program: Program, episode: Episode) -> str:
         """ダウンロード job を登録し job_id を返す。
 
+        同一エピソードについて既にアクティブなジョブがあれば、そのジョブ ID を返す。
+
         Args:
             program: 番組情報
             episode: エピソード情報
@@ -49,6 +52,14 @@ class JobManager:
         Returns:
             job_id: 登録されたジョブの一意識別子
         """
+        # 既にアクティブなジョブが存在するか確認
+        for existing_job_id, job in self._jobs.items():
+            if (job["episode"].id == episode.id and
+                    job["status"] in ("pending", "downloading")):
+                logger.info(f"Duplicate download request for episode {episode.id}: returning existing job {existing_job_id}")
+                return existing_job_id
+
+        # 新規ジョブを作成
         job_id = str(uuid.uuid4())
         self._jobs[job_id] = {
             "status": "pending",
@@ -204,6 +215,9 @@ class JobManager:
                 await proc.wait()
                 if proc.returncode == 0:
                     file_path = sync_episode_download_history(output_dir, program, episode)
+                    # ダウンロード完了後：容量超過チェックと古いファイル削除
+                    storage_limit = load_storage_limit()
+                    evict_old_files(output_dir, storage_limit)
                     self._jobs[job_id]["status"] = "done"
                     self._jobs[job_id]["progress"] = None
                     if file_path:

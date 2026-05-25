@@ -356,6 +356,67 @@ def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: E
                     logger.warning(f"一時ファイルの削除に失敗: {path} ({e})")
 
 
+def get_download_dir_size(download_dir: Path) -> int:
+    """ダウンロードディレクトリ配下の全ファイルの合計サイズを返す (バイト単位)。"""
+    total_size = 0
+    if not download_dir.exists():
+        return total_size
+    try:
+        for item in download_dir.rglob("*"):
+            if item.is_file():
+                try:
+                    total_size += item.stat().st_size
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total_size
+
+
+def evict_old_files(download_dir: Path, limit_bytes: int) -> list[Path]:
+    """容量超過時に古いファイルを削除して上限以下にする。削除したファイルパスのリストを返す。"""
+    deleted: list[Path] = []
+
+    if not download_dir.exists() or limit_bytes <= 0:
+        return deleted
+
+    current_size = get_download_dir_size(download_dir)
+    if current_size <= limit_bytes:
+        return deleted
+
+    # ファイルを mtime でソートして取得
+    files_with_mtime: list[tuple[Path, float]] = []
+    try:
+        for item in download_dir.rglob("*"):
+            if item.is_file():
+                try:
+                    mtime = item.stat().st_mtime
+                    files_with_mtime.append((item, mtime))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    # mtime が古い順にソート
+    files_with_mtime.sort(key=lambda x: x[1])
+
+    # 古いファイルから削除して容量を制限以下にする
+    for path, _ in files_with_mtime:
+        if current_size <= limit_bytes:
+            break
+        try:
+            file_size = path.stat().st_size
+            path.unlink()
+            current_size -= file_size
+            deleted.append(path)
+            # ファイル削除後にキャッシュをクリア
+            _clear_file_scan_cache(path.parent)
+        except OSError as e:
+            logger.warning(f"ファイル削除に失敗: {path} ({e})")
+
+    return deleted
+
+
 def _format_download_percent(percent: float | None) -> str:
     if percent is None:
         return "--%"

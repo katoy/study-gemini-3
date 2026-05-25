@@ -64,10 +64,20 @@ def test_status_snapshot_returns_none_for_missing_job(job_manager):
     assert result is None
 
 
-def test_all_jobs_returns_all(job_manager, sample_program, sample_episode):
+def test_all_jobs_returns_all(job_manager, sample_program):
     """all_jobs が全ジョブを返す。"""
-    job_id_1 = job_manager.enqueue(sample_program, sample_episode)
-    job_id_2 = job_manager.enqueue(sample_program, sample_episode)
+    episode_1 = Episode(
+        id="ep-1", title="第1回", display_title="第1回",
+        date="20260516", display_date="2026-05-16",
+        broadcast_time="10:00", duration_str="30分", url="https://example.com/1"
+    )
+    episode_2 = Episode(
+        id="ep-2", title="第2回", display_title="第2回",
+        date="20260517", display_date="2026-05-17",
+        broadcast_time="10:00", duration_str="30分", url="https://example.com/2"
+    )
+    job_id_1 = job_manager.enqueue(sample_program, episode_1)
+    job_id_2 = job_manager.enqueue(sample_program, episode_2)
 
     all_jobs = job_manager.all_jobs()
     assert len(all_jobs) == 2
@@ -97,21 +107,23 @@ async def test_start_updates_status_to_downloading(job_manager, sample_program, 
                 mock_path.mkdir = MagicMock()
                 mock_out.return_value = mock_path
 
-                with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
-                    mock_tpl.return_value = "test_{title}"
+                with patch("nhk_radio_web.job_manager.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
+                    with patch("nhk_radio_web.job_manager.evict_old_files", return_value=[]):
+                        with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
+                            mock_tpl.return_value = "test_{title}"
 
-                    with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
-                        mock_cmd.return_value = ["echo", "test"]
+                            with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
+                                mock_cmd.return_value = ["echo", "test"]
 
-                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
-                            from pathlib import Path
-                            mock_sync.return_value = Path("/tmp/test/episode.mp3")
-                            await job_manager.start(job_id)
-                            await asyncio.sleep(0.1)  # wait for task
+                                with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                                    from pathlib import Path
+                                    mock_sync.return_value = Path("/tmp/test/episode.mp3")
+                                    await job_manager.start(job_id)
+                                    await asyncio.sleep(0.1)  # wait for task
 
-                            job = job_manager.status_snapshot(job_id)
-                            assert job["status"] == "done"
-                            assert job.get("file_path") == "/tmp/test/episode.mp3"
+                                    job = job_manager.status_snapshot(job_id)
+                                    assert job["status"] == "done"
+                                    assert job.get("file_path") == "/tmp/test/episode.mp3"
 
 
 @pytest.mark.asyncio
@@ -380,21 +392,23 @@ async def test_run_download_with_progress_output(job_manager, sample_program, sa
                 mock_path.mkdir = MagicMock()
                 mock_out.return_value = mock_path
 
-                with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
-                    mock_tpl.return_value = "test_{title}"
+                with patch("nhk_radio_web.job_manager.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
+                    with patch("nhk_radio_web.job_manager.evict_old_files", return_value=[]):
+                        with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
+                            mock_tpl.return_value = "test_{title}"
 
-                    with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
-                        mock_cmd.return_value = ["echo", "test"]
+                            with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
+                                mock_cmd.return_value = ["echo", "test"]
 
-                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
-                            from pathlib import Path
-                            mock_sync.return_value = Path("/tmp/test/episode.mp3")
-                            await job_manager.start(job_id)
-                            await asyncio.sleep(0.1)
+                                with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                                    from pathlib import Path
+                                    mock_sync.return_value = Path("/tmp/test/episode.mp3")
+                                    await job_manager.start(job_id)
+                                    await asyncio.sleep(0.1)
 
-                            job = job_manager.status_snapshot(job_id)
-                            assert job["status"] == "done"
-                            assert job.get("progress") is None
+                                    job = job_manager.status_snapshot(job_id)
+                                    assert job["status"] == "done"
+                                    assert job.get("progress") is None
 
 
 @pytest.mark.asyncio
@@ -418,17 +432,82 @@ async def test_run_download_success_without_file_path(job_manager, sample_progra
                 mock_path.mkdir = MagicMock()
                 mock_out.return_value = mock_path
 
-                with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
-                    mock_tpl.return_value = "test_{title}"
+                with patch("nhk_radio_web.job_manager.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
+                    with patch("nhk_radio_web.job_manager.evict_old_files", return_value=[]):
+                        with patch("nhk_radio_web.job_manager._program_filename_template") as mock_tpl:
+                            mock_tpl.return_value = "test_{title}"
 
-                    with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
-                        mock_cmd.return_value = ["echo", "test"]
+                            with patch("nhk_radio_web.job_manager._download_episode_command") as mock_cmd:
+                                mock_cmd.return_value = ["echo", "test"]
 
-                        with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
-                            mock_sync.return_value = None
-                            await job_manager.start(job_id)
-                            await asyncio.sleep(0.1)
+                                with patch("nhk_radio_web.job_manager.sync_episode_download_history") as mock_sync:
+                                    mock_sync.return_value = None
+                                    await job_manager.start(job_id)
+                                    await asyncio.sleep(0.1)
 
-                            job = job_manager.status_snapshot(job_id)
-                            assert job["status"] == "done"
-                            assert "file_path" not in job
+                                    job = job_manager.status_snapshot(job_id)
+                                    assert job["status"] == "done"
+                                    assert "file_path" not in job
+
+
+def test_enqueue_returns_existing_job_id_for_duplicate(job_manager, sample_program, sample_episode):
+    """同一エピソードで既にアクティブなジョブがあれば、そのジョブ ID を返す。"""
+    # 最初のリクエスト
+    job_id_1 = job_manager.enqueue(sample_program, sample_episode)
+
+    # 同じエピソードで二番目のリクエスト → 既存のジョブ ID を返す
+    job_id_2 = job_manager.enqueue(sample_program, sample_episode)
+
+    assert job_id_1 == job_id_2
+    # ジョブは 1 つだけのはず
+    assert len(job_manager.all_jobs()) == 1
+
+
+def test_enqueue_creates_new_job_for_different_episodes(job_manager, sample_program):
+    """異なるエピソードのリクエストは新しいジョブを作成する。"""
+    episode_1 = Episode(
+        id="ep-1", title="第1回", display_title="第1回",
+        date="20260516", display_date="2026-05-16",
+        broadcast_time="10:00", duration_str="30分", url="https://example.com/1"
+    )
+    episode_2 = Episode(
+        id="ep-2", title="第2回", display_title="第2回",
+        date="20260517", display_date="2026-05-17",
+        broadcast_time="10:00", duration_str="30分", url="https://example.com/2"
+    )
+
+    job_id_1 = job_manager.enqueue(sample_program, episode_1)
+    job_id_2 = job_manager.enqueue(sample_program, episode_2)
+
+    assert job_id_1 != job_id_2
+    # ジョブは 2 つあるはず
+    assert len(job_manager.all_jobs()) == 2
+
+
+@pytest.mark.asyncio
+async def test_enqueue_returns_existing_when_downloading(job_manager, sample_program, sample_episode):
+    """ダウンロード中のジョブがあれば、重複リクエストは同じ job_id を返す。"""
+    job_id_1 = job_manager.enqueue(sample_program, sample_episode)
+
+    # ジョブを downloading 状態に設定
+    job_manager._jobs[job_id_1]["status"] = "downloading"
+
+    # 同じエピソードで二番目のリクエスト
+    job_id_2 = job_manager.enqueue(sample_program, sample_episode)
+
+    assert job_id_1 == job_id_2
+
+
+def test_enqueue_creates_new_when_done(job_manager, sample_program, sample_episode):
+    """完了したジョブがあれば、新しいリクエストは新しいジョブを作成する。"""
+    job_id_1 = job_manager.enqueue(sample_program, sample_episode)
+
+    # ジョブを done 状態に設定
+    job_manager._jobs[job_id_1]["status"] = "done"
+
+    # 同じエピソードで二番目のリクエスト → 新しいジョブが作成される
+    job_id_2 = job_manager.enqueue(sample_program, sample_episode)
+
+    assert job_id_1 != job_id_2
+    # ジョブは 2 つあるはず
+    assert len(job_manager.all_jobs()) == 2

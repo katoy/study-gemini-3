@@ -280,6 +280,70 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 204)
 
     # ──────────────────────────────────────────────
+    # GET /api/settings
+    # ──────────────────────────────────────────────
+
+    def test_settings_get_returns_json(self):
+        """GET /api/settings が JSON を返す。"""
+        with patch("app.routes.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
+            resp = self.client.get("/api/settings")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("storage_limit_bytes", data)
+        self.assertIn("storage_limit_gb", data)
+        self.assertEqual(data["storage_limit_gb"], 10)
+
+    # ──────────────────────────────────────────────
+    # POST /api/settings
+    # ──────────────────────────────────────────────
+
+    def test_settings_post_saves_storage_limit(self):
+        """POST /api/settings がストレージ容量上限を保存。"""
+        with patch("app.routes.save_storage_limit", return_value=True) as mock_save:
+            resp = self.client.post(
+                "/api/settings",
+                json={"storage_limit_gb": 20},
+            )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["storage_limit_gb"], 20)
+        mock_save.assert_called_once_with(20 * 1024 * 1024 * 1024)
+
+    def test_settings_post_invalid_json(self):
+        """POST /api/settings に不正な JSON → 422。"""
+        resp = self.client.post(
+            "/api/settings",
+            content="not json",
+            headers={"content-type": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_settings_post_invalid_storage_limit(self):
+        """POST /api/settings で storage_limit_gb が無効 → 422。"""
+        resp = self.client.post(
+            "/api/settings",
+            json={"storage_limit_gb": -5},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_settings_post_missing_storage_limit(self):
+        """POST /api/settings で storage_limit_gb がない → 422。"""
+        resp = self.client.post(
+            "/api/settings",
+            json={},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_settings_post_save_failure(self):
+        """POST /api/settings で保存失敗 → 500。"""
+        with patch("app.routes.save_storage_limit", return_value=False):
+            resp = self.client.post(
+                "/api/settings",
+                json={"storage_limit_gb": 15},
+            )
+        self.assertEqual(resp.status_code, 500)
+
+    # ──────────────────────────────────────────────
     # GET /api/jobs/recent
     # ──────────────────────────────────────────────
 

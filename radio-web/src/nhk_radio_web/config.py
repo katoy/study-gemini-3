@@ -1,11 +1,16 @@
 """Configuration helpers for the NHK radio web downloader."""
 
+import json
+import logging
 import os
 import sys
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 CACHE_TTL_SECONDS = 3600
 DEFAULT_MAX_CONCURRENT_DL = 2
+DEFAULT_STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024
 
 
 def _default_user_cache_root() -> Path:
@@ -53,3 +58,42 @@ def _default_download_dir() -> Path:
     if project_root is not None:
         return project_root / "downloads"
     return Path.home() / "Downloads" / "nhk_radio"
+
+
+def _settings_path() -> Path:
+    """設定ファイル (.cache/settings.json) のパスを返す。"""
+    return _resolve_cache_root_dir() / "settings.json"
+
+
+def load_storage_limit() -> int:
+    """保存されたストレージ容量上限を読み込む。見つからない場合はデフォルトを返す。"""
+    try:
+        settings_file = _settings_path()
+        if settings_file.exists():
+            data = json.loads(settings_file.read_text(encoding="utf-8"))
+            if isinstance(data.get("storage_limit_bytes"), int):
+                return data["storage_limit_bytes"]
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"設定ファイルの読み込みに失敗: {e}")
+    return DEFAULT_STORAGE_LIMIT_BYTES
+
+
+def save_storage_limit(limit_bytes: int) -> bool:
+    """ストレージ容量上限を保存する。成功時は True を返す。"""
+    try:
+        settings_path = _settings_path()
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        # 既存設定を読み込み
+        data: dict = {}
+        if settings_path.exists():
+            try:
+                data = json.loads(settings_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                pass
+        # 容量上限を更新
+        data["storage_limit_bytes"] = limit_bytes
+        settings_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return True
+    except OSError as e:
+        logger.warning(f"設定ファイルの保存に失敗: {e}")
+        return False

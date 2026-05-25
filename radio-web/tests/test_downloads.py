@@ -251,6 +251,51 @@ class DownloadHelpersTest(unittest.TestCase):
             manifest = json.loads((manifest_dir / ".downloaded.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["paths"]["ep-1"], "20240415_番組A_第1回.mp3")
 
+    def test_get_download_dir_size(self):
+        """容量計算テスト。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            # ファイルが存在しない場合
+            self.assertEqual(downloads.get_download_dir_size(download_dir), 0)
+            # ファイルを作成
+            (download_dir / "file1.mp3").write_text("x" * 100, encoding="utf-8")
+            (download_dir / "file2.mp3").write_text("y" * 200, encoding="utf-8")
+            self.assertEqual(downloads.get_download_dir_size(download_dir), 300)
+            # ディレクトリが存在しない場合
+            self.assertEqual(downloads.get_download_dir_size(Path("/nonexistent")), 0)
+
+    def test_evict_old_files_removes_oldest_first(self):
+        """古いファイル削除テスト。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            # ファイルを作成（mtime は昇順）
+            files = []
+            for i in range(3):
+                f = download_dir / f"file{i}.mp3"
+                f.write_text("x" * 100, encoding="utf-8")
+                files.append(f)
+                # mtime を遅延させる
+                import time
+                time.sleep(0.02)
+            # 容量上限を 200 バイトに設定（最初のファイルだけを削除して上限以下にする）
+            downloads._clear_file_scan_cache()
+            deleted = downloads.evict_old_files(download_dir, 200)
+            # 最初のファイル (最も古い) が削除されるはず
+            self.assertEqual(len(deleted), 1)
+            self.assertEqual(deleted[0], files[0])
+            self.assertFalse(files[0].exists())
+            self.assertTrue(files[1].exists())
+            self.assertTrue(files[2].exists())
+
+    def test_evict_old_files_within_limit(self):
+        """容量内ではファイルを削除しない。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            download_dir = Path(tmp)
+            (download_dir / "file.mp3").write_text("x" * 100, encoding="utf-8")
+            downloads._clear_file_scan_cache()
+            deleted = downloads.evict_old_files(download_dir, 1000)
+            self.assertEqual(len(deleted), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

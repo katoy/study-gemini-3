@@ -1,5 +1,6 @@
 """Tests for configuration helpers."""
 
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -44,6 +45,37 @@ class ConfigHelpersTest(unittest.TestCase):
 
     def test_default_user_cache_root_returns_path(self):
         self.assertIsInstance(config._default_user_cache_root(), Path)
+
+    def test_load_save_storage_limit(self):
+        """容量上限の読み書きテスト。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_file = Path(tmp) / "settings.json"
+            with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+                # デフォルト値を返す
+                limit = config.load_storage_limit()
+                self.assertEqual(limit, config.DEFAULT_STORAGE_LIMIT_BYTES)
+                # 新しい値を保存
+                success = config.save_storage_limit(5 * 1024 * 1024 * 1024)
+                self.assertTrue(success)
+                # 保存した値を読み込む
+                loaded = config.load_storage_limit()
+                self.assertEqual(loaded, 5 * 1024 * 1024 * 1024)
+
+    def test_load_storage_limit_corrupted_file(self):
+        """破損したファイルからデフォルト値を返す。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_file = Path(tmp) / "settings.json"
+            settings_file.write_text("{bad", encoding="utf-8")
+            with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+                limit = config.load_storage_limit()
+                self.assertEqual(limit, config.DEFAULT_STORAGE_LIMIT_BYTES)
+
+    def test_save_storage_limit_returns_false_on_error(self):
+        """保存エラー時に False を返す。"""
+        settings_file = Path("/invalid/path/settings.json")
+        with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+            success = config.save_storage_limit(10 * 1024 * 1024 * 1024)
+            self.assertFalse(success)
 
 
 if __name__ == "__main__":

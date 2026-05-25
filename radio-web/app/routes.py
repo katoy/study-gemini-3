@@ -8,11 +8,11 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
-from nhk_radio_web.config import _default_download_dir
+from nhk_radio_web.config import _default_download_dir, load_storage_limit, save_storage_limit
 from nhk_radio_web.constants import GENRE_LABELS, NHK_GENRES
 from nhk_radio_web.core import fetch_program_list_async, get_episode_list
 from nhk_radio_web.downloads import _episode_output_identity, _program_search_dirs, is_episode_downloaded
@@ -414,6 +414,44 @@ async def clear_cache(request: Request, scope: str = "all"):
     logger.info(f"キャッシュをクリア: {scope}")
     # JavaScript で処理するため、204 No Content を返す
     return HTMLResponse(status_code=204)
+
+
+@router.get("/api/settings")
+async def get_settings(request: Request):
+    """現在の設定（ストレージ上限等）を JSON で返す。"""
+    storage_limit = load_storage_limit()
+    return JSONResponse({
+        "storage_limit_bytes": storage_limit,
+        "storage_limit_gb": storage_limit / (1024 ** 3),
+    })
+
+
+@router.post("/api/settings")
+async def save_settings(request: Request):
+    """設定（ストレージ上限等）を保存する。"""
+    try:
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
+
+    storage_limit_gb = body.get("storage_limit_gb")
+    if not isinstance(storage_limit_gb, (int, float)) or storage_limit_gb <= 0:
+        raise HTTPException(status_code=422, detail="storage_limit_gb は正の数値で指定してください")
+
+    # GB をバイトに変換
+    storage_limit_bytes = int(storage_limit_gb * (1024 ** 3))
+    success = save_storage_limit(storage_limit_bytes)
+    if not success:
+        raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
+
+    # app.state を更新
+    request.app.state.storage_limit = storage_limit_bytes
+    logger.info(f"ストレージ容量上限を更新: {storage_limit_gb} GB")
+
+    return JSONResponse({
+        "storage_limit_bytes": storage_limit_bytes,
+        "storage_limit_gb": storage_limit_gb,
+    })
 
 
 @router.get("/api/jobs/recent", response_class=HTMLResponse)

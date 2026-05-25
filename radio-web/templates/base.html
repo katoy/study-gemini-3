@@ -205,14 +205,25 @@
     });
 
     // 表示設定モーダル管理
-    let settingsBackup = { theme: 'auto', fontSize: 100 };
+    let settingsBackup = { theme: 'auto', fontSize: 100, storageLimit: 10 };
 
-    function openSettingsModal() {
+    async function openSettingsModal() {
       const modal = document.getElementById('settingsModal');
       const theme = localStorage.getItem('theme') || 'auto';
       const fontSize = localStorage.getItem('fontSize') || '100';
-      settingsBackup = { theme, fontSize: parseInt(fontSize) };
-      updateModalUI(theme, fontSize);
+      // サーバーからストレージ上限を取得
+      let storageLimit = 10;
+      try {
+        const resp = await fetch('/api/settings');
+        if (resp.ok) {
+          const data = await resp.json();
+          storageLimit = data.storage_limit_gb;
+        }
+      } catch (err) {
+        console.error('設定の読み込みに失敗:', err);
+      }
+      settingsBackup = { theme, fontSize: parseInt(fontSize), storageLimit };
+      updateModalUI(theme, fontSize, storageLimit);
       modal.classList.add('show');
     }
 
@@ -221,7 +232,7 @@
       modal.classList.remove('show');
     }
 
-    function updateModalUI(theme, fontSize) {
+    function updateModalUI(theme, fontSize, storageLimit) {
       // テーマラジオボタンを更新
       document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
         const isSelected = opt.dataset.theme === theme;
@@ -232,11 +243,28 @@
       const sliderValue = parseInt(fontSize) || 100;
       document.getElementById('fontSizeSlider').value = sliderValue;
       updateFontSizeDisplay(sliderValue);
+      // ストレージ容量上限スライダーと表示を更新
+      if (document.getElementById('storageLimitSlider')) {
+        const limitValue = Math.round(storageLimit || 10);
+        document.getElementById('storageLimitSlider').value = limitValue;
+        updateStorageLimitDisplay(limitValue);
+      }
     }
 
     function updateFontSizeDisplay(sliderValue) {
       const display = document.getElementById('fontSizeDisplay');
       if (display) display.textContent = sliderValue + '%';
+    }
+
+    function updateStorageLimitDisplay(sliderValue) {
+      const display = document.getElementById('storageLimitDisplay');
+      if (display) display.textContent = sliderValue + ' GB';
+    }
+
+    function handleStorageLimitChange(sliderValue) {
+      const limitValue = parseInt(sliderValue);
+      updateStorageLimitDisplay(limitValue);
+      settingsBackup.storageLimit = limitValue;
     }
 
     function handleFontSizeChange(sliderValue) {
@@ -266,7 +294,8 @@
     function cancelSettings() {
       const theme = settingsBackup.theme;
       const fontSize = settingsBackup.fontSize;
-      updateModalUI(theme, fontSize);
+      const storageLimit = settingsBackup.storageLimit;
+      updateModalUI(theme, fontSize, storageLimit);
       // テーマとフォントサイズを復元
       applyTheme(theme);
       const baseFontSize = 16; // px
@@ -275,8 +304,24 @@
       closeSettingsModal();
     }
 
-    function confirmSettings() {
-      // 現在の設定は既に適用済み
+    async function confirmSettings() {
+      // ストレージ容量上限を保存
+      const storageLimit = parseInt(document.getElementById('storageLimitSlider').value) || 10;
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ storage_limit_gb: storageLimit })
+        });
+        if (!resp.ok) {
+          alert('設定の保存に失敗しました');
+          return;
+        }
+      } catch (err) {
+        console.error('設定保存エラー:', err);
+        alert('設定の保存に失敗しました');
+        return;
+      }
       closeSettingsModal();
     }
 
@@ -357,6 +402,15 @@
             <span class="font-size-label">200%</span>
           </div>
           <div class="font-size-display" id="fontSizeDisplay">100%</div>
+        </div>
+        <div class="setting-group">
+          <label>ストレージ上限</label>
+          <div class="font-size-slider-container">
+            <span class="font-size-label">1GB</span>
+            <input type="range" id="storageLimitSlider" name="storageLimit" min="1" max="100" step="1" value="10" class="font-size-slider" oninput="handleStorageLimitChange(this.value)">
+            <span class="font-size-label">100GB</span>
+          </div>
+          <div class="font-size-display" id="storageLimitDisplay">10 GB</div>
         </div>
       </div>
       <div class="modal-footer">
