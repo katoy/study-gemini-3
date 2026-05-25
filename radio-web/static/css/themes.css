@@ -1612,6 +1612,10 @@ html[data-theme="dark"] .sort-icon.active {
   }
 }
 
+.download-complete-btn:hover {
+  cursor: grab;
+}
+
 @media (max-width: 480px) {
   .db-grid-view {
     grid-template-columns: 1fr;

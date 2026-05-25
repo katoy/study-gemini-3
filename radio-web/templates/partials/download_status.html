@@ -3,7 +3,7 @@
   <div style="display:flex;align-items:center;gap:0.5rem;">
     <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
     {% if job.file_path %}
-      <button id="dl-btn-{{ job_id }}" style="padding:0.25rem 0.5rem;font-size:0.75rem;background:#1976d2;color:#fff;border:none;border-radius:3px;cursor:pointer;">[済]ダウンロード</button>
+      <button id="dl-btn-{{ job_id }}" class="download-complete-btn" style="padding:0.25rem 0.5rem;font-size:0.75rem;background:#1976d2;color:#fff;border:none;border-radius:3px;cursor:pointer;">[済]ダウンロード</button>
       <script>
         (function() {
           const jobId = '{{ job_id }}';
