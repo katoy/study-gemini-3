@@ -1539,39 +1539,14 @@ html[data-theme="dark"] .sort-icon.active {
   font-weight: 500;
 }
 
-.genre-badge.language {
-  background: var(--color-badge-language);
-  color: var(--color-badge-language-text);
-}
-
-.genre-badge.music {
-  background: var(--color-badge-music);
-  color: var(--color-badge-music-text);
-}
-
-.genre-badge.news {
-  background: var(--color-badge-news);
-  color: var(--color-badge-news-text);
-}
-
-.genre-badge.drama {
-  background: var(--color-badge-drama);
-  color: var(--color-badge-drama-text);
-}
-
-.genre-badge.sports {
-  background: var(--color-badge-sports);
-  color: var(--color-badge-sports-text);
-}
-
-.genre-badge.documentary {
-  background: var(--color-badge-documentary);
-  color: var(--color-badge-documentary-text);
-}
-
+.genre-badge.language,
+.genre-badge.music,
+.genre-badge.news,
+.genre-badge.drama,
+.genre-badge.sports,
+.genre-badge.documentary,
 .genre-badge.variety {
-  background: var(--color-badge-variety);
-  color: var(--color-badge-variety-text);
+  color: inherit;
 }
 
 /* モバイルドロワー */
