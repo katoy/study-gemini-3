@@ -1,22 +1,15 @@
 {% set status = job.status %}
 {% if status == "done" %}
-  <div style="display:flex;align-items:center;gap:0.5rem;">
-    <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
-    {% if job.file_path %}
-      <button id="dl-btn-{{ job_id }}" class="download-complete-btn" style="padding:0.25rem 0.5rem;font-size:0.75rem;background:#1976d2;color:#fff;border:none;border-radius:3px;cursor:pointer;">[済]ダウンロード</button>
-      <script>
-        (function() {
-          const jobId = '{{ job_id }}';
-          const btn = document.getElementById('dl-btn-' + jobId);
-          if (btn) {
-            btn.onclick = function() { downloadFile(jobId); };
-            // 自動ダウンロード実行
-            setTimeout(function() { downloadFile(jobId); }, 100);
-          }
-        })();
-      </script>
-    {% endif %}
-  </div>
+  <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
+  {% if job.file_path %}
+  <script>
+    (function() {
+      const jobId = '{{ job_id }}';
+      // 自動ダウンロード実行
+      setTimeout(function() { downloadFile(jobId); }, 100);
+    })();
+  </script>
+  {% endif %}
 {% elif status == "error" %}
   <span style="color:#c00;font-size:0.8rem;">✖ {{ job.error or 'エラー' }}</span>
 {% elif status == "cancelled" %}
