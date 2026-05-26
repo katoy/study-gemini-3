@@ -27,7 +27,7 @@
 
     <div class="db-sidebar-section">
       <div class="db-sidebar-section-label">ジャンル</div>
-      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪'} %}
+      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬'} %}
       {% for opt in genre_options if opt.value %}
       {% set cnt = programs|selectattr('genre','equalto',opt.value)|list|length %}
       {% if cnt > 0 %}
