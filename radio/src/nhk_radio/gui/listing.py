@@ -10,6 +10,7 @@ from contextlib import suppress
 from tkinter import ttk
 
 from ..config import SEARCH_HISTORY_LIMIT
+from ..constants import GENRE_LABELS, NHK_GENRES
 from ..downloads import _episode_key, get_downloaded_episode_keys
 from ..text import (
     _genre_label,
@@ -292,8 +293,9 @@ class GuiListingMixin:
                 self.episode_saved_only_var.set(False)
 
     def _program_genre_filter_values(self) -> list[str]:
-        labels = sorted({program.genre_label or _genre_label(program.genre) for program in self.programs})
-        return ["すべて", *[label for label in labels if label]]
+        seen_genres = {program.genre for program in self.programs if program.genre}
+        labels = [GENRE_LABELS.get(g, g) for g in NHK_GENRES if g in seen_genres]
+        return ["すべて", *labels]
 
     def _normalized_search_text(self, text: str) -> str:
         if not text:
