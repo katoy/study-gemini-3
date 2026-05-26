@@ -61,13 +61,11 @@ async def index(request: Request, genre: str = ""):
     for p in programs:
         programs_by_genre.setdefault(p.genre or "", []).append(p)
 
-    # ジャンルオプションを取得済み番組から動的に生成
-    seen = set()
-    genre_options = [{"value": "", "label": "すべて"}, {"value": "new_series", "label": "新番組"}]
+    # ジャンルオプションを NHK_GENRES から動的に生成
+    genre_options = [{"value": "", "label": "すべて"}]
     for g in NHK_GENRES:
-        if g not in seen and any(p.genre == g for p in programs):
+        if g == "new_series" or any(p.genre == g for p in programs):
             genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
-            seen.add(g)
 
     return templates.TemplateResponse(
         request,
@@ -89,14 +87,25 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
         genre: ジャンルフィルタ
         q: 番組名検索キーワード
     """
-    programs = await fetch_program_list_async(genre or None)
+    # 常に全プログラムを取得してジャンル数の一貫性を保つ
+    all_programs = await fetch_program_list_async(None)
+
+    # ジャンルフィルタを適用
+    if genre:
+        programs = [p for p in all_programs if p.genre == genre]
+    else:
+        programs = all_programs
+
+    # キーワード検索を適用
     if q:
         programs = filter_programs(programs, needle=q)
+
     return templates.TemplateResponse(
         request,
         "partials/program_list.html",
         {
             "programs": programs,
+            "all_programs": all_programs,
             "selected_genre": genre,
         },
     )

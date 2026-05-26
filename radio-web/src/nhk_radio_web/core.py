@@ -182,7 +182,7 @@ async def _fetch_all_async() -> list[Program]:
                     key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
                     if key not in seen:
                         seen.add(key)
-                        entry = _make_entry(s)
+                        entry = _make_entry(s, genre="new_series")
                         programs.append(entry)
                         program_map[key] = entry
         except (httpx.HTTPError, ValueError) as e:
@@ -235,12 +235,20 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
     logger.info(f"{label}一覧を取得中...")
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
-            data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
-        if isinstance(data, dict):
-            programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("series", [])]
+            if genre == "new_series":
+                data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
+                if isinstance(data, dict):
+                    programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("corners", [])]
+                else:
+                    programs = []
+            else:
+                data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
+                if isinstance(data, dict):
+                    programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("series", [])]
+                else:
+                    programs = []
             logger.info(f"{len(programs)} 件を取得しました。")
             return programs
-        return []
     except Exception as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
         return []

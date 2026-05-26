@@ -109,8 +109,41 @@ document.addEventListener('htmx:afterSwap', e => {
   if (e.detail.target.id === 'db-program-list') {
     applyCurrentView();
     updateVisibleCount();
+    updateGenreCounts();
   }
 });
+
+function updateGenreCounts() {
+  const genres = new Map();
+  const rows = document.querySelectorAll('.db-list-row, .db-grid-card');
+  rows.forEach(row => {
+    const genre = row.dataset.genre || '';
+    genres.set(genre, (genres.get(genre) || 0) + 1);
+  });
+
+  const allCount = rows.length;
+  const allCountEl = document.getElementById('nav-all-count');
+  if (allCountEl) allCountEl.textContent = allCount;
+
+  document.querySelectorAll('[id^="nav-"]').forEach(nav => {
+    const genre = nav.id.replace('nav-', '');
+    const count = genres.get(genre) || 0;
+    const countSpan = nav.querySelector('.db-nav-count');
+    if (genre === 'all') {
+      if (countSpan) countSpan.textContent = allCount;
+    } else if (count > 0) {
+      if (countSpan) countSpan.textContent = count;
+      else {
+        const newSpan = document.createElement('span');
+        newSpan.className = 'db-nav-count';
+        newSpan.textContent = count;
+        nav.appendChild(newSpan);
+      }
+    } else if (genre !== 'new_series') {
+      if (countSpan) countSpan.remove();
+    }
+  });
+}
 
 function setView(view, persist = true) {
   window.currentView = view;

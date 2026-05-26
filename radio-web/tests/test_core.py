@@ -191,7 +191,7 @@ class CoreHelpersTest(unittest.TestCase):
         ):
             programs = asyncio.run(core._fetch_all_async())
         self.assertEqual(len(programs), 2)
-        self.assertEqual(programs[0].genre, "language")
+        self.assertEqual(programs[0].genre, "new_series")
         self.assertEqual(programs[1].genre, "music")
 
         with (
