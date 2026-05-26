@@ -63,13 +63,11 @@ async def index(request: Request, genre: str = ""):
 
     # ジャンルオプションを取得済み番組から動的に生成
     seen = set()
-    genre_options = [{"value": "", "label": "すべて"}]
+    genre_options = [{"value": "", "label": "すべて"}, {"value": "new_series", "label": "新番組"}]
     for g in NHK_GENRES:
         if g not in seen and any(p.genre == g for p in programs):
             genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
             seen.add(g)
-    # new_series は static オプション（API の特別なフィルタ）
-    genre_options.append({"value": "new_series", "label": "新番組"})
 
     return templates.TemplateResponse(
         request,
