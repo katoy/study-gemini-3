@@ -33,6 +33,7 @@ GENRE_LABELS = {
     "kids": "キッズ",
     "welfare": "福祉",
     "local": "地域放送局",
+    "new_series": "新番組",
 }
 
 # HTTP リトライ設定 (指数バックオフ)

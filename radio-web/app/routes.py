@@ -68,6 +68,8 @@ async def index(request: Request, genre: str = ""):
         if g not in seen and any(p.genre == g for p in programs):
             genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
             seen.add(g)
+    # new_series は static オプション（API の特別なフィルタ）
+    genre_options.append({"value": "new_series", "label": "新番組"})
 
     return templates.TemplateResponse(
         request,

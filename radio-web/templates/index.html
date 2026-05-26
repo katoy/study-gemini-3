@@ -27,14 +27,14 @@
 
     <div class="db-sidebar-section">
       <div class="db-sidebar-section-label">ジャンル</div>
-      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬','information':'ℹ️','kids':'👶','welfare':'🤝','local':'📍'} %}
+      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬','information':'ℹ️','kids':'👶','welfare':'🤝','local':'📍','new_series':'⭐'} %}
       {% for opt in genre_options if opt.value %}
       {% set cnt = programs|selectattr('genre','equalto',opt.value)|list|length %}
-      {% if cnt > 0 %}
+      {% if cnt > 0 or opt.value == 'new_series' %}
       <div class="db-nav-item" id="nav-{{ opt.value }}" onclick="filterByGenre('{{ opt.value }}', this)">
         <span class="db-nav-icon">{{ genre_icons.get(opt.value, '📂') }}</span>
         <span class="db-nav-text">{{ opt.label }}</span>
-        <span class="db-nav-count">{{ cnt }}</span>
+        {% if cnt > 0 %}<span class="db-nav-count">{{ cnt }}</span>{% endif %}
       </div>
       {% endif %}
       {% endfor %}
