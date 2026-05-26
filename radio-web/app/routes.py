@@ -53,10 +53,6 @@ def _job_to_payload(job_id: str, job: dict) -> dict:
 
 templates.env.filters["tojson"] = _dataclass_to_json
 
-GENRE_OPTIONS = [{"value": "", "label": "すべて"}] + [
-    {"value": g, "label": GENRE_LABELS[g]} for g in NHK_GENRES
-]
-
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, genre: str = ""):
@@ -64,13 +60,22 @@ async def index(request: Request, genre: str = ""):
     programs_by_genre: dict[str, list] = {}
     for p in programs:
         programs_by_genre.setdefault(p.genre or "", []).append(p)
+
+    # ジャンルオプションを取得済み番組から動的に生成
+    seen = set()
+    genre_options = [{"value": "", "label": "すべて"}]
+    for g in NHK_GENRES:
+        if g not in seen and any(p.genre == g for p in programs):
+            genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
+            seen.add(g)
+
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "programs": programs,
             "programs_by_genre": programs_by_genre,
-            "genre_options": GENRE_OPTIONS,
+            "genre_options": genre_options,
             "selected_genre": genre,
         },
     )
