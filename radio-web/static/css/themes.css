@@ -1562,7 +1562,8 @@ html[data-theme="dark"] .sort-icon.active {
 .genre-badge.drama,
 .genre-badge.sports,
 .genre-badge.documentary,
-.genre-badge.variety {
+.genre-badge.variety,
+.genre-badge.hobby {
   color: inherit;
 }
 

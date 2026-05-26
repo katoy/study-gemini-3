@@ -6,7 +6,7 @@ NHK_API_GENRE = "https://www.nhk.or.jp/radio-api/app/v1/web/ondemand/series?genr
 NHK_DETAIL_TMPL = "https://www.nhk.or.jp/radio/ondemand/detail.html?p={site_id}_{corner_id}"
 NHK_EPISODE_TMPL = "https://www.nhk.or.jp/radio/player/ondemand.html?p={site_id}_{corner_id}_{episode_id}"
 
-NHK_GENRES = ["language", "music", "news", "drama", "sports", "documentary", "variety"]
+NHK_GENRES = ["language", "music", "news", "drama", "sports", "documentary", "variety", "hobby"]
 
 # NHK Radio API へのリクエストに使用する User-Agent。
 # ブロックされるようなら Chrome の最新版番号に更新すること (最終確認: 2025-04)。
@@ -27,6 +27,7 @@ GENRE_LABELS = {
     "sports": "スポーツ",
     "documentary": "ドキュメンタリー",
     "variety": "バラエティ",
+    "hobby": "教養・趣味",
 }
 
 # HTTP リトライ設定 (指数バックオフ)
