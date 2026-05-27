@@ -23,7 +23,6 @@ from .constants import (
     _HEADERS,
     GENRE_LABELS,
     NHK_API_GENRE,
-    NHK_API_NEW_CORNERS,
     NHK_DETAIL_TMPL,
     NHK_GENRES,
 )
@@ -176,19 +175,6 @@ async def _fetch_all_async() -> list[Program]:
     program_map: dict[tuple[str, str], Program] = {}
 
     async with httpx.AsyncClient(headers=_HEADERS) as client:
-        try:
-            data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
-            if isinstance(data, dict):
-                for s_raw in data.get("corners", []):
-                    s = cast(ApiProgramRaw, s_raw)
-                    key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
-                    if key not in seen:
-                        seen.add(key)
-                        entry = _make_entry(s, genre="new_series")
-                        programs.append(entry)
-                        program_map[key] = entry
-        except (httpx.HTTPError, ValueError) as e:
-            logger.debug(f"最新追加の取得に失敗 (スキップ): {e}")
 
         async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
             try:
@@ -212,17 +198,6 @@ async def _fetch_all_async() -> list[Program]:
                     entry = _make_entry(s, genre=g)
                     programs.append(entry)
                     program_map[key] = entry
-                else:
-                    existing = program_map.get(key)
-                    if existing is not None and existing.genre == "new_series":
-                        from dataclasses import replace
-                        new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
-                        try:
-                            idx = programs.index(existing)
-                            programs[idx] = new_entry
-                            program_map[key] = new_entry
-                        except ValueError:  # pragma: no cover
-                            pass
 
     if programs:
         logger.info(f"{len(programs)} 件の番組を取得しました。")

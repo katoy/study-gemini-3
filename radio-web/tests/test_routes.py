@@ -56,7 +56,7 @@ class RoutesTest(unittest.TestCase):
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
             resp = self.client.get("/?genre=language")
         self.assertEqual(resp.status_code, 200)
-        m.assert_called_once_with("language")
+        m.assert_called_once_with(None)
 
     def test_index_empty_genre_calls_fetch_with_none(self):
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:

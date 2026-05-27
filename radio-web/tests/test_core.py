@@ -183,7 +183,6 @@ class CoreHelpersTest(unittest.TestCase):
                 "http_get_json_async",
                 new_callable=AsyncMock,
                 side_effect=[
-                    {"corners": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
                     {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
                     {"series": [{"series_site_id": "S2", "corner_site_id": "02", "title": "番組B"}]},
                 ],
@@ -191,7 +190,7 @@ class CoreHelpersTest(unittest.TestCase):
         ):
             programs = asyncio.run(core._fetch_all_async())
         self.assertEqual(len(programs), 2)
-        self.assertEqual(programs[0].genre, "new_series")
+        self.assertEqual(programs[0].genre, "language")
         self.assertEqual(programs[1].genre, "music")
 
         with (

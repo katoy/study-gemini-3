@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from nhk_radio_web import __version__
 from nhk_radio_web.config import DEFAULT_MAX_CONCURRENT_DL, load_storage_limit
 from nhk_radio_web.job_manager import JobManager
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 起動時: JobManager を初期化して app.state に保存
+    print(f"🚀 Starting NHK Radio Web v{__version__}", flush=True)
     max_concurrent = int(os.getenv("NHK_RADIO_MAX_CONCURRENT_DL", str(DEFAULT_MAX_CONCURRENT_DL)))
     app.state.job_manager = JobManager(max_concurrent=max_concurrent)
     # ストレージ容量上限を app.state に保存

@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocke
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from nhk_radio_web import __version__
 from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
 from nhk_radio_web.config import _default_download_dir, load_storage_limit, save_storage_limit
 from nhk_radio_web.constants import GENRE_LABELS, NHK_GENRES
@@ -56,25 +57,35 @@ templates.env.filters["tojson"] = _dataclass_to_json
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, genre: str = ""):
-    programs = await fetch_program_list_async(genre or None)
+    # 常にすべてのプログラムを取得（genre count 正確性のため）
+    all_programs = await fetch_program_list_async(None)
+    print(f"DEBUG: index: all_programs={len(all_programs)}, genre={genre}", flush=True)
+
+    # フィルタ適用
+    if genre:
+        programs = [p for p in all_programs if p.genre == genre]
+    else:
+        programs = all_programs
+
     programs_by_genre: dict[str, list] = {}
-    for p in programs:
+    for p in all_programs:
         programs_by_genre.setdefault(p.genre or "", []).append(p)
 
     # ジャンルオプションを NHK_GENRES から動的に生成
     genre_options = [{"value": "", "label": "すべて"}]
     for g in NHK_GENRES:
-        if g == "new_series" or any(p.genre == g for p in programs):
-            genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
+        genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
 
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "programs": programs,
+            "all_programs": all_programs,
             "programs_by_genre": programs_by_genre,
             "genre_options": genre_options,
             "selected_genre": genre,
+            "version": __version__,
         },
     )
 
@@ -95,6 +106,7 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
         programs = [p for p in all_programs if p.genre == genre]
     else:
         programs = all_programs
+    print(f"DEBUG: /programs: all_programs={len(all_programs)}, filtered programs={len(programs)}, genre={genre}", flush=True)
 
     # キーワード検索を適用
     if q:

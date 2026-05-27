@@ -21,22 +21,20 @@
       <div class="db-nav-item active" id="nav-all" onclick="filterByGenre('', this)">
         <span class="db-nav-icon">≡</span>
         <span class="db-nav-text">すべて</span>
-        <span class="db-nav-count" id="nav-all-count">{{ programs|length }}</span>
+        <span class="db-nav-count" id="nav-all-count">{{ all_programs|length }}</span>
       </div>
     </div>
 
     <div class="db-sidebar-section">
       <div class="db-sidebar-section-label">ジャンル</div>
-      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬','information':'ℹ️','kids':'👶','welfare':'🤝','local':'📍','new_series':'⭐'} %}
+      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬','information':'ℹ️','kids':'👶','welfare':'🤝','local':'📍'} %}
       {% for opt in genre_options if opt.value %}
-      {% set cnt = programs|selectattr('genre','equalto',opt.value)|list|length %}
-      {% if cnt > 0 or opt.value == 'new_series' %}
+      {% set cnt = all_programs|selectattr('genre','equalto',opt.value)|list|length %}
       <div class="db-nav-item" id="nav-{{ opt.value }}" onclick="filterByGenre('{{ opt.value }}', this)">
         <span class="db-nav-icon">{{ genre_icons.get(opt.value, '📂') }}</span>
         <span class="db-nav-text">{{ opt.label }}</span>
         {% if cnt > 0 %}<span class="db-nav-count">{{ cnt }}</span>{% endif %}
       </div>
-      {% endif %}
       {% endfor %}
     </div>
 
@@ -93,11 +91,9 @@
 
     <!-- プログラムリスト -->
     <div class="db-content">
-      <div id="db-program-list"
-           hx-get="/programs{% if selected_genre %}?genre={{ selected_genre }}{% endif %}"
-           hx-trigger="load"
-           hx-swap="innerHTML"
-           hx-indicator="#db-spinner"></div>
+      <div id="db-program-list">
+        {% include "partials/program_list.html" %}
+      </div>
     </div>
   </div>
 </div>
@@ -109,41 +105,9 @@ document.addEventListener('htmx:afterSwap', e => {
   if (e.detail.target.id === 'db-program-list') {
     applyCurrentView();
     updateVisibleCount();
-    updateGenreCounts();
   }
 });
 
-function updateGenreCounts() {
-  const genres = new Map();
-  const rows = document.querySelectorAll('.db-list-row, .db-grid-card');
-  rows.forEach(row => {
-    const genre = row.dataset.genre || '';
-    genres.set(genre, (genres.get(genre) || 0) + 1);
-  });
-
-  const allCount = rows.length;
-  const allCountEl = document.getElementById('nav-all-count');
-  if (allCountEl) allCountEl.textContent = allCount;
-
-  document.querySelectorAll('[id^="nav-"]').forEach(nav => {
-    const genre = nav.id.replace('nav-', '');
-    const count = genres.get(genre) || 0;
-    const countSpan = nav.querySelector('.db-nav-count');
-    if (genre === 'all') {
-      if (countSpan) countSpan.textContent = allCount;
-    } else if (count > 0) {
-      if (countSpan) countSpan.textContent = count;
-      else {
-        const newSpan = document.createElement('span');
-        newSpan.className = 'db-nav-count';
-        newSpan.textContent = count;
-        nav.appendChild(newSpan);
-      }
-    } else if (genre !== 'new_series') {
-      if (countSpan) countSpan.remove();
-    }
-  });
-}
 
 function setView(view, persist = true) {
   window.currentView = view;

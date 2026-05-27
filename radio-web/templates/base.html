@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}</title>
+  <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}{% if version %} (v{{ version }}){% endif %}</title>
   <link rel="icon" href="/static/favicon.ico">
   <link rel="stylesheet" href="/static/css/themes.css">
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
@@ -422,7 +422,7 @@
   </div>
   <!-- ステータスバー -->
   <footer class="status-bar">
-    <span id="status-message">準備完了</span>
+    <span id="status-message">準備完了{% if version %} • v{{ version }}{% endif %}</span>
     <div class="shortcut-hints">
       <kbd>/</kbd> 検索 &nbsp; <kbd>g</kbd> ジャンル &nbsp;
       <kbd>↑↓</kbd> スクロール &nbsp; <kbd>Space</kbd> ページ &nbsp;
