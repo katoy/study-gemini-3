@@ -17,6 +17,7 @@ class ApiProgramRaw(TypedDict, total=False):
     genre_label: str
     thumbnail_url: str
     description: str
+    radio_broadcast: str
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class Program:
     corner_name: str | None = None
     onair_date: str | None = None
     started_at: str | None = None
+    broadcast: str = "AM"
 
 
 @dataclass(frozen=True)

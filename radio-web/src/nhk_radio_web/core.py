@@ -151,6 +151,7 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
     corner_name = s.get("corner_name")
     onair_date = str(s.get("onair_date") or "")
     started_at = str(s.get("started_at") or "")
+    broadcast = str(s.get("radio_broadcast") or "AM")
 
     return Program(
         title=title,
@@ -163,6 +164,7 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
         display_date=_format_onair_date(onair_date, started_at),
         display_title=_program_display_title(title, corner_name or ""),
         started_at=started_at,
+        broadcast=broadcast,
         url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
     )
 
@@ -212,7 +214,7 @@ async def _fetch_all_async() -> list[Program]:
                     program_map[key] = entry
                 else:
                     existing = program_map.get(key)
-                    if existing is not None and not existing.genre:
+                    if existing is not None and existing.genre == "new_series":
                         from dataclasses import replace
                         new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
                         try:
