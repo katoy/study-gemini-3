@@ -143,6 +143,7 @@ class GuiListingMixin:
 
         rendered = self._sorted_episodes(episodes)
         to_check = []
+        genre_label = program.genre_label or GENRE_LABELS.get(program.genre, program.genre or "")
         for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
@@ -154,13 +155,14 @@ class GuiListingMixin:
             if btime:
                 date_time = f"{date_time} {btime}"
             dur = episode.duration_str or "----"
+            title = f"{episode.display_title or episode.title} ({genre_label})"
 
             # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
             self.episode_tree.insert(
                 "",
                 "end",
                 iid=iid,
-                values=(saved, date_time, dur, episode.display_title or episode.title),
+                values=(saved, date_time, dur, title),
             )
             to_check.append((iid, episode))
 

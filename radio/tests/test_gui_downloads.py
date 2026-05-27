@@ -159,10 +159,10 @@ class GuiDownloadsTest(unittest.TestCase):
         """Test that _add_download_row calls _reflow_download_rows with auto_scroll=True."""
         program = Program(title="P", display_title="P", display_date="2024-01-01(月)", site_id="S", corner_id="C", url="", genre="language")
         episode = Episode(id="E1", title="E", display_title="E", date="2024-01-01", display_date="2024-01-01(月)", broadcast_time="10:00", duration_str="30:00", url="")
-        with patch.object(self.gui, "_create_download_job_widgets", return_value={"frame": MagicMock()}):
-            with patch.object(self.gui, "_reflow_download_rows") as mock_reflow:
-                self.gui._add_download_row(program, episode)
-                mock_reflow.assert_called_once_with(auto_scroll=True)
+        with patch.object(self.gui, "_create_download_job_widgets", return_value={"frame": MagicMock()}), \
+             patch.object(self.gui, "_reflow_download_rows") as mock_reflow:
+            self.gui._add_download_row(program, episode)
+            mock_reflow.assert_called_once_with(auto_scroll=True)
 
     def test_remove_download_row(self):
         row_frame = MagicMock()

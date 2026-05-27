@@ -327,7 +327,7 @@ class GuiSmokeTest(unittest.TestCase):
 
                 # 初回起動: help dialog が schedule される
                 try:
-                    browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    _browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
                     # after(600, _show_help_dialog) が呼ばれたことを確認
                     self.assertTrue(self.root.after.called)
                 finally:
@@ -338,7 +338,7 @@ class GuiSmokeTest(unittest.TestCase):
 
                 # 2 回目起動: help_seen_version が設定済みなので after が呼ばれない
                 try:
-                    browser2 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+                    _browser2 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
                     # help dialog schedule に関連する after 呼び出しを検索
                     help_scheduled = any(
                         call[0][1].__name__ == "_show_help_dialog" if callable(call[0][1])
