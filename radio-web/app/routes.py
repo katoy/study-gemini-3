@@ -59,7 +59,6 @@ templates.env.filters["tojson"] = _dataclass_to_json
 async def index(request: Request, genre: str = ""):
     # 常にすべてのプログラムを取得（genre count 正確性のため）
     all_programs = await fetch_program_list_async(None)
-    print(f"DEBUG: index: all_programs={len(all_programs)}, genre={genre}", flush=True)
 
     # フィルタ適用
     if genre:
@@ -106,7 +105,6 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
         programs = [p for p in all_programs if p.genre == genre]
     else:
         programs = all_programs
-    print(f"DEBUG: /programs: all_programs={len(all_programs)}, filtered programs={len(programs)}, genre={genre}", flush=True)
 
     # キーワード検索を適用
     if q:
