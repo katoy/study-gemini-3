@@ -6,7 +6,7 @@ NHK_API_GENRE = "https://www.nhk.or.jp/radio-api/app/v1/web/ondemand/series?genr
 NHK_DETAIL_TMPL = "https://www.nhk.or.jp/radio/ondemand/detail.html?p={site_id}_{corner_id}"
 NHK_EPISODE_TMPL = "https://www.nhk.or.jp/radio/player/ondemand.html?p={site_id}_{corner_id}_{episode_id}"
 
-NHK_GENRES = ["news", "sports", "information", "drama", "music", "variety", "documentary", "theater", "hobby", "welfare", "kids", "language", "local"]
+NHK_GENRES = ["new_series", "news", "sports", "information", "drama", "music", "variety", "documentary", "theater", "hobby", "welfare", "kids", "language", "local"]
 
 # NHK Radio API へのリクエストに使用する User-Agent。
 # ブロックされるようなら Chrome の最新版番号に更新すること (最終確認: 2025-04)。
@@ -20,21 +20,23 @@ _HEADERS = {"User-Agent": _UA, "Accept-Language": "ja,en;q=0.9"}
 JP_WEEKDAYS = "月火水木金土日"
 
 GENRE_LABELS = {
-    "language": "語学",
-    "music": "音楽",
+    "new_series": "新番組",
     "news": "ニュース",
-    "drama": "ドラマ",
     "sports": "スポーツ",
-    "documentary": "ドキュメンタリー",
-    "variety": "バラエティ",
-    "hobby": "教養・趣味",
-    "theater": "演劇",
     "information": "情報/ワイドショー",
-    "kids": "キッズ",
+    "drama": "ドラマ",
+    "music": "音楽",
+    "variety": "バラエティ",
+    "documentary": "ドキュメンタリー/教養",
+    "theater": "劇場/公演",
+    "hobby": "趣味/教養",
     "welfare": "福祉",
+    "kids": "キッズ",
+    "language": "語学",
     "local": "地域放送局",
 }
 
 # HTTP リトライ設定 (指数バックオフ)
-HTTP_RETRY_MAX_ATTEMPTS = 3  # 最大試行回数
-HTTP_RETRY_BACKOFF_BASE = 1  # 初回待機時間 (秒)
+HTTP_RETRY_COUNT = 3          # 最大試行回数（初回含む）
+HTTP_RETRY_BASE_DELAY = 0.5   # バックオフ基準秒数 (0.5s → 1s → 2s)
+HTTP_RETRY_MAX_DELAY = 10.0   # バックオフ上限秒数

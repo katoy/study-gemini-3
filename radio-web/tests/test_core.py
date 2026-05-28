@@ -183,8 +183,9 @@ class CoreHelpersTest(unittest.TestCase):
                 "http_get_json_async",
                 new_callable=AsyncMock,
                 side_effect=[
-                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
-                    {"series": [{"series_site_id": "S2", "corner_site_id": "02", "title": "番組B"}]},
+                    httpx.RequestError("new_arrivals failed"),  # new_arrivals 取得失敗（OK）
+                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},  # language
+                    {"series": [{"series_site_id": "S2", "corner_site_id": "02", "title": "番組B"}]},  # music
                 ],
             ),
         ):
@@ -195,7 +196,15 @@ class CoreHelpersTest(unittest.TestCase):
 
         with (
             patch.object(core, "NHK_GENRES", ["language"]),
-            patch.object(core, "http_get_json_async", new_callable=AsyncMock, side_effect=httpx.RequestError("x")),
+            patch.object(
+                core,
+                "http_get_json_async",
+                new_callable=AsyncMock,
+                side_effect=[
+                    httpx.RequestError("new_arrivals failed"),  # new_arrivals 失敗
+                    httpx.RequestError("language failed"),  # language 失敗
+                ],
+            ),
         ):
             res = asyncio.run(core._fetch_all_async())
             self.assertEqual(res, [])

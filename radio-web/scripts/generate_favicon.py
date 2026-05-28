@@ -2,6 +2,7 @@
 """NHK ラジオアイコンを生成して favicon として出力。"""
 
 from pathlib import Path
+
 from PIL import Image, ImageDraw
 
 

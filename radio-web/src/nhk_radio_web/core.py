@@ -22,7 +22,11 @@ from .cache import (
 from .constants import (
     _HEADERS,
     GENRE_LABELS,
+    HTTP_RETRY_BASE_DELAY,
+    HTTP_RETRY_COUNT,
+    HTTP_RETRY_MAX_DELAY,
     NHK_API_GENRE,
+    NHK_API_NEW_CORNERS,
     NHK_DETAIL_TMPL,
     NHK_GENRES,
 )
@@ -41,16 +45,42 @@ logger = logging.getLogger(__name__)
 
 
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 60) -> dict | list:
-    try:
-        resp = await client.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTPエラー (ステータスコード: {e.response.status_code}): {url}")
-        raise
-    except httpx.RequestError as e:
-        logger.error(f"ネットワークエラー: {e} ({url})")
-        raise
+    last_exc: Exception | None = None
+    for attempt in range(HTTP_RETRY_COUNT):
+        try:
+            resp = await client.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429:
+                retry_after = e.response.headers.get("Retry-After")
+                delay = float(retry_after) if retry_after else min(
+                    HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY
+                )
+                logger.warning(f"429 Too Many Requests: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            if status >= 500 and attempt < HTTP_RETRY_COUNT - 1:
+                delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                logger.warning(f"HTTPエラー {status}: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            logger.error(f"HTTPエラー (ステータスコード: {status}): {url}")
+            raise
+        except httpx.RequestError as e:
+            if attempt < HTTP_RETRY_COUNT - 1:
+                delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                logger.warning(f"ネットワークエラー: {e} ({url}) — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
+                await asyncio.sleep(delay)
+                last_exc = e
+                continue
+            logger.error(f"ネットワークエラー: {e} ({url})")
+            raise
+    assert last_exc is not None
+    raise last_exc
 
 
 def http_get_json(url: str, timeout: int = 60) -> dict | list:
@@ -76,6 +106,11 @@ def http_get_text(url: str, timeout: int = 60) -> str:
     except httpx.HTTPError as e:
         logger.error(f"テキスト取得失敗: {e}")
         raise
+
+
+def get_genres() -> list[str]:
+    """ジャンル一覧を返す。"""
+    return NHK_GENRES
 
 
 def fetch_program_list(genre: str | None = None) -> list[Program]:
@@ -175,7 +210,22 @@ async def _fetch_all_async() -> list[Program]:
     program_map: dict[tuple[str, str], Program] = {}
 
     async with httpx.AsyncClient(headers=_HEADERS) as client:
+        # 1) corners/new_arrivals (最新追加・最多)
+        try:
+            data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
+            if isinstance(data, dict):
+                for s_raw in data.get("corners", []):
+                    s = cast(ApiProgramRaw, s_raw)
+                    key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
+                    if key not in seen:
+                        seen.add(key)
+                        entry = _make_entry(s, genre=None)
+                        programs.append(entry)
+                        program_map[key] = entry
+        except (httpx.HTTPError, ValueError) as e:
+            logger.debug(f"最新追加の取得に失敗 (スキップ): {e}")
 
+        # 2) 各ジャンルを追加 (並列取得して補完)
         async def fetch_genre(g: str) -> tuple[str, dict | list | None]:
             try:
                 data = await http_get_json_async(client, NHK_API_GENRE.format(genre=g))
@@ -198,6 +248,17 @@ async def _fetch_all_async() -> list[Program]:
                     entry = _make_entry(s, genre=g)
                     programs.append(entry)
                     program_map[key] = entry
+                else:
+                    existing = program_map.get(key)
+                    if existing is not None and not existing.genre:
+                        from dataclasses import replace
+                        new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
+                        try:
+                            idx = programs.index(existing)
+                            programs[idx] = new_entry
+                            program_map[key] = new_entry
+                        except ValueError:  # pragma: no cover
+                            pass
 
     if programs:
         logger.info(f"{len(programs)} 件の番組を取得しました。")
@@ -212,21 +273,17 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
     logger.info(f"{label}一覧を取得中...")
     try:
         async with httpx.AsyncClient(headers=_HEADERS) as client:
-            if genre == "new_series":
-                data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
-                if isinstance(data, dict):
-                    programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("corners", [])]
-                else:
-                    programs = []
+            url = NHK_API_GENRE.format(genre=genre)
+            key = "series"
+
+            data = await http_get_json_async(client, url)
+            if isinstance(data, dict):
+                programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get(key, [])]
             else:
-                data = await http_get_json_async(client, NHK_API_GENRE.format(genre=genre))
-                if isinstance(data, dict):
-                    programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("series", [])]
-                else:
-                    programs = []
+                programs = []
             logger.info(f"{len(programs)} 件を取得しました。")
             return programs
-    except Exception as e:
+    except (httpx.HTTPError, ValueError, Exception) as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
         return []
 

@@ -14,8 +14,8 @@ from fastapi.templating import Jinja2Templates
 from nhk_radio_web import __version__
 from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
 from nhk_radio_web.config import _default_download_dir, load_storage_limit, save_storage_limit
-from nhk_radio_web.constants import GENRE_LABELS, NHK_GENRES
-from nhk_radio_web.core import fetch_program_list_async, get_episode_list
+from nhk_radio_web.constants import GENRE_LABELS
+from nhk_radio_web.core import fetch_program_list_async, get_episode_list, get_genres
 from nhk_radio_web.downloads import _episode_output_identity, _program_search_dirs, is_episode_downloaded
 from nhk_radio_web.help_content import render_help_html
 from nhk_radio_web.search import filter_episodes, filter_programs
@@ -60,19 +60,15 @@ async def index(request: Request, genre: str = ""):
     # 常にすべてのプログラムを取得（genre count 正確性のため）
     all_programs = await fetch_program_list_async(None)
 
-    # フィルタ適用
-    if genre:
-        programs = [p for p in all_programs if p.genre == genre]
-    else:
-        programs = all_programs
+    programs = [p for p in all_programs if p.genre == genre] if genre else all_programs
 
     programs_by_genre: dict[str, list] = {}
     for p in all_programs:
         programs_by_genre.setdefault(p.genre or "", []).append(p)
 
-    # ジャンルオプションを NHK_GENRES から動的に生成
+    # ジャンルオプションを get_genres() から動的に生成
     genre_options = [{"value": "", "label": "すべて"}]
-    for g in NHK_GENRES:
+    for g in get_genres():
         genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
 
     return templates.TemplateResponse(
@@ -101,10 +97,7 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
     all_programs = await fetch_program_list_async(None)
 
     # ジャンルフィルタを適用
-    if genre:
-        programs = [p for p in all_programs if p.genre == genre]
-    else:
-        programs = all_programs
+    programs = [p for p in all_programs if p.genre == genre] if genre else all_programs
 
     # キーワード検索を適用
     if q:

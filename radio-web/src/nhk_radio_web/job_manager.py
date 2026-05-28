@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from nhk_radio_web.config import _default_download_dir, load_storage_limit
-from nhk_radio_web.constants import HTTP_RETRY_BACKOFF_BASE, HTTP_RETRY_MAX_ATTEMPTS
+from nhk_radio_web.constants import HTTP_RETRY_BASE_DELAY, HTTP_RETRY_COUNT
 from nhk_radio_web.downloads import (
     _download_episode_command,
     _parse_yt_dlp_progress,
@@ -193,7 +193,7 @@ class JobManager:
         cmd = _download_episode_command(episode.url, program_dir, filename_template)
 
         # リトライループ
-        for attempt in range(1, HTTP_RETRY_MAX_ATTEMPTS + 1):
+        for attempt in range(1, HTTP_RETRY_COUNT + 1):
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
@@ -225,9 +225,9 @@ class JobManager:
                     await self._notify(job_id)
                     return
                 # HTTP エラー系は リトライ対象
-                if attempt < HTTP_RETRY_MAX_ATTEMPTS:
-                    wait_time = HTTP_RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    logger.warning(f"Job {job_id} 再試行 {attempt}/{HTTP_RETRY_MAX_ATTEMPTS} ({wait_time}秒待機)")
+                if attempt < HTTP_RETRY_COUNT:
+                    wait_time = HTTP_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(f"Job {job_id} 再試行 {attempt}/{HTTP_RETRY_COUNT} ({wait_time}秒待機)")
                     await asyncio.sleep(wait_time)
                     continue
                 # 最後の試行で失敗
@@ -241,9 +241,9 @@ class JobManager:
                 logger.info(f"Job {job_id} was cancelled during download")
                 raise
             except Exception as e:
-                if attempt < HTTP_RETRY_MAX_ATTEMPTS:
-                    wait_time = HTTP_RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    logger.warning(f"Job {job_id} エラーで再試行 {attempt}/{HTTP_RETRY_MAX_ATTEMPTS}: {e}")
+                if attempt < HTTP_RETRY_COUNT:
+                    wait_time = HTTP_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(f"Job {job_id} エラーで再試行 {attempt}/{HTTP_RETRY_COUNT}: {e}")
                     await asyncio.sleep(wait_time)
                     continue
                 # 最後の試行で失敗
@@ -251,5 +251,5 @@ class JobManager:
                 self._jobs[job_id]["error"] = str(e)
                 self._jobs[job_id]["progress"] = None
                 await self._notify(job_id)
-                logger.error(f"ダウンロードエラー (job={job_id}, 試行数={HTTP_RETRY_MAX_ATTEMPTS}): {e}")
+                logger.error(f"ダウンロードエラー (job={job_id}, 試行数={HTTP_RETRY_COUNT}): {e}")
                 return

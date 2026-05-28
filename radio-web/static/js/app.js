@@ -613,9 +613,8 @@ function updateAllGenreCounts() {
     genreCount[genre] = (genreCount[genre] || 0) + 1;
   });
 
-  // 全プログラムの件数
-  const totalCount = rows.length;
-  updateGenreCount('all', totalCount);
+  // 注意：「すべて」の件数は更新しない（常に全番組数を保つ）
+  // updateGenreCount('all', totalCount) は削除
 
   // 各ジャンルの件数を更新
   Object.entries(genreCount).forEach(([genre, count]) => {

@@ -27,7 +27,7 @@
 
     <div class="db-sidebar-section">
       <div class="db-sidebar-section-label">ジャンル</div>
-      {% set genre_icons = {'language':'🌐','music':'🎵','news':'📰','drama':'🎭','sports':'⚽','documentary':'🎞','variety':'🎪','theater':'🎬','information':'ℹ️','kids':'👶','welfare':'🤝','local':'📍'} %}
+      {% set genre_icons = {'new_series':'⭐','news':'📰','sports':'⚽','information':'ℹ️','drama':'🎭','music':'🎵','variety':'🎪','documentary':'🎞','theater':'🎬','hobby':'🎨','welfare':'🤝','kids':'👶','language':'🌐','local':'📍'} %}
       {% for opt in genre_options if opt.value %}
       {% set cnt = all_programs|selectattr('genre','equalto',opt.value)|list|length %}
       <div class="db-nav-item" id="nav-{{ opt.value }}" onclick="filterByGenre('{{ opt.value }}', this)">
@@ -100,11 +100,26 @@
 
 <script>
 let currentView = localStorage.getItem('dbView') || 'list';
+let totalProgramCount = 0;
+
+// DOM ロード後に全番組数を初期化
+document.addEventListener('DOMContentLoaded', () => {
+  totalProgramCount = document.querySelectorAll('.db-list-row').length || 0;
+  console.log('totalProgramCount initialized:', totalProgramCount);
+  setView(currentView, false);
+});
 
 document.addEventListener('htmx:afterSwap', e => {
   if (e.detail.target.id === 'db-program-list') {
     applyCurrentView();
     updateVisibleCount();
+    // 左サイドバーの「すべて」件数は常に全番組数を表示
+    const allCountEl = document.getElementById('nav-all-count');
+    console.log('htmx:afterSwap triggered, totalProgramCount:', totalProgramCount);
+    if (allCountEl) {
+      console.log('Setting nav-all-count to:', totalProgramCount);
+      allCountEl.textContent = totalProgramCount;
+    }
   }
 });
 
@@ -201,6 +216,5 @@ async function loadProgramEpisodes(programId) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => setView(currentView, false));
 </script>
 {% endblock %}
