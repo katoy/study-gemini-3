@@ -104,6 +104,16 @@ components:
             - "null"
         genre_label:
           type: string
+        genres:
+          type: array
+          items:
+            type: string
+          description: 番組が属するジャンルコード一覧。複数ジャンルに属する場合がある。
+        genre_labels:
+          type: array
+          items:
+            type: string
+          description: 表示用ジャンル名一覧。複数ジャンルに属する場合がある。
         site_id:
           type: string
         corner_id:
@@ -258,6 +268,8 @@ https://www.nhk.or.jp/radio/ondemand/detail.html?p={site_id}_{corner_id}
       "corner_name": "",
       "genre": "language",
       "genre_label": "語学",
+      "genres": ["language"],
+      "genre_labels": ["語学"],
       "site_id": "PMMJ59J6N2",
       "corner_id": "01",
       "onair_date": "2026年4月15日(水)放送",

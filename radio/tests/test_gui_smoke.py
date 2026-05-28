@@ -69,12 +69,44 @@ class GuiSmokeTest(unittest.TestCase):
         self.assertIn("すべて", genres)
         self.assertIn("音楽", genres)
         self.assertIn("語学", genres)
+        self.assertEqual(genres[-1], "未分類")
 
         # ジャンル選択イベントで _populate_programs が呼ばれるか
         with patch.object(browser, "_populate_programs") as mock_populate:
             browser.program_genre_filter_var.set("音楽")
             browser._on_program_filter_change()
             mock_populate.assert_called()
+
+    def test_multi_genre_filter_logic_smoke(self):
+        """複数ジャンルを持つ番組がどちらのジャンルでも絞り込めることを確認。"""
+        programs = [
+            Program(
+                title="ラジオ文芸館",
+                display_title="ラジオ文芸館",
+                display_date="2024-04-15",
+                site_id="S1",
+                corner_id="01",
+                url="U1",
+                genre="hobby",
+                genre_label="新番組",
+                genres=("hobby",),
+                genre_labels=("新番組", "趣味/教養"),
+            ),
+            self.programs[1],
+        ]
+
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            browser = EpisodeGuiBrowser(programs, Path("/tmp"))
+
+        genres = browser._program_genre_filter_values()
+        self.assertIn("新番組", genres)
+        self.assertIn("趣味/教養", genres)
+        self.assertEqual(genres[-1], "未分類")
+
+        browser.program_genre_filter_var.set("趣味/教養")
+        browser._apply_program_filters()
+
+        self.assertEqual([program.title for program in browser.filtered_programs], ["ラジオ文芸館"])
 
     def test_genre_combobox_update_on_populate(self):
         """_populate_programs がコンボボックスの値をリフレッシュすることを検証。"""
@@ -84,6 +116,7 @@ class GuiSmokeTest(unittest.TestCase):
         # 初期状態の確認 (すべて, 音楽, 語学 が含まれているはず)
         values = browser.program_genre_filter_combo.cget("values")
         self.assertIn("音楽", values)
+        self.assertEqual(values[-1], "未分類")
 
         # プログラムを入れ替えて再描画
         browser.programs = [self.programs[0]] # 音楽のみ
@@ -94,6 +127,7 @@ class GuiSmokeTest(unittest.TestCase):
         self.assertIn("音楽", new_values)
         self.assertNotIn("語学", new_values)
         self.assertIn("すべて", new_values)
+        self.assertEqual(new_values[-1], "未分類")
 
     def test_genre_combobox_not_reconfigured_when_values_unchanged(self):
         """同じ候補を再設定しないことで、マウス選択中の状態を崩さない。"""

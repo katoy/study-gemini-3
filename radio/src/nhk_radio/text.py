@@ -5,6 +5,7 @@ import unicodedata
 from datetime import datetime
 
 from .constants import GENRE_LABELS, JP_WEEKDAYS
+from .types import Program
 
 
 def _normalize_text(text: str) -> str:
@@ -179,6 +180,26 @@ def _safe_name(text: str, fallback: str = "unknown") -> str:
 
 def _genre_label(genre: str | None) -> str:
     return GENRE_LABELS.get(genre or "", "未分類")
+
+
+def _program_genres(program: Program) -> tuple[str, ...]:
+    return tuple(str(genre).strip() for genre in program.genres if str(genre).strip())
+
+
+def _program_genre_labels(program: Program) -> tuple[str, ...]:
+    labels = tuple(str(label).strip() for label in program.genre_labels if str(label).strip())
+    if labels:
+        return labels
+
+    genres = _program_genres(program)
+    if genres:
+        return tuple(_genre_label(genre) for genre in genres)
+
+    return (_genre_label(None),)
+
+
+def _program_genre_text(program: Program) -> str:
+    return " / ".join(_program_genre_labels(program))
 
 
 def _char_width(ch: str) -> int:

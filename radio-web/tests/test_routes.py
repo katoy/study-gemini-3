@@ -43,6 +43,17 @@ EPISODE = Episode(
     url="https://www.nhk.or.jp/radio/player/ondemand.html?p=ep-1",
 )
 
+EPISODE2 = Episode(
+    id="ep-2",
+    title="第2回",
+    display_title="第2回",
+    date="20240416",
+    display_date="2024-04-16(火)",
+    broadcast_time="10:00",
+    duration_str="30分",
+    url="https://www.nhk.or.jp/radio/player/ondemand.html?p=ep-2",
+)
+
 
 class RoutesTest(unittest.TestCase):
     def setUp(self):
@@ -591,6 +602,40 @@ class RoutesTest(unittest.TestCase):
     def test_api_v1_cancel_download_job_not_found(self):
         resp = self.client.delete("/api/v1/download-jobs/missing")
         self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_batch_delete_download_jobs(self):
+        """バッチ削除で複数ジョブをフィルタ削除する"""
+        job_manager = app.state.job_manager
+        job_id_1 = job_manager.enqueue(PROGRAM, EPISODE)
+        job_id_2 = job_manager.enqueue(PROGRAM, EPISODE2)
+
+        # デフォルトでは pending ステータス
+        resp = self.client.delete("/api/v1/download-jobs")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["meta"]["count"], 2)
+        self.assertEqual(data["meta"]["status"], None)
+
+    def test_api_v1_batch_delete_download_jobs_with_status_filter(self):
+        """バッチ削除で status フィルタが機能する"""
+        job_manager = app.state.job_manager
+        job_id_1 = job_manager.enqueue(PROGRAM, EPISODE)
+        job_id_2 = job_manager.enqueue(PROGRAM, EPISODE2)
+
+        # "pending" ステータスのジョブを削除
+        resp = self.client.delete("/api/v1/download-jobs?status=pending")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["meta"]["count"], 2)
+        self.assertEqual(data["meta"]["status"], "pending")
+
+    def test_api_v1_batch_delete_download_jobs_empty(self):
+        """バッチ削除でマッチするジョブがない場合"""
+        resp = self.client.delete("/api/v1/download-jobs?status=done")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["meta"]["count"], 0)
+        self.assertEqual(data["meta"]["status"], "done")
 
     def test_api_v1_download_job_file_alias(self):
         with TemporaryDirectory() as tmpdir:

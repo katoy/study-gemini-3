@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nhk_radio import text
+from nhk_radio.types import Program
 from tests import _support  # noqa: F401
 
 
@@ -101,6 +102,18 @@ class TextHelpersTest(unittest.TestCase):
     def test_genre_label_and_width_helpers(self):
         self.assertEqual(text._genre_label("language"), "語学")
         self.assertEqual(text._genre_label("unknown"), "未分類")
+        program = Program(
+            title="番組",
+            display_title="番組",
+            display_date="2024-04-15(月)",
+            site_id="SITE",
+            corner_id="01",
+            url="https://example.com/program",
+            genres=("new_series", "hobby"),
+            genre_labels=("新番組", "趣味/教養"),
+        )
+        self.assertEqual(text._program_genre_labels(program), ("新番組", "趣味/教養"))
+        self.assertEqual(text._program_genre_text(program), "新番組 / 趣味/教養")
         self.assertEqual(text._char_width("あ"), 2)
         self.assertEqual(text._char_width("a"), 1)
         self.assertEqual(text._display_width("abあ"), 4)

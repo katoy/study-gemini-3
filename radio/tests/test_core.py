@@ -226,15 +226,25 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(resolved.title, "SITE_01")
         self.assertEqual(resolved.genre, "music")
         self.assertEqual(resolved.genre_label, "音楽")
+        self.assertEqual(resolved.genres, ("music",))
+        self.assertEqual(resolved.genre_labels, ("音楽",))
         self.assertEqual(load_cache_mock.call_count, 2)
 
     def test_make_entry_with_corner_name_and_genre(self):
         entry = core._make_entry(
-            {"series_site_id": "SITE", "corner_site_id": "01", "corner_name": "コーナー"}, genre="language"
+            {
+                "series_site_id": "SITE",
+                "corner_site_id": "01",
+                "corner_name": "コーナー",
+                "genre_label": "語学講座",
+            },
+            genre="language",
         )
         self.assertEqual(entry.title, "コーナー")
         self.assertEqual(entry.display_title, "コーナー")
         self.assertEqual(entry.genre, "language")
+        self.assertEqual(entry.genres, ("language",))
+        self.assertEqual(entry.genre_labels, ("語学講座",))
 
     def test_fetch_all_concurrency_limited(self):
         """_fetch_all_async() が MAX_CONCURRENT_API_REQUESTS を超える同時リクエストを送らないことを確認"""
@@ -267,21 +277,40 @@ class CoreHelpersTest(unittest.TestCase):
     def test_fetch_all_merges_genres_and_falls_back(self):
         # http_get_json_async をモック
         with (
-            patch.object(core, "NHK_GENRES", ["language", "music"]),
+            patch.object(core, "NHK_GENRES", ["hobby", "music"]),
             patch.object(
                 core,
                 "http_get_json_async",
                 new_callable=AsyncMock,
                 side_effect=[
-                    {"corners": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
-                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},
+                    {
+                        "corners": [
+                            {
+                                "series_site_id": "SITE",
+                                "corner_site_id": "01",
+                                "title": "番組A",
+                                "genre_label": "新番組",
+                            }
+                        ]
+                    },
+                    {
+                        "series": [
+                            {
+                                "series_site_id": "SITE",
+                                "corner_site_id": "01",
+                                "title": "番組A",
+                                "genre_label": "趣味/教養",
+                            }
+                        ]
+                    },
                     {"series": [{"series_site_id": "S2", "corner_site_id": "02", "title": "番組B"}]},
                 ],
             ),
         ):
             programs = asyncio.run(core._fetch_all_async())
         self.assertEqual(len(programs), 2)
-        self.assertEqual(programs[0].genre, "language")
+        self.assertEqual(programs[0].genre, "hobby")
+        self.assertEqual(programs[0].genre_labels, ("新番組", "趣味/教養"))
         self.assertEqual(programs[1].genre, "music")
 
         with (

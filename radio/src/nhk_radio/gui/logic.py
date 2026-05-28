@@ -3,8 +3,8 @@
 from collections.abc import Iterable
 
 from ..text import (
-    _genre_label,
     _normalize_text,
+    _program_genre_labels,
     _sortable_day_value,
     _sortable_duration_value,
     _sortable_timestamp_value,
@@ -22,14 +22,16 @@ def filter_programs(
     if genre_filter and genre_filter != "すべて":
         filtered = [
             p for p in filtered
-            if (p.genre_label or _genre_label(p.genre)) == genre_filter
+            if genre_filter in _program_genre_labels(p)
         ]
 
     if needle:
         needle_norm = _normalize_text(needle)
         filtered = [
             p for p in filtered
-            if needle_norm in _normalize_text(f"{p.title} {p.display_title} {p.corner_name or ''}")
+            if needle_norm in _normalize_text(
+                f"{p.title} {p.display_title} {p.corner_name or ''} {' '.join(_program_genre_labels(p))}"
+            )
         ]
     return filtered
 

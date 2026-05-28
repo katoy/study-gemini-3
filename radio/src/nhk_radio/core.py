@@ -45,6 +45,39 @@ from .types import ApiProgramRaw, Episode, Program
 logger = logging.getLogger(__name__)
 
 
+def _merge_program_genres(
+    program: Program,
+    genre: str | None = None,
+    genre_label: str = "",
+) -> Program:
+    from dataclasses import replace
+
+    genres = list(program.genres)
+    labels = list(program.genre_labels)
+
+    if genre and genre not in genres:
+        genres.append(genre)
+
+    resolved_label = str(genre_label or (_genre_label(genre) if genre else "")).strip()
+    if resolved_label and resolved_label not in labels:
+        labels.append(resolved_label)
+
+    primary_genre = program.genre or genre
+    primary_label = program.genre_label
+    if primary_label in ("", _genre_label(None)):
+        primary_label = resolved_label
+    if not primary_label and primary_genre:
+        primary_label = _genre_label(primary_genre)
+
+    return replace(
+        program,
+        genre=primary_genre,
+        genre_label=primary_label,
+        genres=tuple(genres),
+        genre_labels=tuple(labels),
+    )
+
+
 async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int = 60) -> dict | list:
     last_exc: Exception | None = None
     for attempt in range(HTTP_RETRY_COUNT):
@@ -151,7 +184,7 @@ def _url_to_program(url: str) -> Program | None:
         display_title=f"{site_id}_{corner_id}",
         display_date="----",
         genre=None,
-        genre_label=_genre_label(None),
+        genre_label="",
         site_id=site_id,
         corner_id=corner_id,
         url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
@@ -171,9 +204,7 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | N
         if candidate.site_id == program.site_id and candidate.corner_id == program.corner_id:
             return candidate
     if genre:
-        from dataclasses import replace
-
-        program = replace(program, genre=genre, genre_label=_genre_label(genre))
+        program = _merge_program_genres(program, genre=genre)
     return program
 
 
@@ -184,12 +215,16 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
     corner_name = s.get("corner_name")
     onair_date = str(s.get("onair_date") or "")
     started_at = str(s.get("started_at") or "")
+    raw_genre_label = str(s.get("genre_label") or "").strip()
+    resolved_genre_label = raw_genre_label or (_genre_label(genre) if genre else "")
 
     return Program(
         title=title,
         corner_name=corner_name,
         genre=genre,
-        genre_label=_genre_label(genre),
+        genre_label=resolved_genre_label,
+        genres=(genre,) if genre else (),
+        genre_labels=(resolved_genre_label,) if resolved_genre_label else (),
         site_id=site_id,
         corner_id=corner_id,
         onair_date=onair_date,
@@ -252,10 +287,12 @@ async def _fetch_all_async() -> list[Program]:
                     program_map[key] = entry
                 else:
                     existing = program_map.get(key)
-                    if existing is not None and not existing.genre:
-                        from dataclasses import replace
-
-                        new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
+                    if existing is not None:
+                        new_entry = _merge_program_genres(
+                            existing,
+                            genre=g,
+                            genre_label=str(s.get("genre_label") or ""),
+                        )
                         try:
                             idx = programs.index(existing)
                             programs[idx] = new_entry

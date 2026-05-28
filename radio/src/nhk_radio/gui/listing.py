@@ -13,7 +13,8 @@ from ..config import SEARCH_HISTORY_LIMIT
 from ..constants import GENRE_LABELS, NHK_GENRES
 from ..downloads import _episode_key, get_downloaded_episode_keys
 from ..text import (
-    _genre_label,
+    _program_genre_labels,
+    _program_genre_text,
     _sortable_duration_value,
     _sortable_timestamp_value,
 )
@@ -51,7 +52,7 @@ class GuiListingMixin:
             filtered = [
                 program
                 for program in filtered
-                if (program.genre_label or _genre_label(program.genre)) == genre_filter
+                if genre_filter in _program_genre_labels(program)
             ]
         if needle:
             filtered = [program for program in filtered if needle in self._program_search_target(program)]
@@ -143,7 +144,7 @@ class GuiListingMixin:
 
         rendered = self._sorted_episodes(episodes)
         to_check = []
-        genre_label = program.genre_label or GENRE_LABELS.get(program.genre, program.genre or "")
+        genre_text = _program_genre_text(program)
         for index, episode in enumerate(rendered):
             iid = f"episode-{index}"
             self.displayed_episode_map[iid] = episode
@@ -155,7 +156,7 @@ class GuiListingMixin:
             if btime:
                 date_time = f"{date_time} {btime}"
             dur = episode.duration_str or "----"
-            title = f"{episode.display_title or episode.title} ({genre_label})"
+            title = f"{episode.display_title or episode.title} ({genre_text})"
 
             # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
             self.episode_tree.insert(
@@ -295,9 +296,17 @@ class GuiListingMixin:
                 self.episode_saved_only_var.set(False)
 
     def _program_genre_filter_values(self) -> list[str]:
-        seen_genres = {program.genre for program in self.programs if program.genre}
-        labels = [GENRE_LABELS.get(g, g) for g in NHK_GENRES if g in seen_genres]
-        return ["すべて", *labels]
+        seen_labels = list(
+            dict.fromkeys(
+                label
+                for program in self.programs
+                for label in _program_genre_labels(program)
+                if label != "未分類"
+            )
+        )
+        ordered = [GENRE_LABELS[g] for g in NHK_GENRES if GENRE_LABELS[g] in seen_labels]
+        remaining = [label for label in seen_labels if label not in ordered]
+        return ["すべて", *ordered, *remaining, "未分類"]
 
     def _normalized_search_text(self, text: str) -> str:
         if not text:
@@ -305,7 +314,10 @@ class GuiListingMixin:
         return unicodedata.normalize("NFKC", text).casefold().strip()
 
     def _program_search_target(self, program: Program) -> str:
-        text = f"{program.title} {program.genre_label or ''}"
+        text = (
+            f"{program.title} {program.display_title} {program.corner_name or ''} "
+            f"{' '.join(_program_genre_labels(program))}"
+        )
         return self._normalized_search_text(text)
 
     def _update_program_search_history_values(self):
@@ -352,7 +364,7 @@ class GuiListingMixin:
             # 概要を即座に更新
             self._update_program_overview(program, None, "詳細を読み込み中...")
             self.selected_program_title_var.set(program.display_title or program.title)
-            self.selected_program_meta_var.set(f"{program.genre_label or _genre_label(program.genre)} / {program.display_date}")
+            self.selected_program_meta_var.set(f"{_program_genre_text(program)} / {program.display_date}")
             self.selected_program_stats_var.set("")
 
     def _update_program_overview(
@@ -368,7 +380,7 @@ class GuiListingMixin:
             return
 
         self.selected_program_title_var.set(program.display_title or program.title)
-        meta = f"{program.genre_label or _genre_label(program.genre)} / 更新 {program.display_date}"
+        meta = f"{_program_genre_text(program)} / 更新 {program.display_date}"
         if program.corner_id:
             meta += f" / ID {program.site_id}{program.corner_id}"
         self.selected_program_meta_var.set(meta)

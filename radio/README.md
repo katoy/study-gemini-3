@@ -251,7 +251,7 @@ radio/
 全 205 個の回帰テスト（pytest）により、主要機能の品質を保証しています。カバレッジは自動計測され、各コミット時に検証されます。
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-05-28
+最終計測: 2026-05-29
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
@@ -261,8 +261,8 @@ radio/
 | `cli.py` | 195 | 100% |
 | `config.py` | 174 | 94% |
 | `constants.py` | 16 | 100% |
-| `core.py` | 242 | 99% |
-| `downloads.py` | 393 | 89% |
+| `core.py` | 258 | 99% |
+| `downloads.py` | 391 | 88% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 290 | 54% |
 | `gui/build.py` | 331 | 100% |
@@ -270,15 +270,15 @@ radio/
 | `gui/download_manager.py` | 81 | 64% |
 | `gui/downloads.py` | 276 | 61% |
 | `gui/help_markdown.py` | 134 | 99% |
-| `gui/listing.py` | 652 | 48% |
+| `gui/listing.py` | 653 | 48% |
 | `gui/logic.py` | 53 | 0% |
 | `gui/logo.py` | 34 | 91% |
 | `gui/styling.py` | 114 | 65% |
 | `gui/theme_manager.py` | 111 | 93% |
 | `gui/toolkit.py` | 14 | 64% |
-| `text.py` | 134 | 100% |
-| `types.py` | 12 | 100% |
-| **合計** | **3423** | **76%** |
+| `text.py` | 147 | 100% |
+| `types.py` | 32 | 97% |
+| **合計** | **3471** | **76%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

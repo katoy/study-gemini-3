@@ -11,7 +11,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from .constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
-from .text import _genre_label, _safe_name
+from .text import _program_genre_labels, _safe_name
 from .types import Episode, Program
 
 logger = logging.getLogger(__name__)
@@ -72,9 +72,7 @@ def _program_storage_titles(program: Program) -> list[str]:
 
 
 def _legacy_program_output_dirs(output_dir: Path, program: Program) -> list[Path]:
-    genre_labels = [_safe_name(program.genre_label or _genre_label(program.genre))]
-    if program.genre:
-        genre_labels.append(_safe_name(_genre_label(program.genre)))
+    genre_labels = [_safe_name(label) for label in _program_genre_labels(program)]
 
     dirs: list[Path] = []
     seen: set[Path] = set()

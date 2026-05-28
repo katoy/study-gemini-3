@@ -65,7 +65,7 @@ class RoutesCoverageTest(unittest.TestCase):
                 "file_path": "/tmp/test.mp3",
             },
         )
-        self.assertEqual(payload["file_path"], "/tmp/test.mp3")
+        self.assertEqual(payload.file_path, "/tmp/test.mp3")
 
     def test_api_v1_program_episode_error_paths(self):
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):

@@ -50,6 +50,22 @@ class DownloadHelpersTest(unittest.TestCase):
         search_dirs = downloads._program_search_dirs(Path("/tmp/out"), PROGRAM)
         self.assertEqual(search_dirs[0], Path("/tmp/out/SITE_01"))
 
+        multi_genre_program = Program(
+            title="ラジオ文芸館",
+            display_title="ラジオ文芸館",
+            display_date="2024-04-15(月)",
+            site_id="SITE2",
+            corner_id="01",
+            url="https://example.com/SITE2_01",
+            genre="hobby",
+            genre_label="新番組",
+            genres=("hobby",),
+            genre_labels=("新番組", "趣味/教養"),
+        )
+        multi_dirs = downloads._legacy_program_output_dirs(Path("/tmp/out"), multi_genre_program)
+        self.assertIn(Path("/tmp/out/新番組/ラジオ文芸館"), multi_dirs)
+        self.assertIn(Path("/tmp/out/趣味_教養/ラジオ文芸館"), multi_dirs)
+
     def test_episode_identity_and_filename_templates(self):
         self.assertEqual(
             downloads._episode_output_identity(PROGRAM, EPISODE), (["番組A", "SITE_01"], "第1回", "20240415")

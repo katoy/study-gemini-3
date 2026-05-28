@@ -5,10 +5,20 @@ import fnmatch
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
@@ -19,13 +29,44 @@ from nhk_radio_web.constants import GENRE_LABELS
 from nhk_radio_web.core import fetch_program_list_async, get_episode_list, get_genres
 from nhk_radio_web.downloads import _episode_output_identity, _program_search_dirs, is_episode_downloaded
 from nhk_radio_web.help_content import render_help_html
+from nhk_radio_web.job_manager import JobManager
 from nhk_radio_web.search import filter_episodes, filter_programs
 from nhk_radio_web.text import _safe_name
 from nhk_radio_web.types import Episode, Program
 
+from .api_models import (
+    CountMeta,
+    DownloadJobCreateRequest,
+    DownloadJobData,
+    DownloadJobListMeta,
+    DownloadJobListResponse,
+    DownloadJobResponse,
+    DownloadProgressData,
+    EpisodeData,
+    EpisodeDetailMeta,
+    EpisodeDetailResponse,
+    EpisodeListMeta,
+    EpisodeListResponse,
+    GenreData,
+    GenreListResponse,
+    HealthData,
+    HealthResponse,
+    MetaData,
+    MetaResponse,
+    ProgramData,
+    ProgramDetailResponse,
+    ProgramFiltersMeta,
+    ProgramListMeta,
+    ProgramListResponse,
+    SettingsData,
+    SettingsResponse,
+    SettingsUpdateRequest,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+api_v1_router = APIRouter(prefix="/api/v1", tags=["api-v1"])
 UNCLASSIFIED_GENRE = "__unclassified__"
 PUBLIC_UNCLASSIFIED_GENRE = "unclassified"
 
@@ -125,86 +166,127 @@ def _api_genre_labels(program: Program) -> list[str]:
     return ["未分類"]
 
 
-def _program_to_api_data(program: Program) -> dict[str, Any]:
+def _program_to_api_data(program: Program) -> ProgramData:
     genres = _api_genres(program)
     genre_labels = _api_genre_labels(program)
     primary_genre = genres[0] if genres else None
     primary_genre_label = genre_labels[0] if genre_labels else None
-    return {
-        "id": _program_id(program),
-        "title": program.title,
-        "display_title": program.display_title,
-        "display_date": program.display_date,
-        "site_id": program.site_id,
-        "corner_id": program.corner_id,
-        "url": program.url,
-        "genres": genres,
-        "genre_labels": genre_labels,
-        "primary_genre": primary_genre,
-        "primary_genre_label": primary_genre_label,
-        "is_unclassified": not program.genres,
-        "corner_name": program.corner_name,
-        "onair_date": program.onair_date,
-        "started_at": program.started_at,
-        "broadcast": program.broadcast,
-    }
+    return ProgramData(
+        id=_program_id(program),
+        title=program.title,
+        display_title=program.display_title,
+        display_date=program.display_date,
+        site_id=program.site_id,
+        corner_id=program.corner_id,
+        url=program.url,
+        genres=genres,
+        genre_labels=genre_labels,
+        primary_genre=primary_genre,
+        primary_genre_label=primary_genre_label,
+        is_unclassified=not program.genres,
+        corner_name=program.corner_name,
+        onair_date=program.onair_date,
+        started_at=program.started_at,
+        broadcast=program.broadcast,
+    )
 
 
-def _episode_to_api_data(episode: Episode, downloaded: bool | None = None) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": episode.id,
-        "title": episode.title,
-        "display_title": episode.display_title,
-        "date": episode.date,
-        "display_date": episode.display_date,
-        "broadcast_time": episode.broadcast_time,
-        "duration_str": episode.duration_str,
-        "url": episode.url,
-    }
-    if downloaded is not None:
-        payload["downloaded"] = downloaded
-    return payload
+def _episode_to_api_data(episode: Episode, downloaded: bool | None = None) -> EpisodeData:
+    return EpisodeData(
+        id=episode.id,
+        title=episode.title,
+        display_title=episode.display_title,
+        date=episode.date,
+        display_date=episode.display_date,
+        broadcast_time=episode.broadcast_time,
+        duration_str=episode.duration_str,
+        url=episode.url,
+        downloaded=downloaded,
+    )
 
 
-def _job_to_api_data(job_id: str, job: dict[str, Any]) -> dict[str, Any]:
+def _job_to_api_data(job_id: str, job: dict[str, Any]) -> DownloadJobData:
     progress = job.get("progress")
     program = job["program"]
     episode = job["episode"]
-    payload: dict[str, Any] = {
-        "id": job_id,
-        "status": job["status"],
-        "error": job.get("error", ""),
-        "program_id": _program_id(program),
-        "program": _program_to_api_data(program),
-        "episode": _episode_to_api_data(episode),
-        "progress": (
-            {"percent": progress.percent, "eta": progress.eta, "status": progress.status}
+    return DownloadJobData(
+        id=job_id,
+        status=job["status"],
+        error=job.get("error", ""),
+        program_id=_program_id(program),
+        program=_program_to_api_data(program),
+        episode=_episode_to_api_data(episode),
+        progress=(
+            DownloadProgressData(percent=progress.percent, eta=progress.eta, status=progress.status)
             if progress
             else None
         ),
-    }
-    if "file_path" in job:
-        payload["file_path"] = job["file_path"]
-    return payload
+        file_path=job.get("file_path"),
+    )
 
 
-def _settings_payload(storage_limit_bytes: int) -> dict[str, float | int]:
-    return {
-        "storage_limit_bytes": storage_limit_bytes,
-        "storage_limit_gb": storage_limit_bytes / (1024 ** 3),
-    }
+def _settings_payload(storage_limit_bytes: int) -> SettingsData:
+    return SettingsData(
+        storage_limit_bytes=storage_limit_bytes,
+        storage_limit_gb=storage_limit_bytes / (1024 ** 3),
+    )
 
 
-def _validate_limit(limit: int | None) -> None:
-    if limit is not None and limit <= 0:
-        raise HTTPException(status_code=422, detail="limit は 1 以上の整数で指定してください")
+async def _all_programs_dep() -> list[Program]:
+    return await fetch_program_list_async(None)
+
+
+def _job_manager_dep(request: Request) -> JobManager:
+    return request.app.state.job_manager
+
+
+async def _program_dep(program_id: str, all_programs: Annotated[list[Program], Depends(_all_programs_dep)]) -> Program:
+    site_id, corner_id = _parse_program_id(program_id)
+    program = _find_program(all_programs, site_id, corner_id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return program
+
+
+def _create_download_job_from_models(
+    payload: DownloadJobCreateRequest,
+    job_manager: JobManager,
+    background_tasks: BackgroundTasks,
+) -> tuple[str, dict[str, Any]]:
+    program = payload.program.to_domain()
+    episode = payload.episode.to_domain()
+    job_id = job_manager.enqueue(program, episode)
+    background_tasks.add_task(job_manager.start, job_id)
+    job = job_manager.status_snapshot(job_id)
+    assert job is not None
+    return job_id, job
+
+
+def _update_storage_limit(request: Request, payload: SettingsUpdateRequest) -> SettingsData:
+    storage_limit_bytes = int(payload.storage_limit_gb * (1024 ** 3))
+    success = save_storage_limit(storage_limit_bytes)
+    if not success:
+        raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
+
+    request.app.state.storage_limit = storage_limit_bytes
+    logger.info(f"ストレージ容量上限を更新: {payload.storage_limit_gb} GB")
+    return _settings_payload(storage_limit_bytes)
+
+
+LimitQuery = Annotated[int | None, Query(ge=1, le=200)]
+JobStatusQuery = Annotated[
+    Literal["pending", "downloading", "done", "error", "cancelled"] | None,
+    Query(alias="status"),
+]
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request, genre: str = ""):
+async def index(
+    request: Request,
+    all_programs: Annotated[list[Program], Depends(_all_programs_dep)],
+    genre: str = "",
+):
     # 常にすべてのプログラムを取得（genre count 正確性のため）
-    all_programs = await fetch_program_list_async(None)
-
     programs = [p for p in all_programs if _matches_genre(p, genre)] if genre else all_programs
 
     genre_counts = _genre_counts(all_programs)
@@ -227,16 +309,18 @@ async def index(request: Request, genre: str = ""):
 
 
 @router.get("/programs", response_class=HTMLResponse)
-async def programs_partial(request: Request, genre: str = "", q: str = ""):
+async def programs_partial(
+    request: Request,
+    all_programs: Annotated[list[Program], Depends(_all_programs_dep)],
+    genre: str = "",
+    q: str = "",
+):
     """htmx からのジャンルフィルタ更新リクエスト用。
 
     Query params:
         genre: ジャンルフィルタ
         q: 番組名検索キーワード
     """
-    # 常に全プログラムを取得してジャンル数の一貫性を保つ
-    all_programs = await fetch_program_list_async(None)
-
     # ジャンルフィルタを適用
     programs = [p for p in all_programs if _matches_genre(p, genre)] if genre else all_programs
 
@@ -256,7 +340,12 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
 
 
 @router.get("/programs/{program_id}/episodes", response_class=HTMLResponse)
-async def episodes_partial(request: Request, program_id: str, q: str = ""):
+async def episodes_partial(
+    request: Request,
+    all_programs: Annotated[list[Program], Depends(_all_programs_dep)],
+    program_id: str,
+    q: str = "",
+):
     """htmx からのエピソード一覧取得リクエスト用。program_id は {site_id}_{corner_id}。
 
     Query params:
@@ -264,8 +353,6 @@ async def episodes_partial(request: Request, program_id: str, q: str = ""):
     """
     site_id, corner_id = _parse_program_id(program_id)
 
-    # キャッシュ済み番組一覧から Program を検索
-    all_programs = await fetch_program_list_async(None)
     program = _find_program(all_programs, site_id, corner_id)
     if program is None:
         # フォールバック: Program を最小構成で組み立てる
@@ -313,22 +400,22 @@ async def episodes_partial(request: Request, program_id: str, q: str = ""):
     )
 
 
-@router.get("/api/v1/health")
+@api_v1_router.get("/health", response_model=HealthResponse)
 async def api_v1_health():
-    return {"data": {"status": "ok", "version": __version__}}
+    return HealthResponse(data=HealthData(status="ok", version=__version__))
 
 
-@router.get("/api/v1/meta")
+@api_v1_router.get("/meta", response_model=MetaResponse)
 async def api_v1_meta(request: Request):
     app = request.app
-    return {
-        "data": {
-            "name": "radio-web",
-            "version": __version__,
-            "docs_url": getattr(app, "docs_url", None),
-            "openapi_url": getattr(app, "openapi_url", None),
-            "redoc_url": getattr(app, "redoc_url", None),
-            "capabilities": [
+    return MetaResponse(
+        data=MetaData(
+            name="radio-web",
+            version=__version__,
+            docs_url=getattr(app, "docs_url", None),
+            openapi_url=getattr(app, "openapi_url", None),
+            redoc_url=getattr(app, "redoc_url", None),
+            capabilities=[
                 "genres",
                 "programs",
                 "episodes",
@@ -336,63 +423,63 @@ async def api_v1_meta(request: Request):
                 "settings",
                 "websocket_jobs",
             ],
-        }
-    }
+        )
+    )
 
 
-@router.get("/api/v1/genres")
-async def api_v1_genres():
-    all_programs = await fetch_program_list_async(None)
+@api_v1_router.get("/genres", response_model=GenreListResponse)
+async def api_v1_genres(all_programs: Annotated[list[Program], Depends(_all_programs_dep)]):
     genre_counts = _genre_counts(all_programs)
-    return {
-        "data": [
-            {
-                "id": _to_public_genre_id(option["value"]),
-                "label": option["label"],
-                "count": genre_counts.get(option["value"], 0),
-                "is_unclassified": option["value"] == UNCLASSIFIED_GENRE,
-            }
+    options = _build_genre_options()
+    return GenreListResponse(
+        data=[
+            GenreData(
+                id=_to_public_genre_id(option["value"]),
+                label=option["label"],
+                count=genre_counts.get(option["value"], 0),
+                is_unclassified=option["value"] == UNCLASSIFIED_GENRE,
+            )
             for option in _build_genre_options()
             if option["value"]
         ],
-        "meta": {"count": len(_build_genre_options()) - 1},
-    }
+        meta=CountMeta(count=len(options) - 1),
+    )
 
 
-@router.get("/api/v1/programs")
-async def api_v1_programs(genre: str = "", q: str = "", limit: int | None = None):
-    _validate_limit(limit)
-    all_programs = await fetch_program_list_async(None)
+@api_v1_router.get("/programs", response_model=ProgramListResponse)
+async def api_v1_programs(
+    all_programs: Annotated[list[Program], Depends(_all_programs_dep)],
+    genre: Annotated[str, Query(description="ジャンル ID。未分類は unclassified")] = "",
+    q: Annotated[str, Query(max_length=200)] = "",
+    limit: LimitQuery = None,
+):
     effective_genre = _from_public_genre_id(genre)
     programs = [p for p in all_programs if _matches_genre(p, effective_genre)] if effective_genre else all_programs
     if q:
         programs = filter_programs(programs, needle=q)
     if limit is not None:
         programs = programs[:limit]
-    return {
-        "data": [_program_to_api_data(program) for program in programs],
-        "meta": {"count": len(programs), "filters": {"genre": genre or None, "q": q or None}},
-    }
+    return ProgramListResponse(
+        data=[_program_to_api_data(program) for program in programs],
+        meta=ProgramListMeta(
+            count=len(programs),
+            filters=ProgramFiltersMeta(genre=genre or None, q=q or None),
+        ),
+    )
 
 
-@router.get("/api/v1/programs/{program_id}")
-async def api_v1_program(program_id: str):
-    site_id, corner_id = _parse_program_id(program_id)
-    all_programs = await fetch_program_list_async(None)
-    program = _find_program(all_programs, site_id, corner_id)
-    if program is None:
-        raise HTTPException(status_code=404, detail="Program not found")
-    return {"data": _program_to_api_data(program)}
+@api_v1_router.get("/programs/{program_id}", response_model=ProgramDetailResponse)
+async def api_v1_program(program: Annotated[Program, Depends(_program_dep)]):
+    return ProgramDetailResponse(data=_program_to_api_data(program))
 
 
-@router.get("/api/v1/programs/{program_id}/episodes")
-async def api_v1_program_episodes(program_id: str, q: str = "", limit: int | None = None):
-    _validate_limit(limit)
-    site_id, corner_id = _parse_program_id(program_id)
-    all_programs = await fetch_program_list_async(None)
-    program = _find_program(all_programs, site_id, corner_id)
-    if program is None:
-        raise HTTPException(status_code=404, detail="Program not found")
+@api_v1_router.get("/programs/{program_id}/episodes", response_model=EpisodeListResponse)
+async def api_v1_program_episodes(
+    program: Annotated[Program, Depends(_program_dep)],
+    program_id: str,
+    q: Annotated[str, Query(max_length=200)] = "",
+    limit: LimitQuery = None,
+):
     try:
         episodes, source = await get_episode_list(program)
     except RuntimeError as e:
@@ -406,19 +493,18 @@ async def api_v1_program_episodes(program_id: str, q: str = "", limit: int | Non
         _episode_to_api_data(episode, downloaded=is_episode_downloaded(output_dir, program, episode))
         for episode in episodes
     ]
-    return {
-        "data": episode_payloads,
-        "meta": {"count": len(episode_payloads), "source": source, "program_id": program_id, "q": q or None},
-    }
+    return EpisodeListResponse(
+        data=episode_payloads,
+        meta=EpisodeListMeta(count=len(episode_payloads), source=source, program_id=program_id, q=q or None),
+    )
 
 
-@router.get("/api/v1/programs/{program_id}/episodes/{episode_id}")
-async def api_v1_program_episode(program_id: str, episode_id: str):
-    site_id, corner_id = _parse_program_id(program_id)
-    all_programs = await fetch_program_list_async(None)
-    program = _find_program(all_programs, site_id, corner_id)
-    if program is None:
-        raise HTTPException(status_code=404, detail="Program not found")
+@api_v1_router.get("/programs/{program_id}/episodes/{episode_id}", response_model=EpisodeDetailResponse)
+async def api_v1_program_episode(
+    program: Annotated[Program, Depends(_program_dep)],
+    program_id: str,
+    episode_id: str,
+):
     try:
         episodes, source = await get_episode_list(program)
     except RuntimeError as e:
@@ -427,97 +513,102 @@ async def api_v1_program_episode(program_id: str, episode_id: str):
     if episode is None:
         raise HTTPException(status_code=404, detail="Episode not found")
     output_dir = _default_download_dir()
-    return {
-        "data": _episode_to_api_data(episode, downloaded=is_episode_downloaded(output_dir, program, episode)),
-        "meta": {"source": source, "program_id": program_id},
-    }
+    return EpisodeDetailResponse(
+        data=_episode_to_api_data(episode, downloaded=is_episode_downloaded(output_dir, program, episode)),
+        meta=EpisodeDetailMeta(source=source, program_id=program_id),
+    )
 
 
-@router.post("/api/v1/download-jobs", status_code=202)
-async def api_v1_create_download_job(request: Request, background_tasks: BackgroundTasks):
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
-    program_dict = body.get("program")
-    episode_dict = body.get("episode")
-    if not isinstance(program_dict, dict) or not isinstance(episode_dict, dict):
-        raise HTTPException(status_code=422, detail="program と episode は dict 形式で指定してください")
-    try:
-        program = Program(**{k: v for k, v in program_dict.items() if k in Program.__dataclass_fields__})
-        episode = Episode(**{k: v for k, v in episode_dict.items() if k in Episode.__dataclass_fields__})
-    except (TypeError, KeyError) as e:
-        raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}") from e
-    job_manager = request.app.state.job_manager
-    job_id = job_manager.enqueue(program, episode)
-    background_tasks.add_task(job_manager.start, job_id)
-    job = job_manager.status_snapshot(job_id)
-    assert job is not None
-    return {"data": _job_to_api_data(job_id, job)}
+@api_v1_router.post(
+    "/download-jobs",
+    response_model=DownloadJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def api_v1_create_download_job(
+    payload: DownloadJobCreateRequest,
+    background_tasks: BackgroundTasks,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
+):
+    job_id, job = _create_download_job_from_models(payload, job_manager, background_tasks)
+    return DownloadJobResponse(data=_job_to_api_data(job_id, job))
 
 
-@router.get("/api/v1/download-jobs")
-async def api_v1_download_jobs(request: Request, status: str = "", limit: int | None = None):
-    _validate_limit(limit)
-    jobs_dict = request.app.state.job_manager.all_jobs()
-    jobs: list[dict[str, Any]] = []
+@api_v1_router.get("/download-jobs", response_model=DownloadJobListResponse)
+async def api_v1_download_jobs(
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
+    status_filter: JobStatusQuery = None,
+    limit: LimitQuery = None,
+):
+    jobs: list[DownloadJobData] = []
+    jobs_dict = job_manager.all_jobs()
     for job_id, job in reversed(list(jobs_dict.items())):
-        if status and job["status"] != status:
+        if status_filter and job["status"] != status_filter:
             continue
         jobs.append(_job_to_api_data(job_id, job))
         if limit is not None and len(jobs) >= limit:
             break
-    return {"data": jobs, "meta": {"count": len(jobs), "status": status or None}}
+    return DownloadJobListResponse(
+        data=jobs,
+        meta=DownloadJobListMeta(count=len(jobs), status=status_filter),
+    )
 
 
-@router.get("/api/v1/download-jobs/{job_id}")
-async def api_v1_download_job(request: Request, job_id: str):
-    job = request.app.state.job_manager.status_snapshot(job_id)
+@api_v1_router.get("/download-jobs/{job_id}", response_model=DownloadJobResponse)
+async def api_v1_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)]):
+    job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    return {"data": _job_to_api_data(job_id, job)}
+    return DownloadJobResponse(data=_job_to_api_data(job_id, job))
 
 
-@router.delete("/api/v1/download-jobs/{job_id}")
-async def api_v1_cancel_download_job(request: Request, job_id: str):
-    job_manager = request.app.state.job_manager
+@api_v1_router.delete("/download-jobs/{job_id}", response_model=DownloadJobResponse)
+async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)]):
     job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     await job_manager.cancel(job_id)
     cancelled_job = job_manager.status_snapshot(job_id)
     assert cancelled_job is not None
-    return {"data": _job_to_api_data(job_id, cancelled_job)}
+    return DownloadJobResponse(data=_job_to_api_data(job_id, cancelled_job))
 
 
-@router.get("/api/v1/download-jobs/{job_id}/file")
+@api_v1_router.delete("/download-jobs", response_model=DownloadJobListResponse)
+async def api_v1_batch_delete_download_jobs(
+    status: Annotated[str | None, Query()] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
+):
+    """複数ダウンロードジョブをバッチ削除。status フィルタで特定ステータスのみ削除。"""
+    all_jobs = job_manager.all_jobs()
+    deleted_jobs = []
+
+    # ステータスでフィルタして削除
+    for job_id, job in all_jobs.items():
+        if status is None or job.get("status") == status:
+            await job_manager.cancel(job_id)
+            cancelled_job = job_manager.status_snapshot(job_id)
+            if cancelled_job is not None:
+                deleted_jobs.append(_job_to_api_data(job_id, cancelled_job))
+
+    return DownloadJobListResponse(
+        data=deleted_jobs,
+        meta=DownloadJobListMeta(count=len(deleted_jobs), status=status),
+    )
+
+
+@api_v1_router.get("/download-jobs/{job_id}/file")
 async def api_v1_download_job_file(request: Request, job_id: str):
     return await download_file(request, job_id)
 
 
 @router.post("/download", response_class=HTMLResponse)
-async def start_download(request: Request, background_tasks: BackgroundTasks):
+async def start_download(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    payload: DownloadJobCreateRequest,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
+):
     """単発ダウンロード: ジョブを登録してステータス HTML フラグメントを返す。"""
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
-    program_dict = body.get("program")
-    episode_dict = body.get("episode")
-    if not isinstance(program_dict, dict) or not isinstance(episode_dict, dict):
-        raise HTTPException(status_code=422, detail="program と episode は dict 形式で指定してください")
-
-    try:
-        program = Program(**{k: v for k, v in program_dict.items() if k in Program.__dataclass_fields__})
-        episode = Episode(**{k: v for k, v in episode_dict.items() if k in Episode.__dataclass_fields__})
-    except (TypeError, KeyError) as e:
-        raise HTTPException(status_code=422, detail=f"データ形式が不正です: {e}") from e
-
-    job_manager = request.app.state.job_manager
-    job_id = job_manager.enqueue(program, episode)
-    background_tasks.add_task(job_manager.start, job_id)
-
-    job = job_manager.status_snapshot(job_id)
+    job_id, job = _create_download_job_from_models(payload, job_manager, background_tasks)
     return templates.TemplateResponse(
         request,
         "partials/download_status.html",
@@ -754,58 +845,23 @@ async def clear_cache(request: Request, scope: str = "all"):
 async def get_settings(request: Request):
     """現在の設定（ストレージ上限等）を JSON で返す。"""
     storage_limit = load_storage_limit()
-    return JSONResponse(_settings_payload(storage_limit))
+    return JSONResponse(_settings_payload(storage_limit).model_dump())
 
 
 @router.post("/api/settings")
-async def save_settings(request: Request):
+async def save_settings(request: Request, payload: SettingsUpdateRequest):
     """設定（ストレージ上限等）を保存する。"""
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
-
-    storage_limit_gb = body.get("storage_limit_gb")
-    if not isinstance(storage_limit_gb, (int, float)) or storage_limit_gb <= 0:
-        raise HTTPException(status_code=422, detail="storage_limit_gb は正の数値で指定してください")
-
-    # GB をバイトに変換
-    storage_limit_bytes = int(storage_limit_gb * (1024 ** 3))
-    success = save_storage_limit(storage_limit_bytes)
-    if not success:
-        raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
-
-    # app.state を更新
-    request.app.state.storage_limit = storage_limit_bytes
-    logger.info(f"ストレージ容量上限を更新: {storage_limit_gb} GB")
-
-    return JSONResponse(_settings_payload(storage_limit_bytes))
+    return JSONResponse(_update_storage_limit(request, payload).model_dump())
 
 
-@router.get("/api/v1/settings")
+@api_v1_router.get("/settings", response_model=SettingsResponse)
 async def api_v1_get_settings(request: Request):
-    return {"data": _settings_payload(load_storage_limit())}
+    return SettingsResponse(data=_settings_payload(load_storage_limit()))
 
 
-@router.put("/api/v1/settings")
-async def api_v1_save_settings(request: Request):
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=422, detail="リクエストボディが JSON ではありません") from e
-
-    storage_limit_gb = body.get("storage_limit_gb")
-    if not isinstance(storage_limit_gb, (int, float)) or storage_limit_gb <= 0:
-        raise HTTPException(status_code=422, detail="storage_limit_gb は正の数値で指定してください")
-
-    storage_limit_bytes = int(storage_limit_gb * (1024 ** 3))
-    success = save_storage_limit(storage_limit_bytes)
-    if not success:
-        raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
-
-    request.app.state.storage_limit = storage_limit_bytes
-    logger.info(f"ストレージ容量上限を更新: {storage_limit_gb} GB")
-    return {"data": _settings_payload(storage_limit_bytes)}
+@api_v1_router.put("/settings", response_model=SettingsResponse)
+async def api_v1_save_settings(request: Request, payload: SettingsUpdateRequest):
+    return SettingsResponse(data=_update_storage_limit(request, payload))
 
 
 @router.get("/api/jobs/recent", response_class=HTMLResponse)
@@ -850,3 +906,6 @@ async def ws_jobs(websocket: WebSocket):
         pass
     finally:
         job_manager.unsubscribe(queue)
+
+
+router.include_router(api_v1_router)

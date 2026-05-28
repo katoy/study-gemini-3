@@ -1,7 +1,28 @@
 """Type definitions for NHK radio data."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TypedDict
+
+
+def _normalize_string_tuple(values: object, fallback: str | None = None) -> tuple[str, ...]:
+    items: list[str] = []
+
+    def add(value: object) -> None:
+        text = str(value or "").strip()
+        if text and text not in items:
+            items.append(text)
+
+    if isinstance(values, str):
+        add(values)
+    elif isinstance(values, Iterable):
+        for value in values:
+            add(value)
+
+    if fallback:
+        add(fallback)
+
+    return tuple(items)
 
 
 class ApiProgramRaw(TypedDict, total=False):
@@ -31,9 +52,19 @@ class Program:
     url: str
     genre: str | None = None
     genre_label: str = ""
+    genres: tuple[str, ...] = ()
+    genre_labels: tuple[str, ...] = ()
     corner_name: str | None = None
     onair_date: str | None = None
     started_at: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "genres", _normalize_string_tuple(self.genres, self.genre))
+        object.__setattr__(
+            self,
+            "genre_labels",
+            _normalize_string_tuple(self.genre_labels, self.genre_label),
+        )
 
 
 @dataclass(frozen=True)
