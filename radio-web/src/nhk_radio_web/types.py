@@ -40,10 +40,18 @@ class Program:
     broadcast: str = "AM"
 
     def __post_init__(self) -> None:
-        if not self.genres and self.genre is not None:
-            object.__setattr__(self, "genres", [self.genre])
-        if not self.genre_labels and self.genre_label:
-            object.__setattr__(self, "genre_labels", [self.genre_label])
+        if not self.genres:
+            if self.genre is not None:
+                object.__setattr__(self, "genres", [self.genre])
+            else:
+                object.__setattr__(self, "genres", [])
+        if not self.genre_labels:
+            if self.genre is not None and len(self.genres) == 1 and self.genres[0] == self.genre:
+                object.__setattr__(self, "genre_labels", [self.genre_label])
+            else:
+                from nhk_radio_web.constants import GENRE_LABELS
+                labels = [GENRE_LABELS.get(g, g) for g in self.genres]
+                object.__setattr__(self, "genre_labels", labels)
 
     @property
     def genre_pairs(self) -> list[tuple[str, str]]:
