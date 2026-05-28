@@ -60,6 +60,10 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/html", resp.headers["content-type"])
         self.assertIn("NHK", resp.text)
+        self.assertIn('/static/js/base-head.js', resp.text)
+        self.assertIn('/static/js/app.js', resp.text)
+        self.assertNotIn("async function startDL", resp.text)
+        self.assertNotIn("async function loadProgramEpisodes", resp.text)
 
     def test_index_with_genre_filter(self):
         with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
@@ -205,7 +209,9 @@ class RoutesTest(unittest.TestCase):
             json={"program": {"title": "test"}, "episode": {"title": "ep"}}  # site_id/corner_id/id 欠落
         )
         self.assertEqual(resp.status_code, 422)
-        self.assertIn("データ形式が不正です", resp.text)
+        self.assertIn("display_title", resp.text)
+        self.assertIn("site_id", resp.text)
+        self.assertIn("episode", resp.text)
 
     def test_batch_download_invalid_program_data(self):
         """一括ダウンロードで program データが不正な場合 → 422。"""
@@ -234,9 +240,11 @@ class RoutesTest(unittest.TestCase):
         job_manager = app.state.job_manager
         job_id = job_manager.enqueue(PROGRAM, EPISODE)
         job_manager._jobs[job_id]["status"] = "done"
+        job_manager._jobs[job_id]["file_path"] = str(Path("/tmp/test.m4a"))
         resp = self.client.get(f"/api/download/{job_id}/status")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("済", resp.text)
+        self.assertIn(f'data-auto-download-job-id="{job_id}"', resp.text)
 
     def test_download_status_error(self):
         job_manager = app.state.job_manager
@@ -714,7 +722,7 @@ class RoutesTest(unittest.TestCase):
             headers={"content-type": "application/json"},
         )
         self.assertEqual(resp.status_code, 422)
-        self.assertIn("JSON", resp.json()["detail"])
+        self.assertEqual(resp.json()["detail"][0]["type"], "json_invalid")
 
     def test_start_download_missing_program(self):
         """POST /download に program がない → 422。"""

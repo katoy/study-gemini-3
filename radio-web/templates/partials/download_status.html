@@ -2,13 +2,7 @@
 {% if status == "done" %}
   <span style="color:#2e7d32;font-size:0.8rem;">✔ 済</span>
   {% if job.file_path %}
-  <script>
-    (function() {
-      const jobId = '{{ job_id }}';
-      // 自動ダウンロード実行
-      setTimeout(function() { downloadFile(jobId); }, 100);
-    })();
-  </script>
+  <span hidden data-auto-download-job-id="{{ job_id }}"></span>
   {% endif %}
 {% elif status == "error" %}
   <span style="color:#c00;font-size:0.8rem;">✖ {{ job.error or 'エラー' }}</span>

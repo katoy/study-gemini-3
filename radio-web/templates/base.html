@@ -5,114 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}NHK ラジオ聞き逃し{% endblock %}{% if version %} (v{{ version }}){% endif %}</title>
   <link rel="icon" href="/static/favicon.ico">
+  <script src="/static/js/base-head.js"></script>
   <link rel="stylesheet" href="/static/css/themes.css">
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <script>
-    async function startDL(btn) {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      btn.textContent = '…';
-      try {
-        const resp = await fetch('/download', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            program: JSON.parse(btn.dataset.program),
-            episode: JSON.parse(btn.dataset.episode)
-          })
-        });
-        const html = await resp.text();
-        if (!resp.ok) { btn.textContent = '✗'; btn.disabled = false; return; }
-        // ボタンをステータス HTML フラグメントに差し替え、htmx ポーリングを起動
-        const tmp = document.createElement('span');
-        tmp.innerHTML = html;
-        const node = tmp.firstElementChild || tmp;
-        btn.replaceWith(node);
-        htmx.process(node);
-      } catch (err) {
-        btn.textContent = '✗';
-        btn.disabled = false;
-      }
-    }
-
-    async function downloadFile(jobId) {
-      try {
-        const resp = await fetch(`/api/download/${jobId}/file`);
-        if (!resp.ok) {
-          alert('ファイルダウンロードに失敗しました');
-          return;
-        }
-        const blob = await resp.blob();
-        const contentDisposition = resp.headers.get('content-disposition');
-        let filename = 'download';
-        if (contentDisposition) {
-          // RFC 5987 形式: filename*=UTF-8''<encoded>
-          const match5987 = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
-          if (match5987) {
-            try {
-              filename = decodeURIComponent(match5987[1]);
-            } catch (e) {
-              filename = match5987[1];
-            }
-          } else {
-            // 従来形式: filename="..."
-            const match = contentDisposition.match(/filename="?([^";\s]+)"?/);
-            if (match) filename = match[1];
-          }
-        }
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (err) {
-        console.error('ダウンロードエラー:', err);
-        alert('ファイルダウンロードに失敗しました');
-      }
-    }
-
-    async function downloadSavedEpisode(siteId, cornerId, episodeId, episodeDate, episodeTitle) {
-      try {
-        const resp = await fetch(`/api/episodes/${siteId}/${cornerId}/${episodeId}/file`);
-        if (!resp.ok) {
-          alert('ファイルダウンロードに失敗しました');
-          return;
-        }
-        const blob = await resp.blob();
-        const contentDisposition = resp.headers.get('content-disposition');
-        let filename = 'download';
-        if (contentDisposition) {
-          // RFC 5987 形式: filename*=UTF-8''<encoded>
-          const match5987 = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
-          if (match5987) {
-            try {
-              filename = decodeURIComponent(match5987[1]);
-            } catch (e) {
-              filename = match5987[1];
-            }
-          } else {
-            // 従来形式: filename="..."
-            const match = contentDisposition.match(/filename="?([^";\s]+)"?/);
-            if (match) filename = match[1];
-          }
-        }
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (err) {
-        console.error('ダウンロードエラー:', err);
-        alert('ファイルダウンロードに失敗しました');
-      }
-    }
-  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: var(--color-bg); color: var(--color-text); display: flex; flex-direction: column; min-height: 100vh; }
@@ -139,8 +34,9 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease-in-out; }
     .modal.show { display: flex; opacity: 1; }
-    .modal-content { background: var(--color-bg); color: var(--color-text); border-radius: 8px; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: scale(0.95); transition: transform 0.3s ease-in-out; }
+    .modal-content { background: var(--color-bg); color: var(--color-text); border-radius: 8px; padding: 2rem; max-width: 90%; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(0, 0, 0, 0.12); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: scale(0.95); transition: transform 0.3s ease-in-out; }
     .modal.show .modal-content { transform: scale(1); }
+    .modal-content.modal-content-episode { width: min(1200px, 96vw); max-width: 96vw; max-height: 88vh; border: 2px solid rgba(0, 0, 0, 0.22); box-shadow: 0 22px 64px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(255, 255, 255, 0.04); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(0, 0, 0, 0.1); padding-bottom: 1rem; }
     .modal-header h2 { font-size: 1.3rem; font-weight: 600; margin: 0; }
     .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text); opacity: 0.6; transition: opacity 0.2s; }
@@ -163,6 +59,8 @@
     .modal-btn-cancel:hover { background: rgba(0, 0, 0, 0.15); }
     .modal-btn-ok { background: var(--color-primary); color: #fff; }
     .modal-btn-ok:hover { opacity: 0.9; }
+    html[data-theme="dark"] .modal-content { border-color: rgba(255, 255, 255, 0.14); }
+    html[data-theme="dark"] .modal-content.modal-content-episode { border-color: rgba(255, 255, 255, 0.28); box-shadow: 0 24px 72px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.08); }
     html[data-theme="dark"] .modal-header { border-bottom-color: rgba(255, 255, 255, 0.2); }
     html[data-theme="dark"] .modal-footer { border-top-color: rgba(255, 255, 255, 0.2); }
     html[data-theme="dark"] .modal-btn-cancel { background: rgba(255, 255, 255, 0.1); color: #fff; }
@@ -178,165 +76,6 @@
     .font-size-display { text-align: center; font-size: 0.9rem; color: rgba(0, 0, 0, 0.7); font-weight: 500; }
     html[data-theme="dark"] .font-size-display { color: rgba(255, 255, 255, 0.7); }
   </style>
-  <script>
-    // テーマ・フォントサイズの初期化
-    function initTheme() {
-      const saved = localStorage.getItem('theme') || 'auto';
-      const html = document.documentElement;
-      if (saved === 'auto') {
-        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        html.setAttribute('data-theme', dark ? 'dark' : 'light');
-      } else {
-        html.setAttribute('data-theme', saved);
-      }
-    }
-    function initFontSize() {
-      const saved = localStorage.getItem('fontSize') || '100';
-      const percentage = parseInt(saved);
-      const baseFontSize = 16; // px
-      const newFontSize = (baseFontSize * percentage) / 100;
-      document.documentElement.style.fontSize = newFontSize + 'px';
-      console.log('[initFontSize] Set root font-size to:', newFontSize + 'px');
-    }
-    initTheme();
-    initFontSize();
-    // DOMContentLoaded 後に button を更新
-    document.addEventListener('DOMContentLoaded', () => {
-      if (typeof updateThemeButton === 'function') updateThemeButton();
-    });
-
-    // 表示設定モーダル管理
-    let settingsBackup = { theme: 'auto', fontSize: 100, storageLimit: 10 };
-
-    async function openSettingsModal() {
-      const modal = document.getElementById('settingsModal');
-      const theme = localStorage.getItem('theme') || 'auto';
-      const fontSize = localStorage.getItem('fontSize') || '100';
-      // サーバーからストレージ上限を取得
-      let storageLimit = 10;
-      try {
-        const resp = await fetch('/api/settings');
-        if (resp.ok) {
-          const data = await resp.json();
-          storageLimit = data.storage_limit_gb;
-        }
-      } catch (err) {
-        console.error('設定の読み込みに失敗:', err);
-      }
-      settingsBackup = { theme, fontSize: parseInt(fontSize), storageLimit };
-      updateModalUI(theme, fontSize, storageLimit);
-      modal.classList.add('show');
-    }
-
-    function closeSettingsModal() {
-      const modal = document.getElementById('settingsModal');
-      modal.classList.remove('show');
-    }
-
-    function updateModalUI(theme, fontSize, storageLimit) {
-      // テーマラジオボタンを更新
-      document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
-        const isSelected = opt.dataset.theme === theme;
-        opt.classList.toggle('selected', isSelected);
-        opt.querySelector('input').checked = isSelected;
-      });
-      // フォントサイズスライダーと表示を更新
-      const sliderValue = parseInt(fontSize) || 100;
-      document.getElementById('fontSizeSlider').value = sliderValue;
-      updateFontSizeDisplay(sliderValue);
-      // ストレージ容量上限スライダーと表示を更新
-      if (document.getElementById('storageLimitSlider')) {
-        const limitValue = Math.round(storageLimit || 10);
-        document.getElementById('storageLimitSlider').value = limitValue;
-        updateStorageLimitDisplay(limitValue);
-      }
-    }
-
-    function updateFontSizeDisplay(sliderValue) {
-      const display = document.getElementById('fontSizeDisplay');
-      if (display) display.textContent = sliderValue + '%';
-    }
-
-    function updateStorageLimitDisplay(sliderValue) {
-      const display = document.getElementById('storageLimitDisplay');
-      if (display) display.textContent = sliderValue + ' GB';
-    }
-
-    function handleStorageLimitChange(sliderValue) {
-      const limitValue = parseInt(sliderValue);
-      updateStorageLimitDisplay(limitValue);
-      settingsBackup.storageLimit = limitValue;
-    }
-
-    function handleFontSizeChange(sliderValue) {
-      const percentage = parseInt(sliderValue);
-      const baseFontSize = 16; // px
-      const newFontSize = (baseFontSize * percentage) / 100;
-      localStorage.setItem('fontSize', percentage.toString());
-      updateFontSizeDisplay(percentage);
-      // root 要素の font-size を直接設定
-      document.documentElement.style.fontSize = newFontSize + 'px';
-      console.log('[handleFontSizeChange] Set root font-size to:', newFontSize + 'px', 'percentage:', percentage);
-      settingsBackup.fontSize = percentage;
-    }
-
-    function applyTheme(theme) {
-      localStorage.setItem('theme', theme);
-      const html = document.documentElement;
-      if (theme === 'auto') {
-        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        html.setAttribute('data-theme', dark ? 'dark' : 'light');
-      } else {
-        html.setAttribute('data-theme', theme);
-      }
-      settingsBackup.theme = theme;
-    }
-
-    function cancelSettings() {
-      const theme = settingsBackup.theme;
-      const fontSize = settingsBackup.fontSize;
-      const storageLimit = settingsBackup.storageLimit;
-      updateModalUI(theme, fontSize, storageLimit);
-      // テーマとフォントサイズを復元
-      applyTheme(theme);
-      const baseFontSize = 16; // px
-      const newFontSize = (baseFontSize * fontSize) / 100;
-      document.documentElement.style.fontSize = newFontSize + 'px';
-      closeSettingsModal();
-    }
-
-    async function confirmSettings() {
-      // ストレージ容量上限を保存
-      const storageLimit = parseInt(document.getElementById('storageLimitSlider').value) || 10;
-      try {
-        const resp = await fetch('/api/settings', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ storage_limit_gb: storageLimit })
-        });
-        if (!resp.ok) {
-          alert('設定の保存に失敗しました');
-          return;
-        }
-      } catch (err) {
-        console.error('設定保存エラー:', err);
-        alert('設定の保存に失敗しました');
-        return;
-      }
-      closeSettingsModal();
-    }
-
-    // モーダル内のテーマラジオボタンをクリック可能にする
-    document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.radio-option[data-theme]').forEach(opt => {
-        opt.addEventListener('click', function() {
-          const input = this.querySelector('input');
-          input.checked = true;
-          applyTheme(input.value);
-        });
-      });
-    });
-  </script>
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">

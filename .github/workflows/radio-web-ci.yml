@@ -1,0 +1,73 @@
+name: radio-web CI
+
+on:
+  push:
+    paths:
+      - "radio-web/**"
+      - ".github/workflows/radio-web-ci.yml"
+  pull_request:
+    paths:
+      - "radio-web/**"
+      - ".github/workflows/radio-web-ci.yml"
+
+defaults:
+  run:
+    working-directory: radio-web
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run ruff check .
+
+  typecheck:
+    name: Mypy Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run mypy app src tests
+
+  text-lint:
+    name: JS and Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: >
+          npx -y eslint@9
+          --no-config-lookup
+          --parser-options '{"ecmaVersion":"latest","sourceType":"script"}'
+          --global window,document,localStorage,fetch,alert,confirm,navigator,location,console,setTimeout,clearTimeout,WebSocket,htmx
+          --rule '{"no-undef":"error","no-redeclare":"error","no-unreachable":"error"}'
+          static/js/app.js
+          static/js/base-head.js
+      - run: npx -y markdownlint-cli README.md help.md CLAUDE.md
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: bash scripts/test.sh

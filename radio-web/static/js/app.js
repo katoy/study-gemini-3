@@ -23,6 +23,245 @@ if (document.getElementById('themeToggle')) {
   updateThemeButton();
 }
 
+function extractFilenameFromDisposition(contentDisposition) {
+  let filename = 'download';
+  if (!contentDisposition) {
+    return filename;
+  }
+
+  const match5987 = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
+  if (match5987) {
+    try {
+      return decodeURIComponent(match5987[1]);
+    } catch (_err) {
+      return match5987[1];
+    }
+  }
+
+  const match = contentDisposition.match(/filename="?([^";\s]+)"?/);
+  if (match) {
+    return match[1];
+  }
+
+  return filename;
+}
+
+async function startDL(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const resp = await fetch('/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        program: JSON.parse(btn.dataset.program),
+        episode: JSON.parse(btn.dataset.episode),
+      }),
+    });
+    const html = await resp.text();
+    if (!resp.ok) {
+      btn.textContent = '✗';
+      btn.disabled = false;
+      return;
+    }
+
+    const tmp = document.createElement('span');
+    tmp.innerHTML = html;
+    const node = tmp.firstElementChild || tmp;
+    btn.replaceWith(node);
+    htmx.process(node);
+  } catch (err) {
+    btn.textContent = '✗';
+    btn.disabled = false;
+  }
+}
+
+function triggerPendingAutoDownloads(root = document) {
+  const searchRoot = root && typeof root.querySelectorAll === 'function' ? root : document;
+  searchRoot.querySelectorAll('[data-auto-download-job-id]:not([data-auto-download-armed])').forEach((node) => {
+    node.dataset.autoDownloadArmed = '1';
+    const jobId = node.dataset.autoDownloadJobId;
+    setTimeout(() => downloadFile(jobId), 100);
+  });
+}
+
+async function downloadFile(jobId) {
+  try {
+    const resp = await fetch(`/api/download/${jobId}/file`);
+    if (!resp.ok) {
+      alert('ファイルダウンロードに失敗しました');
+      return;
+    }
+
+    const blob = await resp.blob();
+    const filename = extractFilenameFromDisposition(resp.headers.get('content-disposition'));
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error('ダウンロードエラー:', err);
+    alert('ファイルダウンロードに失敗しました');
+  }
+}
+
+async function downloadSavedEpisode(siteId, cornerId, episodeId, episodeDate, episodeTitle) {
+  try {
+    const resp = await fetch(`/api/episodes/${siteId}/${cornerId}/${episodeId}/file`);
+    if (!resp.ok) {
+      alert('ファイルダウンロードに失敗しました');
+      return;
+    }
+
+    const blob = await resp.blob();
+    const filename = extractFilenameFromDisposition(resp.headers.get('content-disposition'));
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error('ダウンロードエラー:', err);
+    alert('ファイルダウンロードに失敗しました');
+  }
+}
+
+let settingsBackup = { theme: 'auto', fontSize: 100, storageLimit: 10 };
+
+async function openSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (!modal) return;
+
+  const theme = localStorage.getItem('theme') || 'auto';
+  const fontSize = localStorage.getItem('fontSize') || '100';
+  let storageLimit = 10;
+
+  try {
+    const resp = await fetch('/api/settings');
+    if (resp.ok) {
+      const data = await resp.json();
+      storageLimit = data.storage_limit_gb;
+    }
+  } catch (err) {
+    console.error('設定の読み込みに失敗:', err);
+  }
+
+  settingsBackup = { theme, fontSize: parseInt(fontSize, 10), storageLimit };
+  updateModalUI(theme, fontSize, storageLimit);
+  modal.classList.add('show');
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+function updateModalUI(theme, fontSize, storageLimit) {
+  document.querySelectorAll('.radio-option[data-theme]').forEach((opt) => {
+    const isSelected = opt.dataset.theme === theme;
+    opt.classList.toggle('selected', isSelected);
+    opt.querySelector('input').checked = isSelected;
+  });
+
+  const sliderValue = parseInt(fontSize, 10) || 100;
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  if (fontSizeSlider) {
+    fontSizeSlider.value = sliderValue;
+  }
+  updateFontSizeDisplay(sliderValue);
+
+  const storageSlider = document.getElementById('storageLimitSlider');
+  if (storageSlider) {
+    const limitValue = Math.round(storageLimit || 10);
+    storageSlider.value = limitValue;
+    updateStorageLimitDisplay(limitValue);
+  }
+}
+
+function updateFontSizeDisplay(sliderValue) {
+  const display = document.getElementById('fontSizeDisplay');
+  if (display) {
+    display.textContent = `${sliderValue}%`;
+  }
+}
+
+function updateStorageLimitDisplay(sliderValue) {
+  const display = document.getElementById('storageLimitDisplay');
+  if (display) {
+    display.textContent = `${sliderValue} GB`;
+  }
+}
+
+function handleStorageLimitChange(sliderValue) {
+  const limitValue = parseInt(sliderValue, 10);
+  updateStorageLimitDisplay(limitValue);
+  settingsBackup.storageLimit = limitValue;
+}
+
+function handleFontSizeChange(sliderValue) {
+  const percentage = parseInt(sliderValue, 10);
+  const baseFontSize = 16;
+  const newFontSize = (baseFontSize * percentage) / 100;
+  localStorage.setItem('fontSize', percentage.toString());
+  updateFontSizeDisplay(percentage);
+  document.documentElement.style.fontSize = `${newFontSize}px`;
+  settingsBackup.fontSize = percentage;
+}
+
+function applyTheme(theme) {
+  localStorage.setItem('theme', theme);
+  const html = document.documentElement;
+  if (theme === 'auto') {
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    html.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } else {
+    html.setAttribute('data-theme', theme);
+  }
+  settingsBackup.theme = theme;
+}
+
+function cancelSettings() {
+  const { theme, fontSize, storageLimit } = settingsBackup;
+  updateModalUI(theme, fontSize, storageLimit);
+  applyTheme(theme);
+  document.documentElement.style.fontSize = `${(16 * fontSize) / 100}px`;
+  closeSettingsModal();
+}
+
+async function confirmSettings() {
+  const slider = document.getElementById('storageLimitSlider');
+  const storageLimit = parseInt(slider?.value || '10', 10);
+
+  try {
+    const resp = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storage_limit_gb: storageLimit }),
+    });
+    if (!resp.ok) {
+      alert('設定の保存に失敗しました');
+      return;
+    }
+  } catch (err) {
+    console.error('設定保存エラー:', err);
+    alert('設定の保存に失敗しました');
+    return;
+  }
+
+  closeSettingsModal();
+}
+
 // フォントサイズ変更
 function setFontSize(size) {
   const html = document.documentElement;
@@ -32,20 +271,6 @@ function setFontSize(size) {
     html.setAttribute('data-font-size', size);
   }
   localStorage.setItem('fontSize', size);
-}
-
-// 検索履歴管理
-function addToSearchHistory(query) {
-  if (!query.trim()) return;
-  let history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
-  history = history.filter(h => h !== query); // 重複削除
-  history.unshift(query);
-  if (history.length > 10) history = history.slice(0, 10); // 最大 10 件
-  localStorage.setItem('searchHistory', JSON.stringify(history));
-}
-
-function getSearchHistory() {
-  return JSON.parse(localStorage.getItem('searchHistory') || '[]');
 }
 
 // 検索ヒストリードロップダウンの外部クリック閉じる
@@ -462,6 +687,39 @@ function closePlayer() {
   }
 }
 
+async function loadProgramEpisodes(programId) {
+  try {
+    const response = await fetch(`/programs/${programId}/episodes`);
+    if (!response.ok) return;
+
+    const html = await response.text();
+    const modal = document.createElement('div');
+    modal.className = 'modal show';
+
+    const content = document.createElement('div');
+    content.className = 'modal-content modal-content-episode';
+    content.style.cssText = 'position:relative;';
+    content.innerHTML = html;
+
+    const btn = document.createElement('button');
+    btn.className = 'modal-close';
+    btn.textContent = '✕';
+    btn.onclick = () => modal.remove();
+
+    content.appendChild(btn);
+    modal.appendChild(content);
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    };
+    document.body.appendChild(modal);
+    htmx.process(content);
+  } catch (err) {
+    console.error('Failed to load episodes:', err);
+  }
+}
+
 // === ダッシュボード: ビュー切替 ===
 function setView(view, persist = true) {
   window.currentView = view;
@@ -683,10 +941,27 @@ function closeSidebar() {
 
 // ページロード時に初期化
 document.addEventListener('DOMContentLoaded', () => {
+  triggerPendingAutoDownloads();
+  document.querySelectorAll('.radio-option[data-theme]').forEach((opt) => {
+    opt.addEventListener('click', function () {
+      const input = this.querySelector('input');
+      input.checked = true;
+      applyTheme(input.value);
+    });
+  });
+
+  if (document.getElementById('view-list-btn') || document.getElementById('view-grid-btn')) {
+    setView(localStorage.getItem('dbView') || 'list', false);
+  }
+
   loadSortState();
   console.log('[DEBUG] Loaded sort state:', _currentSortColumn, _currentSortAscending);
   updateAllGenreCounts();
   console.log('[DEBUG] Updated genre counts from current list');
+});
+
+document.addEventListener('htmx:afterSwap', (e) => {
+  triggerPendingAutoDownloads(e.detail?.target || document);
 });
 
 // htmx がプログラムリストを更新した後、ソート状態を復元＋件数を更新
@@ -694,6 +969,8 @@ document.addEventListener('htmx:afterSettle', (e) => {
   const target = e.detail?.target;
   if (target && target.id === 'db-program-list') {
     console.log('[DEBUG] Program list updated via htmx');
+    applyCurrentView();
+    updateVisibleCount();
     restoreSortAfterListUpdate();
     updateAllGenreCounts();
   }
