@@ -409,6 +409,214 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
     # ──────────────────────────────────────────────
+    # /api/v1
+    # ──────────────────────────────────────────────
+
+    def test_api_v1_health(self):
+        resp = self.client.get("/api/v1/health")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["status"], "ok")
+
+    def test_api_v1_meta(self):
+        resp = self.client.get("/api/v1/meta")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["data"]
+        self.assertEqual(data["docs_url"], "/docs")
+        self.assertIn("download_jobs", data["capabilities"])
+
+    def test_api_v1_genres(self):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
+            resp = self.client.get("/api/v1/genres")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["data"]
+        self.assertIn(
+            {"id": "unclassified", "label": "未分類", "count": 1, "is_unclassified": True},
+            data,
+        )
+
+    def test_api_v1_programs_filters_q_and_limit(self):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
+            resp = self.client.get("/api/v1/programs?q=テスト&limit=1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["meta"]["count"], 1)
+        self.assertEqual(data["data"][0]["id"], "SITE_01")
+
+    def test_api_v1_programs_unclassified_filter(self):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
+            resp = self.client.get("/api/v1/programs?genre=unclassified")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["data"]
+        self.assertEqual(len(data), 1)
+        self.assertTrue(data[0]["is_unclassified"])
+        self.assertEqual(data[0]["genres"], ["unclassified"])
+
+    def test_api_v1_programs_invalid_limit(self):
+        resp = self.client.get("/api/v1/programs?limit=0")
+        self.assertEqual(resp.status_code, 422)
+
+    def test_api_v1_program_detail(self):
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            resp = self.client.get("/api/v1/programs/SITE_01")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["primary_genre"], "language")
+
+    def test_api_v1_program_detail_not_found(self):
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+            resp = self.client.get("/api/v1/programs/SITE_01")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_program_episodes(self):
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", return_value=([EPISODE], "cache")),
+            patch("app.routes.is_episode_downloaded", return_value=True),
+        ):
+            resp = self.client.get("/api/v1/programs/SITE_01/episodes?q=第1&limit=1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["meta"]["source"], "cache")
+        self.assertTrue(data["data"][0]["downloaded"])
+
+    def test_api_v1_program_episodes_program_not_found(self):
+        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+            resp = self.client.get("/api/v1/programs/SITE_01/episodes")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_program_episodes_fetch_error(self):
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", side_effect=RuntimeError("boom")),
+        ):
+            resp = self.client.get("/api/v1/programs/SITE_01/episodes")
+        self.assertEqual(resp.status_code, 502)
+
+    def test_api_v1_program_episode(self):
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.is_episode_downloaded", return_value=False),
+        ):
+            resp = self.client.get("/api/v1/programs/SITE_01/episodes/ep-1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["data"]["id"], "ep-1")
+        self.assertEqual(data["meta"]["program_id"], "SITE_01")
+
+    def test_api_v1_program_episode_not_found(self):
+        with (
+            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+        ):
+            resp = self.client.get("/api/v1/programs/SITE_01/episodes/missing")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_create_download_job(self):
+        resp = self.client.post(
+            "/api/v1/download-jobs",
+            json={"program": PROGRAM.__dict__, "episode": EPISODE.__dict__},
+        )
+        self.assertEqual(resp.status_code, 202)
+        data = resp.json()["data"]
+        self.assertEqual(data["program_id"], "SITE_01")
+        self.assertEqual(data["episode"]["id"], "ep-1")
+
+    def test_api_v1_create_download_job_invalid_json(self):
+        resp = self.client.post(
+            "/api/v1/download-jobs",
+            content="not json",
+            headers={"content-type": "application/json"},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_api_v1_download_jobs_list_and_detail(self):
+        job_manager = app.state.job_manager
+        first_job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        second_job_id = job_manager.enqueue(
+            PROGRAM,
+            Episode(
+                id="ep-2",
+                title="第2回",
+                display_title="第2回",
+                date="20240416",
+                display_date="2024-04-16(火)",
+                broadcast_time="11:00",
+                duration_str="25分",
+                url="https://www.nhk.or.jp/radio/player/ondemand.html?p=ep-2",
+            ),
+        )
+        job_manager._jobs[first_job_id]["status"] = "done"
+
+        resp = self.client.get("/api/v1/download-jobs?status=done&limit=1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["data"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["status"], "done")
+
+        detail_resp = self.client.get(f"/api/v1/download-jobs/{second_job_id}")
+        self.assertEqual(detail_resp.status_code, 200)
+        self.assertEqual(detail_resp.json()["data"]["id"], second_job_id)
+
+    def test_api_v1_download_jobs_detail_not_found(self):
+        resp = self.client.get("/api/v1/download-jobs/missing")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_cancel_download_job(self):
+        job_manager = app.state.job_manager
+        job_id = job_manager.enqueue(PROGRAM, EPISODE)
+        resp = self.client.delete(f"/api/v1/download-jobs/{job_id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["status"], "cancelled")
+
+    def test_api_v1_cancel_download_job_not_found(self):
+        resp = self.client.delete("/api/v1/download-jobs/missing")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_v1_download_job_file_alias(self):
+        with TemporaryDirectory() as tmpdir:
+            test_file = Path(tmpdir) / "test.mp3"
+            test_file.write_text("test audio")
+            job_manager = app.state.job_manager
+            job_id = job_manager.enqueue(PROGRAM, EPISODE)
+            job_manager._jobs[job_id]["file_path"] = str(test_file)
+            resp = self.client.get(f"/api/v1/download-jobs/{job_id}/file")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_api_v1_settings_get(self):
+        with patch("app.routes.load_storage_limit", return_value=3 * 1024 * 1024 * 1024):
+            resp = self.client.get("/api/v1/settings")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["storage_limit_gb"], 3)
+
+    def test_api_v1_settings_put(self):
+        with patch("app.routes.save_storage_limit", return_value=True) as mock_save:
+            resp = self.client.put("/api/v1/settings", json={"storage_limit_gb": 4})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["storage_limit_gb"], 4)
+        mock_save.assert_called_once_with(4 * 1024 * 1024 * 1024)
+
+    def test_api_v1_settings_put_invalid(self):
+        resp = self.client.put("/api/v1/settings", json={"storage_limit_gb": 0})
+        self.assertEqual(resp.status_code, 422)
+
+    def test_api_v1_settings_put_save_failure(self):
+        with patch("app.routes.save_storage_limit", return_value=False):
+            resp = self.client.put("/api/v1/settings", json={"storage_limit_gb": 1})
+        self.assertEqual(resp.status_code, 500)
+
+    # ──────────────────────────────────────────────
     # ダッシュボードレイアウト
     # ──────────────────────────────────────────────
 
