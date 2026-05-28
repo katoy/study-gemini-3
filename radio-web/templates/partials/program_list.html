@@ -19,14 +19,16 @@
   {% set pid = program.site_id ~ '_' ~ program.corner_id %}
   {% set start_date = program.started_at[:10] if program.started_at else program.display_date[:10] if program.display_date else '----' %}
   <div class="db-list-row"
-       data-program-id="{{ pid }}" data-genre="{{ program.genre or '' }}"
+       data-program-id="{{ pid }}" data-genre="{{ program.genres|join(' ') }}"
        data-title="{{ program.display_title }}"
        data-date="{{ program.display_date[:10] if program.display_date else '' }}"
        onclick="loadProgramEpisodes('{{ pid }}')">
     <div class="db-row-number">{{ loop.index }}</div>
     <div class="db-row-title">{{ program.display_title }}</div>
     <div class="db-row-genre">
-      {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
+      {% for g, label in program.genre_pairs %}
+      <span class="genre-badge {{ g }}">{{ label }}</span>
+      {% endfor %}
     </div>
     <div class="db-row-date">{{ start_date }}</div>
   </div>
@@ -38,12 +40,14 @@
   {% for program in programs %}
   {% set pid = program.site_id ~ '_' ~ program.corner_id %}
   <div class="db-grid-card"
-       data-program-id="{{ pid }}" data-genre="{{ program.genre or '' }}"
+       data-program-id="{{ pid }}" data-genre="{{ program.genres|join(' ') }}"
        onclick="loadProgramEpisodes('{{ pid }}')">
     <div class="db-grid-artwork">🎙️</div>
     <div class="db-grid-title">{{ program.display_title }}</div>
     <div class="db-grid-meta">
-      {% if program.genre %}<span class="genre-badge {{ program.genre }}">{{ program.genre_label }}</span>{% endif %}
+      {% for g, label in program.genre_pairs %}
+      <span class="genre-badge {{ g }}">{{ label }}</span>
+      {% endfor %}
       <span style="font-family:var(--font-mono);font-size:0.72rem;">{{ program.display_date[:10] if program.display_date else '' }}</span>
     </div>
   </div>

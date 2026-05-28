@@ -609,8 +609,11 @@ function updateAllGenreCounts() {
   const rows = document.querySelectorAll('.db-list-row');
 
   rows.forEach(row => {
-    const genre = row.dataset.genre || '';
-    genreCount[genre] = (genreCount[genre] || 0) + 1;
+    const genresAttr = row.dataset.genre || '';
+    const genres = genresAttr.split(' ').filter(Boolean);
+    genres.forEach(g => {
+      genreCount[g] = (genreCount[g] || 0) + 1;
+    });
   });
 
   // 注意：「すべて」の件数は更新しない（常に全番組数を保つ）

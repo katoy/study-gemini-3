@@ -60,11 +60,12 @@ async def index(request: Request, genre: str = ""):
     # 常にすべてのプログラムを取得（genre count 正確性のため）
     all_programs = await fetch_program_list_async(None)
 
-    programs = [p for p in all_programs if p.genre == genre] if genre else all_programs
+    programs = [p for p in all_programs if genre in p.genres] if genre else all_programs
 
-    programs_by_genre: dict[str, list] = {}
+    genre_counts: dict[str, int] = {}
     for p in all_programs:
-        programs_by_genre.setdefault(p.genre or "", []).append(p)
+        for g in p.genres:
+            genre_counts[g] = genre_counts.get(g, 0) + 1
 
     # ジャンルオプションを get_genres() から動的に生成
     genre_options = [{"value": "", "label": "すべて"}]
@@ -77,7 +78,7 @@ async def index(request: Request, genre: str = ""):
         {
             "programs": programs,
             "all_programs": all_programs,
-            "programs_by_genre": programs_by_genre,
+            "genre_counts": genre_counts,
             "genre_options": genre_options,
             "selected_genre": genre,
             "version": __version__,
@@ -97,7 +98,7 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
     all_programs = await fetch_program_list_async(None)
 
     # ジャンルフィルタを適用
-    programs = [p for p in all_programs if p.genre == genre] if genre else all_programs
+    programs = [p for p in all_programs if genre in p.genres] if genre else all_programs
 
     # キーワード検索を適用
     if q:

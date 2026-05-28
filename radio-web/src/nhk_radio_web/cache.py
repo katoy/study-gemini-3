@@ -23,7 +23,7 @@ from .types import Episode, Program
 logger = logging.getLogger(__name__)
 
 # 破壊的変更 (フィールド削除・型変更) 時にインクリメントして旧キャッシュを無効化する。
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
 
 # キャッシュ書き込みロック。複数クライアントからのキャッシュミスを 1 つの API 呼び出しに集約する。
 # スレッドセーフな asyncio.Lock を保持するための辞書。

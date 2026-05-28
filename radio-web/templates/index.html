@@ -29,7 +29,7 @@
       <div class="db-sidebar-section-label">ジャンル</div>
       {% set genre_icons = {'new_series':'⭐','news':'📰','sports':'⚽','information':'ℹ️','drama':'🎭','music':'🎵','variety':'🎪','documentary':'🎞','theater':'🎬','hobby':'🎨','welfare':'🤝','kids':'👶','language':'🌐','local':'📍'} %}
       {% for opt in genre_options if opt.value %}
-      {% set cnt = all_programs|selectattr('genre','equalto',opt.value)|list|length %}
+      {% set cnt = genre_counts.get(opt.value, 0) %}
       <div class="db-nav-item" id="nav-{{ opt.value }}" onclick="filterByGenre('{{ opt.value }}', this)">
         <span class="db-nav-icon">{{ genre_icons.get(opt.value, '📂') }}</span>
         <span class="db-nav-text">{{ opt.label }}</span>

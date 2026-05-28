@@ -1,6 +1,6 @@
 """Type definitions for NHK radio data."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 
@@ -32,10 +32,22 @@ class Program:
     url: str
     genre: str | None = None
     genre_label: str = ""
+    genres: list[str] = field(default_factory=list)
+    genre_labels: list[str] = field(default_factory=list)
     corner_name: str | None = None
     onair_date: str | None = None
     started_at: str | None = None
     broadcast: str = "AM"
+
+    def __post_init__(self) -> None:
+        if not self.genres and self.genre is not None:
+            object.__setattr__(self, "genres", [self.genre])
+        if not self.genre_labels and self.genre_label:
+            object.__setattr__(self, "genre_labels", [self.genre_label])
+
+    @property
+    def genre_pairs(self) -> list[tuple[str, str]]:
+        return list(zip(self.genres, self.genre_labels, strict=True))
 
 
 @dataclass(frozen=True)

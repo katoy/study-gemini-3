@@ -209,6 +209,26 @@ class CoreHelpersTest(unittest.TestCase):
             res = asyncio.run(core._fetch_all_async())
             self.assertEqual(res, [])
 
+    def test_fetch_all_aggregates_multiple_genres(self):
+        with (
+            patch.object(core, "NHK_GENRES", ["language", "music"]),
+            patch.object(
+                core,
+                "http_get_json_async",
+                new_callable=AsyncMock,
+                side_effect=[
+                    httpx.RequestError("new_arrivals failed"),
+                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},  # language
+                    {"series": [{"series_site_id": "SITE", "corner_site_id": "01", "title": "番組A"}]},  # music
+                ],
+            ),
+        ):
+            programs = asyncio.run(core._fetch_all_async())
+        self.assertEqual(len(programs), 1)
+        self.assertEqual(programs[0].genre, "language")
+        self.assertEqual(programs[0].genres, ["language", "music"])
+        self.assertEqual(programs[0].genre_labels, ["語学", "音楽"])
+
     def test_fetch_by_genre_success_and_failure_paths(self):
         with patch.object(
             core,

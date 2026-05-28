@@ -174,11 +174,19 @@ def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | N
             return candidate
     if genre:
         from dataclasses import replace
-        program = replace(program, genre=genre, genre_label=_genre_label(genre))
+        program = replace(
+            program,
+            genre=genre,
+            genre_label=_genre_label(genre),
+            genres=[genre],
+            genre_labels=[_genre_label(genre)],
+        )
     return program
 
 
-def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
+def _make_entry(
+    s: ApiProgramRaw, genre: str | None = None, genres: list[str] | None = None
+) -> Program:
     site_id = str(s.get("series_site_id") or s.get("site_id") or "")
     corner_id = str(s.get("corner_site_id") or s.get("corner_id") or "01")
     title = str(s.get("title") or s.get("corner_name") or f"{site_id}_{corner_id}")
@@ -187,11 +195,17 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
     started_at = str(s.get("started_at") or "")
     broadcast = str(s.get("radio_broadcast") or "AM")
 
+    if genres is None:
+        genres = [genre] if genre is not None else []
+    genre_labels = [_genre_label(g) for g in genres]
+
     return Program(
         title=title,
         corner_name=corner_name,
         genre=genre,
         genre_label=_genre_label(genre),
+        genres=genres,
+        genre_labels=genre_labels,
         site_id=site_id,
         corner_id=corner_id,
         onair_date=onair_date,
@@ -245,14 +259,25 @@ async def _fetch_all_async() -> list[Program]:
                 key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
                 if key not in seen:
                     seen.add(key)
-                    entry = _make_entry(s, genre=g)
+                    entry = _make_entry(s, genre=g, genres=[g])
                     programs.append(entry)
                     program_map[key] = entry
                 else:
                     existing = program_map.get(key)
-                    if existing is not None and not existing.genre:
+                    if existing is not None:
+                        new_genres = list(existing.genres)
+                        if g not in new_genres:
+                            new_genres.append(g)
+                        new_genre_labels = [_genre_label(genre_key) for genre_key in new_genres]
+                        primary_genre = existing.genre or g
                         from dataclasses import replace
-                        new_entry = replace(existing, genre=g, genre_label=_genre_label(g))
+                        new_entry = replace(
+                            existing,
+                            genre=primary_genre,
+                            genre_label=_genre_label(primary_genre),
+                            genres=new_genres,
+                            genre_labels=new_genre_labels,
+                        )
                         try:
                             idx = programs.index(existing)
                             programs[idx] = new_entry
