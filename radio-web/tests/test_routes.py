@@ -637,6 +637,16 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(data["meta"]["count"], 0)
         self.assertEqual(data["meta"]["status"], "done")
 
+    def test_api_v1_cache_status(self):
+        """キャッシュ状態 API が機能する"""
+        resp = self.client.get("/api/v1/cache/status")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("size_bytes", data["data"])
+        self.assertIn("last_modified", data["data"])
+        self.assertIsInstance(data["data"]["size_bytes"], int)
+        self.assertIsInstance(data["data"]["last_modified"], int)
+
     def test_api_v1_download_job_file_alias(self):
         with TemporaryDirectory() as tmpdir:
             test_file = Path(tmpdir) / "test.mp3"

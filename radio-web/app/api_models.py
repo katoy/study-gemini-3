@@ -202,3 +202,12 @@ class SettingsData(BaseModel):
 
 class SettingsResponse(BaseModel):
     data: SettingsData
+
+
+class CacheStatusData(BaseModel):
+    size_bytes: int
+    last_modified: int
+
+
+class CacheStatusResponse(BaseModel):
+    data: CacheStatusData

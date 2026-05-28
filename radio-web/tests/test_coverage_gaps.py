@@ -176,6 +176,27 @@ class CacheCoverageTest(unittest.TestCase):
             (cache_dir / "nested.json").mkdir()
             self.assertEqual(cache._clear_cache_dir(cache_dir), 0)
 
+    def test_get_cache_status_nonexistent_dir(self):
+        """キャッシュディレクトリが存在しない場合"""
+        with patch("nhk_radio_web.config._resolve_cache_root_dir") as mock_resolve:
+            mock_resolve.return_value = Path("/nonexistent/cache")
+            status = cache.get_cache_status()
+            self.assertEqual(status["size_bytes"], 0)
+            self.assertEqual(status["last_modified"], 0)
+
+    def test_get_cache_status_with_files(self):
+        """キャッシュファイルが存在する場合"""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = Path(tmp)
+            cache_file = cache_dir / "cache.json"
+            cache_file.write_text('{"data": []}')
+
+            with patch("nhk_radio_web.config._resolve_cache_root_dir") as mock_resolve:
+                mock_resolve.return_value = cache_dir
+                status = cache.get_cache_status()
+                self.assertGreater(status["size_bytes"], 0)
+                self.assertGreater(status["last_modified"], 0)
+
 
 class ConfigCoverageTest(unittest.TestCase):
     def test_default_user_cache_root_non_darwin(self):

@@ -166,3 +166,25 @@ def clear_episode_cache() -> int:
 
 def clear_all_cache() -> int:
     return clear_program_cache() + clear_episode_cache()
+
+
+def get_cache_status() -> dict[str, int | float]:
+    """キャッシュ状態を取得（サイズと最終更新時刻）。"""
+    from nhk_radio_web.config import _resolve_cache_root_dir
+
+    cache_dir = _resolve_cache_root_dir()
+    if not cache_dir.exists():
+        return {"size_bytes": 0, "last_modified": 0}
+
+    total_size = 0
+    last_modified = 0
+
+    for file_path in cache_dir.rglob("*.json"):
+        try:
+            stat = file_path.stat()
+            total_size += stat.st_size
+            last_modified = max(last_modified, int(stat.st_mtime))
+        except OSError:
+            pass
+
+    return {"size_bytes": total_size, "last_modified": last_modified}

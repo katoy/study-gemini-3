@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from nhk_radio_web import __version__
-from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
+from nhk_radio_web.cache import clear_episode_cache, clear_program_cache, get_cache_status
 from nhk_radio_web.config import _default_download_dir, load_storage_limit, save_storage_limit
 from nhk_radio_web.constants import GENRE_LABELS
 from nhk_radio_web.core import fetch_program_list_async, get_episode_list, get_genres
@@ -35,6 +35,8 @@ from nhk_radio_web.text import _safe_name
 from nhk_radio_web.types import Episode, Program
 
 from .api_models import (
+    CacheStatusData,
+    CacheStatusResponse,
     CountMeta,
     DownloadJobCreateRequest,
     DownloadJobData,
@@ -862,6 +864,13 @@ async def api_v1_get_settings(request: Request):
 @api_v1_router.put("/settings", response_model=SettingsResponse)
 async def api_v1_save_settings(request: Request, payload: SettingsUpdateRequest):
     return SettingsResponse(data=_update_storage_limit(request, payload))
+
+
+@api_v1_router.get("/cache/status", response_model=CacheStatusResponse)
+async def api_v1_cache_status():
+    """キャッシュ状態を取得（サイズ・最終更新時刻）。"""
+    status = get_cache_status()
+    return CacheStatusResponse(data=CacheStatusData(**status))
 
 
 @router.get("/api/jobs/recent", response_class=HTMLResponse)
