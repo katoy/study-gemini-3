@@ -25,6 +25,7 @@ from nhk_radio_web.types import Episode, Program
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+UNCLASSIFIED_GENRE = "__unclassified__"
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -55,22 +56,37 @@ def _job_to_payload(job_id: str, job: dict) -> dict:
 templates.env.filters["tojson"] = _dataclass_to_json
 
 
+def _matches_genre(program: Program, genre: str) -> bool:
+    if genre == UNCLASSIFIED_GENRE:
+        return not program.genres
+    return genre in program.genres
+
+
+def _build_genre_options() -> list[dict[str, str]]:
+    genre_options = [{"value": "", "label": "すべて"}]
+    for genre in get_genres():
+        genre_options.append({"value": genre, "label": GENRE_LABELS.get(genre, genre)})
+    genre_options.append({"value": UNCLASSIFIED_GENRE, "label": "未分類"})
+    return genre_options
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, genre: str = ""):
     # 常にすべてのプログラムを取得（genre count 正確性のため）
     all_programs = await fetch_program_list_async(None)
 
-    programs = [p for p in all_programs if genre in p.genres] if genre else all_programs
+    programs = [p for p in all_programs if _matches_genre(p, genre)] if genre else all_programs
 
     genre_counts: dict[str, int] = {}
     for p in all_programs:
-        for g in p.genres:
-            genre_counts[g] = genre_counts.get(g, 0) + 1
+        if p.genres:
+            for g in p.genres:
+                genre_counts[g] = genre_counts.get(g, 0) + 1
+        else:
+            genre_counts[UNCLASSIFIED_GENRE] = genre_counts.get(UNCLASSIFIED_GENRE, 0) + 1
 
     # ジャンルオプションを get_genres() から動的に生成
-    genre_options = [{"value": "", "label": "すべて"}]
-    for g in get_genres():
-        genre_options.append({"value": g, "label": GENRE_LABELS.get(g, g)})
+    genre_options = _build_genre_options()
 
     return templates.TemplateResponse(
         request,
@@ -98,7 +114,7 @@ async def programs_partial(request: Request, genre: str = "", q: str = ""):
     all_programs = await fetch_program_list_async(None)
 
     # ジャンルフィルタを適用
-    programs = [p for p in all_programs if genre in p.genres] if genre else all_programs
+    programs = [p for p in all_programs if _matches_genre(p, genre)] if genre else all_programs
 
     # キーワード検索を適用
     if q:

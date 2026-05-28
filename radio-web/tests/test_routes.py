@@ -23,6 +23,15 @@ PROGRAM = Program(
     url="https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01",
 )
 
+UNCLASSIFIED_PROGRAM = Program(
+    title="ジャンルなし番組",
+    display_title="ジャンルなし番組",
+    display_date="2024-04-16(火)",
+    site_id="SITE",
+    corner_id="02",
+    url="https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_02",
+)
+
 EPISODE = Episode(
     id="ep-1",
     title="第1回",
@@ -63,6 +72,17 @@ class RoutesTest(unittest.TestCase):
             self.client.get("/?genre=")
         m.assert_called_once_with(None)
 
+    def test_index_with_unclassified_filter(self):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
+            resp = self.client.get("/?genre=__unclassified__")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("ジャンルなし番組", resp.text)
+        self.assertNotIn("テスト番組", resp.text)
+
     # ──────────────────────────────────────────────
     # GET /programs (htmx フィルタ)
     # ──────────────────────────────────────────────
@@ -78,6 +98,17 @@ class RoutesTest(unittest.TestCase):
             resp = self.client.get("/programs")
         self.assertEqual(resp.status_code, 200)
         m.assert_called_once_with(None)
+
+    def test_programs_partial_unclassified_genre(self):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
+            resp = self.client.get("/programs?genre=__unclassified__")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("ジャンルなし番組", resp.text)
+        self.assertNotIn("テスト番組", resp.text)
 
     # ──────────────────────────────────────────────
     # GET /programs/{program_id}/episodes
@@ -392,10 +423,16 @@ class RoutesTest(unittest.TestCase):
 
     def test_index_sidebar_genre_nav_rendered(self):
         """インデックスページのサイドバーにジャンルナビが表示される。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch(
+            "app.routes.fetch_program_list_async",
+            new_callable=AsyncMock,
+            return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
+        ):
             resp = self.client.get("/")
         self.assertIn("filterByGenre", resp.text)
         self.assertIn("語学", resp.text)
+        self.assertIn("未分類", resp.text)
+        self.assertLess(resp.text.index("語学"), resp.text.index("未分類"))
         self.assertIn("db-nav-item", resp.text)
 
 
