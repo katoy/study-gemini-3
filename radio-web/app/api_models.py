@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from nhk_radio_web.types import Episode, Program
@@ -211,3 +213,13 @@ class CacheStatusData(BaseModel):
 
 class CacheStatusResponse(BaseModel):
     data: CacheStatusData
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    details: dict[str, Any] | None = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
