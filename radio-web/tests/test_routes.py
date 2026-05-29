@@ -66,7 +66,7 @@ class RoutesTest(unittest.TestCase):
     # ──────────────────────────────────────────────
 
     def test_index_returns_200_html(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/html", resp.headers["content-type"])
@@ -77,19 +77,19 @@ class RoutesTest(unittest.TestCase):
         self.assertNotIn("async function loadProgramEpisodes", resp.text)
 
     def test_index_with_genre_filter(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
             resp = self.client.get("/?genre=language")
         self.assertEqual(resp.status_code, 200)
         m.assert_called_once_with(None)
 
     def test_index_empty_genre_calls_fetch_with_none(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
             self.client.get("/?genre=")
         m.assert_called_once_with(None)
 
     def test_index_with_unclassified_filter(self):
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -103,20 +103,20 @@ class RoutesTest(unittest.TestCase):
     # ──────────────────────────────────────────────
 
     def test_programs_partial_returns_html_fragment(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/programs?genre=language")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("テスト番組", resp.text)
 
     def test_programs_partial_empty_genre(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]) as m:
             resp = self.client.get("/programs")
         self.assertEqual(resp.status_code, 200)
         m.assert_called_once_with(None)
 
     def test_programs_partial_unclassified_genre(self):
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -131,9 +131,9 @@ class RoutesTest(unittest.TestCase):
 
     def test_episodes_partial_returns_html(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes.is_episode_downloaded", return_value=False),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.is_episode_downloaded", return_value=False),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
@@ -146,17 +146,17 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_program_not_in_cache(self):
         """番組がキャッシュにない場合もフォールバックで動作すること。"""
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes.is_episode_downloaded", return_value=False),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.is_episode_downloaded", return_value=False),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
 
     def test_episodes_partial_runtime_error_returns_error_fragment(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", side_effect=RuntimeError("取得失敗")),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", side_effect=RuntimeError("取得失敗")),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
@@ -164,9 +164,9 @@ class RoutesTest(unittest.TestCase):
 
     def test_episodes_partial_already_downloaded(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "cache")),
-            patch("app.routes.is_episode_downloaded", return_value=True),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "cache")),
+            patch("app.routes.html.is_episode_downloaded", return_value=True),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
@@ -175,9 +175,9 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_with_search_query(self):
         """エピソード一覧に検索キーワード (q パラメータ) が効く。"""
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes.is_episode_downloaded", return_value=False),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.is_episode_downloaded", return_value=False),
         ):
             # マッチする検索
             resp = self.client.get("/programs/SITE_01/episodes?q=第1回")
@@ -335,7 +335,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_settings_get_returns_json(self):
         """GET /api/settings が JSON を返す。"""
-        with patch("app.routes.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
+        with patch("app.routes.internal.load_storage_limit", return_value=10 * 1024 * 1024 * 1024):
             resp = self.client.get("/api/settings")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -349,7 +349,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_settings_post_saves_storage_limit(self):
         """POST /api/settings がストレージ容量上限を保存。"""
-        with patch("app.routes.save_storage_limit", return_value=True) as mock_save:
+        with patch("app.routes.internal.save_storage_limit", return_value=True) as mock_save:
             resp = self.client.post(
                 "/api/settings",
                 json={"storage_limit_gb": 20},
@@ -386,7 +386,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_settings_post_save_failure(self):
         """POST /api/settings で保存失敗 → 500。"""
-        with patch("app.routes.save_storage_limit", return_value=False):
+        with patch("app.routes.internal.save_storage_limit", return_value=False):
             resp = self.client.post(
                 "/api/settings",
                 json={"storage_limit_gb": 15},
@@ -445,7 +445,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_genres(self):
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -459,7 +459,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_programs_filters_q_and_limit(self):
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -471,7 +471,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_programs_unclassified_filter(self):
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -487,21 +487,21 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
     def test_api_v1_program_detail(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/api/v1/programs/SITE_01")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["data"]["primary_genre"], "language")
 
     def test_api_v1_program_detail_not_found(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get("/api/v1/programs/SITE_01")
         self.assertEqual(resp.status_code, 404)
 
     def test_api_v1_program_episodes(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "cache")),
-            patch("app.routes.is_episode_downloaded", return_value=True),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "cache")),
+            patch("app.routes.html.is_episode_downloaded", return_value=True),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes?q=第1&limit=1")
         self.assertEqual(resp.status_code, 200)
@@ -510,23 +510,23 @@ class RoutesTest(unittest.TestCase):
         self.assertTrue(data["data"][0]["downloaded"])
 
     def test_api_v1_program_episodes_program_not_found(self):
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 404)
 
     def test_api_v1_program_episodes_fetch_error(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", side_effect=RuntimeError("boom")),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", side_effect=RuntimeError("boom")),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 502)
 
     def test_api_v1_program_episode(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes.is_episode_downloaded", return_value=False),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.is_episode_downloaded", return_value=False),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes/ep-1")
         self.assertEqual(resp.status_code, 200)
@@ -536,8 +536,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_program_episode_not_found(self):
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes/missing")
         self.assertEqual(resp.status_code, 404)
@@ -658,13 +658,13 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_api_v1_settings_get(self):
-        with patch("app.routes.load_storage_limit", return_value=3 * 1024 * 1024 * 1024):
+        with patch("app.routes.internal.load_storage_limit", return_value=3 * 1024 * 1024 * 1024):
             resp = self.client.get("/api/v1/settings")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["data"]["storage_limit_gb"], 3)
 
     def test_api_v1_settings_put(self):
-        with patch("app.routes.save_storage_limit", return_value=True) as mock_save:
+        with patch("app.routes.internal.save_storage_limit", return_value=True) as mock_save:
             resp = self.client.put("/api/v1/settings", json={"storage_limit_gb": 4})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["data"]["storage_limit_gb"], 4)
@@ -675,7 +675,7 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
     def test_api_v1_settings_put_save_failure(self):
-        with patch("app.routes.save_storage_limit", return_value=False):
+        with patch("app.routes.internal.save_storage_limit", return_value=False):
             resp = self.client.put("/api/v1/settings", json={"storage_limit_gb": 1})
         self.assertEqual(resp.status_code, 500)
 
@@ -685,7 +685,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_index_has_dashboard_layout(self):
         """インデックスページにダッシュボードレイアウトが含まれている。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("dashboard-layout", resp.text)
@@ -695,7 +695,7 @@ class RoutesTest(unittest.TestCase):
     def test_index_sidebar_genre_nav_rendered(self):
         """インデックスページのサイドバーにジャンルナビが表示される。"""
         with patch(
-            "app.routes.fetch_program_list_async",
+            "app.routes.html.fetch_program_list_async",
             new_callable=AsyncMock,
             return_value=[PROGRAM, UNCLASSIFIED_PROGRAM],
         ):
@@ -709,7 +709,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_programs_partial_has_list_view_rows(self):
         """program_list パーシャルにリストビュー行が含まれている。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/programs")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("db-list-row", resp.text)
@@ -717,18 +717,18 @@ class RoutesTest(unittest.TestCase):
 
     def test_programs_partial_has_grid_view_cards(self):
         """program_list パーシャルにグリッドビューカードが含まれている。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp = self.client.get("/programs")
         self.assertIn("db-grid-card", resp.text)
         self.assertIn("db-grid-title", resp.text)
 
     def test_programs_partial_q_param_filters(self):
         """q パラメータで番組名フィルタが機能する。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp_match = self.client.get("/programs?q=テスト")
             self.assertIn("テスト番組", resp_match.text)
 
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             resp_no = self.client.get("/programs?q=存在しないXYZ")
             self.assertNotIn("テスト番組", resp_no.text)
 
@@ -801,7 +801,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_batch_download_success(self):
         """POST /download/batch で複数エピソードをキューに登録。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.post(
                 "/download/batch",
                 json={
@@ -834,7 +834,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_batch_download_invalid_episode_skipped(self):
         """POST /download/batch で不正なエピソードはスキップ。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.post(
                 "/download/batch",
                 json={
@@ -856,8 +856,8 @@ class RoutesTest(unittest.TestCase):
     def test_cancel_download_exception_handling(self):
         """POST /api/download/{job_id}/cancel で cancel() が例外 → HTML 返却。"""
         with (
-            patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
         ):
             # ジョブを登録
             resp = self.client.post(
@@ -891,7 +891,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_file_path_missing(self):
         """GET /api/download/{job_id}/file で file_path がない → 404。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             # ジョブを登録
             resp = self.client.post(
                 "/download",
@@ -908,7 +908,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_file_not_exists_on_disk(self):
         """GET /api/download/{job_id}/file でファイルがディスク上にない → 404。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             # ジョブを登録
             resp = self.client.post(
                 "/download",
@@ -931,7 +931,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_file_rfc5987_header(self):
         """GET /api/download/{job_id}/file で RFC 5987 Content-Disposition ヘッダー設定確認。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
             with TemporaryDirectory() as tmpdir:
                 # テストファイルを作成
                 test_file = Path(tmpdir) / "test.mp3"
@@ -963,7 +963,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_program_not_found(self):
         """GET /api/episodes で Program が見つからない → 404。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get(
                 "/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
             )
@@ -972,8 +972,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_episodes_not_found(self):
         """GET /api/episodes で Episodes 取得失敗 → 404。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes.get_episode_list", side_effect=RuntimeError("API error")):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.html.get_episode_list", side_effect=RuntimeError("API error")):
                 resp = self.client.get(
                     f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
                 )
@@ -982,8 +982,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_episode_not_found(self):
         """GET /api/episodes で Episode ID が見つからない → 404。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.html.get_episode_list", return_value=([EPISODE], None)):
                 resp = self.client.get(
                     f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
                 )
@@ -997,9 +997,9 @@ class RoutesTest(unittest.TestCase):
             test_file = Path(tmpdir) / EPISODE.title
             test_file.write_text("test audio")
 
-            with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-                with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
-                    with patch("app.routes._program_search_dirs", return_value=[Path(tmpdir)]):
+            with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+                with patch("app.routes.html.get_episode_list", return_value=([EPISODE], None)):
+                    with patch("app.routes.internal._program_search_dirs", return_value=[Path(tmpdir)]):
                         resp = self.client.get(
                             f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
                         )
@@ -1010,10 +1010,10 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_directory_not_exists(self):
         """GET /api/episodes でディレクトリが存在しない場合をスキップ。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.html.get_episode_list", return_value=([EPISODE], None)):
                 # 存在しないパスを返す
-                with patch("app.routes._program_search_dirs", return_value=[Path("/nonexistent/dir/path")]):
+                with patch("app.routes.internal._program_search_dirs", return_value=[Path("/nonexistent/dir/path")]):
                     resp = self.client.get(
                         f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
                     )
@@ -1021,9 +1021,9 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_rfc5987_header(self):
         """GET /api/episodes/{site_id}/{corner_id}/{episode_id}/file で RFC 5987 ヘッダー設定確認。"""
-        with patch("app.routes.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes.get_episode_list", return_value=([EPISODE], None)):
-                with patch("app.routes._program_search_dirs", return_value=[]):
+        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
+            with patch("app.routes.html.get_episode_list", return_value=([EPISODE], None)):
+                with patch("app.routes.internal._program_search_dirs", return_value=[]):
                     # ディレクトリが見つからない場合 → 404
                     resp = self.client.get(
                         f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
