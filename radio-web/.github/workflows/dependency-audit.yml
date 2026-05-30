@@ -1,0 +1,40 @@
+name: 依存関係セキュリティ監査
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python をセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: uv をインストール
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: 依存関係をインストール
+        run: uv sync
+
+      - name: pip-audit でセキュリティ脆弱性をチェック
+        run: |
+          uv pip install pip-audit
+          pip-audit
+
+      - name: MyPy によるtype チェック
+        run: uv run mypy app/
+
+      - name: Ruff による lint チェック
+        run: uv run ruff check app/ src/
