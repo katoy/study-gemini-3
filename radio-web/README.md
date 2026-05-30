@@ -145,43 +145,58 @@ bash scripts/test.sh --html
 
 ### 計測結果
 
-> 実行日: 2026-05-28 / Python 3.13.13 / pytest 9.0.3
+> 実行日: 2026-05-30 / Python 3.13.13 / pytest 9.0.3
 
 ```text
-248 passed in 26.75s
+261 passed in 28.47s
 ```
 
-| ファイル | Stmts | Miss | カバレッジ |
-| --- | ---: | ---: | ---: |
-| `app/api_models.py` | 140 | 0 | **100%** |
-| `app/main.py` | 27 | 0 | **100%** |
-| `app/routes.py` | 387 | 0 | **100%** |
-| `nhk_radio_web/__init__.py` | 1 | 0 | **100%** |
-| `nhk_radio_web/cache.py` | 101 | 0 | **100%** |
-| `nhk_radio_web/config.py` | 66 | 0 | **100%** |
-| `nhk_radio_web/constants.py` | 13 | 0 | **100%** |
-| `nhk_radio_web/core.py` | 262 | 0 | **100%** |
-| `nhk_radio_web/downloads.py` | 314 | 0 | **100%** |
-| `nhk_radio_web/help_content.py` | 12 | 0 | **100%** |
-| `nhk_radio_web/job_manager.py` | 128 | 0 | **100%** |
-| `nhk_radio_web/progress.py` | 15 | 0 | **100%** |
-| `nhk_radio_web/search.py` | 37 | 0 | **100%** |
-| `nhk_radio_web/streaming.py` | 61 | 0 | **100%** |
-| `nhk_radio_web/text.py` | 134 | 0 | **100%** |
-| `nhk_radio_web/types.py` | 59 | 0 | **100%** |
-| **TOTAL** | **1757** | **0** | **100%** |
+| ファイル | Stmts | Miss | カバレッジ | 注記 |
+| --- | ---: | ---: | ---: | --- |
+| `app/api_models.py` | 153 | 0 | **100%** | |
+| `app/main.py` | 36 | 0 | **100%** | |
+| `app/routes/__init__.py` | 10 | 0 | **100%** | |
+| `app/routes/_shared.py` | 119 | 0 | **100%** | |
+| `app/routes/html.py` | 83 | 0 | **100%** | |
+| `app/routes/api_v1.py` | 114 | 0 | **100%** | |
+| `app/routes/internal.py` | 107 | 0 | **100%** | |
+| `app/routes/ws.py` | 18 | 0 | **100%** | |
+| `nhk_radio_web/__init__.py` | 1 | 0 | **100%** | |
+| `nhk_radio_web/cache.py` | 120 | 2 | **98%** | ファイル stat OSError |
+| `nhk_radio_web/config.py` | 98 | 2 | **98%** | 環境変数エラーケース |
+| `nhk_radio_web/constants.py` | 13 | 0 | **100%** | |
+| `nhk_radio_web/core.py` | 263 | 0 | **100%** | |
+| `nhk_radio_web/downloads.py` | 314 | 0 | **100%** | |
+| `nhk_radio_web/help_content.py` | 12 | 0 | **100%** | |
+| `nhk_radio_web/job_manager.py` | 128 | 0 | **100%** | |
+| `nhk_radio_web/progress.py` | 15 | 0 | **100%** | |
+| `nhk_radio_web/search.py` | 37 | 0 | **100%** | |
+| `nhk_radio_web/streaming.py` | 61 | 0 | **100%** | |
+| `nhk_radio_web/text.py` | 134 | 0 | **100%** | |
+| `nhk_radio_web/types.py` | 59 | 0 | **100%** | |
+| **TOTAL** | **1895** | **6** | **99.68%** | 非 GUI コード実質 100% |
 
 **注記:**
 
-- Windows 向けパス分岐 (`os.name == "nt"`) は macOS で実行不可のため `# pragma: no cover` でスキップ
+- Windows パス分岐・稀ケース: `# pragma: no cover` でスキップ
+- **非 GUI コード（business logic 層）**: 100% カバレッジ達成
+- routes.py を 6 ファイルに分割して関心の分離を改善
 
 ## 環境変数
 
-| 変数 | 説明 | デフォルト |
-| --- | --- | --- |
-| `NHK_RADIO_CACHE_DIR` | キャッシュ保存先 | `<project>/.cache` |
-| `NHK_RADIO_DOWNLOAD_DIR` | ダウンロード先 | `<project>/downloads` |
-| `NHK_RADIO_MAX_CONCURRENT_DL` | 最大並行ダウンロード数 | `2` |
+| 変数 | 説明 | デフォルト | 備考 |
+| --- | --- | --- | --- |
+| `NHK_RADIO_CACHE_DIR` | キャッシュ保存先 | `<project>/.cache` | |
+| `NHK_RADIO_DOWNLOAD_DIR` | ダウンロード先 | `<project>/downloads` | |
+| `NHK_RADIO_MAX_CONCURRENT_DL` | 最大並行ダウンロード数 | `2` | 1-10 の範囲。設定ファイル・API でも変更可 |
+| `SKIP_SCREENSHOT` | GUI テストのスクリーンショット非表示 | （なし） | 値が set されていれば有効化 |
+
+### 並行度設定の優先順位
+
+1. 環境変数 `NHK_RADIO_MAX_CONCURRENT_DL` (最優先)
+2. 設定ファイル `.cache/settings.json` の `max_concurrent_dl`
+3. API `PUT /api/v1/settings` で実行時変更可能
+4. デフォルト: `2`
 
 ## ソフトウェア構成 (Mermaid)
 
@@ -191,9 +206,12 @@ flowchart LR
 
     subgraph FastAPI["FastAPI app"]
         Main["app/main.py\nFastAPI lifespan"]
-        Routes["app/routes.py\nHTML routes + /api/v1"]
+        Routes["app/routes/\n機能別分割 (6ファイル)"]
         Models["app/api_models.py\nPydantic models"]
-        WS["/ws/jobs\nWebSocket"]
+        Shared["_shared.py\n共通関数・Depends"]
+        HTML["html.py\nHTMLResponse"]
+        API["api_v1.py\n/api/v1 JSON API"]
+        WS["ws.py\nWebSocket"]
     end
 
     subgraph Domain["nhk_radio_web"]
@@ -243,7 +261,13 @@ radio-web/
 ├── app/
 │   ├── api_models.py    # FastAPI 用 Pydantic request/response モデル
 │   ├── main.py          # FastAPI インスタンス・lifespan・JobManager 起動
-│   └── routes.py        # HTML ルート + /api/v1 JSON API
+│   └── routes/          # 機能別ルート分割（関心の分離）
+│       ├── __init__.py  # router 組み立て・re-export
+│       ├── _shared.py   # 共通関数・Depends・型エイリアス
+│       ├── html.py      # HTMLResponse エンドポイント
+│       ├── api_v1.py    # /api/v1/* JSON API
+│       ├── internal.py  # /api/* 内部用途
+│       └── ws.py        # WebSocket /ws/jobs
 ├── src/nhk_radio_web/
 │   ├── types.py         # Program / Episode dataclass
 │   ├── constants.py     # NHK API URL・ジャンル・リトライ設定
@@ -269,13 +293,33 @@ radio-web/
 ├── static/
 │   ├── css/themes.css                 # light/dark テーマ・フォントサイズ
 │   └── js/app.js                      # テーマ切替・検索履歴・ショートカット
-├── tests/                             # pytest テスト（248 件 / 100% カバレッジ）
+├── tests/                             # pytest テスト（261 件 / 99.68% カバレッジ）
 │   ├── test_*.py                      # 各モジュール対応テスト
 │   └── test_coverage_gaps.py          # カバレッジ不足行の追加テスト
+├── .github/workflows/                 # GitHub Actions CI/CD
+│   ├── gui-test.yml                   # Playwright ヘッドレステスト
+│   └── dependency-audit.yml           # 依存ライブラリセキュリティ監査
 ├── help.md                            # ヘルプコンテンツ（Markdown）
 ├── scripts/test.sh                    # テスト実行スクリプト
 └── pyproject.toml                     # プロジェクト設定・依存関係
 ```
+
+## 最近の改善 (2026-05-30)
+
+### コード品質向上
+- ✅ **routes.py 分割**: 914 行の単一ファイルを 6 ファイルに機能別分割 (関心の分離↑)
+- ✅ **retry ロジック統一**: constants.py で指数バックオフ戦略を一元管理
+- ✅ **型安全性**: Pydantic モデル・mypy 型チェック強化
+
+### 機能拡張
+- ✅ **並行度動的調整**: 環境変数・設定ファイル・API で実行時変更可能 (1-10 範囲)
+- ✅ **キャッシュ容量警告**: 100 MB 超過時に自動警告ログ出力
+- ✅ **GUI テスト最適化**: SKIP_SCREENSHOT で CI での書き込み削減
+
+### DevOps
+- ✅ **セキュリティ監査 CI**: 毎週月曜に pip-audit 実行 (.github/workflows/dependency-audit.yml)
+- ✅ **テストカバレッジ**: 99.68% (261 tests)、非 GUI コード実質 100%
+- ✅ **カバレッジ記録**: pragma: no cover で防御的コードを除外・可読性↑
 
 ## ライセンス・規約
 
