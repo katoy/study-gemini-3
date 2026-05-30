@@ -61,7 +61,7 @@ jobs:
       - run: npx -y markdownlint-cli README.md help.md CLAUDE.md
 
   test:
-    name: Tests
+    name: Unit Tests (✓ No Errors)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,3 +71,62 @@ jobs:
           enable-cache: true
       - run: uv sync --dev
       - run: bash scripts/test.sh
+      - run: echo "✅ Unit テスト: エラーなし"
+
+  coverage:
+    name: Code Coverage (Non-GUI 100%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: |
+          uv run pytest tests/ \
+            --cov=app \
+            --cov=src/nhk_radio_web \
+            --cov-report=term-missing \
+            --ignore=tests/test_gui_smoke.py \
+            -q 2>&1 | tee /tmp/coverage.txt
+      - run: |
+          if grep -q "TOTAL.*100%" /tmp/coverage.txt; then
+            echo "✅ GUI系以外のコードカバレッジ: 100%"
+          else
+            echo "❌ カバレッジが 100% に達していません"
+            cat /tmp/coverage.txt
+            exit 1
+          fi
+
+  gui-test:
+    name: GUI Tests (✓ No Errors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      - run: |
+          uv pip install playwright
+          playwright install chromium
+      - run: |
+          uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/server.log 2>&1 &
+          sleep 10
+          python browser_test_ci.py
+          TEST_RESULT=$?
+          if [ $TEST_RESULT -eq 0 ]; then
+            echo "✅ GUI テスト: エラーなし"
+          else
+            echo "❌ GUI テスト: エラーあり"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-screenshots
+          path: /tmp/browser_test.png
+          retention-days: 7

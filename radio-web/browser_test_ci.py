@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+
 from playwright.async_api import async_playwright
 
 
@@ -62,7 +63,7 @@ async def run_tests():
                 "サイドバー": ".db-sidebar",
                 "メインコンテンツ": "main",
             }
-            for name, selector in elements.items():
+            for _name, selector in elements.items():
                 elem = await page.query_selector(selector)
                 if elem and await elem.is_visible():
                     test_results["成功"] += 1

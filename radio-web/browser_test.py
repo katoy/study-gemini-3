@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+
 from playwright.async_api import async_playwright
 
 
@@ -75,7 +76,7 @@ async def run_tests():
             print("\n📋 テスト 3: ジャンル選択機能")
             # サイドバーのリンクを検索
             sidebar_links = await page.query_selector_all(".db-sidebar a")
-            genre_items = [link for link in sidebar_links]
+            genre_items = list(sidebar_links)
             if genre_items and len(genre_items) > 0:
                 print(f"  ℹ️  {len(genre_items)} 個のサイドバー項目を検出")
                 # 最初のジャンルをクリック

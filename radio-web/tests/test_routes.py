@@ -141,8 +141,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_episodes_partial_returns_html(self):
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")):
-                with patch("app.routes._shared.is_episode_downloaded", return_value=False):
+            with patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")):
+                with patch("app.routes.html.is_episode_downloaded", return_value=False):
                     resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("第1回", resp.text)
@@ -155,15 +155,15 @@ class RoutesTest(unittest.TestCase):
         """番組がキャッシュにない場合もフォールバックで動作すること。"""
         with (
             patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[]),
-            patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes._shared.is_episode_downloaded", return_value=False),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.html.is_episode_downloaded", return_value=False),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
 
     def test_episodes_partial_runtime_error_returns_error_fragment(self):
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("取得失敗")):
+            with patch("app.routes.html.get_episode_list", side_effect=RuntimeError("取得失敗")):
                 resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("取得失敗", resp.text)
@@ -171,8 +171,8 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_already_downloaded(self):
         with (
             patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "cache")),
-            patch("app.routes._shared.is_episode_downloaded", return_value=True),
+            patch("app.routes.html.get_episode_list", return_value=([EPISODE], "cache")),
+            patch("app.routes.html.is_episode_downloaded", return_value=True),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
@@ -181,8 +181,8 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_with_search_query(self):
         """エピソード一覧に検索キーワード (q パラメータ) が効く。"""
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")):
-                with patch("app.routes._shared.is_episode_downloaded", return_value=False):
+            with patch("app.routes.html.get_episode_list", return_value=([EPISODE], "network")):
+                with patch("app.routes.html.is_episode_downloaded", return_value=False):
                     # マッチする検索
                     resp = self.client.get("/programs/SITE_01/episodes?q=第1回")
                     self.assertEqual(resp.status_code, 200)
@@ -503,8 +503,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_program_episodes(self):
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "cache")):
-                with patch("app.routes._shared.is_episode_downloaded", return_value=True):
+            with patch("app.routes.api_v1.get_episode_list", return_value=([EPISODE], "cache")):
+                with patch("app.routes.api_v1.is_episode_downloaded", return_value=True):
                     resp = self.client.get("/api/v1/programs/SITE_01/episodes?q=第1&limit=1")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -518,13 +518,13 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_program_episodes_fetch_error(self):
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("boom")):
+            with patch("app.routes.api_v1.get_episode_list", side_effect=RuntimeError("boom")):
                 resp = self.client.get("/api/v1/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 502)
 
     def test_api_v1_program_episode(self):
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")):
+            with patch("app.routes.api_v1.get_episode_list", return_value=([EPISODE], "network")):
                 with patch("app.routes._shared.is_episode_downloaded", return_value=False):
                     resp = self.client.get("/api/v1/programs/SITE_01/episodes/ep-1")
         self.assertEqual(resp.status_code, 200)
@@ -535,7 +535,7 @@ class RoutesTest(unittest.TestCase):
     def test_api_v1_program_episode_not_found(self):
         with (
             patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
+            patch("app.routes.api_v1.get_episode_list", return_value=([EPISODE], "network")),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes/missing")
         self.assertEqual(resp.status_code, 404)
@@ -971,10 +971,8 @@ class RoutesTest(unittest.TestCase):
 
     def test_download_episode_file_episodes_not_found(self):
         """GET /api/episodes で Episodes 取得失敗 → 404。"""
-        from app.routes._shared import fetch_program_list_async, get_episode_list
-
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("API error")):
+            with patch("app.routes.internal.get_episode_list", side_effect=RuntimeError("API error")):
                 resp = self.client.get(
                     f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
                 )
@@ -984,7 +982,7 @@ class RoutesTest(unittest.TestCase):
     def test_download_episode_file_episode_not_found(self):
         """GET /api/episodes で Episode ID が見つからない → 404。"""
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], None)):
+            with patch("app.routes.api_v1.get_episode_list", return_value=([EPISODE], None)):
                 resp = self.client.get(
                     f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/nonexistent_id/file"
                 )
@@ -999,7 +997,7 @@ class RoutesTest(unittest.TestCase):
             test_file.write_text("test audio")
 
             with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-                with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], None)):
+                with patch("app.routes.internal.get_episode_list", return_value=([EPISODE], None)):
                     with patch("app.routes.internal._program_search_dirs", return_value=[Path(tmpdir)]):
                         resp = self.client.get(
                             f"/api/episodes/{PROGRAM.site_id}/{PROGRAM.corner_id}/{EPISODE.id}/file"
@@ -1012,7 +1010,7 @@ class RoutesTest(unittest.TestCase):
     def test_download_episode_file_directory_not_exists(self):
         """GET /api/episodes でディレクトリが存在しない場合をスキップ。"""
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
-            with patch("app.routes._shared.get_episode_list", return_value=([EPISODE], None)):
+            with patch("app.routes.api_v1.get_episode_list", return_value=([EPISODE], None)):
                 # 存在しないパスを返す
                 with patch("app.routes.internal._program_search_dirs", return_value=[Path("/nonexistent/dir/path")]):
                     resp = self.client.get(

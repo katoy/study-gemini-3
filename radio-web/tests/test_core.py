@@ -301,6 +301,7 @@ class CoreHelpersTest(unittest.TestCase):
                 refresh_mock.assert_called_once_with(program, retry_delay=1.0)
 
             with (
+                patch.object(core, "load_episode_cache", return_value=None),
                 patch.object(core, "fetch_episodes", return_value=[]) as fetch_mock,
                 patch.object(core, "save_episode_cache") as save_cache_mock,
             ):
@@ -319,6 +320,7 @@ class CoreHelpersTest(unittest.TestCase):
         ]
         async def run_test_retry():
             with (
+                patch.object(core, "load_episode_cache", return_value=None),
                 patch.object(core, "fetch_episodes", side_effect=[RuntimeError("timeout"), expected]) as fetch_mock,
                 patch.object(core, "save_episode_cache"),
                 patch("asyncio.sleep"),
