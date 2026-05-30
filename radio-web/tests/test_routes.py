@@ -363,6 +363,29 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(data["storage_limit_gb"], 20)
         mock_save.assert_called_once_with(20 * 1024 * 1024 * 1024)
 
+    def test_settings_post_saves_max_concurrent_dl(self):
+        """POST /api/settings が並行度上限を保存。"""
+        with patch("app.routes._shared.save_storage_limit", return_value=True):
+            with patch("nhk_radio_web.config.save_max_concurrent_dl", return_value=True) as mock_save:
+                resp = self.client.post(
+                    "/api/settings",
+                    json={"storage_limit_gb": 20, "max_concurrent_dl": 4},
+                )
+        self.assertEqual(resp.status_code, 200)
+        mock_save.assert_called_once_with(4)
+
+    def test_settings_post_max_concurrent_dl_save_failure(self):
+        """POST /api/settings で並行度設定保存失敗 → 500。"""
+        with patch("app.routes._shared.save_storage_limit", return_value=True):
+            with patch("nhk_radio_web.config.save_max_concurrent_dl", return_value=False):
+                resp = self.client.post(
+                    "/api/settings",
+                    json={"storage_limit_gb": 20, "max_concurrent_dl": 4},
+                )
+        self.assertEqual(resp.status_code, 500)
+        data = resp.json()
+        self.assertIn("並行度設定", data.get("detail", ""))
+
     def test_settings_post_invalid_json(self):
         """POST /api/settings に不正な JSON → 422。"""
         resp = self.client.post(

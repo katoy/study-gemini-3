@@ -96,3 +96,44 @@ def save_storage_limit(limit_bytes: int) -> bool:
     except OSError as e:
         logger.warning(f"設定ファイルの保存に失敗: {e}")
         return False
+
+
+def load_max_concurrent_dl() -> int:
+    """並行ダウンロード数の上限を読み込む。見つからない場合はデフォルトを返す。"""
+    # 環境変数を優先
+    if env_value := os.environ.get("NHK_RADIO_MAX_CONCURRENT_DL"):
+        try:
+            return int(env_value)
+        except ValueError:
+            logger.warning(f"NHK_RADIO_MAX_CONCURRENT_DL が無効な値です: {env_value}")
+    try:
+        settings_file = _settings_path()
+        if settings_file.exists():
+            data = json.loads(settings_file.read_text(encoding="utf-8"))
+            if isinstance(data.get("max_concurrent_dl"), int) and 1 <= data["max_concurrent_dl"] <= 10:
+                return data["max_concurrent_dl"]
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"設定ファイルの読み込みに失敗: {e}")
+    return DEFAULT_MAX_CONCURRENT_DL
+
+
+def save_max_concurrent_dl(max_concurrent: int) -> bool:
+    """並行ダウンロード数の上限を保存する。成功時は True を返す。"""
+    if not 1 <= max_concurrent <= 10:
+        logger.warning(f"max_concurrent_dl は 1-10 の範囲である必要があります: {max_concurrent}")
+        return False
+    try:
+        settings_path = _settings_path()
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        # 既存設定を読み込み
+        data: dict = {}
+        if settings_path.exists():
+            with contextlib.suppress(json.JSONDecodeError):
+                data = json.loads(settings_path.read_text(encoding="utf-8"))
+        # 並行数を更新
+        data["max_concurrent_dl"] = max_concurrent
+        settings_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return True
+    except OSError as e:
+        logger.warning(f"設定ファイルの保存に失敗: {e}")
+        return False

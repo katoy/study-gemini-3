@@ -77,6 +77,56 @@ class ConfigHelpersTest(unittest.TestCase):
             success = config.save_storage_limit(10 * 1024 * 1024 * 1024)
             self.assertFalse(success)
 
+    def test_load_save_max_concurrent_dl(self):
+        """並行度上限の読み書きテスト。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_file = Path(tmp) / "settings.json"
+            with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+                # デフォルト値を返す
+                max_concurrent = config.load_max_concurrent_dl()
+                self.assertEqual(max_concurrent, config.DEFAULT_MAX_CONCURRENT_DL)
+                # 新しい値を保存
+                success = config.save_max_concurrent_dl(4)
+                self.assertTrue(success)
+                # 保存した値を読み込む
+                loaded = config.load_max_concurrent_dl()
+                self.assertEqual(loaded, 4)
+
+    def test_load_max_concurrent_dl_from_env(self):
+        """環境変数が優先される。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_file = Path(tmp) / "settings.json"
+            with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+                # settings.json に 4 を保存
+                config.save_max_concurrent_dl(4)
+                # 環境変数 NHK_RADIO_MAX_CONCURRENT_DL=5 を設定
+                with patch.dict("os.environ", {"NHK_RADIO_MAX_CONCURRENT_DL": "5"}):
+                    loaded = config.load_max_concurrent_dl()
+                    self.assertEqual(loaded, 5)
+
+    def test_save_max_concurrent_dl_invalid_range(self):
+        """範囲外の値は False を返す。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_file = Path(tmp) / "settings.json"
+            with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+                self.assertFalse(config.save_max_concurrent_dl(0))   # < 1
+                self.assertFalse(config.save_max_concurrent_dl(11))  # > 10
+                self.assertTrue(config.save_max_concurrent_dl(1))    # OK
+                self.assertTrue(config.save_max_concurrent_dl(10))   # OK
+
+    def test_load_max_concurrent_dl_invalid_env(self):
+        """無効な環境変数値ではデフォルトを返す。"""
+        with patch.dict("os.environ", {"NHK_RADIO_MAX_CONCURRENT_DL": "invalid"}):
+            max_concurrent = config.load_max_concurrent_dl()
+            self.assertEqual(max_concurrent, config.DEFAULT_MAX_CONCURRENT_DL)
+
+    def test_save_max_concurrent_dl_returns_false_on_error(self):
+        """保存エラー時に False を返す。"""
+        settings_file = Path("/invalid/path/settings.json")
+        with patch("nhk_radio_web.config._settings_path", return_value=settings_file):
+            success = config.save_max_concurrent_dl(3)
+            self.assertFalse(success)
+
 
 if __name__ == "__main__":
     unittest.main()

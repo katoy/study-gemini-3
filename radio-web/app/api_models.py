@@ -54,6 +54,7 @@ class DownloadJobCreateRequest(BaseModel):
 
 class SettingsUpdateRequest(BaseModel):
     storage_limit_gb: float = Field(gt=0)
+    max_concurrent_dl: int | None = Field(None, ge=1, le=10)
 
 
 class HealthData(BaseModel):

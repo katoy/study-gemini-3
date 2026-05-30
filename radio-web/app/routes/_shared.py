@@ -251,4 +251,13 @@ def _update_storage_limit(request: Request, payload: SettingsUpdateRequest) -> S
 
     request.app.state.storage_limit = storage_limit_bytes
     logger.info(f"ストレージ容量上限を更新: {payload.storage_limit_gb} GB")
+
+    # 並行度上限の設定
+    if payload.max_concurrent_dl is not None:
+        from nhk_radio_web.config import save_max_concurrent_dl
+        success = save_max_concurrent_dl(payload.max_concurrent_dl)
+        if not success:
+            raise HTTPException(status_code=500, detail="並行度設定の保存に失敗しました")
+        logger.info(f"並行ダウンロード数上限を更新: {payload.max_concurrent_dl}")
+
     return _settings_payload(storage_limit_bytes)
