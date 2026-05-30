@@ -6,8 +6,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from nhk_radio_web import __version__
-from nhk_radio_web.constants import NHK_DETAIL_TMPL
 from nhk_radio_web.config import _default_download_dir
+from nhk_radio_web.constants import NHK_DETAIL_TMPL
 from nhk_radio_web.help_content import render_help_html
 from nhk_radio_web.search import filter_episodes, filter_programs
 from nhk_radio_web.types import Episode, Program
@@ -18,11 +18,10 @@ from ._shared import (
     _build_genre_options,
     _create_download_job_from_models,
     _find_program,
+    _genre_counts,
     _job_manager_dep,
     _matches_genre,
-    _genre_counts,
     _parse_program_id,
-    fetch_program_list_async,
     get_episode_list,
     is_episode_downloaded,
     templates,

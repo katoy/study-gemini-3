@@ -612,8 +612,8 @@ class RoutesTest(unittest.TestCase):
     def test_api_v1_batch_delete_download_jobs(self):
         """バッチ削除で複数ジョブをフィルタ削除する"""
         job_manager = app.state.job_manager
-        job_id_1 = job_manager.enqueue(PROGRAM, EPISODE)
-        job_id_2 = job_manager.enqueue(PROGRAM, EPISODE2)
+        job_manager.enqueue(PROGRAM, EPISODE)
+        job_manager.enqueue(PROGRAM, EPISODE2)
 
         # デフォルトでは pending ステータス
         resp = self.client.delete("/api/v1/download-jobs")
@@ -625,8 +625,8 @@ class RoutesTest(unittest.TestCase):
     def test_api_v1_batch_delete_download_jobs_with_status_filter(self):
         """バッチ削除で status フィルタが機能する"""
         job_manager = app.state.job_manager
-        job_id_1 = job_manager.enqueue(PROGRAM, EPISODE)
-        job_id_2 = job_manager.enqueue(PROGRAM, EPISODE2)
+        job_manager.enqueue(PROGRAM, EPISODE)
+        job_manager.enqueue(PROGRAM, EPISODE2)
 
         # "pending" ステータスのジョブを削除
         resp = self.client.delete("/api/v1/download-jobs?status=pending")

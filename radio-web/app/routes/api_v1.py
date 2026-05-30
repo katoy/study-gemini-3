@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from nhk_radio_web import __version__
 from nhk_radio_web.cache import get_cache_status
 from nhk_radio_web.config import _default_download_dir
+from nhk_radio_web.job_manager import JobManager
 from nhk_radio_web.search import filter_episodes, filter_programs
 from nhk_radio_web.types import Program
 
@@ -36,6 +37,9 @@ from ..api_models import (
     SettingsUpdateRequest,
 )
 from ._shared import (
+    UNCLASSIFIED_GENRE,
+    JobStatusQuery,
+    LimitQuery,
     _all_programs_dep,
     _build_genre_options,
     _create_download_job_from_models,
@@ -50,13 +54,9 @@ from ._shared import (
     _settings_payload,
     _to_public_genre_id,
     _update_storage_limit,
-    fetch_program_list_async,
     get_episode_list,
     is_episode_downloaded,
     load_storage_limit,
-    JobStatusQuery,
-    LimitQuery,
-    UNCLASSIFIED_GENRE,
 )
 from .internal import download_file
 
@@ -190,7 +190,7 @@ async def api_v1_program_episode(
 async def api_v1_create_download_job(
     payload: DownloadJobCreateRequest,
     background_tasks: BackgroundTasks,
-    job_manager: Annotated[object, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
 ):
     job_id, job = _create_download_job_from_models(payload, job_manager, background_tasks)
     return DownloadJobResponse(data=_job_to_api_data(job_id, job))
@@ -198,7 +198,7 @@ async def api_v1_create_download_job(
 
 @api_v1_router.get("/download-jobs", response_model=DownloadJobListResponse)
 async def api_v1_download_jobs(
-    job_manager: Annotated[object, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
     status_filter: JobStatusQuery = None,
     limit: LimitQuery = None,
 ):
@@ -217,7 +217,7 @@ async def api_v1_download_jobs(
 
 
 @api_v1_router.get("/download-jobs/{job_id}", response_model=DownloadJobResponse)
-async def api_v1_download_job(job_id: str, job_manager: Annotated[object, Depends(_job_manager_dep)] = None):
+async def api_v1_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None):
     job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -225,7 +225,7 @@ async def api_v1_download_job(job_id: str, job_manager: Annotated[object, Depend
 
 
 @api_v1_router.delete("/download-jobs/{job_id}", response_model=DownloadJobResponse)
-async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[object, Depends(_job_manager_dep)] = None):
+async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None):
     job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -238,7 +238,7 @@ async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[object,
 @api_v1_router.delete("/download-jobs", response_model=DownloadJobListResponse)
 async def api_v1_batch_delete_download_jobs(
     status: Annotated[str | None, Query()] = None,
-    job_manager: Annotated[object, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
 ):
     """複数ダウンロードジョブをバッチ削除。status フィルタで特定ステータスのみ削除。"""
     all_jobs = job_manager.all_jobs()
