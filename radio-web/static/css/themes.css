@@ -554,6 +554,22 @@ body.app-page {
   cursor: default;
 }
 
+.ep-menu-btn {
+  background: var(--color-border);
+  color: var(--color-text);
+  border: none;
+  border-radius: 3px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  min-width: 1.5rem;
+}
+
+.ep-menu-btn:hover {
+  opacity: 0.7;
+}
+
 .ep-action-col {
   display: flex;
   align-items: center;

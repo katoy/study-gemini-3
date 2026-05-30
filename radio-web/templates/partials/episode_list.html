@@ -70,6 +70,7 @@
               data-episode='{{ item.episode | tojson }}'
               onclick="startDL(this)">DL</button>
           {% endif %}
+          <button class="ep-menu-btn" onclick="showEpisodeMenu(event, '{{ program.site_id }}', '{{ program.corner_id }}', '{{ item.episode.id }}', '{{ item.episode.title or item.episode.display_title or 'episode' }}', {{ item.downloaded | int }})">⋮</button>
         </td>
       </tr>
     {% endfor %}

@@ -392,6 +392,25 @@ function showContextMenu(x, y) {
   menu.style.top = finalY + 'px';
 }
 
+// メニューボタンクリックでコンテキストメニューを表示
+function showEpisodeMenu(event, siteId, cornerId, episodeId, episodeTitle, isDownloaded) {
+  event.stopPropagation();
+
+  // コンテキストメニュー用に contextMenuTarget を設定
+  const btn = event.target;
+  const row = btn.closest('tr');
+  if (!row) return;
+
+  contextMenuTarget = row;
+
+  // ボタンの位置を取得
+  const rect = btn.getBoundingClientRect();
+  const x = rect.left;
+  const y = rect.bottom;
+
+  showContextMenu(x, y);
+}
+
 document.getElementById('context-menu')?.addEventListener('click', (e) => {
   const action = e.target.closest('li')?.dataset.action;
   if (!action || !contextMenuTarget) return;
