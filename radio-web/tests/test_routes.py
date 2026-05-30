@@ -61,11 +61,15 @@ class RoutesTest(unittest.TestCase):
         app.state.job_manager = JobManager(max_concurrent=2)
         # ストレージ上限をデフォルト値に初期化
         app.state.storage_limit = 10 * 1024 * 1024 * 1024
+        # dependency_overrides をクリア
+        app.dependency_overrides.clear()
         self.client = TestClient(app, raise_server_exceptions=True)
 
     def tearDown(self):
         # テスト間でストレージ上限の変更が影響しないようリセット
         app.state.storage_limit = 10 * 1024 * 1024 * 1024
+        # dependency_overrides をクリア
+        app.dependency_overrides.clear()
 
     # ──────────────────────────────────────────────
     # GET /
@@ -136,12 +140,16 @@ class RoutesTest(unittest.TestCase):
     # ──────────────────────────────────────────────
 
     def test_episodes_partial_returns_html(self):
-        with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
-            patch("app.routes._shared.is_episode_downloaded", return_value=False),
-        ):
-            resp = self.client.get("/programs/SITE_01/episodes")
+        from app.routes._shared import _all_programs_dep, get_episode_list, is_episode_downloaded
+
+        async def mock_all_programs():
+            return [PROGRAM]
+
+        app.dependency_overrides[_all_programs_dep] = mock_all_programs
+        app.dependency_overrides[get_episode_list] = lambda program: ([EPISODE], "network")
+        app.dependency_overrides[is_episode_downloaded] = lambda output_dir, program, episode: False
+
+        resp = self.client.get("/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("第1回", resp.text)
 
@@ -152,7 +160,7 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_program_not_in_cache(self):
         """番組がキャッシュにない場合もフォールバックで動作すること。"""
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[]),
             patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
             patch("app.routes._shared.is_episode_downloaded", return_value=False),
         ):
@@ -161,7 +169,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_episodes_partial_runtime_error_returns_error_fragment(self):
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[PROGRAM]),
             patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("取得失敗")),
         ):
             resp = self.client.get("/programs/SITE_01/episodes")
@@ -181,7 +189,7 @@ class RoutesTest(unittest.TestCase):
     def test_episodes_partial_with_search_query(self):
         """エピソード一覧に検索キーワード (q パラメータ) が効く。"""
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[PROGRAM]),
             patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
             patch("app.routes._shared.is_episode_downloaded", return_value=False),
         ):
@@ -505,7 +513,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_program_episodes(self):
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[PROGRAM]),
             patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "cache")),
             patch("app.routes._shared.is_episode_downloaded", return_value=True),
         ):
@@ -516,13 +524,13 @@ class RoutesTest(unittest.TestCase):
         self.assertTrue(data["data"][0]["downloaded"])
 
     def test_api_v1_program_episodes_program_not_found(self):
-        with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes")
         self.assertEqual(resp.status_code, 404)
 
     def test_api_v1_program_episodes_fetch_error(self):
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[PROGRAM]),
             patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("boom")),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes")
@@ -530,7 +538,7 @@ class RoutesTest(unittest.TestCase):
 
     def test_api_v1_program_episode(self):
         with (
-            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared._all_programs_dep", new_callable=AsyncMock, return_value=[PROGRAM]),
             patch("app.routes._shared.get_episode_list", return_value=([EPISODE], "network")),
             patch("app.routes._shared.is_episode_downloaded", return_value=False),
         ):
@@ -1000,8 +1008,8 @@ class RoutesTest(unittest.TestCase):
     def test_download_episode_file_with_file_found(self):
         """GET /api/episodes で既ダウンロードファイルが見つかる場合。"""
         with TemporaryDirectory() as tmpdir:
-            # テストファイルを作成
-            test_file = Path(tmpdir) / EPISODE.title
+            # テストファイルを作成（ファイル名は「全角スペースを含む」形式）
+            test_file = Path(tmpdir) / f"20240415_{PROGRAM.title}_{EPISODE.title.replace(' ', '　')}.mp3"
             test_file.write_text("test audio")
 
             with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]):
