@@ -1,6 +1,7 @@
 """Headless ブラウザテスト - CI 用"""
 
 import asyncio
+import os
 import time
 
 from playwright.async_api import async_playwright
@@ -157,10 +158,11 @@ async def run_tests():
             print(f"\n❌ テスト実行中にエラー: {e}")
             test_results["失敗"] += 1
         finally:
-            # スクリーンショット取得
-            print("\n📸 スクリーンショット取得中...")
-            await page.screenshot(path="/tmp/browser_test.png")
-            print("  ✅ /tmp/browser_test.png に保存")
+            # スクリーンショット取得（オプション: SKIP_SCREENSHOT=1 で無効化）
+            if not os.getenv("SKIP_SCREENSHOT"):
+                print("\n📸 スクリーンショット取得中...")
+                await page.screenshot(path="/tmp/browser_test.png")
+                print("  ✅ /tmp/browser_test.png に保存")
 
             await browser.close()
 
