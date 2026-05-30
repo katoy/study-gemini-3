@@ -2,7 +2,6 @@
 
 import fnmatch
 import logging
-import sys
 from pathlib import Path
 from urllib.parse import quote
 
@@ -13,6 +12,7 @@ from nhk_radio_web.cache import clear_episode_cache, clear_program_cache
 from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.downloads import _episode_output_identity, _program_search_dirs
 from nhk_radio_web.text import _safe_name
+from nhk_radio_web.types import Program
 
 from ..api_models import SettingsUpdateRequest
 from ._shared import (
@@ -111,15 +111,12 @@ async def download_file(request: Request, job_id: str):
 @router.get("/api/episodes/{site_id}/{corner_id}/{episode_id}/file")
 async def download_episode_file(request: Request, site_id: str, corner_id: str, episode_id: str):
     """既にダウンロード済みのエピソードファイルをダウンロード。"""
-    print(f"DEBUG: download_episode_file called with site_id={site_id}, corner_id={corner_id}, episode_id={episode_id}", file=sys.stderr)
     # キャッシュから Program を取得
     all_programs = await fetch_program_list_async(None)
-    print(f"DEBUG: all_programs count={len(all_programs)}", file=sys.stderr)
     program = next(
         (p for p in all_programs if p.site_id == site_id and p.corner_id == corner_id),
         None,
     )
-    print(f"DEBUG: program found={program is not None}", file=sys.stderr)
     # フォールバック: キャッシュにない場合は最小構成で組み立てる
     if program is None:
         from nhk_radio_web.constants import NHK_DETAIL_TMPL
@@ -135,44 +132,31 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
     # キャッシュからエピソードを取得
     try:
         episodes, _ = await get_episode_list(program)
-        print(f"DEBUG: get_episode_list returned {len(episodes)} episodes", file=sys.stderr)
     except RuntimeError as e:
-        print(f"DEBUG: get_episode_list failed for {site_id}/{corner_id}: {e}", file=sys.stderr)
         raise HTTPException(status_code=404, detail="Episodes not found") from e
 
     episode = next(
         (ep for ep in episodes if ep.id == episode_id),
         None,
     )
-    print(f"DEBUG: episode found={episode is not None}", file=sys.stderr)
     if episode is None:
         raise HTTPException(status_code=404, detail="Episode not found")
 
     # ダウンロード済みファイルを探す
     output_dir = _default_download_dir()
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
-    print(f"DEBUG: output_dir={output_dir}", file=sys.stderr)
-    print(f"DEBUG: program_titles={program_titles}, episode_title={episode_title}, episode_date={episode_date}", file=sys.stderr)
     safe_episode_title = _safe_name(episode_title)
-    print(f"DEBUG: safe_episode_title={safe_episode_title}", file=sys.stderr)
 
-    search_dirs = list(_program_search_dirs(output_dir, program))
-    print(f"DEBUG: search_dirs={search_dirs}", file=sys.stderr)
-
-    for prog_dir in search_dirs:
-        print(f"DEBUG: checking prog_dir={prog_dir}, exists={prog_dir.exists()}", file=sys.stderr)
+    for prog_dir in _program_search_dirs(output_dir, program):
         if not prog_dir.exists():
             continue
-        files_in_dir = list(prog_dir.glob("*"))
-        print(f"DEBUG: files_in_dir={[f.name for f in files_in_dir if f.is_file()]}", file=sys.stderr)
-        for file_path in files_in_dir:
+        for file_path in prog_dir.glob("*"):
             if not file_path.is_file():
                 continue
             # ファイル名検索: 全角スペースを普通のスペースに正規化して比較
             normalized_filename = file_path.name.replace("　", " ")
             normalized_pattern = safe_episode_title.replace("　", " ")
             if fnmatch.fnmatch(normalized_filename, f"*{normalized_pattern}*"):
-                print(f"DEBUG: file matched! {file_path.name}", file=sys.stderr)
                 # ファイルが見つかった
                 filename = (
                     f"{episode_date}-{_safe_name(episode.title or episode.display_title or 'episode')}.mp3"
@@ -187,10 +171,8 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
                 # RFC 5987: UTF-8 エンコードされたファイル名を指定（URL エンコード必須）
                 encoded_filename = quote(filename, safe="")
                 response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
-                print(f"DEBUG: returning file response for {file_path}", file=sys.stderr)
                 return response
 
-    print(f"DEBUG: file not found after scanning all directories", file=sys.stderr)
     raise HTTPException(status_code=404, detail="File not found")
 
 
