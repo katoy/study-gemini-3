@@ -51,7 +51,11 @@ EPISODE = Episode(
 class RoutesCoverageTest(unittest.TestCase):
     def setUp(self):
         app.state.job_manager = JobManager(max_concurrent=2)
+        app.state.storage_limit = 10 * 1024 * 1024 * 1024
         self.client = TestClient(app, raise_server_exceptions=True)
+
+    def tearDown(self):
+        app.state.storage_limit = 10 * 1024 * 1024 * 1024
 
     def test_job_to_api_data_includes_file_path(self):
         payload = _job_to_api_data(
