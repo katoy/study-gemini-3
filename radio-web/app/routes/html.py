@@ -9,6 +9,7 @@ from nhk_radio_web import __version__
 from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.constants import NHK_DETAIL_TMPL
 from nhk_radio_web.help_content import render_help_html
+from nhk_radio_web.job_manager import JobManager
 from nhk_radio_web.search import filter_episodes, filter_programs
 from nhk_radio_web.types import Episode, Program
 
@@ -154,7 +155,7 @@ async def start_download(
     request: Request,
     background_tasks: BackgroundTasks,
     payload: DownloadJobCreateRequest,
-    job_manager: Annotated[object, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
 ):
     """単発ダウンロード: ジョブを登録してステータス HTML フラグメントを返す。"""
     job_id, job = _create_download_job_from_models(payload, job_manager, background_tasks)

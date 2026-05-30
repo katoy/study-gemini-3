@@ -190,7 +190,7 @@ async def api_v1_program_episode(
 async def api_v1_create_download_job(
     payload: DownloadJobCreateRequest,
     background_tasks: BackgroundTasks,
-    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
 ):
     job_id, job = _create_download_job_from_models(payload, job_manager, background_tasks)
     return DownloadJobResponse(data=_job_to_api_data(job_id, job))
@@ -198,7 +198,7 @@ async def api_v1_create_download_job(
 
 @api_v1_router.get("/download-jobs", response_model=DownloadJobListResponse)
 async def api_v1_download_jobs(
-    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
     status_filter: JobStatusQuery = None,
     limit: LimitQuery = None,
 ):
@@ -217,7 +217,7 @@ async def api_v1_download_jobs(
 
 
 @api_v1_router.get("/download-jobs/{job_id}", response_model=DownloadJobResponse)
-async def api_v1_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None):
+async def api_v1_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)]):
     job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -225,7 +225,7 @@ async def api_v1_download_job(job_id: str, job_manager: Annotated[JobManager, De
 
 
 @api_v1_router.delete("/download-jobs/{job_id}", response_model=DownloadJobResponse)
-async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None):
+async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[JobManager, Depends(_job_manager_dep)]):
     job = job_manager.status_snapshot(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -237,8 +237,8 @@ async def api_v1_cancel_download_job(job_id: str, job_manager: Annotated[JobMana
 
 @api_v1_router.delete("/download-jobs", response_model=DownloadJobListResponse)
 async def api_v1_batch_delete_download_jobs(
+    job_manager: Annotated[JobManager, Depends(_job_manager_dep)],
     status: Annotated[str | None, Query()] = None,
-    job_manager: Annotated[JobManager, Depends(_job_manager_dep)] = None,
 ):
     """複数ダウンロードジョブをバッチ削除。status フィルタで特定ステータスのみ削除。"""
     all_jobs = job_manager.all_jobs()
