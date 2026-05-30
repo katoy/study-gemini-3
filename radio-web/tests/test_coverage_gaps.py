@@ -68,13 +68,13 @@ class RoutesCoverageTest(unittest.TestCase):
         self.assertEqual(payload.file_path, "/tmp/test.mp3")
 
     def test_api_v1_program_episode_error_paths(self):
-        with patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
+        with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes/ep-1")
         self.assertEqual(resp.status_code, 404)
 
         with (
-            patch("app.routes.html.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
-            patch("app.routes.html.get_episode_list", side_effect=RuntimeError("failure")),
+            patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[PROGRAM]),
+            patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("failure")),
         ):
             resp = self.client.get("/api/v1/programs/SITE_01/episodes/ep-1")
         self.assertEqual(resp.status_code, 502)

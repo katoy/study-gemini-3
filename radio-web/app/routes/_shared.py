@@ -11,7 +11,8 @@ from fastapi.templating import Jinja2Templates
 
 from nhk_radio_web.config import load_storage_limit, save_storage_limit
 from nhk_radio_web.constants import GENRE_LABELS
-from nhk_radio_web.core import fetch_program_list_async, get_genres
+from nhk_radio_web.core import fetch_program_list_async, get_episode_list, get_genres
+from nhk_radio_web.downloads import is_episode_downloaded
 from nhk_radio_web.job_manager import JobManager
 from nhk_radio_web.types import Program
 
@@ -26,6 +27,20 @@ from ..api_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# テストで patch 可能にするため、import した関数を re-export
+__all__ = [
+    "fetch_program_list_async",
+    "get_episode_list",
+    "is_episode_downloaded",
+    "load_storage_limit",
+    "save_storage_limit",
+    "templates",
+    "UNCLASSIFIED_GENRE",
+    "PUBLIC_UNCLASSIFIED_GENRE",
+    "LimitQuery",
+    "JobStatusQuery",
+]
 
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))

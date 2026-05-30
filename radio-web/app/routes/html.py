@@ -7,8 +7,6 @@ from fastapi.responses import HTMLResponse
 
 from nhk_radio_web import __version__
 from nhk_radio_web.constants import NHK_DETAIL_TMPL
-from nhk_radio_web.core import fetch_program_list_async, get_episode_list
-from nhk_radio_web.downloads import is_episode_downloaded
 from nhk_radio_web.config import _default_download_dir
 from nhk_radio_web.help_content import render_help_html
 from nhk_radio_web.search import filter_episodes, filter_programs
@@ -24,6 +22,9 @@ from ._shared import (
     _matches_genre,
     _genre_counts,
     _parse_program_id,
+    fetch_program_list_async,
+    get_episode_list,
+    is_episode_downloaded,
     templates,
 )
 
