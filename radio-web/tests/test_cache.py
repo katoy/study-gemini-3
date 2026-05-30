@@ -3,7 +3,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from nhk_radio_web import cache
 from nhk_radio_web.types import Episode, Program
@@ -238,6 +238,7 @@ class CacheHelpersTest(unittest.TestCase):
             with patch("json.dumps", side_effect=ValueError("Serialization error")):
                 with self.assertRaises(ValueError):
                     cache._save_json_cache(cache_path, {"data": "test"})
+
 
 
 if __name__ == "__main__":

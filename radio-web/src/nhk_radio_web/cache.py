@@ -187,4 +187,10 @@ def get_cache_status() -> dict[str, int | float]:
         except OSError:
             pass
 
+    # キャッシュサイズが大きい場合は警告
+    cache_warning_threshold = 100 * 1024 * 1024  # 100 MB
+    if total_size > cache_warning_threshold:
+        size_mb = total_size / (1024 * 1024)
+        logger.warning(f"キャッシュディレクトリサイズが大きくなっています ({size_mb:.1f} MB)。clear_all_cache() での削除を検討してください")
+
     return {"size_bytes": total_size, "last_modified": last_modified}
