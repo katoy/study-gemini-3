@@ -71,7 +71,8 @@ jobs:
           enable-cache: true
       - run: uv sync --dev
       - run: bash scripts/test.sh
-      - run: echo "✅ Unit テスト: エラーなし"
+      - run: |
+          echo "✅ Unit テスト: エラーなし"
 
   coverage:
     name: Code Coverage (Non-GUI 100%)
