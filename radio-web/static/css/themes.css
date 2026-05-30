@@ -979,6 +979,13 @@ body.dashboard-page {
   padding: 0.5rem 0.4rem;
 }
 
+.db-sidebar-section:nth-child(2) {
+  max-height: 400px;
+  overflow-y: auto;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
 .db-sidebar-section-label {
   font-size: 0.68rem;
   font-weight: 600;

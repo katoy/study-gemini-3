@@ -374,9 +374,22 @@ document.addEventListener('click', (e) => {
 function showContextMenu(x, y) {
   const menu = document.getElementById('context-menu');
   if (!menu) return;
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
   menu.style.display = 'block';
+  // メニューサイズを取得
+  const rect = menu.getBoundingClientRect();
+  const menuWidth = rect.width;
+  const menuHeight = rect.height;
+  // ビューポート外にはみ出さないように調整
+  let finalX = x;
+  let finalY = y;
+  if (x + menuWidth > window.innerWidth) {
+    finalX = window.innerWidth - menuWidth - 4;
+  }
+  if (y + menuHeight > window.innerHeight) {
+    finalY = window.innerHeight - menuHeight - 4;
+  }
+  menu.style.left = finalX + 'px';
+  menu.style.top = finalY + 'px';
 }
 
 document.getElementById('context-menu')?.addEventListener('click', (e) => {
