@@ -380,7 +380,7 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
 
 async def get_episode_list(
     program: Program,
-    retry_delay: float = 1.0,
+    retry_delay: float = HTTP_RETRY_BASE_DELAY,
     use_cache: bool = True,
 ) -> tuple[list[Episode], str]:
     if use_cache:
@@ -393,7 +393,7 @@ async def get_episode_list(
 
 async def refresh_episode_list(
     program: Program,
-    retry_delay: float = 1.0,
+    retry_delay: float = HTTP_RETRY_BASE_DELAY,
 ) -> tuple[list[Episode], str]:
     # キャッシュロック機構を使用（複数クライアントの重複 API 呼び出しを防ぐ）
     cache_key = f"episode:{program.site_id}_{program.corner_id}"
@@ -411,7 +411,9 @@ async def refresh_episode_list(
             except Exception as e:
                 last_error = str(e)
                 if attempt == 0:
-                    await asyncio.sleep(retry_delay)
+                    # 指数バックオフ: 基準遅延 × 2^試行回数
+                    wait_time = retry_delay * (2 ** attempt)
+                    await asyncio.sleep(wait_time)
                 continue
 
             try:

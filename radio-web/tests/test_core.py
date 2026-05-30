@@ -291,14 +291,14 @@ class CoreHelpersTest(unittest.TestCase):
 
             with patch.object(core, "refresh_episode_list", new_callable=AsyncMock, return_value=([], "network")) as refresh_mock:
                 self.assertEqual(await core.get_episode_list(program, use_cache=False), ([], "network"))
-                refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+                refresh_mock.assert_called_once_with(program, retry_delay=0.5)
 
             with (
                 patch.object(core, "load_episode_cache", return_value=None),
                 patch.object(core, "refresh_episode_list", new_callable=AsyncMock, return_value=([], "network")) as refresh_mock,
             ):
                 self.assertEqual(await core.get_episode_list(program), ([], "network"))
-                refresh_mock.assert_called_once_with(program, retry_delay=1.0)
+                refresh_mock.assert_called_once_with(program, retry_delay=0.5)
 
             with (
                 patch.object(core, "load_episode_cache", return_value=None),
