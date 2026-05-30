@@ -968,13 +968,14 @@ class RoutesTest(unittest.TestCase):
                     self.assertIn("filename*=UTF-8''", content_disp)
 
     def test_download_episode_file_program_not_found(self):
-        """GET /api/episodes で Program が見つからない → 404。"""
+        """GET /api/episodes で Program が見つからない場合、フォールバック Program でエピソード取得に失敗 → 404。"""
         with patch("app.routes._shared.fetch_program_list_async", new_callable=AsyncMock, return_value=[]):
-            resp = self.client.get(
-                "/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
-            )
-            self.assertEqual(resp.status_code, 404)
-            self.assertIn("Program not found", resp.text)
+            with patch("app.routes._shared.get_episode_list", side_effect=RuntimeError("API error")):
+                resp = self.client.get(
+                    "/api/episodes/nonexistent_site/nonexistent_corner/nonexistent_id/file"
+                )
+                self.assertEqual(resp.status_code, 404)
+                self.assertIn("Episodes not found", resp.text)
 
     def test_download_episode_file_episodes_not_found(self):
         """GET /api/episodes で Episodes 取得失敗 → 404。"""

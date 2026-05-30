@@ -2,6 +2,7 @@
 
 import fnmatch
 import logging
+import sys
 from pathlib import Path
 from urllib.parse import quote
 
@@ -116,8 +117,17 @@ async def download_episode_file(request: Request, site_id: str, corner_id: str, 
         (p for p in all_programs if p.site_id == site_id and p.corner_id == corner_id),
         None,
     )
+    # フォールバック: キャッシュにない場合は最小構成で組み立てる
     if program is None:
-        raise HTTPException(status_code=404, detail="Program not found")
+        from nhk_radio_web.constants import NHK_DETAIL_TMPL
+        program = Program(
+            title=f"{site_id}_{corner_id}",
+            display_title=f"{site_id}_{corner_id}",
+            display_date="",
+            site_id=site_id,
+            corner_id=corner_id,
+            url=NHK_DETAIL_TMPL.format(site_id=site_id, corner_id=corner_id),
+        )
 
     # キャッシュからエピソードを取得
     try:
