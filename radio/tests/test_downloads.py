@@ -419,6 +419,33 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertFalse(result)
             mock_process.kill.assert_called_once()
 
+    def test_run_yt_dlp_subprocess_with_cancel_event(self):
+        """キャンセルイベントがセットされた場合、プロセスを terminate する"""
+        import threading
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen") as popen_mock,
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            mock_process = popen_mock.return_value
+            # stdout ループをシミュレート：2 行目でキャンセルイベントをセット
+            lines = ["line1"]
+            def mock_iter():
+                cancel_event.set()
+                yield "line1"
+            mock_process.stdout = mock_iter()
+            cancel_event = threading.Event()
+            result = downloads.run_yt_dlp_subprocess(["test"], cancel_event=cancel_event)
+            mock_process.terminate.assert_called_once()
+
+    def test_run_yt_dlp_subprocess_exception_returns_false(self):
+        """例外発生時に False を返す"""
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen", side_effect=RuntimeError("test error")),
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            result = downloads.run_yt_dlp_subprocess(["test"])
+            self.assertFalse(result)
+
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertFalse(downloads.is_episode_downloaded(Path(tmp), PROGRAM, EPISODE))
