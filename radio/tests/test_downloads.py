@@ -576,6 +576,21 @@ class DownloadHelpersTest(unittest.TestCase):
             result = downloads.run_yt_dlp_subprocess(["test"])
             self.assertFalse(result)
 
+    def test_get_program_search_dirs_with_duplicate_genres(self):
+        """重複した genre で _program_search_dirs が重複をスキップすることをテスト"""
+        program = PROGRAM
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            # 同じジャンルが複数回現れる場合でも、重複のディレクトリが追加されないことを確認
+            # _legacy_program_output_dirs が重複を返すシナリオをシミュレート
+            with patch("nhk_radio.downloads.filesystem._legacy_program_output_dirs") as mock_legacy:
+                # 同じディレクトリを 2 回返す
+                same_dir = Path(tmp) / "genre" / "title"
+                mock_legacy.return_value = [same_dir, same_dir]
+                result = downloads._program_search_dirs(output_dir, program)
+                # 重複がスキップされることを確認
+                self.assertEqual(len(result), len(set(result)))
+
     def test_load_download_manifest_stat_oserror(self):
         """マニフェスト path.stat() が OSError を発生させた場合、キャッシュから読み込み。"""
         program = PROGRAM
