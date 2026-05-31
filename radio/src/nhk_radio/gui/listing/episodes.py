@@ -1,0 +1,420 @@
+"""GUI episodes Mixin — エピソードツリーの表示・検索・フィルタ。"""
+
+# mypy: disable-error-code="attr-defined,has-type,arg-type,assignment,misc,empty-body,return-value"
+
+import logging
+import tkinter as tk
+from tkinter import ttk
+
+from ...downloads import _episode_key, get_downloaded_episode_keys
+from ...text import _sortable_duration_value, _sortable_timestamp_value
+from ...types import Episode, Program
+
+logger = logging.getLogger(__name__)
+
+
+class GuiEpisodeMixin:
+    """Logic for episode listing, filtering, and selection."""
+
+    # Mixin properties to help type checker
+    if False:
+        from ..browser import EpisodeGuiBrowser
+        self = EpisodeGuiBrowser()
+
+    def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
+        preserved_episode_keys: tuple[str, ...] = ()
+        if not clear_selection:
+            preserved_episode_keys = self._selected_episode_keys() or self.selected_episode_keys
+
+        self.displayed_episode_map.clear()
+        for item_id in self.episode_tree.get_children():
+            self.episode_tree.delete(item_id)
+
+        rendered = self._sorted_episodes(episodes)
+        to_check = []
+        from ...text import _program_genre_text
+        genre_text = _program_genre_text(program)
+        for index, episode in enumerate(rendered):
+            iid = f"episode-{index}"
+            self.displayed_episode_map[iid] = episode
+
+            # 初期状態は「未ダウンロード」として高速描画
+            saved = self._downloaded_cell_text(False)
+            date_time = episode.display_date or "----"
+            btime = episode.broadcast_time
+            if btime:
+                date_time = f"{date_time} {btime}"
+            dur = episode.duration_str or "----"
+            title = f"{episode.display_title or episode.title} ({genre_text})"
+
+            # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
+            self.episode_tree.insert(
+                "",
+                "end",
+                iid=iid,
+                values=(saved, date_time, dur, title),
+            )
+            to_check.append((iid, episode))
+
+        if rendered:
+            if clear_selection:
+                self.episode_tree.selection_remove(self.episode_tree.selection())
+                self.episode_tree.focus("")
+                self.selected_episode_keys = ()
+            else:
+                selected_ids = [
+                    iid for iid, episode in self.displayed_episode_map.items()
+                    if _episode_key(episode) in preserved_episode_keys
+                ]
+                if selected_ids:
+                    self.episode_tree.selection_set(selected_ids)
+                    self.episode_tree.focus(selected_ids[0])
+                    self.episode_tree.see(selected_ids[0])
+                    self.selected_episode_keys = tuple(
+                        _episode_key(self.displayed_episode_map[iid]) for iid in selected_ids
+                    )
+                else:
+                    first = next(iter(self.displayed_episode_map))
+                    self.episode_tree.selection_set(first)
+                    self.episode_tree.focus(first)
+                    self.episode_tree.see(first)
+                    self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
+            self.download_button.state(["!disabled"])
+
+            # 判定処理を開始
+            import threading
+            threading.Thread(target=self._async_download_check_worker, args=(program, to_check), daemon=True).start()
+        else:
+            self.episode_tree.selection_remove(self.episode_tree.selection())
+            self.episode_tree.focus("")
+            self.download_button.state(["disabled"])
+
+        self._update_episode_filter_summary(len(rendered), len(episodes))
+        self._update_episode_selection_summary()
+        self._schedule_saved_button_refresh()
+
+    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]]):
+        """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
+        if self.displayed_program != program:
+            return
+
+        # エピソードをバッチで一括判定（N+1 問題を解決）
+        episodes = [ep for _iid, ep in to_check]
+        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+
+        results = [(iid, True) for iid, ep in to_check if _episode_key(ep) in downloaded_keys]
+
+        if results and self.displayed_program == program:
+            self.root.after(0, lambda: self._apply_download_check_results(program, results))
+
+    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]]):
+        """判定結果を UI に反映する。"""
+        if self.displayed_program != program:
+            return
+
+        for iid, is_dl in results:
+            if not self.episode_tree.exists(iid):
+                continue
+
+            saved = self._downloaded_cell_text(is_dl)
+            current_values = self.episode_tree.item(iid, "values")
+            if not current_values:
+                continue
+
+            new_values = list(current_values)
+            new_values[0] = saved
+            # 背景色の変更（タグの付与）は行わず、値のみを更新する
+            self.episode_tree.item(iid, values=tuple(new_values))
+
+    def _rerender_displayed_episodes(self):
+        if self.displayed_program is None:
+            return
+        self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=True)
+
+    def _refresh_downloaded_column(self, program: Program):
+        if self.displayed_program is None:
+            return
+
+        # バッチ判定で全エピソードの保存状態を効率的に取得
+        episodes = list(self.displayed_episode_map.values())
+        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+
+        for iid, episode in self.displayed_episode_map.items():
+            values = list(self.episode_tree.item(iid, "values"))
+            if len(values) < 3:
+                continue
+            is_downloaded = _episode_key(episode) in downloaded_keys
+            values[0] = self._downloaded_cell_text(is_downloaded)
+            self.episode_tree.item(iid, values=tuple(values))
+        self._schedule_saved_button_refresh()
+        self._update_program_overview(self.displayed_program, self.displayed_episodes, "保存状態を更新")
+
+    def _downloaded_cell_text(self, downloaded: bool) -> str:
+        # 絵文字 (💾) は macOS で黒潰れの原因になるため、
+        # より安定した記号 (☑: チェックボックス) をアイコンとして使用します。
+        return "  ☑" if downloaded else ""
+
+    def _is_saved_item(self, item_id: str) -> bool:
+        values = self.episode_tree.item(item_id, "values")
+        return bool(values and "☑" in str(values[0]))
+
+    def _schedule_saved_button_refresh(self):
+        if self.saved_button_refresh_pending:
+            return
+        self.saved_button_refresh_pending = True
+        self.root.after(200, self._refresh_saved_only_button_state)
+
+    def _refresh_saved_only_button_state(self):
+        self.saved_button_refresh_pending = False
+        if not hasattr(self, "episode_saved_only_check"):
+            return
+
+        # バッチ判定で保存済みの有無をチェック
+        has_saved = False
+        if self.displayed_program and self.displayed_episodes:
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, self.displayed_program, self.displayed_episodes
+            )
+            has_saved = bool(downloaded_keys)
+
+        if has_saved:
+            self.episode_saved_only_check.state(["!disabled"])
+        else:
+            self.episode_saved_only_check.state(["disabled"])
+            if self.episode_saved_only_var.get():
+                self.episode_saved_only_var.set(False)
+
+    def _on_episode_filter_change(self, *_args):
+        if self.displayed_program:
+            self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
+
+    def _clear_episode_search(self, _event=None):
+        self.episode_search_var.set("")
+        if hasattr(self, "episode_search_entry"):
+            self.episode_search_entry.focus_set()
+        return "break"
+
+    def _clear_episode_filter(self, _event=None):
+        return self._clear_episode_search(_event)
+
+    def _sorted_episodes(self, episodes: list[Episode]) -> list[Episode]:
+        # フィルタリング
+        needle = self._normalized_search_text(self.episode_search_var.get())
+        saved_only = self.episode_saved_only_var.get()
+
+        # バッチ判定: フィルタリングとソートの両方で使用
+        downloaded_keys: set[str] = set()
+        if self.displayed_program and (saved_only or self.episode_sort_state[0] == "saved"):
+            downloaded_keys = get_downloaded_episode_keys(self.output_dir, self.displayed_program, episodes)
+
+        filtered = episodes
+        if needle:
+            filtered = [e for e in filtered if needle in self._normalized_search_text(f"{e.title} {e.display_title}")]
+        if saved_only and self.displayed_program:
+            filtered = [e for e in filtered if _episode_key(e) in downloaded_keys]
+
+        # ソート
+        col, reverse = self.episode_sort_state
+        if col == "saved":
+            # 保存済みを優先
+            def key_func(episode: Episode) -> bool:
+                return _episode_key(episode) in downloaded_keys
+        elif col == "date":
+            def key_func(episode: Episode):
+                return _sortable_timestamp_value(episode.date)
+        elif col == "duration":
+            def key_func(episode: Episode):
+                return _sortable_duration_value(episode.duration_str)
+        elif col == "title":
+            def key_func(episode: Episode) -> str:
+                return episode.display_title or episode.title
+        else:
+            return filtered
+
+        return sorted(filtered, key=key_func, reverse=reverse)
+
+    def _toggle_episode_sort(self, col: str):
+        current_col, current_reverse = self.episode_sort_state
+        if current_col == col:
+            self.episode_sort_state = (col, not current_reverse)
+        else:
+            self.episode_sort_state = (col, False)
+        self._update_episode_tree_headings()
+        if self.displayed_program:
+            self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
+
+    def _update_episode_tree_headings(self):
+        headers = {"saved": "DL", "date": "放送日時", "duration": "長さ", "title": "タイトル"}
+        for c, base_label in headers.items():
+            label = base_label
+            if self.episode_sort_state[0] == c:
+                label += " ▲" if self.episode_sort_state[1] else " ▼"
+            self.episode_tree.heading(c, text=label)
+
+    def _update_episode_filter_summary(self, count: int, total: int):
+        self.episode_filter_summary_var.set(f"表示 {count} / 全 {total} 件")
+
+    def _update_episode_selection_summary(self):
+        count = len(self.episode_tree.selection())
+        self.episode_selection_summary_var.set(f"選択 {count} 件")
+
+    def _on_episode_selection_change(self, _event=None):
+        self.selected_episode_keys = self._selected_episode_keys()
+        self._update_episode_selection_summary()
+
+    def _selected_episode_keys(self) -> tuple[str, ...]:
+        keys: list[str] = []
+        for item_id in self.episode_tree.selection():
+            episode = self.displayed_episode_map.get(item_id)
+            if episode is not None:
+                keys.append(_episode_key(episode))
+        return tuple(keys)
+
+    def _tree_label(self, tree: ttk.Treeview) -> str:
+        if tree is self.program_tree:
+            return "番組一覧"
+        if tree is self.episode_tree:
+            return "エピソード一覧"
+        return "一覧"
+
+    def _tree_cell_from_event(self, tree: ttk.Treeview, event) -> tuple[str, str, str] | None:
+        if tree.identify("region", event.x, event.y) != "cell":
+            return None
+
+        item_id = tree.identify_row(event.y)
+        column_id = tree.identify_column(event.x)
+        if not item_id or not column_id.startswith("#"):
+            return None
+
+        try:
+            column_index = int(column_id[1:]) - 1
+        except ValueError:
+            return None
+
+        values = tree.item(item_id, "values")
+        if column_index < 0 or column_index >= len(values):
+            return None
+        return item_id, column_id, str(values[column_index])
+
+    def _set_selected_tree_cell(self, tree: ttk.Treeview, column_id: str, value: str):
+        try:
+            column_index = int(column_id[1:]) - 1
+        except ValueError:
+            return
+
+        columns = tree["columns"]
+        if column_index < 0 or column_index >= len(columns):
+            return
+
+        heading = tree.heading(columns[column_index], "text") or columns[column_index]
+        meta = f"{self._tree_label(tree)} / {heading}"
+        self._update_selected_cell_ui(meta, value)
+        if hasattr(self, "selected_cell_entry"):
+            self.selected_cell_entry.xview_moveto(0)
+
+    def _on_episode_tree_click(self, event):
+        cell = self._tree_cell_from_event(self.episode_tree, event)
+        if cell is None:
+            return None
+        item_id, column_id, value = cell
+
+        # ☑ マーク（保存済みインジケータ）クリックでデフォルトプレイヤーで再生
+        # column_id は "#1"（saved カラムのインデックス）
+        if column_id == "#1" and "☑" in str(value):
+            self._play_episode_file(item_id)
+            return "break"
+
+        self._set_selected_tree_cell(self.episode_tree, column_id, value)
+        return None
+
+    def _show_episodes(self, program: Program, episodes: list[Episode], message: str):
+        if self._program_key(self.displayed_program) != self._program_key(program):
+            self.selected_episode_keys = ()
+        self.displayed_program = program
+        self.displayed_episodes = list(episodes)
+        self.episode_title_var.set(f"エピソード一覧: {program.display_title or program.title}")
+        self.episode_message_var.set(message)
+        self._render_episode_rows(program, episodes, clear_selection=False)
+
+    def _on_episode_tree_motion(self, event):
+        """マウスホバーで saved カラムの ☑ マークに hand cursor と tooltip を表示。"""
+        cell = self._tree_cell_from_event(self.episode_tree, event)
+        # column_id は "#1"（saved カラムのインデックス）
+        if cell and cell[1] == "#1" and "☑" in str(cell[2]):
+            self.episode_tree.config(cursor="hand2")
+            self._show_tooltip(event, "クリック: 再生 | 右クリック: メニュー")
+        else:
+            self.episode_tree.config(cursor="")
+            self._hide_tooltip()
+
+    def _on_episode_tree_leave(self, _event):
+        """マウスが tree を離れたら cursor と tooltip をリセット。"""
+        self.episode_tree.config(cursor="")
+        self._hide_tooltip()
+
+    def _on_episode_tree_scroll(self, *args):
+        self.episode_tree.yview(*args)
+
+    def _bind_tooltip(self, widget, text: str):
+        widget.bind("<Enter>", lambda event: self._show_tooltip(event, text), add="+")
+        widget.bind("<Motion>", self._move_tooltip, add="+")
+        widget.bind("<Leave>", lambda _event: self._hide_tooltip(), add="+")
+        widget.bind("<ButtonPress>", lambda _event: self._hide_tooltip(), add="+")
+
+    def _show_tooltip(self, event, text: str):
+        self._hide_tooltip()
+        tooltip = tk.Toplevel(self.root)
+        tooltip.wm_overrideredirect(True)
+
+        # 背景色をパレットから取得
+        p = self._palette
+        label = tk.Label(
+            tooltip,
+            text=text,
+            background=p.get("accent_soft", "#FFF4E6"),
+            foreground=p.get("text", "#000000"),
+            relief="solid",
+            borderwidth=1,
+            padx=8,
+            pady=4,
+            font=getattr(self, "_ui_small", ("sans-serif", 10))
+        )
+        label.pack()
+        self.tooltip_window = tooltip
+        self.tooltip_label = label
+        self._move_tooltip(event)
+
+    def _move_tooltip(self, event):
+        if not hasattr(self, "tooltip_window") or self.tooltip_window is None or not self.tooltip_window.winfo_exists():
+            return
+        x = event.x_root + 14
+        y = event.y_root + 18
+        self.tooltip_window.geometry(f"+{x}+{y}")
+
+    def _hide_tooltip(self):
+        if hasattr(self, "tooltip_window") and self.tooltip_window is not None and self.tooltip_window.winfo_exists():
+            self.tooltip_window.destroy()
+        self.tooltip_window = None
+        self.tooltip_label = None
+
+    def _focus_episode_search(self, _event=None):
+        if hasattr(self, "episode_search_entry"):
+            self.episode_search_entry.focus_set()
+        return "break"
+
+    def _copy_selected_cell_to_clipboard(self, _event=None):
+        val = self.selected_cell_value_var.get()
+        if val:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(val)
+            self.status_var.set(f"コピーしました: {val[:20]}...")
+
+    def _update_selected_cell_ui(self, meta: str, value: str):
+        self.selected_cell_meta_var.set(meta)
+        self.selected_cell_value_var.set(value)
+        if hasattr(self, "copy_cell_button"):
+            self.copy_cell_button.state(["!disabled"])
+
+    def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
+        """指定した番組のキャッシュされたエピソードを返す。"""
+        return self.data_manager.get_cached_episodes(program, ttl_seconds=10**12)

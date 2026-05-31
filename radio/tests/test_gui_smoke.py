@@ -180,7 +180,7 @@ class GuiSmokeTest(unittest.TestCase):
         browser.displayed_program = self.programs[0]
         browser.displayed_episodes = []
 
-        with patch("nhk_radio.gui.listing.get_downloaded_episode_keys", return_value={}), \
+        with patch("nhk_radio.downloads.get_downloaded_episode_keys", return_value={}), \
              patch.object(browser.episode_saved_only_var, "set") as mock_set:
             browser._refresh_saved_only_button_state()
 
