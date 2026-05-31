@@ -274,7 +274,7 @@ radio/
 | `gui/data_manager.py` | 62 | 35% |
 | `gui/download_manager.py` | 81 | 64% |
 | `gui/download_panel.py` | 262 | 62% |
-| `gui/help_markdown.py` | 134 | 99% |
+| `gui/help_markdown.py` | 134 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
 | `gui/listing/episodes.py` | 292 | 53% |
 | `gui/listing/operations.py` | 136 | 10% |

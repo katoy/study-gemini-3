@@ -112,5 +112,17 @@ Normal paragraph with **strong** and `code`.
             segments = help_markdown._split_inline_markdown("dummy")
             self.assertEqual(segments, [("text", "dummy")])
 
+    def test_render_help_markdown_paragraph_break_on_heading(self):
+        """段落が見出しで中断されることをテスト（行 112 の break）"""
+        text_widget = MagicMock()
+        palette = MagicMock()
+        fonts = MagicMock()
+
+        # 段落テキスト + 見出しで構成
+        markdown = "Line 1\nLine 2\n## Heading"
+        help_markdown.render_help_markdown(text_widget, markdown, palette, fonts)
+        # "Line 1 Line 2" で段落が終了し、見出しで break されることを確認
+        text_widget.insert.assert_any_call("end", "Line 1 Line 2", ("body",))
+
 if __name__ == "__main__":
     unittest.main()
