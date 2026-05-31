@@ -459,6 +459,18 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
         parsed = core._parse_episode_info(info, self.PROGRAM)
         self.assertEqual(parsed.url, self.STREAM_URL)
 
+    def test_merge_program_genres_with_no_primary_label(self):
+        """primary_label が未設定で primary_genre がある場合、_genre_label() で label を取得。"""
+        from nhk_radio.text import _genre_label
+        program = Program(
+            title="Test", display_title="Test", display_date="2024-01-01",
+            site_id="S", corner_id="C", url="", genre="education", genre_label="",  # label empty
+            genres=(), genre_labels=()
+        )
+        merged = core._merge_program_genres(program)
+        # primary_genre="education" → _genre_label("education") = "教養"
+        self.assertEqual(merged.genre_label, _genre_label("education"))
+
 
 if __name__ == "__main__":
     unittest.main()
