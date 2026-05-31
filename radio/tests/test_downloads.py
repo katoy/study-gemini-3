@@ -446,6 +446,25 @@ class DownloadHelpersTest(unittest.TestCase):
             result = downloads.run_yt_dlp_subprocess(["test"])
             self.assertFalse(result)
 
+    def test_run_yt_dlp_subprocess_with_progress_callback(self):
+        """進捗コールバックが呼ばれることをテスト"""
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen") as popen_mock,
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            mock_process = popen_mock.return_value
+            # yt-dlp のダウンロード進捗出力をシミュレート
+            mock_process.stdout = ["[download]  10.0% of 100.00KiB at 50.00KiB/s ETA 00:01"]
+            mock_process.wait.return_value = 0
+
+            progress_calls = []
+            def on_progress(percent, eta, status):
+                progress_calls.append((percent, eta, status))
+
+            result = downloads.run_yt_dlp_subprocess(["test"], on_progress=on_progress)
+            self.assertTrue(result)
+            self.assertTrue(any(call[0] == 10.0 for call in progress_calls))
+
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertFalse(downloads.is_episode_downloaded(Path(tmp), PROGRAM, EPISODE))
@@ -545,6 +564,7 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             result = downloads.remove_episode_from_manifest(output_dir, program, episode)
             self.assertFalse(result)
+
 
 
 if __name__ == "__main__":
