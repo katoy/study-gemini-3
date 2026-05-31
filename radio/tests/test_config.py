@@ -225,23 +225,6 @@ class ConfigHelpersTest(unittest.TestCase):
         ):
             self.assertRaises(RuntimeError, config._save_ui_settings, "dark", 12, [])
 
-    def test_save_ui_settings_preserves_help_seen_version(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            settings_path = Path(tmp) / "ui.json"
-            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
-                # 初回保存で help_seen_version を含める
-                config._save_ui_settings("light", 11, [])
-                config._save_help_seen_version(1)
-
-                # 再度 _save_ui_settings を呼び出す
-                config._save_ui_settings("dark", 12, ["search"])
-
-            # help_seen_version が保持されているか確認
-            payload = json.loads(settings_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["help_seen_version"], 1)
-            self.assertEqual(payload["theme"], "dark")
-            self.assertEqual(payload["font_size_pt"], 12)
-
     def test_save_help_seen_version_creates_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings_path = Path(tmp) / "nested" / "ui.json"
@@ -284,6 +267,78 @@ class ConfigHelpersTest(unittest.TestCase):
                 settings = config._load_ui_settings()
 
             self.assertNotIn("help_seen_version", settings)
+
+    def test_save_ui_settings_with_invalid_json_gracefully_recovers(self):
+        """JSON decode error 時は空辞書で初期化。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text("{bad json", encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_ui_settings("dark", 12, ["search"])
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["theme"], "dark")
+            self.assertEqual(loaded["font_size_pt"], 12)
+
+    def test_save_ui_settings_with_non_dict_json_recovers(self):
+        """JSON が配列など dict でない場合は上書き。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text("[]", encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_ui_settings("light", 11, [])
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["theme"], "light")
+
+    def test_save_help_seen_version_with_invalid_json(self):
+        """help_seen_version 保存時 JSON decode error を処理。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text("{invalid", encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_help_seen_version(1)
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["help_seen_version"], 1)
+
+    def test_save_help_seen_version_with_non_dict_json(self):
+        """help_seen_version で JSON が dict でない場合を処理。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text('{"existing": "value"}', encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_help_seen_version(5)
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["help_seen_version"], 5)
+            self.assertEqual(loaded["existing"], "value")
+
+    def test_save_ui_settings_preserves_help_seen_version(self):
+        """UI 設定保存時に既存の help_seen_version を保持。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text(
+                json.dumps({"theme": "light", "help_seen_version": 3}),
+                encoding="utf-8"
+            )
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_ui_settings("dark", 12, [])
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["help_seen_version"], 3)
+            self.assertEqual(loaded["theme"], "dark")
+
+    def test_save_ui_settings_with_write_failure_rolls_back(self):
+        """一時ファイル書き込み失敗時 roll back。"""
+        from contextlib import suppress
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text(
+                json.dumps({"existing": "value"}),
+                encoding="utf-8"
+            )
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path), \
+                 patch("nhk_radio.config.os.fdopen", side_effect=OSError("write failed")), \
+                 suppress(OSError):
+                config._save_ui_settings("dark", 12, [])
+            # 既存ファイルが破損していないことを確認
+            self.assertEqual(settings_path.read_text(encoding="utf-8"), '{"existing": "value"}')
 
 
 if __name__ == "__main__":
