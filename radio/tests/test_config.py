@@ -340,6 +340,41 @@ class ConfigHelpersTest(unittest.TestCase):
             # 既存ファイルが破損していないことを確認
             self.assertEqual(settings_path.read_text(encoding="utf-8"), '{"existing": "value"}')
 
+    def test_save_help_seen_version_with_list_json(self):
+        """JSON が list の場合、dict で上書き。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            settings_path.write_text("[]", encoding="utf-8")
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path):
+                config._save_help_seen_version(3)
+            loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["help_seen_version"], 3)
+            self.assertIsInstance(loaded, dict)
+
+    def test_save_help_seen_version_with_replace_failure(self):
+        """ファイル置き換え失敗時は一時ファイルをクリーンアップして例外をスロー。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "ui.json"
+            with patch("nhk_radio.config._ui_settings_path", return_value=settings_path), \
+                 patch.object(Path, "replace", side_effect=OSError("replace failed")), \
+                 self.assertRaises(OSError):
+                config._save_help_seen_version(1)
+
+
+class ConfigRootDirTest(unittest.TestCase):
+    """_resolve_config_root_dir() のテスト。"""
+
+    def test_resolve_config_root_dir_with_project_root(self):
+        """project_root が見つかった場合。"""
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp) / "project"
+            project_root.mkdir()
+            with patch("nhk_radio.config._find_project_root", return_value=project_root), \
+                 patch.dict(os.environ, {"NHK_RADIO_CONFIG_DIR": ""}):
+                result = config._resolve_config_root_dir()
+                self.assertEqual(result, project_root / ".config")
+
 
 if __name__ == "__main__":
     unittest.main()

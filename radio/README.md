@@ -259,7 +259,7 @@ radio/
 | `__main__.py` | 3 | 100% |
 | `cache.py` | 100 | 100% |
 | `cli.py` | 195 | 100% |
-| `config.py` | 174 | 97% |
+| `config.py` | 174 | 100% |
 | `constants.py` | 16 | 100% |
 | `core.py` | 258 | 99% |
 | `downloads.py` | 391 | 88% |
