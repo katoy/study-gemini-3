@@ -3,11 +3,11 @@
 import json
 import os
 import sys
-import tempfile
 import threading
 import unicodedata
-from contextlib import suppress
 from pathlib import Path
+
+from . import _io
 
 CACHE_TTL_SECONDS = 3600
 
@@ -183,7 +183,6 @@ def _load_ui_settings() -> dict[str, str | list[str] | int]:
 def _save_ui_settings(theme: str, font_size: int, program_search_history: list[str] | None = None):
     _migrate_legacy_ui_settings()
     path = _ui_settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, json.JSONDecodeError):
@@ -199,23 +198,13 @@ def _save_ui_settings(theme: str, font_size: int, program_search_history: list[s
     if isinstance(existing.get("help_seen_version"), int):
         payload["help_seen_version"] = existing["help_seen_version"]
 
-    text = json.dumps(payload, ensure_ascii=False, indent=2)
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp_path).replace(path)
-    except BaseException:
-        with suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+    _io.atomic_write_json(path, payload)
 
 
 def _save_help_seen_version(version: int) -> None:
     """ヘルプ表示済みバージョンを設定ファイルに保存（既存キーを保持）。"""
     _migrate_legacy_ui_settings()
     path = _ui_settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         payload: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, json.JSONDecodeError):
@@ -223,13 +212,4 @@ def _save_help_seen_version(version: int) -> None:
     if not isinstance(payload, dict):
         payload = {}
     payload["help_seen_version"] = version
-    text = json.dumps(payload, ensure_ascii=False, indent=2)
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp_path).replace(path)
-    except BaseException:
-        with suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+    _io.atomic_write_json(path, payload)

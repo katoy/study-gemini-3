@@ -116,18 +116,16 @@ def download_episode(
     filename_template: str,
     *,
     audio_only: bool = True,
-    verbose: bool = True,
 ) -> bool:
     """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
 
-    if verbose:
-        logger.info(f"ダウンロード開始: {url}")
+    logger.debug(f"ダウンロード開始: {url}")
 
     last_percent = -1.0
 
-    def on_progress(percent, eta, status):
+    def on_progress(percent: float | None, _eta: str | None, _status: str | None) -> None:
         nonlocal last_percent
         if percent is not None and abs(percent - last_percent) >= 1.0:
             sys.stdout.write(f"\r  進捗: {percent:5.1f}%")

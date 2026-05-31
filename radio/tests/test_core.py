@@ -11,45 +11,6 @@ from tests import _support  # noqa: F401
 
 
 class CoreHelpersTest(unittest.TestCase):
-    def test_http_get_helpers(self):
-        # http_get_json (sync) のテスト。httpx.Client をモック
-        mock_resp = unittest.mock.Mock()
-        mock_resp.json.return_value = {"ok": True}
-        mock_resp.raise_for_status.return_value = None
-
-        with patch("httpx.Client.get", return_value=mock_resp):
-            self.assertEqual(core.http_get_json("https://example.com"), {"ok": True})
-
-        mock_resp.text = "hello"
-        with patch("httpx.Client.get", return_value=mock_resp):
-            self.assertEqual(core.http_get_text("https://example.com"), "hello")
-
-    def test_http_get_helpers_error_paths(self):
-        error_response = unittest.mock.Mock()
-        error_response.status_code = 500
-        request = unittest.mock.Mock()
-        status_error = httpx.HTTPStatusError("bad", request=request, response=error_response)
-        error_response.raise_for_status.side_effect = status_error
-
-        with patch("httpx.Client.get", return_value=error_response), self.assertRaises(httpx.HTTPStatusError):
-            core.http_get_json("https://example.com")
-
-        request_error = httpx.RequestError("offline", request=request)
-        with patch("httpx.Client.get", side_effect=request_error), self.assertRaises(httpx.RequestError):
-            core.http_get_json("https://example.com")
-
-        text_response = unittest.mock.Mock()
-        text_response.raise_for_status.side_effect = httpx.HTTPError("text fail")
-        with patch("httpx.Client.get", return_value=text_response), self.assertRaises(httpx.HTTPError):
-            core.http_get_text("https://example.com")
-
-    def test_http_get_text(self):
-        mock_resp = unittest.mock.Mock()
-        mock_resp.text = "hello"
-        mock_resp.raise_for_status.return_value = None
-        with patch("httpx.Client.get", return_value=mock_resp):
-            self.assertEqual(core.http_get_text("https://example.com"), "hello")
-
     def test_http_get_json_async_retries_on_request_error(self):
         # リクエストエラー → バックオフ → 成功
         mock_resp = unittest.mock.Mock()

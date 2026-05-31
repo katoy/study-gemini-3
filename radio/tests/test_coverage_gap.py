@@ -34,14 +34,6 @@ class CoverageGapTest(unittest.TestCase):
         ):
             cli.interactive_mode(Path("/tmp"))
 
-    def test_core_http_get_text_full(self):
-        # core.py: 40-41 (http_get_text)
-        mock_resp = MagicMock()
-        mock_resp.text = "content"
-        with patch("httpx.Client.get", return_value=mock_resp):
-            self.assertEqual(core.http_get_text("http://e.com"), "content")
-            mock_resp.raise_for_status.assert_called()
-
     def test_core_fetch_by_genre_unknown_error(self):
         # core.py: 223 (fetch_by_genre_async error log)
         with (

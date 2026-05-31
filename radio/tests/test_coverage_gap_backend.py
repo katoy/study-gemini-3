@@ -150,16 +150,6 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         with self.assertRaises(httpx.RequestError):
             asyncio.run(core.http_get_json_async(client, "url"))
 
-    def test_http_get_json_sync_errors(self):
-        # core.py 同期版の例外パス
-        with (
-            patch("httpx.Client.get", side_effect=httpx.ConnectError("fail")),
-            patch.object(core, "logger") as log_mock
-        ):
-            with self.assertRaises(httpx.ConnectError):
-                core.http_get_json("url")
-            log_mock.error.assert_called()
-
     def test_fetch_episodes_yt_dlp_error_classification(self):
         # core.py: 312-320 (yt-dlp error msg classification)
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")

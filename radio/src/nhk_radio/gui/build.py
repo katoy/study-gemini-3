@@ -567,7 +567,6 @@ class GuiBuildMixin:
         self.episode_tree.bind("<ButtonRelease-1>", self._on_episode_tree_click)
         self.episode_tree.bind("<Motion>", self._on_episode_tree_motion)
         self.episode_tree.bind("<Leave>", self._on_episode_tree_leave)
-        self.episode_tree.bind("<Configure>", self._on_episode_tree_configure)
         self.episode_tree.bind("<Double-1>", self._start_download_selected)
         self.episode_tree.bind("<Return>", self._start_download_selected)
         self.episode_tree.bind("<<TreeviewSelect>>", self._on_episode_selection_change)

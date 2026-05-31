@@ -389,28 +389,6 @@ class GuiDownloadsMixin:
             "action_button": action_button,
         }
 
-    def _on_download_jobs_inner_configure(self, _event=None):
-        self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
-
-    def _on_download_jobs_canvas_configure(self, event):
-        # Canvas の幅に合わせて内部フレームの幅を調整
-        self.download_jobs_canvas.itemconfig(self.download_jobs_window, width=event.width)
-
-    def _on_download_jobs_mousewheel(self, event):
-        if self.download_jobs_canvas.winfo_exists():
-            self.download_jobs_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-    def _on_settings_inner_configure(self, _event=None):
-        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
-
-    def _on_settings_canvas_configure(self, event):
-        # Canvas の幅に合わせて設定パネルの幅を調整
-        self.settings_canvas.itemconfig(self.settings_window, width=event.width)
-
-    def _on_settings_mousewheel(self, event):
-        if self.settings_canvas.winfo_exists():
-            self.settings_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
     def _show_error_banner(self, message: str) -> None:
         """Display error banner with the given message."""
         self.error_banner_label.config(text=message)

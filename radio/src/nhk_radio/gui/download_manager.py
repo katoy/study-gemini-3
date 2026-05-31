@@ -34,7 +34,7 @@ class DownloadManager:
         self.audio_only = audio_only
         self.on_result = on_result  # (type, episode_key, program, episode, data)
 
-        self.processes: dict[str, subprocess.Popen] = {}
+        self.processes: dict[str, subprocess.Popen | None] = {}
         self.cancel_events: dict[str, threading.Event] = {}
         self.process_lock = threading.Lock()
 
@@ -102,14 +102,14 @@ class DownloadManager:
             episode.url, target_dir, filename_template, audio_only=self.audio_only
         )
 
-        # ダミープロセスをロックに登録（process_lock は実行完了時に解放）
+        # 開始を記録（プロセスは非同期で取得）
         with self.process_lock:
-            self.processes[episode_key] = True
+            self.processes[episode_key] = None
 
         try:
-            def on_progress(percent, eta, status):
+            def on_progress(percent: float | None, _eta: str | None, _status: str | None) -> None:
                 if percent is not None:
-                    self.on_result("progress", episode_key, program, episode, (percent, eta, status))
+                    self.on_result("progress", episode_key, program, episode, (percent,))
 
             success = run_yt_dlp_subprocess(cmd, on_progress=on_progress, cancel_event=cancel_event)
             success = success and not cancel_event.is_set()

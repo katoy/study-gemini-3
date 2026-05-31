@@ -651,9 +651,6 @@ class GuiListingMixin:
         self.episode_tree.config(cursor="")
         self._hide_tooltip()
 
-    def _on_episode_tree_configure(self, _event):
-        pass
-
     def _on_episode_tree_scroll(self, *args):
         self.episode_tree.yview(*args)
 
@@ -698,11 +695,6 @@ class GuiListingMixin:
             self.tooltip_window.destroy()
         self.tooltip_window = None
         self.tooltip_label = None
-
-
-    def _on_episode_tree_yscroll(self, *args):
-        # Treeview からスクロールバーへの通知
-        self.episode_scroll.set(*args)
 
     def _focus_program_search(self, _event=None):
         if hasattr(self, "program_search_entry"):

@@ -3,13 +3,11 @@
 import functools
 import json
 import logging
-import os
-import tempfile
 import time
-from contextlib import suppress
 from dataclasses import asdict, fields
 from pathlib import Path
 
+from . import _io
 from .config import (
     CACHE_TTL_SECONDS,
     _episode_cache_dir,
@@ -76,18 +74,8 @@ def _save_json_cache(cache_path: Path, payload: dict):
     一時ファイルへ書き込んだ後に rename するため、書き込み中プロセスが終了しても
     キャッシュが破損しない。
     """
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
     payload_with_version = {"schema_version": CACHE_SCHEMA_VERSION, **payload}
-    text = json.dumps(payload_with_version, ensure_ascii=False)
-    fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        Path(tmp_path).replace(cache_path)
-    except BaseException:
-        with suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+    _io.atomic_write_json(cache_path, payload_with_version, indent=None)
 
 
 def load_program_cache(genre: str | None, ttl_seconds: int = CACHE_TTL_SECONDS) -> list[Program] | None:

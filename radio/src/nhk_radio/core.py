@@ -118,30 +118,6 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
     raise last_exc
 
 
-def http_get_json(url: str, timeout: int = 60) -> dict | list:
-    """Synchronous fallback using httpx"""
-    try:
-        with httpx.Client(headers=_HEADERS) as client:
-            resp = client.get(url, timeout=timeout)
-            resp.raise_for_status()
-            return resp.json()
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTPエラー ({e.response.status_code}): {url}")
-        raise
-    except httpx.RequestError as e:
-        logger.error(f"ネットワーク接続エラー: {e}")
-        raise
-
-
-def http_get_text(url: str, timeout: int = 60) -> str:
-    try:
-        with httpx.Client(headers=_HEADERS) as client:
-            resp = client.get(url, timeout=timeout)
-            resp.raise_for_status()
-            return resp.text
-    except httpx.HTTPError as e:
-        logger.error(f"テキスト取得失敗: {e}")
-        raise
 
 
 def fetch_program_list(genre: str | None = None) -> list[Program]:

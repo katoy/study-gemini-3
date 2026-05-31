@@ -65,7 +65,7 @@ class CliHelpersTest(unittest.TestCase):
             process.stdout = []
             process.wait.return_value = 0
             cli.download_episode("http://url", Path("/tmp"), "tmpl")
-            logger_mock.info.assert_called_with("ダウンロード開始: http://url")
+            logger_mock.debug.assert_called_with("ダウンロード開始: http://url")
 
     def test_download_episode_reports_progress_and_newline(self):
         with (
@@ -79,7 +79,7 @@ class CliHelpersTest(unittest.TestCase):
                     on_progress(10.0, None, "downloading")
                 return True
             run_mock.side_effect = simulate_progress
-            self.assertTrue(cli.download_episode("http://url", Path("/tmp"), "tmpl", verbose=False))
+            self.assertTrue(cli.download_episode("http://url", Path("/tmp"), "tmpl"))
         write_mock.assert_any_call("\r  進捗:  10.0%")
         write_mock.assert_any_call("\n")
         self.assertGreaterEqual(flush_mock.call_count, 2)
@@ -92,7 +92,7 @@ class CliHelpersTest(unittest.TestCase):
         ):
             run_mock.return_value = False
             self.assertFalse(cli.download_episode("http://url", Path("/tmp"), "tmpl"))
-            logger_mock.info.assert_called_with("ダウンロード開始: http://url")
+            logger_mock.debug.assert_called_with("ダウンロード開始: http://url")
 
     def test_download_url_direct_success(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
