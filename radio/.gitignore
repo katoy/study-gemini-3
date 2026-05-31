@@ -24,8 +24,8 @@ dist/
 .ipynb_checkpoints/
 
 # Project data
-downloads/
-test_downloads/
+/downloads/
+/test_downloads/
 .cache/
 
 # Editor / OS
