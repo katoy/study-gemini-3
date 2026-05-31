@@ -406,6 +406,19 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertIn("--socket-timeout", cmd)
         self.assertIn(str(YTDLP_SOCKET_TIMEOUT), cmd)
 
+    def test_run_yt_dlp_subprocess_timeout_returns_false(self):
+        """yt-dlp プロセスがタイムアウトした場合 False を返す"""
+        import subprocess
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen") as popen_mock,
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            mock_process = popen_mock.return_value
+            mock_process.wait.side_effect = subprocess.TimeoutExpired("cmd", 120)
+            result = downloads.run_yt_dlp_subprocess(["test"])
+            self.assertFalse(result)
+            mock_process.kill.assert_called_once()
+
     def test_is_episode_downloaded_false_when_nothing_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertFalse(downloads.is_episode_downloaded(Path(tmp), PROGRAM, EPISODE))

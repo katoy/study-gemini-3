@@ -267,7 +267,7 @@ radio/
 | `downloads/cleanup.py` | 38 | 100% |
 | `downloads/filesystem.py` | 129 | 98% |
 | `downloads/manifest.py` | 157 | 90% |
-| `downloads/runner.py` | 79 | 75% |
+| `downloads/runner.py` | 79 | 90% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/browser.py` | 290 | 54% |
 | `gui/build.py` | 330 | 100% |
