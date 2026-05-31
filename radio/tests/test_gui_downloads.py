@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 from nhk_radio.gui.download_manager import DownloadManager
-from nhk_radio.gui.downloads import GuiDownloadsMixin
+from nhk_radio.gui.download_panel import GuiDownloadsMixin
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
 
@@ -174,17 +174,17 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_create_download_job_widgets(self):
         episode = Episode(id="E1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         with (
-            patch("nhk_radio.gui.downloads.ttk.Frame"),
-            patch("nhk_radio.gui.downloads.ttk.Label"),
-            patch("nhk_radio.gui.downloads.tk.StringVar"),
-            patch("nhk_radio.gui.downloads.ttk.Button"),
-            patch("nhk_radio.gui.downloads.ttk.Progressbar")
+            patch("nhk_radio.gui.download_panel.ttk.Frame"),
+            patch("nhk_radio.gui.download_panel.ttk.Label"),
+            patch("nhk_radio.gui.download_panel.tk.StringVar"),
+            patch("nhk_radio.gui.download_panel.ttk.Button"),
+            patch("nhk_radio.gui.download_panel.ttk.Progressbar")
         ):
             widgets = self.gui._create_download_job_widgets(0, episode, "k1")
             self.assertIn("frame", widgets)
 
     def test_clear_cache(self):
-        with patch("nhk_radio.gui.downloads.clear_all_cache"):
+        with patch("nhk_radio.cache.clear_all_cache"):
             self.gui._clear_cache()
             self.gui.status_var.set.assert_any_call("キャッシュを削除中...")
             # 完了通知

@@ -247,9 +247,9 @@ class CoverageGapExtraTest(unittest.TestCase):
             part = d / "20240415_番組A_第1回.mp3.part"
             part.write_text("x", encoding="utf-8")
             with (
-                patch.object(downloads, "_program_search_dirs", return_value=[d]),
+                patch("nhk_radio.downloads.filesystem._program_search_dirs", return_value=[d]),
                 patch.object(Path, "unlink", side_effect=OSError("denied")),
-                patch.object(downloads, "logger") as log_mock,
+                patch("nhk_radio.downloads.cleanup.logger") as log_mock,
             ):
                 downloads.cleanup_partial_episode_files(d, program, episode)
                 log_mock.warning.assert_called()

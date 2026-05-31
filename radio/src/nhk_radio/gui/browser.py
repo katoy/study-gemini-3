@@ -17,7 +17,7 @@ from ..types import Episode, Program
 from .build import GuiBuildMixin
 from .data_manager import DataManager
 from .download_manager import DownloadManager
-from .downloads import GuiDownloadsMixin
+from .download_panel import GuiDownloadsMixin
 from .help_markdown import build_help_markdown, render_help_markdown
 from .listing import GuiListingMixin
 from .styling import GuiStylingMixin

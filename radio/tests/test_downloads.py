@@ -183,8 +183,8 @@ class DownloadHelpersTest(unittest.TestCase):
             file_path = program_dir / "dup.mp3"
             file_path.write_text("x", encoding="utf-8")
             with (
-                patch.object(downloads, "_episode_output_patterns", return_value=["*.mp3", "*.mp3"]),
-                patch.object(downloads, "_episode_output_matches", return_value=True),
+                patch("nhk_radio.downloads.filesystem._episode_output_patterns", return_value=["*.mp3", "*.mp3"]),
+                patch("nhk_radio.downloads.filesystem._episode_output_matches", return_value=True),
             ):
                 candidates = downloads._episode_output_candidates(program_dir, PROGRAM, EPISODE)
             self.assertEqual(candidates, [file_path])
@@ -318,7 +318,7 @@ class DownloadHelpersTest(unittest.TestCase):
             manifest = prog_dir / ".downloaded.json"
             manifest.write_text("{bad", encoding="utf-8")
 
-            with patch("nhk_radio.downloads.logger") as logger_mock:
+            with patch("nhk_radio.downloads.manifest.logger") as logger_mock:
                 paths = downloads._load_download_manifest(program, out)
                 self.assertEqual(paths, {})
                 logger_mock.debug.assert_called()

@@ -14,14 +14,15 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     # --- downloads.py ---
     def test_downloads_file_scan_cache_lru_eviction(self):
         # downloads.py: 204 (LRU eviction logic)
+        from nhk_radio.downloads import filesystem
         with (
-            patch.object(downloads, "_FILE_SCAN_CACHE_MAX_SIZE", 2),
-            patch.object(downloads, "_FILE_SCAN_CACHE", downloads.OrderedDict())
+            patch("nhk_radio.downloads.filesystem._FILE_SCAN_CACHE_MAX_SIZE", 2),
+            patch.object(filesystem, "_FILE_SCAN_CACHE", filesystem.OrderedDict())
         ):
             # 新しい空の OrderedDict でテスト
             d1, d2, d3 = Path("/dir1"), Path("/dir2"), Path("/dir3")
-            downloads._FILE_SCAN_CACHE[d1] = (1.0, [])
-            downloads._FILE_SCAN_CACHE[d2] = (1.0, [])
+            filesystem._FILE_SCAN_CACHE[d1] = (1.0, [])
+            filesystem._FILE_SCAN_CACHE[d2] = (1.0, [])
             # 3つ目を入れるのは get_cached_glob_files 経由である必要がある (関数内の len チェックを通すため)
             with (
                 patch.object(Path, "is_dir", return_value=True),
@@ -29,8 +30,8 @@ class BackendCoverageCompletionTest(unittest.TestCase):
                 patch.object(Path, "iterdir", return_value=[])
             ):
                 downloads._get_cached_glob_files(d3)
-                self.assertEqual(len(downloads._FILE_SCAN_CACHE), 2)
-                self.assertNotIn(d1, downloads._FILE_SCAN_CACHE)
+                self.assertEqual(len(filesystem._FILE_SCAN_CACHE), 2)
+                self.assertNotIn(d1, filesystem._FILE_SCAN_CACHE)
 
     def test_get_cached_glob_files_oserror_on_stat(self):
         # downloads.py: 191 (OSError on stat)
@@ -46,7 +47,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             patch.object(Path, "is_dir", return_value=True),
             patch.object(Path, "stat", return_value=MagicMock(st_mtime=1.0)),
             patch.object(Path, "iterdir", side_effect=OSError("iterdir fail")),
-            patch.object(downloads, "logger") as log_mock
+            patch("nhk_radio.downloads.filesystem.logger") as log_mock
         ):
             self.assertEqual(downloads._get_cached_glob_files(Path("/tmp/any")), [])
             log_mock.debug.assert_called()
