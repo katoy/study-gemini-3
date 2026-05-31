@@ -567,5 +567,26 @@ class DownloadHelpersTest(unittest.TestCase):
 
 
 
+    def test_load_download_manifest_stat_oserror(self):
+        """マニフェスト path.stat() が OSError を発生させた場合、キャッシュから読み込み。"""
+        program = PROGRAM
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_data = {"paths": {"key1": "/path/to/file1"}}
+            import json
+            manifest_path.write_text(json.dumps(manifest_data))
+
+            # 最初の読み込みでキャッシュを作成
+            result1 = downloads._load_download_manifest(program, output_dir)
+            self.assertEqual(result1, {"key1": "/path/to/file1"})
+
+            # stat() をモック化して OSError を発生させ、キャッシュが使用されることを確認
+            with patch.object(Path, 'stat', side_effect=OSError("permission denied")):
+                result2 = downloads._load_download_manifest(program, output_dir)
+                self.assertEqual(result2, result1)  # キャッシュから返される
+
+
 if __name__ == "__main__":
     unittest.main()
