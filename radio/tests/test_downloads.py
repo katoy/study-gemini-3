@@ -497,6 +497,15 @@ class DownloadHelpersTest(unittest.TestCase):
             result = downloads.open_downloaded_folder(folder_path)
             self.assertFalse(result)
 
+    def test_remove_episode_from_manifest_not_found(self):
+        """remove_episode_from_manifest() が存在しないエピソードで False を返すことをテスト。"""
+        program = Program(site_id="S01", corner_id="C01", title="番組", url="", display_title="番組", display_date="2024-01-01", genre="", genre_label="")
+        episode = Episode(id="e99", title="存在しないエピソード", display_title="存在しないエピソード", date="2024-01-01", display_date="2024-01-01", broadcast_time="", duration_str="", url="")
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            result = downloads.remove_episode_from_manifest(output_dir, program, episode)
+            self.assertFalse(result)
+
 
 if __name__ == "__main__":
     unittest.main()

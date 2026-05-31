@@ -104,6 +104,24 @@ class CoreHelpersTest(unittest.TestCase):
         self.assertEqual(result, {"ok": True})
         sleep_mock.assert_called_once_with(1.5)
 
+    def test_http_get_json_async_exhausts_retries(self):
+        # すべての retry が失敗 → 例外を起こす
+        error_resp = unittest.mock.Mock()
+        error_resp.status_code = 429
+        error_resp.headers = {}
+
+        mock_client = unittest.mock.AsyncMock()
+        mock_client.get = unittest.mock.AsyncMock(
+            side_effect=httpx.HTTPStatusError("429", request=unittest.mock.Mock(), response=error_resp)
+        )
+
+        with (
+            patch("nhk_radio.core.logger"),
+            patch("nhk_radio.core.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            with self.assertRaisesRegex(httpx.HTTPStatusError, "429"):
+                asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+
     def test_fetch_by_genre_async_error(self):
         # ジャンル取得失敗時の空リスト返却 (language 以外)
         # 注: http_get_json_async がリトライするようになったため、
