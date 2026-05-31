@@ -567,6 +567,15 @@ class DownloadHelpersTest(unittest.TestCase):
 
 
 
+    def test_run_yt_dlp_subprocess_popen_fails(self):
+        """subprocess.Popen 呼び出し自体が失敗した場合、False を返す"""
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen", side_effect=OSError("fork failed")),
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            result = downloads.run_yt_dlp_subprocess(["test"])
+            self.assertFalse(result)
+
     def test_load_download_manifest_stat_oserror(self):
         """マニフェスト path.stat() が OSError を発生させた場合、キャッシュから読み込み。"""
         program = PROGRAM
