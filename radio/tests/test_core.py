@@ -471,6 +471,12 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
         # primary_genre="education" → _genre_label("education") = "教養"
         self.assertEqual(merged.genre_label, _genre_label("education"))
 
+    def test_normalize_string_tuple_with_string(self):
+        """文字列を値として _normalize_string_tuple に渡す（行 16-17）。"""
+        from nhk_radio.types import _normalize_string_tuple
+        result = _normalize_string_tuple("test")
+        self.assertEqual(result, ("test",))
+
 
 if __name__ == "__main__":
     unittest.main()

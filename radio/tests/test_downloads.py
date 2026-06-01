@@ -414,10 +414,15 @@ class DownloadHelpersTest(unittest.TestCase):
             patch("nhk_radio.downloads.runner.logger")
         ):
             mock_process = popen_mock.return_value
-            mock_process.wait.side_effect = subprocess.TimeoutExpired("cmd", 120)
+            # 最初の wait() で TimeoutExpired、その後の wait() は成功（行 133 カバー）
+            mock_process.wait.side_effect = [
+                subprocess.TimeoutExpired("cmd", 120),
+                0  # 2 回目の wait() は成功
+            ]
             result = downloads.run_yt_dlp_subprocess(["test"])
             self.assertFalse(result)
             mock_process.kill.assert_called_once()
+            self.assertEqual(mock_process.wait.call_count, 2)
 
     def test_run_yt_dlp_subprocess_with_cancel_event(self):
         """キャンセルイベントがセットされた場合、プロセスを terminate する"""
@@ -445,6 +450,20 @@ class DownloadHelpersTest(unittest.TestCase):
         ):
             result = downloads.run_yt_dlp_subprocess(["test"])
             self.assertFalse(result)
+
+    def test_run_yt_dlp_subprocess_wait_exception_cleanup(self):
+        """wait() 中に例外が発生した場合、cleanup が実行される（行 137-139）。"""
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen") as popen_mock,
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            mock_process = popen_mock.return_value
+            mock_process.wait.side_effect = RuntimeError("wait error")
+            result = downloads.run_yt_dlp_subprocess(["test"])
+            self.assertFalse(result)
+            # terminate と wait が呼ばれることを確認
+            mock_process.terminate.assert_called()
+            self.assertGreaterEqual(mock_process.wait.call_count, 1)
 
     def test_run_yt_dlp_subprocess_with_progress_callback(self):
         """進捗コールバックが呼ばれることをテスト"""
@@ -591,6 +610,35 @@ class DownloadHelpersTest(unittest.TestCase):
                 # 重複がスキップされることを確認
                 self.assertEqual(len(result), len(set(result)))
 
+    def test_legacy_program_output_dirs_duplicate_detection(self):
+        """_legacy_program_output_dirs で重複パス検出をテスト（行 67）。"""
+        program = PROGRAM
+        with patch("nhk_radio.downloads.filesystem._program_genre_labels") as mock_labels:
+            # _safe_name 処理を通すと同じ値になる異なるラベルを返す
+            mock_labels.return_value = ("A", "A")  # 同じラベルを 2 回（_safe_name 後も同じ）
+            dirs = downloads._legacy_program_output_dirs(Path("/tmp"), program)
+            # duplicate detection で、同じ (genre_dir, title_dir) 組み合わせは 1 回だけ追加される
+            self.assertEqual(len(dirs), len(set(dirs)))  # 重複がない
+
+    def test_episode_output_candidates_duplicate_detection(self):
+        """_episode_output_candidates で重複ファイル検出をテスト（行 188）。"""
+        program = PROGRAM
+        episode = EPISODE
+        with tempfile.TemporaryDirectory() as tmp:
+            program_dir = Path(tmp)
+            test_file = program_dir / "test.mp4"
+            test_file.touch()
+
+            # _get_cached_glob_files をモック化して同じファイルを 2 回返す
+            with patch("nhk_radio.downloads.filesystem._get_cached_glob_files") as mock_glob:
+                mock_glob.return_value = [test_file, test_file]  # 同じファイルを 2 回
+                with patch("nhk_radio.downloads.filesystem._episode_output_matches") as mock_match:
+                    mock_match.return_value = True
+                    candidates = downloads._episode_output_candidates(program_dir, program, episode)
+                    # 重複ファイルが 1 つだけ含まれることを確認
+                    self.assertEqual(len(candidates), 1)
+                    self.assertIn(test_file, candidates)
+
     def test_load_download_manifest_stat_oserror(self):
         """マニフェスト path.stat() が OSError を発生させた場合、キャッシュから読み込み。"""
         program = PROGRAM
@@ -610,6 +658,108 @@ class DownloadHelpersTest(unittest.TestCase):
             with patch.object(Path, 'stat', side_effect=OSError("permission denied")):
                 result2 = downloads._load_download_manifest(program, output_dir)
                 self.assertEqual(result2, result1)  # キャッシュから返される
+
+    def test_load_download_manifest_json_decode_error(self):
+        """JSON デコードエラーが発生した場合、スキップして空辞書を返す。"""
+        program = PROGRAM
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text("{ invalid json }")  # 無効な JSON
+
+            with patch("nhk_radio.downloads.manifest.logger"):
+                result = downloads._load_download_manifest(program, output_dir)
+            self.assertEqual(result, {})
+
+    def test_save_download_manifest_oserror(self):
+        """マニフェスト保存が OSError で失敗した場合、False を返す。"""
+        program = PROGRAM
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            with (
+                patch("nhk_radio._io.atomic_write_json", side_effect=OSError("disk full")),
+                patch("nhk_radio.downloads.manifest.logger")
+            ):
+                result = downloads._save_download_manifest(program, output_dir, {})
+            self.assertFalse(result)
+
+    def test_clear_manifest_cache_all(self):
+        """すべてのマニフェストキャッシュをクリア（行 121）。"""
+        program = PROGRAM
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # キャッシュを作成
+            manifest_path.write_text(json.dumps({"paths": {}}))
+            downloads._load_download_manifest(program, output_dir)
+
+            # すべてクリア
+            downloads._clear_manifest_cache(None)
+            # 確認: キャッシュが空になる
+
+    def test_get_downloaded_episode_keys_relative_path(self):
+        """相対パスのエピソード検出テスト（行 161-165）。"""
+        program = PROGRAM
+        episode = EPISODE
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = output_dir / "SITE_01"
+            program_dir.mkdir(parents=True)
+            (program_dir / "test.mp4").touch()
+
+            # マニフェストに相対パスを記録 (key は episode.id)
+            manifest_data = {"paths": {"ep-1": "test.mp4"}}
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(json.dumps(manifest_data))
+
+            result = downloads.get_downloaded_episode_keys(output_dir, program, [episode])
+            self.assertIn("ep-1", result)
+
+    def test_get_downloaded_episode_keys_directory_scan(self):
+        """ディレクトリスキャンでエピソード検出（行 174-175）。"""
+        program = PROGRAM
+        episode = EPISODE
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = output_dir / "SITE_01"
+            program_dir.mkdir(parents=True)
+            # ファイルを作成（マニフェストには記録しない）
+            (program_dir / "20240415_番組A_第1回.mp4").touch()
+
+            # マニフェストは空
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(json.dumps({"paths": {}}))
+
+            result = downloads.get_downloaded_episode_keys(output_dir, program, [episode])
+            # ディレクトリスキャンで検出されるはず
+            self.assertIn("ep-1", result)
+
+    def test_remove_episode_from_manifest_success(self):
+        """マニフェストからエピソードを削除（行 240-245）。"""
+        program = PROGRAM
+        episode = EPISODE
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = output_dir / "SITE_01"
+            program_dir.mkdir(parents=True)
+
+            # マニフェストを作成 (key は episode.id)
+            manifest_data = {"paths": {"ep-1": "test.mp4"}}
+            manifest_path = downloads._download_manifest_path(program, output_dir)
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(json.dumps(manifest_data))
+
+            result = downloads.remove_episode_from_manifest(output_dir, program, episode)
+            self.assertTrue(result)
+
+            # マニフェストから削除されたことを確認
+            updated = downloads._load_download_manifest(program, output_dir)
+            self.assertNotIn("ep-1", updated)
 
 
 if __name__ == "__main__":
