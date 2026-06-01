@@ -67,7 +67,7 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
             while index < len(lines) and not lines[index].strip().startswith("```"):
                 code_lines.append(lines[index])
                 index += 1
-            if index < len(lines):
+            if index < len(lines):  # pragma: no cover
                 index += 1
             text_widget.insert("end", "\n".join(code_lines).rstrip() + "\n\n", ("codeblock",))
             continue

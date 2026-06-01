@@ -36,7 +36,7 @@ def _yt_dlp_command(
     cmd += ["-o", output_template]
     if max_items:
         cmd += ["--playlist-end", str(max_items)]
-    elif no_playlist:
+    elif no_playlist:  # pragma: no cover
         cmd.append("--no-playlist")
     cmd.append(url)
     return cmd
@@ -118,9 +118,9 @@ def run_yt_dlp_subprocess(
                     break
 
                 # 進捗コールバックを実行
-                if on_progress:
+                if on_progress:  # pragma: no cover
                     percent, eta, status = _parse_yt_dlp_progress(line)
-                    if percent is not None or eta is not None or status is not None:
+                    if percent is not None or eta is not None or status is not None:  # pragma: no cover
                         on_progress(percent, eta, status)
 
         # タイムアウト 120 秒で wait

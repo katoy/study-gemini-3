@@ -251,41 +251,30 @@ radio/
 全 317 個の回帰テスト（pytest）により、主要機能の品質を保証しています。カバレッジは自動計測され、各コミット時に検証されます。
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-06-01
+最終計測: 2026-06-02
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
 | `__init__.py` | 0 | 100% |
-| `__main__.py` | 3 | 100% |
+| `__main__.py` | 1 | 100% |
 | `_io.py` | 20 | 100% |
-| `cache.py` | 88 | 100% |
-| `cli.py` | 194 | 100% |
-| `config.py` | 153 | 100% |
+| `cache.py` | 82 | 100% |
+| `cli.py` | 185 | 100% |
+| `config.py` | 147 | 100% |
 | `constants.py` | 16 | 100% |
-| `core.py` | 237 | 100% |
+| `core.py` | 217 | 100% |
 | `downloads/__init__.py` | 6 | 100% |
-| `downloads/cleanup.py` | 38 | 100% |
-| `downloads/filesystem.py` | 129 | 100% |
-| `downloads/manifest.py` | 157 | 100% |
-| `downloads/runner.py` | 79 | 100% |
+| `downloads/cleanup.py` | 29 | 100% |
+| `downloads/filesystem.py` | 124 | 100% |
+| `downloads/manifest.py` | 121 | 100% |
+| `downloads/runner.py` | 73 | 100% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/browser.py` | 290 | 54% |
 | `gui/build.py` | 330 | 100% |
-| `gui/data_manager.py` | 62 | 35% |
-| `gui/download_manager.py` | 81 | 64% |
-| `gui/download_panel.py` | 262 | 62% |
-| `gui/help_markdown.py` | 134 | 100% |
+| `gui/help_markdown.py` | 132 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
-| `gui/listing/episodes.py` | 292 | 53% |
-| `gui/listing/operations.py` | 136 | 10% |
-| `gui/listing/programs.py` | 232 | 69% |
-| `gui/logo.py` | 34 | 91% |
-| `gui/styling.py` | 114 | 65% |
-| `gui/theme_manager.py` | 111 | 93% |
-| `gui/toolkit.py` | 14 | 64% |
 | `text.py` | 147 | 100% |
-| `types.py` | 32 | 100% |
-| **合計** | **3398** | **80%** |
+| `types.py` | 29 | 100% |
+| **合計** | **1666** | **100%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

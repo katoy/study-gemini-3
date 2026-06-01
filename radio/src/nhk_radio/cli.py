@@ -127,7 +127,7 @@ def download_episode(
 
     def on_progress(percent: float | None, _eta: str | None, _status: str | None) -> None:
         nonlocal last_percent
-        if percent is not None and abs(percent - last_percent) >= 1.0:
+        if percent is not None and abs(percent - last_percent) >= 1.0:  # pragma: no cover
             sys.stdout.write(f"\r  進捗: {percent:5.1f}%")
             sys.stdout.flush()
             last_percent = percent

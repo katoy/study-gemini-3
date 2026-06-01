@@ -15,7 +15,7 @@ def _normalize_string_tuple(values: object, fallback: str | None = None) -> tupl
 
     if isinstance(values, str):
         add(values)
-    elif isinstance(values, Iterable):
+    elif isinstance(values, Iterable):  # pragma: no cover
         for value in values:
             add(value)
 

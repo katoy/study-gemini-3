@@ -167,5 +167,64 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "ネットワーク接続"):
                 core.fetch_episodes(program)
 
+    # --- types.py ---
+    def test_normalize_string_tuple_iterable(self):
+        # types.py: 18-20 (Iterable case with values)
+        from nhk_radio.types import _normalize_string_tuple
+        result = _normalize_string_tuple(["a", "b", "c"])
+        self.assertEqual(result, ("a", "b", "c"))
+
+    def test_normalize_string_tuple_iterable_empty(self):
+        # types.py: 18 (Iterable case, but empty)
+        from nhk_radio.types import _normalize_string_tuple
+        result = _normalize_string_tuple([])
+        self.assertEqual(result, ())
+
+    def test_normalize_string_tuple_with_fallback(self):
+        # types.py: 22-23 (fallback branch)
+        from nhk_radio.types import _normalize_string_tuple
+        result = _normalize_string_tuple([], fallback="fallback_val")
+        self.assertEqual(result, ("fallback_val",))
+
+    def test_normalize_string_tuple_dedup_with_fallback(self):
+        # types.py: 22-23 (fallback with existing value)
+        from nhk_radio.types import _normalize_string_tuple
+        result = _normalize_string_tuple(["a"], fallback="a")
+        self.assertEqual(result, ("a",))
+
+    # --- cleanup.py ---
+    def test_cleanup_partial_episode_files_no_pattern_match(self):
+        # cleanup.py: 27-30 (no pattern match on .part/.ytdl file)
+        from nhk_radio.downloads import cleanup
+        from nhk_radio.types import Program, Episode
+        import tempfile
+        from pathlib import Path
+
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="E", title="ET", display_title="EDT", date="2024-01-01", display_date="D", broadcast_time="00:00", duration_str="30m", url="U")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            # Create a .part file that doesn't match episode pattern
+            part_file = output_dir / "unrelated.part"
+            part_file.touch()
+
+            with patch("nhk_radio.downloads.filesystem._program_search_dirs", return_value=[output_dir]):
+                with patch("nhk_radio.downloads.filesystem._clear_file_scan_cache"):
+                    with patch("nhk_radio.downloads.filesystem._episode_output_patterns", return_value=[]):
+                        # Should not crash, just skip the non-matching file
+                        cleanup.cleanup_partial_episode_files(output_dir, program, episode)
+                        self.assertTrue(part_file.exists())  # File should still exist
+
+    # --- core.py ---
+    def test_make_entry_with_none_genre(self):
+        # core.py: 182-184 (if genre: false branch)
+        from nhk_radio.core import _make_entry
+        s = {"title": "Test Program", "site_id": "S", "corner_id": "C"}
+        program = _make_entry(s, genre=None)
+        self.assertIsNone(program.genre)
+        self.assertEqual(program.genres, ())
+
+
 if __name__ == "__main__":
     unittest.main()

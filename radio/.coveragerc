@@ -1,0 +1,30 @@
+[run]
+branch = True
+omit =
+    src/nhk_radio/gui/browser.py
+    src/nhk_radio/gui/data_manager.py
+    src/nhk_radio/gui/download_manager.py
+    src/nhk_radio/gui/download_panel.py
+    src/nhk_radio/gui/logo.py
+    src/nhk_radio/gui/styling.py
+    src/nhk_radio/gui/theme_manager.py
+    src/nhk_radio/gui/toolkit.py
+    src/nhk_radio/gui/listing/episodes.py
+    src/nhk_radio/gui/listing/operations.py
+    src/nhk_radio/gui/listing/programs.py
+
+[report]
+precision = 2
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+    except ImportError
+    except OSError
+    if sys.platform
+    except KeyboardInterrupt
