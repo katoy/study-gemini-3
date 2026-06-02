@@ -101,9 +101,13 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out")),
             patch.object(cli, "_program_filename_template", return_value="t"),
             patch.object(cli, "_yt_dlp_command", return_value=["ls"]),
-            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)),
+            patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)) as run_mock,
         ):
             cli.download_url_direct("http://url", Path("/tmp"), None, True)
+            # subprocess.run が呼ばれることを確認
+            run_mock.assert_called_once()
+            cmd_args = run_mock.call_args[0][0]
+            self.assertIn("ls", cmd_args)
 
     def test_download_url_direct_invalid_url(self):
         with patch.object(cli, "_resolve_program_from_url", return_value=None):
@@ -139,13 +143,18 @@ class CliHelpersTest(unittest.TestCase):
         program = Program(site_id="S", corner_id="01", title="P", display_title="P", display_date="----", url="U")
         episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="2024-04-15(月)", broadcast_time="", duration_str="", url="U")]
         with (
-            patch.object(cli, "select_program", return_value=program),
-            patch.object(cli, "get_episode_list", return_value=(episodes, "net")),
-            patch.object(cli, "select_episodes", return_value=episodes),
-            patch.object(cli, "_download_selected_episodes", return_value=1),
+            patch.object(cli, "select_program", return_value=program) as select_program_mock,
+            patch.object(cli, "get_episode_list", return_value=(episodes, "net")) as get_episode_list_mock,
+            patch.object(cli, "select_episodes", return_value=episodes) as select_episodes_mock,
+            patch.object(cli, "_download_selected_episodes", return_value=1) as download_mock,
             patch("builtins.print"),
         ):
             cli._interactive_cli_fallback([program], Path("/tmp"), audio_only=True)
+            # 各関数が正しい引数で呼ばれたことを確認
+            select_program_mock.assert_called_once_with([program])
+            get_episode_list_mock.assert_called_once_with(program)
+            select_episodes_mock.assert_called_once_with(episodes)
+            download_mock.assert_called_once_with(program, episodes, Path("/tmp"), audio_only=True)
 
     def test_run_cli_dispatch(self):
         # 正常系: --clear-cache

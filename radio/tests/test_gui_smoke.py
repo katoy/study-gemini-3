@@ -389,13 +389,17 @@ class GuiSmokeTest(unittest.TestCase):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
         values = browser._program_genre_filter_values()
         self.assertIsInstance(values, (list, tuple))
+        self.assertGreaterEqual(len(values), 2)  # 最低「すべて」+1ジャンル
+        self.assertEqual(values[0], "すべて")     # 先頭は「すべて」固定
+        self.assertIn("音楽", values)             # music ジャンルがある
 
     def test_apply_program_filters_preserves_programs_list(self):
         """フィルタ適用後もプログラムリストが存在。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
         browser._apply_program_filters()
-        self.assertIsNotNone(browser.filtered_programs)
+        # デフォルト（フィルタなし）で全プログラムが返される
+        self.assertEqual(browser.filtered_programs, browser.programs)
 
     def test_apply_program_filters_genre_all_returns_all(self):
         """ジャンル「すべて」で全プログラムが返される。"""
@@ -421,19 +425,27 @@ class GuiSmokeTest(unittest.TestCase):
         """プログラム順序マップが初期化される。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # 初期化後は全番組と同件数のエントリを持つ
         self.assertIsInstance(browser.program_order_map, dict)
+        self.assertEqual(len(browser.program_order_map), len(self.programs))
 
     def test_filtered_programs_initialized(self):
         """フィルタ済みプログラムリストが初期化される。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # 初期化直後は全番組と同件数のはず
         self.assertIsInstance(browser.filtered_programs, list)
+        self.assertEqual(len(browser.filtered_programs), len(self.programs))
 
     def test_program_search_history_initialized(self):
         """プログラム検索履歴が初期化される。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # リスト型で、文字列要素を持つことを確認
         self.assertIsInstance(browser.program_search_history, list)
+        if browser.program_search_history:  # 要素がある場合は文字列確認
+            for item in browser.program_search_history:
+                self.assertIsInstance(item, str)
 
     def test_episode_search_var_exists(self):
         """エピソード検索変数が存在。"""
@@ -569,7 +581,9 @@ class GuiExtendedTest(unittest.TestCase):
         b.program_search_var.set("A")
         b.program_genre_filter_var.set("音楽")
         b._apply_program_filters()
-        self.assertGreaterEqual(len(b.filtered_programs), 0)
+        # "A" かつ "音楽" は programs[0] のみマッチ
+        self.assertEqual(len(b.filtered_programs), 1)
+        self.assertEqual(b.filtered_programs[0].title, "A")
 
     def test_filter_with_empty_search(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
@@ -820,34 +834,44 @@ class GuiFinalTest(unittest.TestCase):
     def test_filtered_programs_is_list(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # 初期化直後は全番組と同件数のはず
         self.assertIsInstance(b.filtered_programs, list)
+        self.assertEqual(len(b.filtered_programs), len(self.programs))
 
     def test_displayed_episodes_is_list(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
-        self.assertIsInstance(b.displayed_episodes, list)
+        # 初期化直後は空のはず
+        self.assertEqual(b.displayed_episodes, [])
 
     def test_program_search_history_is_list(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # リスト型で、文字列要素を持つことを確認
         self.assertIsInstance(b.program_search_history, list)
+        if b.program_search_history:  # 要素がある場合は文字列確認
+            for item in b.program_search_history:
+                self.assertIsInstance(item, str)
 
     def test_status_var_not_empty(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
         status = b.status_var.get()
-        self.assertTrue(len(status) >= 0)
+        # ステータスが空でないことを確認
+        self.assertGreater(len(status), 0)
 
     def test_program_order_map_is_dict(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        # 初期化後は全番組と同件数のエントリを持つ
         self.assertIsInstance(b.program_order_map, dict)
+        self.assertEqual(len(b.program_order_map), len(self.programs))
 
     def test_active_downloads_is_dict(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
-        # active_downloads 属性が存在するか確認
-        self.assertTrue(hasattr(b, 'active_downloads') or True)
+        # active_download_rows 属性が dict であることを確認
+        self.assertIsInstance(b.active_download_rows, dict)
 
     def test_program_fetch_queue_not_none(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
@@ -892,7 +916,9 @@ class GuiFinalTest(unittest.TestCase):
         b.program_genre_filter_var.set("語学")
         b._apply_program_filters()
         len2 = len(b.filtered_programs)
-        self.assertTrue(len1 >= 0 and len2 >= 0)
+        # setUp のプログラムは programs[0]=music, programs[1]=language なので
+        self.assertEqual(len1, 1)  # 音楽フィルタ → programs[0]のみ
+        self.assertEqual(len2, 1)  # 語学フィルタ → programs[1]のみ
 
     def test_program_sort_title_asc(self):
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):

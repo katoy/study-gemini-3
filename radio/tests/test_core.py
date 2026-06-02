@@ -314,7 +314,6 @@ class CoreHelpersTest(unittest.TestCase):
             self.assertEqual(asyncio.run(core._fetch_by_genre_async("news")), [])
 
     def test_parse_episode_info_and_report_fetch_result(self):
-        program = Program(site_id="SITE", corner_id="01", title="P", url="U", display_title="P", display_date="----")
         parsed = core._parse_episode_info(
             {"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}
         )

@@ -237,8 +237,9 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             program_dir = downloads._program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
-            # 例外が発生しても呼び出し元に伝播しないこと
+            # 例外が発生しても呼び出し元に伝播しないことを確認
             with patch.object(Path, "iterdir", side_effect=OSError("denied")):
+                # OSError が伝播しないことを確認
                 downloads.cleanup_partial_episode_files(output_dir, PROGRAM, EPISODE)
 
     def test_mark_episode_downloaded_returns_false_on_save_failure(self):
@@ -306,8 +307,8 @@ class DownloadHelpersTest(unittest.TestCase):
         lock_b = downloads._download_manifest_lock(PROGRAM, Path("/tmp/output"))
 
         self.assertIs(lock_a, lock_b)
-        self.assertTrue(hasattr(lock_a, "acquire"))
-        self.assertTrue(hasattr(lock_a, "release"))
+        # lock が実装の RLock インスタンスであることを確認
+        self.assertEqual(type(lock_a).__name__, "RLock")
 
     def test_load_download_manifest_error(self):
         program = Program(site_id="SITE", corner_id="01", title="番組", display_title="番組", display_date="----", url="U")
@@ -433,13 +434,12 @@ class DownloadHelpersTest(unittest.TestCase):
         ):
             mock_process = popen_mock.return_value
             # stdout ループをシミュレート：2 行目でキャンセルイベントをセット
-            lines = ["line1"]
             def mock_iter():
                 cancel_event.set()
                 yield "line1"
             mock_process.stdout = mock_iter()
             cancel_event = threading.Event()
-            result = downloads.run_yt_dlp_subprocess(["test"], cancel_event=cancel_event)
+            downloads.run_yt_dlp_subprocess(["test"], cancel_event=cancel_event)
             mock_process.terminate.assert_called_once()
 
     def test_run_yt_dlp_subprocess_exception_returns_false(self):
@@ -607,8 +607,9 @@ class DownloadHelpersTest(unittest.TestCase):
                 same_dir = Path(tmp) / "genre" / "title"
                 mock_legacy.return_value = [same_dir, same_dir]
                 result = downloads._program_search_dirs(output_dir, program)
-                # 重複がスキップされることを確認
-                self.assertEqual(len(result), len(set(result)))
+                # primary + レガシー 1 件（2 番目の重複はスキップ）
+                self.assertEqual(len(result), 2)  # primary + レガシー 1 件
+                self.assertEqual(len(result), len(set(result)))  # 重複なし
 
     def test_legacy_program_output_dirs_duplicate_detection(self):
         """_legacy_program_output_dirs で重複パス検出をテスト（行 67）。"""
@@ -617,7 +618,9 @@ class DownloadHelpersTest(unittest.TestCase):
             # _safe_name 処理を通すと同じ値になる異なるラベルを返す
             mock_labels.return_value = ("A", "A")  # 同じラベルを 2 回（_safe_name 後も同じ）
             dirs = downloads._legacy_program_output_dirs(Path("/tmp"), program)
-            # duplicate detection で、同じ (genre_dir, title_dir) 組み合わせは 1 回だけ追加される
+            # duplicate detection で、同じ (genre_dir, title_dir) 組み合わせは dict.fromkeys により 1 回だけ追加
+            # genre_labels=["A","A"], titles=["番組A","SITE_01"] → 2×2 - 2 (重複) = 2 件
+            self.assertEqual(len(dirs), 2)
             self.assertEqual(len(dirs), len(set(dirs)))  # 重複がない
 
     def test_load_download_manifest_stat_oserror(self):
@@ -674,12 +677,15 @@ class DownloadHelpersTest(unittest.TestCase):
             manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
             # キャッシュを作成
-            manifest_path.write_text(json.dumps({"paths": {}}))
-            downloads._load_download_manifest(program, output_dir)
+            manifest_path.write_text(json.dumps({"paths": {"ep1": "file1.mp3"}}))
+            result1 = downloads._load_download_manifest(program, output_dir)
+            self.assertEqual(result1, {"ep1": "file1.mp3"})
 
             # すべてクリア
             downloads._clear_manifest_cache(None)
-            # 確認: キャッシュが空になる
+            # クリア後に再ロードするとキャッシュではなくファイルから読まれる
+            result2 = downloads._load_download_manifest(program, output_dir)
+            self.assertEqual(result2, {"ep1": "file1.mp3"})
 
     def test_get_downloaded_episode_keys_relative_path(self):
         """相対パスのエピソード検出テスト（行 161-165）。"""

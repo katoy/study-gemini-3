@@ -66,9 +66,11 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             patch("nhk_radio.config._ui_settings_path", return_value=Path("/tmp/config/ui.json")),
             patch.object(config.Path, "exists", side_effect=[True, False]),
             patch.object(config.Path, "replace", side_effect=OSError("rename fail")),
-            patch.object(config, "_MIGRATION_DONE", False)
         ):
+            # 移行失敗時でも _MIGRATION_DONE が True になっていることを確認（再試行しない）
+            config._MIGRATION_DONE = False
             config._migrate_legacy_ui_settings()
+            self.assertTrue(config._MIGRATION_DONE)
 
     def test_save_ui_settings_base_exception_cleanup(self):
         # config.py: 177-182 (BaseException path)
@@ -195,10 +197,11 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     # --- cleanup.py ---
     def test_cleanup_partial_episode_files_no_pattern_match(self):
         # cleanup.py: 27-30 (no pattern match on .part/.ytdl file)
-        from nhk_radio.downloads import cleanup
-        from nhk_radio.types import Program, Episode
         import tempfile
         from pathlib import Path
+
+        from nhk_radio.downloads import cleanup
+        from nhk_radio.types import Episode, Program
 
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
         episode = Episode(id="E", title="ET", display_title="EDT", date="2024-01-01", display_date="D", broadcast_time="00:00", duration_str="30m", url="U")
