@@ -177,32 +177,6 @@ def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: li
     return downloaded_keys
 
 
-def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
-    from . import filesystem
-
-    # キャッシュはディレクトリの mtime で自動無効化されるため明示クリアは不要
-
-    saved_paths = _load_download_manifest(program, output_dir)
-    episode_key = filesystem._episode_key(episode)
-
-    # 1) マニフェストに記録されたパスの実在を確認
-    saved_path_str = saved_paths.get(episode_key)
-    if saved_path_str:
-        resolved = Path(saved_path_str)
-        if not resolved.is_absolute():  # pragma: no cover
-            resolved = filesystem._program_output_dir(output_dir, program) / resolved
-        if resolved.exists():  # pragma: no cover
-            return True
-
-    # 2) ディレクトリをスキャンして候補を探す
-    for program_dir in filesystem._program_search_dirs(output_dir, program):
-        candidates = filesystem._episode_output_candidates(program_dir, program, episode)
-        if candidates:
-            return True
-
-    return False
-
-
 def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
     """保存済みエピソードのパスを検索して返す (副作用なし)。"""
     from . import filesystem
@@ -226,6 +200,10 @@ def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Ep
             return candidates[0]
 
     return None
+
+
+def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
+    return find_episode_downloaded_path(output_dir, program, episode) is not None
 
 
 def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Episode) -> bool:

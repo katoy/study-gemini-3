@@ -5,7 +5,6 @@ import os
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Union
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -27,7 +26,7 @@ def atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
-def atomic_write_json(path: Path, payload: Union[dict, list], *, indent: Union[int, None] = 2) -> None:
+def atomic_write_json(path: Path, payload: dict | list, *, indent: int | None = 2) -> None:
     """JSON をアトミックに書き込む。
 
     Args:

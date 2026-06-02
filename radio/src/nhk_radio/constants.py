@@ -4,7 +4,6 @@ NHK_ONDEMAND_URL = "https://www.nhk.or.jp/radio/ondemand/"
 NHK_API_NEW_CORNERS = "https://www.nhk.or.jp/radio-api/app/v1/web/ondemand/corners/new_arrivals"
 NHK_API_GENRE = "https://www.nhk.or.jp/radio-api/app/v1/web/ondemand/series?genre={genre}"
 NHK_DETAIL_TMPL = "https://www.nhk.or.jp/radio/ondemand/detail.html?p={site_id}_{corner_id}"
-NHK_EPISODE_TMPL = "https://www.nhk.or.jp/radio/player/ondemand.html?p={site_id}_{corner_id}_{episode_id}"
 
 NHK_GENRES = ["new_series", "news", "sports", "information", "drama", "music", "variety", "documentary", "theater", "hobby", "welfare", "kids", "language", "local"]
 

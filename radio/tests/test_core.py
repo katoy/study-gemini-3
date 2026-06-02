@@ -316,11 +316,11 @@ class CoreHelpersTest(unittest.TestCase):
     def test_parse_episode_info_and_report_fetch_result(self):
         program = Program(site_id="SITE", corner_id="01", title="P", url="U", display_title="P", display_date="----")
         parsed = core._parse_episode_info(
-            {"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}, program
+            {"id": "ep1", "title": "第1回", "upload_date": "20240415", "duration": 60}
         )
         self.assertIn("ep1", parsed.url)
         # ep_id がある場合は stream URL より NHK プレイヤー URL を優先する（期限切れ防止）
-        parsed_absolute = core._parse_episode_info({"id": "ep1", "url": "https://example.com"}, program)
+        parsed_absolute = core._parse_episode_info({"id": "ep1", "url": "https://example.com"})
         self.assertEqual(parsed_absolute.url, "https://www.nhk.or.jp/radio/player/ondemand.html?p=ep1")
 
     def test_fetch_episodes_success_and_failure(self):
@@ -424,7 +424,7 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
     def test_episode_url_is_nhk_player_not_stream_when_ep_id_present(self):
         """ep_id がある場合、期限付きストリーム URL ではなく NHK プレイヤー URL を使う。"""
         info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
-        parsed = core._parse_episode_info(info, self.PROGRAM)
+        parsed = core._parse_episode_info(info)
         self.assertNotIn("vod-stream.nhk.jp", parsed.url, "ストリーム URL が保存されている（期限切れバグ再発）")
         self.assertIn("nhk.or.jp/radio/player", parsed.url)
         self.assertIn("M65G6QLKMY_01_4311868", parsed.url)
@@ -432,14 +432,14 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
     def test_episode_player_url_format(self):
         """生成される URL が NHK プレイヤーの正しい形式になっている。"""
         info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
-        parsed = core._parse_episode_info(info, self.PROGRAM)
+        parsed = core._parse_episode_info(info)
         expected = "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01_4311868"
         self.assertEqual(parsed.url, expected)
 
     def test_episode_id_not_duplicated_in_url(self):
         """ep_id が URL 内で二重になっていない（旧バグ: ?p=M65G6QLKMY_01_M65G6QLKMY_01_4311868）。"""
         info = {"id": "M65G6QLKMY_01_4311868", "url": self.STREAM_URL}
-        parsed = core._parse_episode_info(info, self.PROGRAM)
+        parsed = core._parse_episode_info(info)
         self.assertNotIn(
             "M65G6QLKMY_01_M65G6QLKMY_01", parsed.url, "ep_id が二重になっている（テンプレートバグ再発）"
         )
@@ -450,13 +450,13 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
             "url": self.STREAM_URL,
             "webpage_url": "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01",
         }
-        parsed = core._parse_episode_info(info, self.PROGRAM)
+        parsed = core._parse_episode_info(info)
         self.assertEqual(parsed.url, "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01")
 
     def test_fallback_to_stream_url_when_no_ep_id_and_no_webpage_url(self):
         """ep_id も webpage_url もない場合は url にフォールバックする。"""
         info = {"url": self.STREAM_URL}
-        parsed = core._parse_episode_info(info, self.PROGRAM)
+        parsed = core._parse_episode_info(info)
         self.assertEqual(parsed.url, self.STREAM_URL)
 
     def test_merge_program_genres_with_no_primary_label(self):

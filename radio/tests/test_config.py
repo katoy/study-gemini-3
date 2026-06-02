@@ -7,6 +7,7 @@ from pathlib import Path, PureWindowsPath
 from unittest.mock import mock_open, patch
 
 from nhk_radio import config
+from nhk_radio.text import _normalize_text
 
 
 class ConfigHelpersTest(unittest.TestCase):
@@ -154,7 +155,7 @@ class ConfigHelpersTest(unittest.TestCase):
             self.assertFalse(target.exists())
 
     def test_normalize_search_term_and_history(self):
-        self.assertEqual(config._normalize_search_term("　 Hello "), "Hello")
+        self.assertEqual(_normalize_text("　 Hello "), "Hello")
         normalized = config._normalize_search_history([" test ", "ＴＥＳＴ", None, "", "next"])
         self.assertEqual(normalized, ["test", "next"])
         many = [f"item{i}" for i in range(config.SEARCH_HISTORY_LIMIT + 2)]

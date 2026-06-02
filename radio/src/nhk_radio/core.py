@@ -30,6 +30,7 @@ from .constants import (
     NHK_API_NEW_CORNERS,
     NHK_DETAIL_TMPL,
     NHK_GENRES,
+    YTDLP_SOCKET_TIMEOUT,
 )
 from .text import (
     _format_broadcast_time,
@@ -296,7 +297,7 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
             logger.info(f"{len(programs)} 件を取得しました。")
             return programs
         return []
-    except (httpx.HTTPError, ValueError, Exception) as e:
+    except Exception as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
         return []
 
@@ -306,7 +307,7 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
 # ──────────────────────────────────────────────────────
 
 
-def _parse_episode_info(info: dict, program: Program) -> Episode:
+def _parse_episode_info(info: dict) -> Episode:
     """yt-dlp のエピソード情報を Episode クラスに変換する。"""
     ep_id = str(info.get("id", ""))
     title = info.get("title") or ep_id
@@ -340,8 +341,8 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "socket_timeout": 30,  # ネットワーク遅延時のタイムアウト
-        "retries": 2,          # 失敗時に2回まで自動リトライ
+        "socket_timeout": YTDLP_SOCKET_TIMEOUT,
+        "retries": 2,
     }
 
     try:
@@ -353,7 +354,7 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
                 raise RuntimeError(msg)
 
             entries = info.get("entries", [])
-            episodes = [_parse_episode_info(entry, program) for entry in entries if entry]
+            episodes = [_parse_episode_info(entry) for entry in entries if entry]
 
             if verbose:
                 logger.info(f"{len(episodes)} 件のエピソードを取得しました。")

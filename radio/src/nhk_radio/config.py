@@ -8,6 +8,7 @@ import unicodedata
 from pathlib import Path
 
 from . import _io
+from .text import _normalize_text
 
 CACHE_TTL_SECONDS = 3600
 
@@ -115,10 +116,6 @@ SEARCH_HISTORY_LIMIT = 30
 HELP_CONTENT_VERSION = 1
 
 
-def _normalize_search_term(text: str) -> str:
-    return (text or "").replace("\u3000", " ").strip()
-
-
 def _normalize_search_history(items: list) -> list[str]:
     """検索履歴を正規化・重複除去して返す。"""
     result: list[str] = []
@@ -126,7 +123,7 @@ def _normalize_search_history(items: list) -> list[str]:
     for item in items:
         if not isinstance(item, str):
             continue
-        term = _normalize_search_term(item)
+        term = _normalize_text(item)
         if not term:
             continue
         key = unicodedata.normalize("NFKC", term).casefold()
