@@ -221,6 +221,59 @@ class BackendCoverageCompletionTest(unittest.TestCase):
                 cleanup.cleanup_partial_episode_files(output_dir, program, episode)
                 self.assertTrue(part_file.exists())  # File should still exist
 
+    # --- config.py ---
+    def test_load_ui_settings_empty_search_history(self):
+        # config.py: 165-166 (normalized が空の場合)
+        with (
+            patch("nhk_radio.config._migrate_legacy_ui_settings"),
+            patch("nhk_radio.config._ui_settings_path", return_value=Path("/tmp/ui.json")),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "read_text", return_value='{"program_search_history": [""]}'),  # 空文字列のみ
+        ):
+            settings = config._load_ui_settings()
+            # 正規化後が空なので program_search_history は settings に含まれない
+            self.assertNotIn("program_search_history", settings)
+
+    # --- manifest.py ---
+    def test_get_downloaded_episode_keys_no_match(self):
+        # manifest.py: 165 (any() が False の場合)
+        from nhk_radio.downloads import manifest
+        import tempfile
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = "ep1"
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            # ファイルがないため any(...) は False
+            result = manifest.get_downloaded_episode_keys(output_dir, program, [])
+            self.assertEqual(result, set())
+
+    def test_get_downloaded_episode_keys_with_match(self):
+        # manifest.py: 165 (any() が True の場合 = 165->166 ブランチ)
+        from nhk_radio.downloads import manifest, filesystem
+        from nhk_radio.types import Episode
+        import tempfile
+        program = Program(title="番組A", display_title="番組A", display_date="D", site_id="SITE", corner_id="01", url="U")
+        episode = Episode(id="ep1", title="第1回", display_title="第1回", date="20240415", display_date="D", broadcast_time="", duration_str="", url="U")
+        with tempfile.TemporaryDirectory() as tmp:
+            output_dir = Path(tmp)
+            program_dir = filesystem._program_output_dir(output_dir, program)
+            program_dir.mkdir(parents=True, exist_ok=True)
+            # マッチするファイルを作成
+            (program_dir / "20240415_番組A_第1回.mp3").write_text("x")
+            # マニフェストには記録されていないため、ディレクトリスキャンでマッチする
+            result = manifest.get_downloaded_episode_keys(output_dir, program, [episode])
+            self.assertIn(filesystem._episode_key(episode), result)
+
+    # --- text.py ---
+    def test_program_genre_labels_with_genres(self):
+        # text.py: 196 (_program_genres が True で _genre_label が実行)
+        program = Program(
+            title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U",
+            genre="music", genre_label="", genres=("music",), genre_labels=()
+        )
+        labels = text._program_genre_labels(program)
+        self.assertIn("音楽", labels)  # music -> 音楽
+
     # --- core.py ---
     def test_make_entry_with_none_genre(self):
         # core.py: 182-184 (if genre: false branch)
