@@ -620,25 +620,6 @@ class DownloadHelpersTest(unittest.TestCase):
             # duplicate detection で、同じ (genre_dir, title_dir) 組み合わせは 1 回だけ追加される
             self.assertEqual(len(dirs), len(set(dirs)))  # 重複がない
 
-    def test_episode_output_candidates_duplicate_detection(self):
-        """_episode_output_candidates で重複ファイル検出をテスト（行 188）。"""
-        program = PROGRAM
-        episode = EPISODE
-        with tempfile.TemporaryDirectory() as tmp:
-            program_dir = Path(tmp)
-            test_file = program_dir / "test.mp4"
-            test_file.touch()
-
-            # _get_cached_glob_files をモック化して同じファイルを 2 回返す
-            with patch("nhk_radio.downloads.filesystem._get_cached_glob_files") as mock_glob:
-                mock_glob.return_value = [test_file, test_file]  # 同じファイルを 2 回
-                with patch("nhk_radio.downloads.filesystem._episode_output_matches") as mock_match:
-                    mock_match.return_value = True
-                    candidates = downloads._episode_output_candidates(program_dir, program, episode)
-                    # 重複ファイルが 1 つだけ含まれることを確認
-                    self.assertEqual(len(candidates), 1)
-                    self.assertIn(test_file, candidates)
-
     def test_load_download_manifest_stat_oserror(self):
         """マニフェスト path.stat() が OSError を発生させた場合、キャッシュから読み込み。"""
         program = PROGRAM

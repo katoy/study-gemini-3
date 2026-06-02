@@ -21,6 +21,7 @@ import yt_dlp  # type: ignore[import-untyped]
 from .cache import load_episode_cache, load_program_cache, save_episode_cache, save_program_cache
 from .constants import (
     _HEADERS,
+    CACHE_TTL_INFINITE,
     GENRE_LABELS,
     HTTP_RETRY_BASE_DELAY,
     HTTP_RETRY_COUNT,
@@ -142,7 +143,7 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
         save_program_cache(genre, programs)
         return programs
 
-    stale = load_program_cache(genre, ttl_seconds=10**12)
+    stale = load_program_cache(genre, ttl_seconds=CACHE_TTL_INFINITE)
     return stale or programs
 
 
@@ -409,7 +410,7 @@ def refresh_episode_list(
             logger.warning(f"エピソードキャッシュの保存に失敗: {e}")
         return episodes, "network"
 
-    stale = load_episode_cache(program, ttl_seconds=10**12)
+    stale = load_episode_cache(program, ttl_seconds=CACHE_TTL_INFINITE)
     if stale:
         return stale, "stale-cache"
 

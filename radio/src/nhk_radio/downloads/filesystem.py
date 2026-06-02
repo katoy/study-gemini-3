@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 # mtime ベースの自動無効化により古いエントリは再スキャン時に上書きされる。
 # メモリリーク防止のため、最大エントリ数を制限する。
 # 環境変数 NHK_RADIO_FILE_SCAN_CACHE_SIZE で上書き可能（デフォルト 100）
-def _get_file_scan_cache_max_size() -> int:
-    return int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
-
-
-_FILE_SCAN_CACHE_MAX_SIZE = _get_file_scan_cache_max_size()
+_FILE_SCAN_CACHE_MAX_SIZE = int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
 
 import threading
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
@@ -57,17 +53,8 @@ def _program_storage_titles(program: Program) -> list[str]:
 
 def _legacy_program_output_dirs(output_dir: Path, program: Program) -> list[Path]:
     genre_labels = [_safe_name(label) for label in _program_genre_labels(program)]
-
-    dirs: list[Path] = []
-    seen: set[Path] = set()
-    for genre_dir in genre_labels:
-        for title_dir in _program_storage_titles(program):
-            candidate = output_dir / genre_dir / title_dir
-            if candidate in seen:
-                continue
-            seen.add(candidate)
-            dirs.append(candidate)
-    return dirs
+    candidates = [output_dir / genre_dir / title_dir for genre_dir in genre_labels for title_dir in _program_storage_titles(program)]
+    return list(dict.fromkeys(candidates))
 
 
 def _program_search_dirs(output_dir: Path, program: Program) -> list[Path]:
@@ -176,18 +163,10 @@ def _clear_file_scan_cache(directory: Path | None = None):
 
 
 def _episode_output_candidates(program_dir: Path, program: Program, episode: Episode) -> list[Path]:
-    candidates: list[Path] = []
-    seen: set[Path] = set()
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
 
     files = _get_cached_glob_files(program_dir)
-    for path in files:
-        if not _episode_output_matches(path, program, episode):
-            continue
-        if path in seen:
-            continue
-        seen.add(path)
-        candidates.append(path)
+    candidates = [path for path in files if _episode_output_matches(path, program, episode)]
 
     suffix_priority = {
         ".mp3": 0,

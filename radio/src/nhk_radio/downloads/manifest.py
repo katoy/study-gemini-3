@@ -11,11 +11,8 @@ from ..types import Episode, Program
 
 logger = logging.getLogger(__name__)
 
-# マニフェストパスごとのロック。
-# 典型的なユースケース (数～数十番組) では上限を設けなくても問題ないが、
-# 保存先切り替えを頻繁に行う長寿命プロセスでは単調増加する点に注意。
-_MANIFEST_LOCKS: dict[Path, threading.RLock] = {}
-_MANIFEST_LOCKS_GUARD = threading.Lock()
+# マニフェストへの同時アクセスを保護するロック
+_MANIFEST_LOCK = threading.RLock()
 
 # マニフェスト読み込み結果のキャッシュ（短期 TTL）。
 # GUI レンダリングで is_episode_downloaded が何度も呼ばれるため、
@@ -31,13 +28,7 @@ def _download_manifest_path(program: Program, output_dir: Path) -> Path:
 
 
 def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLock:
-    manifest_path = _download_manifest_path(program, output_dir)
-    with _MANIFEST_LOCKS_GUARD:
-        lock = _MANIFEST_LOCKS.get(manifest_path)
-        if lock is None:
-            lock = threading.RLock()
-            _MANIFEST_LOCKS[manifest_path] = lock
-        return lock
+    return _MANIFEST_LOCK
 
 
 def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str]:

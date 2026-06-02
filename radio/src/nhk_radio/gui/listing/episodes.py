@@ -6,6 +6,7 @@ import logging
 import tkinter as tk
 from tkinter import ttk
 
+from ...constants import CACHE_TTL_INFINITE
 from ...downloads import _episode_key, get_downloaded_episode_keys
 from ...text import _sortable_duration_value, _sortable_timestamp_value
 from ...types import Episode, Program
@@ -417,4 +418,4 @@ class GuiEpisodeMixin:
 
     def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
         """指定した番組のキャッシュされたエピソードを返す。"""
-        return self.data_manager.get_cached_episodes(program, ttl_seconds=10**12)
+        return self.data_manager.get_cached_episodes(program, ttl_seconds=CACHE_TTL_INFINITE)

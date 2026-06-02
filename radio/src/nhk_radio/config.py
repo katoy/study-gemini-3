@@ -39,12 +39,7 @@ def _default_user_config_root() -> Path:
 def _find_project_root() -> Path | None:
     current = Path(__file__).resolve()
     for parent in current.parents:
-        is_project_root = (
-            (parent / "pyproject.toml").exists()
-            and (parent / "src" / "nhk_radio").is_dir()
-            and (parent / "src" / "nhk_radio" / "cli.py").exists()
-        )
-        if is_project_root:
+        if (parent / "pyproject.toml").exists():
             return parent
     return None
 

@@ -264,13 +264,13 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `_io.py` | 19 | 100% |
 | `cache.py` | 82 | 100% |
 | `cli.py` | 185 | 100% |
-| `config.py` | 146 | 100% |
-| `constants.py` | 15 | 100% |
+| `config.py` | 145 | 100% |
+| `constants.py` | 16 | 100% |
 | `core.py` | 217 | 100% |
-| `downloads/__init__.py` | 6 | 100% |
+| `downloads/__init__.py` | 5 | 100% |
 | `downloads/cleanup.py` | 29 | 100% |
-| `downloads/filesystem.py` | 124 | 100% |
-| `downloads/manifest.py` | 111 | 100% |
+| `downloads/filesystem.py` | 106 | 100% |
+| `downloads/manifest.py` | 104 | 100% |
 | `downloads/runner.py` | 73 | 100% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/build.py` | 330 | 100% |
@@ -278,7 +278,7 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `gui/listing/__init__.py` | 5 | 100% |
 | `text.py` | 147 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **1653** | **100%** |
+| **合計** | **1627** | **100%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 
