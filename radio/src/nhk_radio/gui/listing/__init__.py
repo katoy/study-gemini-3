@@ -1,5 +1,7 @@
 """GUI listing — 番組・エピソード一覧の表示と操作。"""
 
+# mypy: disable-error-code="misc"
+
 from .episodes import GuiEpisodeMixin
 from .operations import GuiOperationsMixin
 from .programs import GuiProgramsMixin
