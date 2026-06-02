@@ -118,9 +118,9 @@ class CoreHelpersTest(unittest.TestCase):
         with (
             patch("nhk_radio.core.logger"),
             patch("nhk_radio.core.asyncio.sleep", new_callable=AsyncMock),
+            self.assertRaisesRegex(httpx.HTTPStatusError, "429"),
         ):
-            with self.assertRaisesRegex(httpx.HTTPStatusError, "429"):
-                asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
+            asyncio.run(core.http_get_json_async(mock_client, "https://example.com"))
 
     def test_fetch_by_genre_async_error(self):
         # ジャンル取得失敗時の空リスト返却 (language 以外)

@@ -212,12 +212,14 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             part_file = output_dir / "unrelated.part"
             part_file.touch()
 
-            with patch("nhk_radio.downloads.filesystem._program_search_dirs", return_value=[output_dir]):
-                with patch("nhk_radio.downloads.filesystem._clear_file_scan_cache"):
-                    with patch("nhk_radio.downloads.filesystem._episode_output_patterns", return_value=[]):
-                        # Should not crash, just skip the non-matching file
-                        cleanup.cleanup_partial_episode_files(output_dir, program, episode)
-                        self.assertTrue(part_file.exists())  # File should still exist
+            with (
+                patch("nhk_radio.downloads.filesystem._program_search_dirs", return_value=[output_dir]),
+                patch("nhk_radio.downloads.filesystem._clear_file_scan_cache"),
+                patch("nhk_radio.downloads.filesystem._episode_output_patterns", return_value=[]),
+            ):
+                # Should not crash, just skip the non-matching file
+                cleanup.cleanup_partial_episode_files(output_dir, program, episode)
+                self.assertTrue(part_file.exists())  # File should still exist
 
     # --- core.py ---
     def test_make_entry_with_none_genre(self):
