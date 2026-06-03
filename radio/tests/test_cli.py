@@ -104,10 +104,11 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)) as run_mock,
         ):
             cli.download_url_direct("http://url", Path("/tmp"), None, True)
-            # subprocess.run が呼ばれることを確認
+            # subprocess.run が呼ばれることと、正しいコマンドで呼ばれたことを確認
             run_mock.assert_called_once()
             cmd_args = run_mock.call_args[0][0]
             self.assertIn("ls", cmd_args)
+            self.assertIsInstance(cmd_args, list)
 
     def test_download_url_direct_invalid_url(self):
         with patch.object(cli, "_resolve_program_from_url", return_value=None):
@@ -170,7 +171,13 @@ class CliHelpersTest(unittest.TestCase):
         args.url = "http://test"
         with patch.object(cli, "download_url_direct") as direct_mock:
             self.assertEqual(cli.run_cli(args), 0)
-            direct_mock.assert_called_once()
+            direct_mock.assert_called_once_with(
+                "http://test",
+                Path("/tmp"),
+                None,
+                audio_only=True,
+                genre=None
+            )
 
     def test_main_exit_code(self):
         """main が run_cli の戻り値を sys.exit に渡しているか検証する"""

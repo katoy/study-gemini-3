@@ -1,3 +1,4 @@
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -123,10 +124,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         with (
             patch.object(cli, "_resolve_program_from_url", return_value=program),
             patch("subprocess.run", return_value=MagicMock(returncode=1)),
-            patch("sys.exit") as exit_mock
+            patch.object(sys, "exit") as exit_mock
         ):
             cli.download_url_direct("url", Path("/tmp"), None, True)
-            exit_mock.assert_called_with(1)
+            exit_mock.assert_called_once_with(1)
 
     # --- core.py ---
     def test_http_get_json_async_errors(self):
