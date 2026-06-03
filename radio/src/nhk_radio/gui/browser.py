@@ -25,7 +25,7 @@ from .toolkit import messagebox, tk, ttk
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
-    def __init__(self, programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None):
+    def __init__(self, programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None, root: tk.Tk | None = None):
         if tk is None or ttk is None:
             raise RuntimeError("tkinter が利用できません")
 
@@ -35,7 +35,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.genre = genre
 
         self._initialize_runtime_state(self.programs)
-        self._initialize_root_window()
+        if root is not None:
+            self.root = root
+        else:
+            self._initialize_root_window()
         # ThemeManager の初期化 (Mixin経由)
         self._initialize_theme()
 
