@@ -77,7 +77,9 @@ class DownloadManager:
             keys = list(self.processes.keys())
             for key in keys:
                 self.cancel_events[key].set()
-                self.processes[key].terminate()
+                process = self.processes.get(key)
+                if process:
+                    process.terminate()
 
     def is_active(self) -> bool:
         """Returns True if any downloads are currently running."""

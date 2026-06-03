@@ -297,7 +297,7 @@ class GuiProgramsMixin:
         if cell:
             item_id, col, _value = cell
             if col == "title":
-                self._set_selected_tree_cell(self.program_tree, item_id, col)
+                self._set_selected_tree_cell(self.program_tree, col, _value)
 
     def _on_program_double_click(self, event):
         if self.loading:
