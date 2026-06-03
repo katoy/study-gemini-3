@@ -61,17 +61,18 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     # --- config.py ---
     def test_migrate_legacy_ui_settings_oserror(self):
-        # config.py: 90 (OSError on replace)
+        # config.py: OSError が発生しても握りつぶされること
         with (
             patch("nhk_radio.config._resolve_cache_root_dir", return_value=Path("/tmp/cache")),
             patch("nhk_radio.config._ui_settings_path", return_value=Path("/tmp/config/ui.json")),
             patch.object(config.Path, "exists", side_effect=[True, False]),
             patch.object(config.Path, "replace", side_effect=OSError("rename fail")),
         ):
-            # 移行失敗時でも _MIGRATION_DONE が True になっていることを確認（再試行しない）
-            config._MIGRATION_DONE = False
-            config._migrate_legacy_ui_settings()
-            self.assertTrue(config._MIGRATION_DONE)
+            # OSError が発生しても例外は握りつぶされ、関数は正常に return する
+            try:
+                config._migrate_legacy_ui_settings()
+            except OSError:
+                self.fail("_migrate_legacy_ui_settings は OSError を握りつぶすべき")
 
     def test_save_ui_settings_base_exception_cleanup(self):
         # config.py: 177-182 (BaseException path)
@@ -80,7 +81,6 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             patch("tempfile.mkstemp", return_value=(99, "/tmp/tmp123")),
             patch.object(config.Path, "replace", side_effect=RuntimeError("critical fail")),
             patch("os.unlink") as unlink_mock,
-            patch.object(config, "_MIGRATION_DONE", True)
         ):
             with self.assertRaises(RuntimeError):
                 config._save_ui_settings("dark", "12")

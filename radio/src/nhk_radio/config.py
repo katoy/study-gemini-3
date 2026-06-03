@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-import threading
 import unicodedata
 from pathlib import Path
 
@@ -77,20 +76,11 @@ def _ui_settings_path() -> Path:
     return _resolve_config_root_dir() / "ui_settings.json"
 
 
-_MIGRATION_DONE = False
-_MIGRATION_LOCK = threading.Lock()
-
-
 def _migrate_legacy_ui_settings():
     """旧バージョンがキャッシュディレクトリに書いていた ui_settings.json を移行する。
 
-    最初の UI 設定アクセス時に一度だけ実行される。
+    べき等処理のため複数回実行しても安全。既に新パスが存在していたら何もしない。
     """
-    global _MIGRATION_DONE
-    with _MIGRATION_LOCK:
-        if _MIGRATION_DONE:
-            return
-        _MIGRATION_DONE = True
     legacy_path = _resolve_cache_root_dir() / "ui_settings.json"
     settings_path = _ui_settings_path()
     if legacy_path == settings_path:
@@ -101,7 +91,7 @@ def _migrate_legacy_ui_settings():
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         legacy_path.replace(settings_path)
     except OSError:
-        # 移行失敗は致命かではない (新規作成として扱う)
+        # 移行失敗は致命的ではない (新規作成として扱う)
         pass
 
 

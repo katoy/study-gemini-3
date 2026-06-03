@@ -103,15 +103,12 @@ class ConfigHelpersTest(unittest.TestCase):
                 patch("nhk_radio.config._resolve_cache_root_dir", return_value=cache_dir),
                 patch("nhk_radio.config._ui_settings_path", return_value=target),
             ):
-                # グローバル状態をリセット
-                config._MIGRATION_DONE = False
                 config._migrate_legacy_ui_settings()
             self.assertFalse(legacy.exists())
             self.assertTrue(target.exists())
             self.assertEqual(target.read_text(encoding="utf-8"), '{"theme": "dark"}')
 
             # 新パスに既にファイルがある場合は何もしない
-            config._MIGRATION_DONE = False
             legacy.write_text("OLD", encoding="utf-8")
             target = config_dir / "ui_settings.json"
             target.write_text("NEW", encoding="utf-8")
@@ -125,7 +122,6 @@ class ConfigHelpersTest(unittest.TestCase):
             self.assertTrue(legacy.exists())
 
             # same-path 時は何もしない
-            config._MIGRATION_DONE = False
             with (
                 patch("nhk_radio.config._resolve_cache_root_dir", return_value=config_dir),
                 patch("nhk_radio.config._ui_settings_path", return_value=target),
@@ -149,7 +145,6 @@ class ConfigHelpersTest(unittest.TestCase):
                 patch("nhk_radio.config._ui_settings_path", return_value=target),
                 patch.object(Path, "replace", side_effect=OSError("boom")),
             ):
-                config._MIGRATION_DONE = False
                 config._migrate_legacy_ui_settings()  # 例外は握りつぶされる
             self.assertTrue(legacy.exists())
             self.assertFalse(target.exists())

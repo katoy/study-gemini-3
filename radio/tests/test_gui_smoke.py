@@ -254,7 +254,6 @@ class GuiSmokeTest(unittest.TestCase):
                      patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
 
                     import nhk_radio.config as cfg
-                    cfg._MIGRATION_DONE = False
 
                     # 1. 初期化 (デフォルト)
                     browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
@@ -266,7 +265,6 @@ class GuiSmokeTest(unittest.TestCase):
                     browser1._persist_ui_settings()
 
                     # 3. 再起動 (再初期化)
-                    cfg._MIGRATION_DONE = False
                     browser2 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
 
                     # 設定が引き継がれているか
@@ -357,7 +355,6 @@ class GuiSmokeTest(unittest.TestCase):
                  patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
 
                 import nhk_radio.config as cfg
-                cfg._MIGRATION_DONE = False
 
                 # 初回起動: help dialog が schedule される
                 try:
@@ -365,7 +362,7 @@ class GuiSmokeTest(unittest.TestCase):
                     # after(600, _show_help_dialog) が呼ばれたことを確認
                     self.assertTrue(self.root.after.called)
                 finally:
-                    cfg._MIGRATION_DONE = False
+                    pass
 
                 # after をリセット
                 self.root.after.reset_mock()
@@ -381,7 +378,7 @@ class GuiSmokeTest(unittest.TestCase):
                     )
                     self.assertFalse(help_scheduled, "help_seen_version が設定済みなら help dialog は schedule されない")
                 finally:
-                    cfg._MIGRATION_DONE = False
+                    pass
 
     def test_program_filter_values_list_structure(self):
         """ジャンル絞り込み値がリスト構造を持つ。"""
