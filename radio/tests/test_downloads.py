@@ -772,9 +772,10 @@ class DownloadHelpersTest(unittest.TestCase):
 
     def test_data_manager_thread_safe_episodes_cache(self):
         """T-3: DataManager の episodes_cache が複数スレッドアクセスで安定していることを検証。"""
-        from nhk_radio.gui.data_manager import DataManager
-        from collections import OrderedDict
         import threading
+        from collections import OrderedDict
+
+        from nhk_radio.gui.data_manager import DataManager
 
         dm = DataManager(on_program_result=None, on_episode_result=None)
         cache = dm.episodes_cache
