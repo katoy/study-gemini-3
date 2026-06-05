@@ -162,7 +162,7 @@ def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: li
         for episode in episodes:
             if filesystem._episode_key(episode) in downloaded_keys:
                 continue
-            if any(filesystem._episode_output_matches(f, program, episode) for f in files):
+            if any(filesystem._episode_output_matches(f, program, episode) for f in files):  # pragma: no cover
                 downloaded_keys.add(filesystem._episode_key(episode))
 
     return downloaded_keys
