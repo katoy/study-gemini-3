@@ -13,6 +13,29 @@ def _set_tree_heading(tree: Any, column: str, *, text: str, anchor: str, command
 
 
 class GuiBuildMixin:
+    def _build_scrollable_frame(self, parent, inner_style, padding=0):
+        """Canvas + Scrollbar + 内部 Frame の共通パターンを構築して返す。"""
+        canvas = tk.Canvas(parent, background=self._palette["surface"], highlightthickness=1, bd=0, relief="flat")
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        inner = ttk.Frame(canvas, style=inner_style, padding=padding)
+        inner.columnconfigure(0, weight=1)
+        window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        mousewheel_handler = self._make_canvas_mousewheel_handler(canvas)
+        inner_configure_handler = self._make_canvas_inner_configure_handler(canvas)
+        canvas_configure_handler = self._make_canvas_configure_handler(canvas, window_id)
+
+        for widget in (canvas, inner):
+            for event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                widget.bind(event, mousewheel_handler)
+        inner.bind("<Configure>", inner_configure_handler)
+        canvas.bind("<Configure>", canvas_configure_handler)
+
+        return canvas, scrollbar, inner, window_id
+
     def _build_widgets(self):
         # ウィジェット構築開始。テーマとフォントは既に初期化済み。
         main = ttk.Frame(self.root, padding=16)
@@ -306,34 +329,9 @@ class GuiBuildMixin:
         self.download_jobs_frame.grid(row=1, column=0, sticky="nsew")
         self.download_jobs_frame.columnconfigure(0, weight=1)
         self.download_jobs_frame.rowconfigure(0, weight=1)
-        self.download_jobs_canvas = tk.Canvas(
-            self.download_jobs_frame,
-            background=self._palette["surface"],
-            highlightthickness=1,
-            bd=0,
-            relief="flat",
+        self.download_jobs_canvas, self.download_jobs_scrollbar, self.download_jobs_inner, self.download_jobs_window = self._build_scrollable_frame(
+            self.download_jobs_frame, "CardInner.TFrame"
         )
-        self.download_jobs_canvas.grid(row=0, column=0, sticky="nsew")
-        self.download_jobs_scrollbar = ttk.Scrollbar(
-            self.download_jobs_frame,
-            orient="vertical",
-            command=self.download_jobs_canvas.yview,
-        )
-        self.download_jobs_scrollbar.grid(row=0, column=1, sticky="ns")
-        self.download_jobs_canvas.configure(yscrollcommand=self.download_jobs_scrollbar.set)
-        self.download_jobs_inner = ttk.Frame(self.download_jobs_canvas, style="CardInner.TFrame")
-        self.download_jobs_window = self.download_jobs_canvas.create_window(
-            (0, 0), window=self.download_jobs_inner, anchor="nw"
-        )
-        self.download_jobs_inner.columnconfigure(0, weight=1)
-        self.download_jobs_inner.bind("<Configure>", self._on_download_jobs_inner_configure)
-        self.download_jobs_canvas.bind("<Configure>", self._on_download_jobs_canvas_configure)
-        self.download_jobs_canvas.bind("<MouseWheel>", self._on_download_jobs_mousewheel)
-        self.download_jobs_canvas.bind("<Button-4>", self._on_download_jobs_mousewheel)
-        self.download_jobs_canvas.bind("<Button-5>", self._on_download_jobs_mousewheel)
-        self.download_jobs_inner.bind("<MouseWheel>", self._on_download_jobs_mousewheel)
-        self.download_jobs_inner.bind("<Button-4>", self._on_download_jobs_mousewheel)
-        self.download_jobs_inner.bind("<Button-5>", self._on_download_jobs_mousewheel)
         self.download_jobs_empty = ttk.Label(
             self.download_jobs_inner, text="実行中のダウンロードはありません。", style="CardMeta.TLabel"
         )
@@ -356,32 +354,9 @@ class GuiBuildMixin:
         self.settings_screen.grid(row=0, column=0, sticky="nsew")
         self.settings_screen.columnconfigure(0, weight=1)
         self.settings_screen.rowconfigure(0, weight=1)
-        self.settings_canvas = tk.Canvas(
-            self.settings_screen,
-            background=self._palette["surface"],
-            highlightthickness=1,
-            bd=0,
-            relief="flat",
+        self.settings_canvas, self.settings_scrollbar, self.settings_inner, self.settings_window = self._build_scrollable_frame(
+            self.settings_screen, "Card.TFrame", padding=24
         )
-        self.settings_canvas.grid(row=0, column=0, sticky="nsew")
-        self.settings_scrollbar = ttk.Scrollbar(
-            self.settings_screen,
-            orient="vertical",
-            command=self.settings_canvas.yview,
-        )
-        self.settings_scrollbar.grid(row=0, column=1, sticky="ns")
-        self.settings_canvas.configure(yscrollcommand=self.settings_scrollbar.set)
-        self.settings_inner = ttk.Frame(self.settings_canvas, style="Card.TFrame", padding=24)
-        self.settings_window = self.settings_canvas.create_window((0, 0), window=self.settings_inner, anchor="nw")
-        self.settings_inner.columnconfigure(0, weight=1)
-        self.settings_inner.bind("<Configure>", self._on_settings_inner_configure)
-        self.settings_canvas.bind("<Configure>", self._on_settings_canvas_configure)
-        self.settings_canvas.bind("<MouseWheel>", self._on_settings_mousewheel)
-        self.settings_canvas.bind("<Button-4>", self._on_settings_mousewheel)
-        self.settings_canvas.bind("<Button-5>", self._on_settings_mousewheel)
-        self.settings_inner.bind("<MouseWheel>", self._on_settings_mousewheel)
-        self.settings_inner.bind("<Button-4>", self._on_settings_mousewheel)
-        self.settings_inner.bind("<Button-5>", self._on_settings_mousewheel)
 
     def _build_settings_header(self) -> None:
         settings_header = ttk.Frame(self.settings_inner, style="CardInner.TFrame")

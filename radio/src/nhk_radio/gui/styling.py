@@ -144,29 +144,26 @@ class GuiStylingMixin:
             else:
                 self.settings_save_button.state(["disabled"])
 
-    def _on_settings_inner_configure(self, _event):
-        self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all"))
+    def _make_canvas_mousewheel_handler(self, canvas):
+        """Canvas 用マウスホイールハンドラを生成して返す。"""
+        def handler(event):
+            if event.num == 4 or event.delta > 0:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5 or event.delta < 0:
+                canvas.yview_scroll(1, "units")
+        return handler
 
-    def _on_settings_canvas_configure(self, event):
-        self.settings_canvas.itemconfig(self.settings_window, width=event.width)
+    def _make_canvas_inner_configure_handler(self, canvas):
+        """Canvas 内部フレーム Configure ハンドラを生成して返す。"""
+        def handler(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        return handler
 
-    def _on_settings_mousewheel(self, event):
-        if event.num == 4 or event.delta > 0:
-            self.settings_canvas.yview_scroll(-1, "units")
-        elif event.num == 5 or event.delta < 0:
-            self.settings_canvas.yview_scroll(1, "units")
-
-    def _on_download_jobs_inner_configure(self, _event):
-        self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
-
-    def _on_download_jobs_canvas_configure(self, event):
-        self.download_jobs_canvas.itemconfig(self.download_jobs_window, width=event.width)
-
-    def _on_download_jobs_mousewheel(self, event):
-        if event.num == 4 or event.delta > 0:
-            self.download_jobs_canvas.yview_scroll(-1, "units")
-        elif event.num == 5 or event.delta < 0:
-            self.download_jobs_canvas.yview_scroll(1, "units")
+    def _make_canvas_configure_handler(self, canvas, window_id):
+        """Canvas 自体の Configure ハンドラを生成して返す。"""
+        def handler(event):
+            canvas.itemconfig(window_id, width=event.width)
+        return handler
 
     def _on_episode_tree_yscroll(self, *args):
         self.episode_scroll.set(*args)
