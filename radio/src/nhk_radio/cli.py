@@ -171,7 +171,7 @@ def download_url_direct(
 
     logger.info(f"番組: {program.display_title}")
     logger.info(f"保存先: {target_dir}")
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, timeout=3600)
     if result.returncode == 0:
         logger.info("ダウンロード完了!")
     else:
