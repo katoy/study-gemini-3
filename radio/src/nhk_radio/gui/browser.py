@@ -93,7 +93,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
         self.download_polling = False
         self.active_download_rows: dict[str, dict] = {}
-        self.active_download_meta: dict[str, tuple[Program, Episode]] = {}
 
         # Mixin 後位互換用参照
         self.programs = self.data_manager.programs

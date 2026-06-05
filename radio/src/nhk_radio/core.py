@@ -176,7 +176,7 @@ def resolve_program_from_url(url: str, genre: str | None = None) -> Program | No
 
     cached_programs = load_program_cache(genre)
     if cached_programs is None:
-        cached_programs = load_program_cache(genre, ttl_seconds=10**12)
+        cached_programs = load_program_cache(genre, ttl_seconds=CACHE_TTL_INFINITE)
 
     for candidate in cached_programs or []:
         if candidate.site_id == program.site_id and candidate.corner_id == program.corner_id:  # pragma: no cover

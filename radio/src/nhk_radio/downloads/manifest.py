@@ -23,11 +23,14 @@ _MANIFEST_CACHE_LOCK = threading.Lock()
 
 
 def _download_manifest_path(program: Program, output_dir: Path) -> Path:
+    # 遅延インポート: manifest.py と filesystem.py の循環インポートを回避
     from . import filesystem
     return filesystem.program_output_dir(output_dir, program) / ".downloaded.json"
 
 
 def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLock:
+    # 全番組共有の単一ロック。個別番組ごとのロックではなく、
+    # マニフェスト全体へのアクセスを保護するため統一ロックを使用。
     return _MANIFEST_LOCK
 
 
