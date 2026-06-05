@@ -257,5 +257,7 @@ class DownloadManagerTest(unittest.TestCase):
 
         self.assertIn("cancelled_one", events)
 
+
+
 if __name__ == "__main__":
     unittest.main()
