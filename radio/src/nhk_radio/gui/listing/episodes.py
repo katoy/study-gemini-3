@@ -271,32 +271,6 @@ class GuiEpisodeMixin:
                 keys.append(_episode_key(episode))
         return tuple(keys)
 
-    def _tree_label(self, tree: ttk.Treeview) -> str:
-        if tree is self.program_tree:
-            return "番組一覧"
-        if tree is self.episode_tree:
-            return "エピソード一覧"
-        return "一覧"
-
-    def _tree_cell_from_event(self, tree: ttk.Treeview, event) -> tuple[str, str, str] | None:
-        if tree.identify("region", event.x, event.y) != "cell":
-            return None
-
-        item_id = tree.identify_row(event.y)
-        column_id = tree.identify_column(event.x)
-        if not item_id or not column_id.startswith("#"):
-            return None
-
-        try:
-            column_index = int(column_id[1:]) - 1
-        except ValueError:
-            return None
-
-        values = tree.item(item_id, "values")
-        if column_index < 0 or column_index >= len(values):
-            return None
-        return item_id, column_id, str(values[column_index])
-
     def _set_selected_tree_cell(self, tree: ttk.Treeview, column_id: str, value: str):
         try:
             column_index = int(column_id[1:]) - 1

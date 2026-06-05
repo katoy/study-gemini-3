@@ -4,7 +4,6 @@
 
 import logging
 import tkinter as tk
-import unicodedata
 import webbrowser  # noqa: F401
 from contextlib import suppress
 
@@ -141,11 +140,6 @@ class GuiProgramsMixin:
         ordered = [GENRE_LABELS[g] for g in NHK_GENRES if GENRE_LABELS[g] in seen_labels]
         remaining = [label for label in seen_labels if label not in ordered]
         return ["すべて", *ordered, *remaining, "未分類"]
-
-    def _normalized_search_text(self, text: str) -> str:
-        if not text:
-            return ""
-        return unicodedata.normalize("NFKC", text).casefold().strip()
 
     def _program_search_target(self, program: Program) -> str:
         text = (
