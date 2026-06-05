@@ -118,9 +118,9 @@ def run_yt_dlp_subprocess(
                     break
 
                 # 進捗コールバックを実行
-                if on_progress:  # pragma: no cover
+                if on_progress:
                     percent, eta, status = _parse_yt_dlp_progress(line)
-                    if percent is not None or eta is not None or status is not None:  # pragma: no cover
+                    if percent is not None or eta is not None or status is not None:
                         on_progress(percent, eta, status)
 
         # タイムアウト 120 秒で wait

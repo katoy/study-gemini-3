@@ -224,7 +224,7 @@ async def _fetch_all_async() -> list[Program]:
         # 1) corners/new_arrivals (最新追加・最多)
         try:
             data = await http_get_json_async(client, NHK_API_NEW_CORNERS)
-            if isinstance(data, dict):  # pragma: no cover
+            if isinstance(data, dict):
                 for s_raw in data.get("corners", []):
                     s = cast(ApiProgramRaw, s_raw)
                     key = (str(s.get("series_site_id", "")), str(s.get("corner_site_id", "")))
