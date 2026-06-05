@@ -109,9 +109,9 @@ class DownloadManager:
             self.processes[episode_key] = None
 
         try:
-            def on_progress(percent: float | None, _eta: str | None, _status: str | None) -> None:
+            def on_progress(percent: float | None, eta: str | None, status: str | None) -> None:
                 if percent is not None:
-                    self.on_result("progress", episode_key, program, episode, (percent,))
+                    self.on_result("progress", episode_key, program, episode, (percent, eta or "", status or ""))
 
             success = run_yt_dlp_subprocess(cmd, on_progress=on_progress, cancel_event=cancel_event)
             success = success and not cancel_event.is_set()
