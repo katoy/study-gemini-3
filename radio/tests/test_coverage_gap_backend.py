@@ -238,10 +238,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     # --- manifest.py ---
     def test_get_downloaded_episode_keys_no_match(self):
         # manifest.py: 165 (any() が False の場合)
-        from nhk_radio.downloads import manifest
         import tempfile
+
+        from nhk_radio.downloads import manifest
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
-        episode = "ep1"
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
             # ファイルがないため any(...) は False
@@ -250,9 +250,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     def test_get_downloaded_episode_keys_with_match(self):
         # manifest.py: 165 (any() が True の場合 = 165->166 ブランチ)
-        from nhk_radio.downloads import manifest, filesystem
-        from nhk_radio.types import Episode
         import tempfile
+
+        from nhk_radio.downloads import filesystem, manifest
+        from nhk_radio.types import Episode
         program = Program(title="番組A", display_title="番組A", display_date="D", site_id="SITE", corner_id="01", url="U")
         episode = Episode(id="ep1", title="第1回", display_title="第1回", date="20240415", display_date="D", broadcast_time="", duration_str="", url="U")
         with tempfile.TemporaryDirectory() as tmp:

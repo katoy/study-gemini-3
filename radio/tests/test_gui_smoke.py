@@ -253,7 +253,6 @@ class GuiSmokeTest(unittest.TestCase):
                 with patch.dict("os.environ", {"NHK_RADIO_CONFIG_DIR": str(config_dir)}), \
                      patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
 
-                    import nhk_radio.config as cfg
 
                     # 1. 初期化 (デフォルト)
                     browser1 = EpisodeGuiBrowser(self.programs, Path("/tmp"))
@@ -354,7 +353,6 @@ class GuiSmokeTest(unittest.TestCase):
             with patch.dict("os.environ", {"NHK_RADIO_CONFIG_DIR": str(config_dir)}), \
                  patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
 
-                import nhk_radio.config as cfg
 
                 # 初回起動: help dialog が schedule される
                 try:

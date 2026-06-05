@@ -25,9 +25,9 @@ def _format_onair_date(onair_date: str, started_at: str | None = None) -> str:
         except (ValueError, TypeError):
             pass
 
-    day = _parse_date_str(onair_date)
-    if day:
-        return _fixed_display_date(day)
+    parsed_day = _parse_date_str(onair_date)
+    if parsed_day:
+        return _fixed_display_date(parsed_day)
 
     normalized = _normalize_text(onair_date).replace("放送", "")
     return normalized or "----------(-)"
