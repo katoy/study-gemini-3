@@ -227,7 +227,7 @@ class DownloadHelpersTest(unittest.TestCase):
             downloads._clear_file_scan_cache()
             with (
                 patch.object(Path, "is_dir", return_value=True),
-                patch.object(Path, "stat", side_effect=OSError("denied")),
+                patch("pathlib.Path.stat", side_effect=OSError("denied")),
             ):
                 result = downloads._get_cached_glob_files(target)
             self.assertEqual(result, [])
@@ -639,7 +639,7 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertEqual(result1, {"key1": "/path/to/file1"})
 
             # stat() をモック化して OSError を発生させ、キャッシュが使用されることを確認
-            with patch.object(Path, 'stat', side_effect=OSError("permission denied")):
+            with patch("pathlib.Path.stat", side_effect=OSError("permission denied")):
                 result2 = downloads._load_download_manifest(program, output_dir)
                 self.assertEqual(result2, result1)  # キャッシュから返される
 
