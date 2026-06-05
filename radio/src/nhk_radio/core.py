@@ -65,11 +65,11 @@ def _merge_program_genres(
         labels.append(resolved_label)
 
     primary_genre = program.genre or genre
-    primary_label = program.genre_label
-    if primary_label in ("", _genre_label(None)):
-        primary_label = resolved_label
-    if not primary_label and primary_genre:
-        primary_label = _genre_label(primary_genre)
+    primary_label = (
+        program.genre_label
+        if program.genre_label not in ("", _genre_label(None))
+        else resolved_label or (_genre_label(primary_genre) if primary_genre else "")
+    )
 
     return replace(
         program,
