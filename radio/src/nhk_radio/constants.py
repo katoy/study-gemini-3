@@ -29,6 +29,7 @@ YTDLP_CONCURRENT_FRAGMENTS = 4  # HLS フラグメント並列数
 YTDLP_SOCKET_TIMEOUT = 30       # ソケットタイムアウト秒数
 
 # キャッシュ TTL 設定
+CACHE_TTL_SECONDS = 3600  # プログラム/エピソードキャッシュ TTL
 CACHE_TTL_INFINITE = 10**12  # staleキャッシュ強制取得用（実質無限）
 
 JP_WEEKDAYS = "月火水木金土日"

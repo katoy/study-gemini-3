@@ -9,11 +9,11 @@ from pathlib import Path
 
 from . import _io
 from .config import (
-    CACHE_TTL_SECONDS,
     _episode_cache_dir,
     _program_cache_dir,
     _ui_settings_path,
 )
+from .constants import CACHE_TTL_SECONDS
 from .text import _format_episode_date, _format_onair_date
 from .types import Episode, Program
 

@@ -9,8 +9,6 @@ from pathlib import Path
 from . import _io
 from .text import _normalize_text
 
-CACHE_TTL_SECONDS = 3600
-
 
 def _default_user_cache_root() -> Path:
     if sys.platform == "darwin":
