@@ -94,7 +94,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.download_polling = False
         self.active_download_rows: dict[str, dict] = {}
 
-        # Mixin 後位互換用参照
+        # Mixin がアクセスするプロパティ。programs は初期値、filtered_programs は動的更新、
+        # episodes_cache は DataManager と同期。
         self.programs = self.data_manager.programs
         self.filtered_programs = self.data_manager.programs
         self.episodes_cache = self.data_manager.episodes_cache
