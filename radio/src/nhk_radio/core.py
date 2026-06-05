@@ -152,7 +152,7 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
 # ──────────────────────────────────────────────────────
 
 
-def _url_to_program(url: str) -> Program | None:
+def url_to_program(url: str) -> Program | None:
     match = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
     if not match:
         return None
@@ -169,8 +169,8 @@ def _url_to_program(url: str) -> Program | None:
     )
 
 
-def _resolve_program_from_url(url: str, genre: str | None = None) -> Program | None:
-    program = _url_to_program(url)
+def resolve_program_from_url(url: str, genre: str | None = None) -> Program | None:
+    program = url_to_program(url)
     if program is None:
         return None
 

@@ -175,9 +175,9 @@ class CoreHelpersTest(unittest.TestCase):
             self.assertEqual(core.fetch_program_list(None), stale_list)
 
     def test_url_to_program_and_resolve_program_from_url(self):
-        self.assertIsNone(core._url_to_program("https://example.com"))
-        self.assertIsNone(core._resolve_program_from_url("https://example.com"))
-        parsed = core._url_to_program("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
+        self.assertIsNone(core.url_to_program("https://example.com"))
+        self.assertIsNone(core.resolve_program_from_url("https://example.com"))
+        parsed = core.url_to_program("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
         self.assertEqual(parsed.site_id, "SITE")
 
         cached_program = Program(
@@ -191,13 +191,13 @@ class CoreHelpersTest(unittest.TestCase):
             url="https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01",
         )
         with patch.object(core, "load_program_cache", return_value=[cached_program]) as load_cache_mock:
-            resolved = core._resolve_program_from_url("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
+            resolved = core.resolve_program_from_url("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
 
         self.assertEqual(resolved, cached_program)
         load_cache_mock.assert_called_once_with(None)
 
         with patch.object(core, "load_program_cache", side_effect=[None, None]) as load_cache_mock:
-            resolved = core._resolve_program_from_url(
+            resolved = core.resolve_program_from_url(
                 "https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01",
                 genre="music",
             )

@@ -34,7 +34,7 @@ EPISODE = Episode(
 class DownloadHelpersTest(unittest.TestCase):
     def test_program_storage_helpers(self):
         output_dir = Path("/tmp/output")
-        self.assertEqual(downloads._program_output_dir(output_dir, PROGRAM), output_dir / "SITE_01")
+        self.assertEqual(downloads.program_output_dir(output_dir, PROGRAM), output_dir / "SITE_01")
         self.assertEqual(downloads._program_storage_id(Program(title="番/組", display_title="", display_date="", site_id="", corner_id="", url="")), "番_組")
         self.assertEqual(downloads._program_storage_title(Program(title="", display_title="表示", display_date="", site_id="", corner_id="", url="")), "表示")
         self.assertEqual(
@@ -70,9 +70,9 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertEqual(
             downloads._episode_output_identity(PROGRAM, EPISODE), (["番組A", "SITE_01"], "第1回", "20240415")
         )
-        self.assertEqual(downloads._program_filename_template(PROGRAM), "%(upload_date)s_番組A_%(title)s.%(ext)s")
+        self.assertEqual(downloads.program_filename_template(PROGRAM), "%(upload_date)s_番組A_%(title)s.%(ext)s")
         self.assertEqual(
-            downloads._program_filename_template(PROGRAM, max_items=True),
+            downloads.program_filename_template(PROGRAM, max_items=True),
             "%(playlist_index)s_%(upload_date)s_番組A_%(title)s.%(ext)s",
         )
         self.assertEqual(downloads._episode_key(Episode(id="", date="20240415", title="第1回", display_title="", display_date="", broadcast_time="", duration_str="", url="")), "20240415:第1回")
@@ -80,7 +80,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_load_download_manifest_handles_invalid_and_legacy_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             legacy_dir = output_dir / "語学" / "番組A"
             program_dir.mkdir(parents=True, exist_ok=True)
             legacy_dir.mkdir(parents=True, exist_ok=True)
@@ -192,7 +192,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_mark_and_resolve_downloaded_episode(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
             file_path = program_dir / "20240415_番組A_第1回.mp3"
             file_path.write_text("dummy", encoding="utf-8")
@@ -235,7 +235,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_cleanup_partial_episode_files_swallows_iterdir_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
             # 例外が発生しても呼び出し元に伝播しないことを確認
             with patch.object(Path, "iterdir", side_effect=OSError("denied")):
@@ -245,7 +245,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_mark_episode_downloaded_returns_false_on_save_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
             file_path = program_dir / "20240415_番組A_第1回.mp3"
             file_path.write_text("dummy", encoding="utf-8")
@@ -290,7 +290,7 @@ class DownloadHelpersTest(unittest.TestCase):
     def test_cleanup_partial_episode_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
             partial = program_dir / "20240415_番組A_第1回.mp3.part"
             ytdl = program_dir / "20240415_番組A_第1回.mp3.ytdl"
@@ -383,7 +383,7 @@ class DownloadHelpersTest(unittest.TestCase):
             (100.0, None, "変換中..."),
         )
         self.assertEqual(downloads._parse_yt_dlp_progress("noise"), (None, None, None))
-        self.assertIn("--newline", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
+        self.assertIn("--newline", downloads.download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s"))
         self.assertIn(
             "--playlist-end",
             downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=False, max_items=3),
@@ -391,7 +391,7 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertIn("--no-playlist", downloads._yt_dlp_command("https://e", "x", audio_only=False, no_playlist=True))
         # AES-128 暗号化 HLS の ffmpeg muxer 失敗を防ぐため --hls-use-mpegts が必須
         self.assertIn(
-            "--hls-use-mpegts", downloads._download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s")
+            "--hls-use-mpegts", downloads.download_episode_command("https://e", Path("/tmp"), "%(title)s.%(ext)s")
         )
         self.assertIn(
             "--hls-use-mpegts", downloads._yt_dlp_command("https://e", "x", audio_only=True, no_playlist=True)
@@ -492,7 +492,7 @@ class DownloadHelpersTest(unittest.TestCase):
         """Finderなどでファイルが消された場合に[済]マークが消えることを保証する回帰テスト"""
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
 
             # 1. ファイルを作成し、ダウンロード済みとしてマーク
@@ -513,7 +513,7 @@ class DownloadHelpersTest(unittest.TestCase):
         """同一プロセス内でファイルが削除された際、キャッシュに邪魔されず検知できるか"""
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = downloads._program_output_dir(output_dir, PROGRAM)
+            program_dir = downloads.program_output_dir(output_dir, PROGRAM)
             program_dir.mkdir(parents=True, exist_ok=True)
 
             # 命名規則に沿ったファイルを作成

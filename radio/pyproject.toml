@@ -11,7 +11,7 @@ requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
     "pycryptodomex>=3.23.0",
-    "yt-dlp",
+    "yt-dlp>=2026.3.17",
 ]
 
 [project.scripts]
@@ -65,3 +65,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["nhk_radio"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true

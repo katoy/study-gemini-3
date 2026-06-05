@@ -103,7 +103,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     def test_download_episode_keyboard_interrupt(self):
         # cli.py: KeyboardInterrupt handling
         with (
-            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli, "download_episode_command", return_value=["ls"]),
             patch("nhk_radio.cli.run_yt_dlp_subprocess", side_effect=KeyboardInterrupt)
         ):
             res = cli.download_episode("url", Path("/tmp"), "tmpl")
@@ -112,7 +112,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     def test_download_episode_general_exception(self):
         # downloads.py: run_yt_dlp_subprocess exception handling
         with (
-            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli, "download_episode_command", return_value=["ls"]),
             patch("nhk_radio.cli.run_yt_dlp_subprocess", return_value=False)
         ):
             res = cli.download_episode("url", Path("/tmp"), "tmpl")
@@ -122,7 +122,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         # cli.py: 212 (sys.exit on failure)
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
         with (
-            patch.object(cli, "_resolve_program_from_url", return_value=program),
+            patch.object(cli, "resolve_program_from_url", return_value=program),
             patch("subprocess.run", return_value=MagicMock(returncode=1)),
             patch.object(sys, "exit") as exit_mock
         ):
@@ -257,7 +257,7 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         episode = Episode(id="ep1", title="第1回", display_title="第1回", date="20240415", display_date="D", broadcast_time="", duration_str="", url="U")
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
-            program_dir = filesystem._program_output_dir(output_dir, program)
+            program_dir = filesystem.program_output_dir(output_dir, program)
             program_dir.mkdir(parents=True, exist_ok=True)
             # マッチするファイルを作成
             (program_dir / "20240415_番組A_第1回.mp3").write_text("x")

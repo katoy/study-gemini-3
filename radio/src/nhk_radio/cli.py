@@ -10,15 +10,15 @@ from pathlib import Path
 from .cache import clear_all_cache
 from .core import (
     NHK_GENRES,
-    _resolve_program_from_url,
-    _url_to_program,
+    resolve_program_from_url,
+    url_to_program,
     fetch_program_list,
     get_episode_list,
 )
 from .downloads import (
-    _download_episode_command,
-    _program_filename_template,
-    _program_output_dir,
+    download_episode_command,
+    program_filename_template,
+    program_output_dir,
     _yt_dlp_command,
     is_episode_downloaded,
     run_yt_dlp_subprocess,
@@ -51,7 +51,7 @@ def select_program(programs: list[Program]) -> Program | None:
                 return None
             if raw.lower() == "u":
                 url = input("番組 URL を入力してください: ").strip()
-                program = _url_to_program(url)
+                program = url_to_program(url)
                 if program is None:
                     print(f"  URL の形式が正しくありません: {url}")
                     continue
@@ -119,7 +119,7 @@ def download_episode(
 ) -> bool:
     """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = _download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
+    cmd = download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
 
     logger.debug(f"ダウンロード開始: {url}")
 
@@ -151,15 +151,15 @@ def download_url_direct(
     genre: str | None = None,
 ):
     """URL を直接指定してダウンロードする (非対話モード)"""
-    program = _resolve_program_from_url(url, genre=genre)
+    program = resolve_program_from_url(url, genre=genre)
     if program is None:
         logger.error(f"URL の形式が正しくありません: {url}")
         sys.exit(1)
 
-    target_dir = _program_output_dir(output_dir, program)
+    target_dir = program_output_dir(output_dir, program)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    tmpl = str(target_dir / _program_filename_template(program, max_items=bool(max_items)))
+    tmpl = str(target_dir / program_filename_template(program, max_items=bool(max_items)))
 
     cmd = _yt_dlp_command(
         url,
@@ -180,8 +180,8 @@ def download_url_direct(
 
 
 def _download_selected_episodes(program: Program, episodes: list[Episode], output_dir: Path, *, audio_only: bool) -> int:
-    target_dir = _program_output_dir(output_dir, program)
-    filename_template = _program_filename_template(program)
+    target_dir = program_output_dir(output_dir, program)
+    filename_template = program_filename_template(program)
     downloaded_count = 0
     for episode in episodes:
         title = episode.display_title or episode.title

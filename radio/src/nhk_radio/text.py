@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from contextlib import suppress
 from datetime import datetime
 
 from .constants import GENRE_LABELS, JP_WEEKDAYS
@@ -17,43 +18,18 @@ def _fixed_display_date(day: datetime) -> str:
 
 
 def _format_onair_date(onair_date: str, started_at: str | None = None) -> str:
-    # 1) started_at (ISO形式等) を優先して試行
     if started_at:
         try:
-            # 2024-04-15T10:00:00+09:00 のような形式を想定
-            # Python 3.11+ なら fromisoformat が強力
             day = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
             return _fixed_display_date(day)
         except (ValueError, TypeError):
             pass
 
+    day = _parse_date_str(onair_date)
+    if day:
+        return _fixed_display_date(day)
+
     normalized = _normalize_text(onair_date).replace("放送", "")
-    if not normalized:
-        return "----------(-)"
-
-    patterns = (
-        "%Y年%m月%d日",
-        "%Y-%m-%d",
-        "%Y/%m/%d",
-        "%Y%m%d",
-    )
-    normalized_no_weekday = re.sub(r"\([月火水木金土日]\)", "", normalized)
-
-    for pattern in patterns:
-        try:
-            day = datetime.strptime(normalized_no_weekday, pattern)
-            return _fixed_display_date(day)
-        except ValueError:
-            continue
-
-    match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", normalized)
-    if match:
-        try:
-            day = datetime(int(match.group(1)), int(match.group(2)), int(match.group(3)))
-            return _fixed_display_date(day)
-        except ValueError:
-            pass
-
     return normalized or "----------(-)"
 
 
@@ -65,6 +41,29 @@ def _format_episode_date(date_text: str) -> str:
         except ValueError:
             pass
     return _format_onair_date(date_text)
+
+
+def _parse_date_str(date_text: str) -> datetime | None:
+    """日付文字列を datetime に変換する。失敗時は None を返す。"""
+    normalized = _normalize_text(date_text).replace("放送", "")
+    if not normalized:
+        return None
+
+    if len(normalized) >= 8 and normalized[:8].isdigit():
+        with suppress(ValueError):
+            return datetime.strptime(normalized[:8], "%Y%m%d")
+
+    normalized_no_weekday = re.sub(r"\([月火水木金土日]\)", "", normalized)
+    for pattern in ("%Y年%m月%d日", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
+        with suppress(ValueError):
+            return datetime.strptime(normalized_no_weekday, pattern)
+
+    match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", normalized)
+    if match:
+        with suppress(ValueError):
+            return datetime(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+    return None
 
 
 def _format_broadcast_time(timestamp) -> str:
@@ -98,30 +97,9 @@ def _format_duration(seconds) -> str:
 
 
 def _sortable_day_value(date_text: str) -> tuple[int, int]:
-    normalized = _normalize_text(date_text).replace("放送", "")
-    if not normalized:
-        return (0, 0)
-
-    if len(normalized) >= 8 and normalized[:8].isdigit():
-        try:
-            return (1, datetime.strptime(normalized[:8], "%Y%m%d").toordinal())
-        except ValueError:
-            pass
-
-    normalized_no_weekday = re.sub(r"\([月火水木金土日]\)", "", normalized)
-    for pattern in ("%Y年%m月%d日", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return (1, datetime.strptime(normalized_no_weekday, pattern).toordinal())
-        except ValueError:
-            continue
-
-    match = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", normalized)
-    if match:
-        try:
-            return (1, datetime(int(match.group(1)), int(match.group(2)), int(match.group(3))).toordinal())
-        except ValueError:
-            pass
-
+    day = _parse_date_str(date_text)
+    if day:
+        return (1, day.toordinal())
     return (0, 0)
 
 

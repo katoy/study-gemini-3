@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from ..downloads import (
-    _download_episode_command,
+    download_episode_command,
     _episode_key,
-    _program_output_dir,
+    program_output_dir,
     cleanup_partial_episode_files,
     run_yt_dlp_subprocess,
     sync_episode_download_history,
@@ -94,13 +94,13 @@ class DownloadManager:
         cancel_event: threading.Event,
     ):
         """Background thread worker for a single download."""
-        target_dir = _program_output_dir(self.output_dir, program)
+        target_dir = program_output_dir(self.output_dir, program)
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        from ..downloads import _program_filename_template
-        filename_template = _program_filename_template(program)
+        from ..downloads import program_filename_template
+        filename_template = program_filename_template(program)
 
-        cmd = _download_episode_command(
+        cmd = download_episode_command(
             episode.url, target_dir, filename_template, audio_only=self.audio_only
         )
 

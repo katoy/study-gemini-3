@@ -13,12 +13,12 @@ from .filesystem import (
     _episode_storage_title,
     _get_cached_glob_files,
     _legacy_program_output_dirs,
-    _program_filename_template,
-    _program_output_dir,
     _program_search_dirs,
     _program_storage_id,
     _program_storage_title,
     _program_storage_titles,
+    program_filename_template,
+    program_output_dir,
 )
 from .manifest import (
     _clear_manifest_cache,
@@ -34,7 +34,7 @@ from .manifest import (
     sync_episode_download_history,
 )
 from .runner import (
-    _download_episode_command,
+    download_episode_command,
     _format_download_eta,
     _format_download_percent,
     _parse_yt_dlp_progress,
@@ -56,10 +56,11 @@ __all__ = [
     "_load_download_manifest",
     "_save_download_manifest",
     "_clear_manifest_cache",
-    # filesystem API (mostly private, but needed by GUI and tests)
+    # filesystem API (public)
+    "program_output_dir",
+    "program_filename_template",
+    # filesystem API (internal, used by tests)
     "_episode_key",
-    "_program_output_dir",
-    "_program_filename_template",
     "_program_storage_title",
     "_program_storage_titles",
     "_program_storage_id",
@@ -74,10 +75,11 @@ __all__ = [
     "_clear_file_scan_cache",
     "_FILE_SCAN_CACHE",
     "_FILE_SCAN_CACHE_MAX_SIZE",
-    # runner API
+    # runner API (public)
     "run_yt_dlp_subprocess",
+    "download_episode_command",
+    # runner API (internal)
     "_yt_dlp_command",
-    "_download_episode_command",
     "_parse_yt_dlp_progress",
     "_format_download_eta",
     "_format_download_percent",

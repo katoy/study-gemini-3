@@ -42,7 +42,7 @@ def _yt_dlp_command(
     return cmd
 
 
-def _download_episode_command(url: str, output_dir: Path, filename_template: str, audio_only: bool = True) -> list[str]:
+def download_episode_command(url: str, output_dir: Path, filename_template: str, audio_only: bool = True) -> list[str]:
     return _yt_dlp_command(
         url,
         str(output_dir / filename_template),

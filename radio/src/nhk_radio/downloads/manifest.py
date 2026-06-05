@@ -24,7 +24,7 @@ _MANIFEST_CACHE_LOCK = threading.Lock()
 
 def _download_manifest_path(program: Program, output_dir: Path) -> Path:
     from . import filesystem
-    return filesystem._program_output_dir(output_dir, program) / ".downloaded.json"
+    return filesystem.program_output_dir(output_dir, program) / ".downloaded.json"
 
 
 def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLock:
@@ -121,7 +121,7 @@ def mark_episode_downloaded(
     with _download_manifest_lock(program, output_dir):
         saved_paths = _load_download_manifest(program, output_dir)
         episode_key = filesystem._episode_key(episode)
-        program_dir = filesystem._program_output_dir(output_dir, program)
+        program_dir = filesystem.program_output_dir(output_dir, program)
         if path is not None and path.exists():  # pragma: no cover
             try:
                 saved_paths[episode_key] = str(path.relative_to(program_dir))
@@ -151,7 +151,7 @@ def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: li
         if saved_path_str:
             resolved = Path(saved_path_str)
             if not resolved.is_absolute():  # pragma: no cover
-                resolved = filesystem._program_output_dir(output_dir, program) / resolved
+                resolved = filesystem.program_output_dir(output_dir, program) / resolved
             if resolved.exists():  # pragma: no cover
                 downloaded_keys.add(episode_key)
 
@@ -180,7 +180,7 @@ def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Ep
     if saved_path_str:
         resolved = Path(saved_path_str)
         if not resolved.is_absolute():  # pragma: no cover
-            resolved = filesystem._program_output_dir(output_dir, program) / resolved
+            resolved = filesystem.program_output_dir(output_dir, program) / resolved
         if resolved.exists():  # pragma: no cover
             return resolved
 
@@ -208,7 +208,7 @@ def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Ep
             return False
         del saved_paths[episode_key]
         saved = _save_download_manifest(program, output_dir, saved_paths)
-        program_dir = filesystem._program_output_dir(output_dir, program)
+        program_dir = filesystem.program_output_dir(output_dir, program)
         filesystem._clear_file_scan_cache(program_dir)
         _clear_manifest_cache(_download_manifest_path(program, output_dir))
         return saved

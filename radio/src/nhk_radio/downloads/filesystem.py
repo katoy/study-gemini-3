@@ -22,7 +22,7 @@ _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
 
 
-def _program_output_dir(output_dir: Path, program: Program) -> Path:
+def program_output_dir(output_dir: Path, program: Program) -> Path:
     return output_dir / _program_storage_id(program)
 
 
@@ -58,7 +58,7 @@ def _legacy_program_output_dirs(output_dir: Path, program: Program) -> list[Path
 
 
 def _program_search_dirs(output_dir: Path, program: Program) -> list[Path]:
-    primary = _program_output_dir(output_dir, program)
+    primary = program_output_dir(output_dir, program)
     dirs = [primary]
     for candidate in _legacy_program_output_dirs(output_dir, program):
         if candidate not in dirs:
@@ -77,7 +77,7 @@ def _episode_output_identity(program: Program, episode: Episode) -> tuple[list[s
     return program_titles, episode_title, episode_date
 
 
-def _program_filename_template(program: Program, max_items: bool = False) -> str:
+def program_filename_template(program: Program, max_items: bool = False) -> str:
     title = _safe_name(_program_storage_title(program))
     if max_items:
         return f"%(playlist_index)s_%(upload_date)s_{title}_%(title)s.%(ext)s"

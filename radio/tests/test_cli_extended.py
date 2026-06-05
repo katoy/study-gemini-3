@@ -20,7 +20,7 @@ class CliExtendedTest(unittest.TestCase):
         target_program = Program(site_id="TARGET", corner_id="02", title="Target", display_title="Target", display_date="----", url="U")
         with (
             patch("builtins.input", side_effect=["u", "http://example.com"]),
-            patch("nhk_radio.cli._url_to_program", return_value=target_program),
+            patch("nhk_radio.cli.url_to_program", return_value=target_program),
         ):
             self.assertEqual(cli.select_program(programs), target_program)
 
@@ -29,7 +29,7 @@ class CliExtendedTest(unittest.TestCase):
         # 1回目 'u' -> 無効なURL -> 再度入力を求められる -> '1' を入力
         with (
             patch("builtins.input", side_effect=["u", "bad-url", "1"]),
-            patch("nhk_radio.cli._url_to_program", return_value=None),
+            patch("nhk_radio.cli.url_to_program", return_value=None),
             patch("builtins.print") as print_mock,
         ):
             self.assertEqual(cli.select_program(programs), programs[0])
@@ -177,9 +177,9 @@ class CliExtendedTest(unittest.TestCase):
     def test_download_url_direct_failure(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
         with (
-            patch.object(cli, "_resolve_program_from_url", return_value=program),
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out")),
-            patch.object(cli, "_program_filename_template", return_value="t"),
+            patch.object(cli, "resolve_program_from_url", return_value=program),
+            patch.object(cli, "program_output_dir", return_value=Path("/tmp/out")),
+            patch.object(cli, "program_filename_template", return_value="t"),
             patch.object(cli, "_yt_dlp_command", return_value=["ls"]),
             patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=1)),
             patch("nhk_radio.cli.logger") as logger_mock,

@@ -133,8 +133,8 @@ class CoverageGapExtraTest(unittest.TestCase):
             patch.object(cli, "is_episode_downloaded", return_value=False),
             patch.object(cli, "download_episode", return_value=True),
             patch.object(cli, "sync_episode_download_history", return_value=Path("/tmp/out.mp3")) as sync_mock,
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp")),
-            patch.object(cli, "_program_filename_template", return_value="%(id)s.%(ext)s"),
+            patch.object(cli, "program_output_dir", return_value=Path("/tmp")),
+            patch.object(cli, "program_filename_template", return_value="%(id)s.%(ext)s"),
         ):
             count = cli._download_selected_episodes(
                 program, [episode], Path("/tmp"), audio_only=True

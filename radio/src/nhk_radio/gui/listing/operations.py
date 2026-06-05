@@ -114,9 +114,9 @@ class GuiOperationsMixin:
             return
 
         # 保存先を確認
-        from ...downloads import _program_output_dir, open_downloaded_folder
+        from ...downloads import program_output_dir, open_downloaded_folder
 
-        program_dir = _program_output_dir(self.output_dir, self.displayed_program)
+        program_dir = program_output_dir(self.output_dir, self.displayed_program)
         if not program_dir.exists():
             self.status_var.set("保存先フォルダが見つかりません。")
             return

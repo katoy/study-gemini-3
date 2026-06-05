@@ -222,9 +222,9 @@ class DownloadManagerTest(unittest.TestCase):
             process.wait.return_value = 0
 
             with (
-                patch("nhk_radio.gui.download_manager._download_episode_command", return_value=["yt-dlp"]),
+                patch("nhk_radio.gui.download_manager.download_episode_command", return_value=["yt-dlp"]),
                 patch("nhk_radio.gui.download_manager.subprocess.Popen", return_value=process),
-                patch("nhk_radio.gui.download_manager._program_output_dir", return_value=Path(tmp_dir)),
+                patch("nhk_radio.gui.download_manager.program_output_dir", return_value=Path(tmp_dir)),
                 patch("nhk_radio.gui.download_manager.sync_episode_download_history", return_value=Path(tmp_dir) / "done.mp3"),
             ):
                 manager._download_worker(self.program, self.episode, "E1", threading.Event())
@@ -249,8 +249,8 @@ class DownloadManagerTest(unittest.TestCase):
                 return False
 
             with (
-                patch("nhk_radio.gui.download_manager._download_episode_command", return_value=["yt-dlp"]),
-                patch("nhk_radio.gui.download_manager._program_output_dir", return_value=Path(tmp_dir)),
+                patch("nhk_radio.gui.download_manager.download_episode_command", return_value=["yt-dlp"]),
+                patch("nhk_radio.gui.download_manager.program_output_dir", return_value=Path(tmp_dir)),
                 patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", side_effect=mock_run_yt_dlp),
             ):
                 manager._download_worker(self.program, self.episode, "E1", cancel_event)

@@ -13,7 +13,7 @@ from ..downloads import (
     _episode_key,
     _format_download_eta,
     _format_download_percent,
-    _program_output_dir,
+    program_output_dir,
 )
 from ..types import Episode, Program
 from .toolkit import tk, ttk
@@ -168,7 +168,7 @@ class GuiDownloadsMixin:
             if kind == "done_one":
                 self._finish_download_row(episode_key, "完了")
                 self.status_var.set(f"ダウンロード完了: {episode.display_title or episode.title}")
-                self.episode_message_var.set(f"保存先: {_program_output_dir(self.output_dir, program)}")
+                self.episode_message_var.set(f"保存先: {program_output_dir(self.output_dir, program)}")
                 if (
                     self.displayed_program is not None
                     and self.displayed_program.site_id == program.site_id

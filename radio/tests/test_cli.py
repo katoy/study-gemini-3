@@ -57,7 +57,7 @@ class CliHelpersTest(unittest.TestCase):
 
     def test_download_episode_logging(self):
         with (
-            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli, "download_episode_command", return_value=["ls"]),
             patch.object(cli.subprocess, "Popen") as popen_mock,
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
@@ -69,7 +69,7 @@ class CliHelpersTest(unittest.TestCase):
 
     def test_download_episode_reports_progress_and_newline(self):
         with (
-            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli, "download_episode_command", return_value=["ls"]),
             patch("nhk_radio.cli.run_yt_dlp_subprocess") as run_mock,
             patch.object(cli.sys.stdout, "write") as write_mock,
             patch.object(cli.sys.stdout, "flush") as flush_mock,
@@ -86,7 +86,7 @@ class CliHelpersTest(unittest.TestCase):
 
     def test_download_episode_cleans_up_process_on_unexpected_error(self):
         with (
-            patch.object(cli, "_download_episode_command", return_value=["ls"]),
+            patch.object(cli, "download_episode_command", return_value=["ls"]),
             patch("nhk_radio.cli.run_yt_dlp_subprocess") as run_mock,
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
@@ -97,9 +97,9 @@ class CliHelpersTest(unittest.TestCase):
     def test_download_url_direct_success(self):
         program = Program(site_id="S", corner_id="01", title="P", display_title="D", display_date="----", url="U")
         with (
-            patch.object(cli, "_resolve_program_from_url", return_value=program),
-            patch.object(cli, "_program_output_dir", return_value=Path("/tmp/out")),
-            patch.object(cli, "_program_filename_template", return_value="t"),
+            patch.object(cli, "resolve_program_from_url", return_value=program),
+            patch.object(cli, "program_output_dir", return_value=Path("/tmp/out")),
+            patch.object(cli, "program_filename_template", return_value="t"),
             patch.object(cli, "_yt_dlp_command", return_value=["ls"]),
             patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess(args=[], returncode=0)) as run_mock,
         ):
@@ -111,7 +111,7 @@ class CliHelpersTest(unittest.TestCase):
             self.assertIsInstance(cmd_args, list)
 
     def test_download_url_direct_invalid_url(self):
-        with patch.object(cli, "_resolve_program_from_url", return_value=None):
+        with patch.object(cli, "resolve_program_from_url", return_value=None):
             with self.assertRaises(SystemExit) as ctx:
                 cli.download_url_direct("bad", Path("/tmp"), None, True)
             self.assertEqual(ctx.exception.code, 1)
