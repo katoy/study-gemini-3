@@ -83,20 +83,20 @@ def load_program_cache(genre: str | None, ttl_seconds: int = CACHE_TTL_SECONDS) 
     if items is None:
         return None
     return [
-        Program(
-            **_filter_dataclass_kwargs(
-                Program,
-                {**item, "display_date": _format_onair_date(str(item.get("onair_date", "")))},
-            )
-        )
+        Program(**_filter_dataclass_kwargs(Program, item))
         for item in items
     ]
 
 
 def save_program_cache(genre: str | None, programs: list[Program]):
+    program_dicts = []
+    for p in programs:
+        d = asdict(p)
+        d["display_date"] = _format_onair_date(str(p.onair_date or ""))
+        program_dicts.append(d)
     _save_json_cache(
         _program_cache_path(genre),
-        {"fetched_at": time.time(), "genre": genre, "programs": [asdict(p) for p in programs]},
+        {"fetched_at": time.time(), "genre": genre, "programs": program_dicts},
     )
 
 
@@ -130,20 +130,20 @@ def load_episode_cache(program: Program, ttl_seconds: int = CACHE_TTL_SECONDS) -
     if items is None:
         return None
     return [
-        Episode(
-            **_filter_dataclass_kwargs(
-                Episode,
-                {**item, "display_date": _format_episode_date(str(item.get("date", "")))},
-            )
-        )
+        Episode(**_filter_dataclass_kwargs(Episode, item))
         for item in items
     ]
 
 
 def save_episode_cache(program: Program, episodes: list[Episode]):
+    episode_dicts = []
+    for e in episodes:
+        d = asdict(e)
+        d["display_date"] = _format_episode_date(str(e.date or ""))
+        episode_dicts.append(d)
     _save_json_cache(
         _episode_cache_path(program),
-        {"fetched_at": time.time(), "episodes": [asdict(e) for e in episodes]},
+        {"fetched_at": time.time(), "episodes": episode_dicts},
     )
 
 
