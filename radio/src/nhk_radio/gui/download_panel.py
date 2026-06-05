@@ -1,11 +1,13 @@
 """Fetch and download helpers for EpisodeGuiBrowser, delegating logic to DownloadManager."""
 
-# mypy: disable-error-code="attr-defined,assignment,call-arg,empty-body"
-
 import queue
 import threading
 import time
 import webbrowser
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .protocols import GuiBrowserProtocol
 
 from ..cache import clear_all_cache
 from ..constants import NHK_ONDEMAND_URL
@@ -22,10 +24,8 @@ from .toolkit import tk, ttk
 class GuiDownloadsMixin:
     """Delegates download logic to DownloadManager and handles UI updates."""
 
-    # Mixin properties to help type checker
-    if False:
-        from .browser import EpisodeGuiBrowser
-        self = EpisodeGuiBrowser()
+    if TYPE_CHECKING:
+        self: "GuiBrowserProtocol"
 
     def _update_download_row_progress(
         self,

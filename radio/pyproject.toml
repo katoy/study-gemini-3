@@ -80,3 +80,12 @@ disable_error_code = ["attr-defined", "has-type", "assignment", "arg-type", "mis
 [[tool.mypy.overrides]]
 module = "nhk_radio.gui.browser"
 disable_error_code = ["misc", "assignment"]
+
+# GUI build, download_panel: Protocol ベース設計で attr-defined は冗長
+[[tool.mypy.overrides]]
+module = "nhk_radio.gui.build"
+disable_error_code = ["attr-defined", "misc"]
+
+[[tool.mypy.overrides]]
+module = "nhk_radio.gui.download_panel"
+disable_error_code = ["attr-defined", "misc"]

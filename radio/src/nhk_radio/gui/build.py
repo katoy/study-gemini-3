@@ -1,8 +1,9 @@
 """Widget construction helpers for EpisodeGuiBrowser."""
 
-# mypy: disable-error-code="attr-defined,call-overload,empty-body"
+from typing import TYPE_CHECKING, Any
 
-from typing import Any
+if TYPE_CHECKING:
+    from .protocols import GuiBrowserProtocol
 
 from .logo import create_brand_logo
 from .toolkit import tk, ttk
@@ -13,6 +14,9 @@ def _set_tree_heading(tree: Any, column: str, *, text: str, anchor: str, command
 
 
 class GuiBuildMixin:
+    if TYPE_CHECKING:
+        self: "GuiBrowserProtocol"
+
     def _build_scrollable_frame(self, parent, inner_style, padding=0):
         """Canvas + Scrollbar + 内部 Frame の共通パターンを構築して返す。"""
         canvas = tk.Canvas(parent, background=self._palette["surface"], highlightthickness=1, bd=0, relief="flat")
