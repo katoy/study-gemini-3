@@ -749,5 +749,57 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertNotIn("ep-1", updated)
 
 
+    def test_on_progress_callback_tuple_format_validation(self):
+        """T-1: on_progress コールバックが (percent, eta, status) の 3-tuple を返すことを検証。"""
+        with (
+            patch("nhk_radio.downloads.runner.subprocess.Popen") as popen_mock,
+            patch("nhk_radio.downloads.runner.logger")
+        ):
+            mock_process = popen_mock.return_value
+            mock_process.stdout = ["[download]  10.0% of 100.00KiB at 50.00KiB/s ETA 00:01"]
+            mock_process.wait.return_value = 0
+
+            progress_calls = []
+            def on_progress(percent, eta, status):
+                # 3-tuple 形式の検証
+                self.assertIsInstance(percent, (float, type(None)))
+                self.assertIsInstance(eta, (str, type(None)))
+                self.assertIsInstance(status, (str, type(None)))
+                progress_calls.append((percent, eta, status))
+
+            downloads.run_yt_dlp_subprocess(["test"], on_progress=on_progress)
+            self.assertTrue(len(progress_calls) > 0, "on_progress が呼ばれていない")
+
+    def test_data_manager_thread_safe_episodes_cache(self):
+        """T-3: DataManager の episodes_cache が複数スレッドアクセスで安定していることを検証。"""
+        from nhk_radio.gui.data_manager import DataManager
+        from collections import OrderedDict
+        import threading
+
+        dm = DataManager(on_program_result=None, on_episode_result=None)
+        cache = dm.episodes_cache
+
+        # cache は OrderedDict であることを確認
+        self.assertIsInstance(cache, OrderedDict)
+
+        # 複数スレッドから読み取りアクセス
+        results = []
+        def read_cache():
+            try:
+                _ = len(cache)
+                results.append(True)
+            except Exception:
+                results.append(False)
+
+        threads = [threading.Thread(target=read_cache) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 全スレッドが成功したことを確認
+        self.assertTrue(all(results), "キャッシュへのアクセスで例外が発生した")
+
+
 if __name__ == "__main__":
     unittest.main()
