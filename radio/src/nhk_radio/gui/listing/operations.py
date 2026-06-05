@@ -1,11 +1,13 @@
 """GUI operations Mixin — ファイル操作・ダウンロード状態。"""
 
-# mypy: disable-error-code="attr-defined,has-type,arg-type,assignment,misc,empty-body,return-value"
-
 import logging
 import tkinter as tk
 import tkinter.messagebox as mb
 from tkinter import ttk
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..protocols import GuiBrowserProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +15,8 @@ logger = logging.getLogger(__name__)
 class GuiOperationsMixin:
     """Logic for file operations and download status."""
 
-    # Mixin properties to help type checker
-    if False:
-        from ..browser import EpisodeGuiBrowser
-        self = EpisodeGuiBrowser()
+    if TYPE_CHECKING:
+        self: GuiBrowserProtocol
 
     def _normalized_search_text(self, text: str) -> str:
         """検索テキストの正規化（NFKC 正規化・小文字化・前後スペース削除）。"""

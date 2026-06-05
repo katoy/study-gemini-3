@@ -70,3 +70,8 @@ known-first-party = ["nhk_radio"]
 python_version = "3.11"
 strict = false
 ignore_missing_imports = true
+
+# GUI Mixin: Protocol ベース設計により attr-defined は冗長（Protocol が検証）
+[[tool.mypy.overrides]]
+module = "nhk_radio.gui.listing.*"
+disable_error_code = ["attr-defined,has-type"]

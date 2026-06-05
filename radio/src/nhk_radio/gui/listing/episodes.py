@@ -1,15 +1,17 @@
 """GUI episodes Mixin — エピソードツリーの表示・検索・フィルタ。"""
 
-# mypy: disable-error-code="attr-defined,has-type,arg-type,assignment,misc,empty-body,return-value"
-
 import logging
 import tkinter as tk
 from tkinter import ttk
+from typing import TYPE_CHECKING
 
 from ...constants import CACHE_TTL_INFINITE
 from ...downloads import _episode_key, get_downloaded_episode_keys
 from ...text import _sortable_duration_value, _sortable_timestamp_value
 from ...types import Episode, Program
+
+if TYPE_CHECKING:
+    from ..protocols import GuiBrowserProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +19,8 @@ logger = logging.getLogger(__name__)
 class GuiEpisodeMixin:
     """Logic for episode listing, filtering, and selection."""
 
-    # Mixin properties to help type checker
-    if False:
-        from ..browser import EpisodeGuiBrowser
-        self = EpisodeGuiBrowser()
+    if TYPE_CHECKING:
+        self: GuiBrowserProtocol
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
         preserved_episode_keys: tuple[str, ...] = ()

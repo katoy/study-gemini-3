@@ -1,11 +1,10 @@
 """GUI programs Mixin — 番組ツリーの検索・フィルタ・ソート。"""
 
-# mypy: disable-error-code="attr-defined,has-type,arg-type,assignment,misc,empty-body,return-value"
-
 import logging
 import tkinter as tk
 import webbrowser  # noqa: F401
 from contextlib import suppress
+from typing import TYPE_CHECKING
 
 from ...config import SEARCH_HISTORY_LIMIT
 from ...constants import GENRE_LABELS, NHK_GENRES
@@ -15,6 +14,9 @@ from ...text import (
 )
 from ...types import Program
 
+if TYPE_CHECKING:
+    from ..protocols import GuiBrowserProtocol
+
 logger = logging.getLogger(__name__)
 
 _PROGRAM_INSERT_CHUNK = 50
@@ -23,10 +25,9 @@ _PROGRAM_INSERT_CHUNK = 50
 class GuiProgramsMixin:
     """Logic for program listing, filtering, and selection."""
 
-    # Mixin properties to help type checker
-    if False:
-        from ..browser import EpisodeGuiBrowser
-        self = EpisodeGuiBrowser()
+    if TYPE_CHECKING:
+        # 型チェック時に self の型をアノテート
+        self: "GuiBrowserProtocol"
 
     def _on_program_filter_change(self, *_args):
         if not hasattr(self, "program_tree"):

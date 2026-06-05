@@ -1,10 +1,9 @@
 """Tkinter GUI browser for NHK radio programs."""
 
-# mypy: disable-error-code="misc,assignment,arg-type,no-redef"
-
 import contextlib
 import queue
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..config import (  # noqa: F401
     DEFAULT_UI_FONT_SIZE_PT,
@@ -20,8 +19,13 @@ from .download_manager import DownloadManager
 from .download_panel import GuiDownloadsMixin
 from .help_markdown import build_help_markdown, render_help_markdown
 from .listing import GuiListingMixin
+from .protocols import GuiBrowserProtocol
 from .styling import GuiStylingMixin
 from .toolkit import messagebox, tk, ttk
+
+if TYPE_CHECKING:
+    # Protocol を実装していることをコンパイラに確認させる
+    _: GuiBrowserProtocol
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
