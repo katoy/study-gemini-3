@@ -408,6 +408,22 @@ class CoreHelpersTest(unittest.TestCase):
         ):
             core.refresh_episode_list(program)
 
+    @patch("nhk_radio.core.http_get_json_async")
+    def test_fetch_program_list_async_non_dict_response(self, mock_http):
+        """API レスポンスが dict でない場合をテスト（core.py L227 カバレッジ）。"""
+        import asyncio
+
+        async def mock_get(*args, **kwargs):
+            # 非 dict レスポンス（リストなど）をシミュレート
+            return []
+
+        mock_http.side_effect = mock_get
+
+        # fetch_program_list_async は非 dict レスポンスでも安全に処理されることを確認
+        result = asyncio.run(core.fetch_program_list_async())
+        # 非 dict レスポンスではプログラムが取得されないはず
+        self.assertIsInstance(result, list)
+
 
 class EpisodeUrlRegressionTest(unittest.TestCase):
     """
@@ -475,7 +491,6 @@ class EpisodeUrlRegressionTest(unittest.TestCase):
         from nhk_radio.types import _normalize_string_tuple
         result = _normalize_string_tuple("test")
         self.assertEqual(result, ("test",))
-
 
 if __name__ == "__main__":
     unittest.main()

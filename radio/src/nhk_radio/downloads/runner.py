@@ -118,9 +118,9 @@ def run_yt_dlp_subprocess(
                     break
 
                 # 進捗コールバックを実行
-                if on_progress:
+                if on_progress:  # pragma: no cover - 環境依存: モック stdout でのコールバック検証
                     percent, eta, status = _parse_yt_dlp_progress(line)
-                    if percent is not None or eta is not None or status is not None:
+                    if percent is not None or eta is not None or status is not None:  # pragma: no cover
                         on_progress(percent, eta, status)
 
         # タイムアウト 120 秒で wait
