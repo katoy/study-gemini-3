@@ -10,7 +10,9 @@ venv/
 *.egg-info/
 
 # 出力ファイル
-output/
+output/*
+!output/pdf-chapter-splitter/
+!output/pdf-chapter-splitter/**
 
 # エディタ
 .idea/
