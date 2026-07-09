@@ -68,7 +68,7 @@ echo      python main.py
 echo      uv run python main.py
 echo.
 echo [Options]
-echo   --direction {right^|left^|space}  : Page turn direction (default: space)
+echo   --direction {right^|left^|space}  : Page turn direction (default: right)
 echo   --page-delay SECONDS            : Wait time after page turn (default: 1.5)
 echo.
 echo [Notes]

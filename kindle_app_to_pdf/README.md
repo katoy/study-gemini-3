@@ -19,7 +19,7 @@ Kindle デスクトップアプリの書籍を、高品質な PNG 画像とし�
 - **UI干渉の最小化**: ウィンドウ領域を自動検出し、Kindle アプリのみをキャプチャします。
 - **高度な終端検知**: 画像の重複を検知し、本の終わりに達すると自動停止します。
 - **インタラクティブな連続処理**: 1 冊の処理が終わると、そのまま次の本を処理するか確認するため、複数の書籍を効率的に PDF 化できます。
-- **柔軟なページ送り**: デフォルトでスペースキーによるページ送りに対応しているほか、矢印キーも利用可能です。
+- **柔軟なページ送り**: デフォルトで右矢印キーによるページ送りに対応しているほか、スペースキーや左矢印キーも利用可能です。
 
 ## 動作環境
 
@@ -67,29 +67,37 @@ pip install -r requirements.txt
 #### **Windows**
 
 **最も簡単: セットアップスクリプトを使う（推奨）**
-```powershell
+エクスプローラー上で `setup.bat` をダブルクリックするか、コマンドプロンプトで以下を実行します。
+```cmd
 setup.bat
+```
+※ PowerShell から実行する場合は、実行ポリシーによるブロックを回避するため以下を実行してください。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 **uv を使う場合 (高速です)**
-```powershell
+```cmd
 # uv がインストールされていない場合は先にインストール
 # winget install astral-sh.uv  または https://github.com/astral-sh/uv から
 
 uv venv
+# コマンドプロンプトの場合:
+.venv\Scripts\activate.bat
+# PowerShell の場合:
 .venv\Scripts\Activate.ps1
+
 uv pip install -r requirements.txt
 ```
 
-**PowerShell スクリプトを使う場合**
-```powershell
-.\setup.ps1
-```
-
 **pip を使う場合**
-```powershell
+```cmd
 python -m venv .venv
+# コマンドプロンプトの場合:
+.venv\Scripts\activate.bat
+# PowerShell の場合:
 .venv\Scripts\Activate.ps1
+
 pip install -r requirements.txt
 ```
 
@@ -117,14 +125,24 @@ Kindle アプリで本を開き、**最初のページ（またはキャプチ�
 ```
 
 **Windows:**
-```powershell
-run.bat
-```
+エクスプローラー上で `run.bat` をダブルクリックして起動するか、コマンドラインで以下を実行します。
+* コマンドプロンプトの場合:
+  ```cmd
+  run.bat
+  ```
+* PowerShell の場合:
+  ```powershell
+  .\run.bat
+  ```
+※ コマンドライン引数（オプション）を渡したい場合は、以下のように実行できます。
+  ```cmd
+  run.bat --direction space
+  ```
 
 ### コマンドラインでの実行
 
 ```bash
-# 標準的な実行（デフォルトでスペースキーによる送り）
+# 標準的な実行（デフォルトで右矢印キーによる送り）
 python main.py
 
 # または uv で実行
@@ -146,7 +164,7 @@ python main.py --screenshots keep
 
 ### オプション
 
-- `--direction {right,left,space}`: ページめくりの方向（デフォルト: `space`）
+- `--direction {right,left,space}`: ページめくりの方向（デフォルト: `right`）
 - `--page-delay SECONDS`: ページ送り後の待機秒数（デフォルト: `1.5`）
 - `--output-dir DIR`: PDF の保存先ディレクトリ（デフォルト: `output`）
 - `--images-dir DIR`: 既存の PNG 画像ディレクトリを入力として使用し、キャプチャをスキップします。
@@ -164,6 +182,14 @@ python main.py --screenshots keep
 **2. PDF が生成されない**
 - `output` ディレクトリの権限を確認してください。
 - `img2pdf` が正しくインストールされているか確認してください（`uv pip install img2pdf`）。
+
+### Windows
+
+**1. ページ送りがされない / 1ページのみで終了する**
+- Kindle アプリのアクティブ化のために一時的にタイトルバーをクリックする関係上、フォーカスが一時的に外れることがあります（自動で Esc キーを送信して復帰を試みます）。
+- 改善しない場合は、実行直後の開始猶予時間（Enter キーを押した直後）の間に、**手動で Kindle アプリの書籍本文エリアを一度クリック** してフォーカスを与えてください。
+- 使用する書籍や Kindle アプリのバージョンによってページめくりキーが異なるため、改善しない場合は `--direction space` と `--direction right`（デフォルト）の双方をお試しください。
+- コマンドプロンプトや PowerShell を「管理者として実行」している場合、セキュリティ制限（UAC）により一般ユーザーとして実行されている Kindle アプリにキー入力を送信できないことがあります。ターミナルと Kindle アプリを同じ権限レベルで実行してください。
 
 ### macOS
 

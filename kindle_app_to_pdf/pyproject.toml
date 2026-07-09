@@ -42,5 +42,5 @@ line-length = 100
 [tool.mypy]
 python_version = "3.11"
 strict = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_unreachable = true

@@ -52,8 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--direction',
         choices=['right', 'left', 'space'],
-        default='space',
-        help='ページめくりの方向: right=右矢印, left=左矢印, space=スペースキー(デフォルト)',
+        default='right',
+        help='ページめくりの方向: right=右矢印(デフォルト), left=左矢印, space=スペースキー',
     )
     return parser.parse_args()
 
@@ -127,7 +127,8 @@ def _prepare_screenshots(
         logger.warning("キャプチャが 1 ページのみで終了しました。")
         logger.warning("ページ捲りが正しく行われていない可能性があります。")
         logger.warning("Kindle アプリにフォーカスが当たっているか確認し、")
-        logger.warning("改善しない場合は --direction space をお試しください。")
+        alt_direction = 'space' if args.direction == 'right' else 'right'
+        logger.warning(f"改善しない場合は --direction {alt_direction} をお試しください。")
 
     logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
     shot_dir = Path(screenshots[0]).parent

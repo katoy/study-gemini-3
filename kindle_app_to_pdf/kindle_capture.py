@@ -474,9 +474,29 @@ class WindowsKindleCapturer:
         window = kindle_windows[0]
         logger.info(f"Found Kindle window: {window.title}")
 
-        if not window.isActive:
+        try:
             window.activate()
-            time.sleep(0.5)
+        except Exception as e:
+            logger.warning(f"Kindle ウィンドウの有効化に失敗しました (通常起動試行): {e}")
+            try:
+                logger.info("ウィンドウの復元 (restore) を試みます...")
+                window.restore()
+                window.activate()
+            except Exception as e2:
+                logger.warning(f"ウィンドウの復元/有効化に失敗しました: {e2}")
+                logger.warning("手動で Kindle ウィンドウをクリックして最前面にしてください。")
+
+        # Windows のフォーカス奪取防止対策として、タイトルバーをクリックして確実にアクティブ化する
+        try:
+            import pyautogui as py  # type: ignore
+            time.sleep(0.2)
+            py.click(window.left + 150, window.top + 15)
+            time.sleep(0.1)
+            py.press('esc')  # タイトルバークリックで奪われたキーボードフォーカスを本文に戻す
+            logger.info("Kindle ウィンドウのタイトルバーをクリックしてフォーカスを設定しました。")
+        except Exception as e:
+            logger.warning(f"Kindle ウィンドウのクリックによるアクティブ化に失敗しました: {e}")
+        time.sleep(0.5)
 
         hwnd = window._hWnd
         rect = wintypes.RECT()
@@ -484,7 +504,8 @@ class WindowsKindleCapturer:
         client_rect = wintypes.RECT()
         ctypes.windll.user32.GetClientRect(hwnd, ctypes.byref(client_rect))
 
-        pt = wintypes.POINT(rect.left, rect.top)
+        # クライアント領域の左上 (0, 0) をスクリーン座標に変換して正しいキャプチャ開始位置を取得する
+        pt = wintypes.POINT(0, 0)
         ctypes.windll.user32.ClientToScreen(hwnd, ctypes.byref(pt))
 
         x, y = pt.x, pt.y
@@ -517,7 +538,14 @@ class WindowsKindleCapturer:
         if kindle_windows:
             window = kindle_windows[0]
             if not window.isActive:
-                window.activate()
+                try:
+                    window.activate()
+                    time.sleep(0.1)
+                    py.click(window.left + 150, window.top + 15)
+                    time.sleep(0.1)
+                    py.press('esc')  # タイトルバークリックで奪われたキーボードフォーカスを本文に戻す
+                except Exception as e:
+                    logger.debug(f"ページ送り時の Kindle ウィンドウ有効化に失敗しました (無視して継続します): {e}")
                 time.sleep(0.2)
 
         key = 'left' if direction == 'left' else 'space' if direction == 'space' else 'right'
