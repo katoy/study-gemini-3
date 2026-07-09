@@ -4,7 +4,7 @@ Kindle デスクトップアプリの書籍を、高品質な PNG 画像としてキャプチャし、劣化のな
 
 **対応 OS**: macOS（AppleScript 使用）、Windows（pygetwindow + PIL 使用）
 
-## [WARNING] 重要：注意事項 (Disclaimer)
+##  重要：注意事項 (Disclaimer)
 
 - **著作権について**: 本ツールは、個人での利用、または著作権法で認められている範囲内（私的使用のための複製など）での使用を目的としています。生成された PDF を他人に配布したり、インターネット上にアップロードしたりすることは、著作権法に抵触する恐れがあります。利用者は自己責任において使用してください。
 - **OS別注意事項**: 
@@ -76,19 +76,52 @@ setup.bat
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-**uv を使う場合 (高速です)**
-```cmd
-# uv がインストールされていない場合は先にインストール
-# winget install astral-sh.uv  または https://github.com/astral-sh/uv から
+**uv を使う場合 (推奨・高速)**
 
-uv venv
-# コマンドプロンプトの場合:
-.venv\Scripts\activate.bat
-# PowerShell の場合:
-.venv\Scripts\Activate.ps1
+`uv` は、Python のパッケージ管理や仮想環境構築、スクリプト実行を高速に行える Rust 製のツールです。Python 本体の自動管理機能も備えています。
 
-uv pip install -r requirements.txt
-```
+1. **`uv` のインストール**:
+   お好みの方法で `uv` をインストールします。インストール完了後は、必ず**ターミナルを再起動**してください。
+   * **PowerShell (推奨)**: 以下のコマンドを実行します。
+     ```powershell
+     powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
+     ```
+   * **winget (Windows パッケージ マネージャー)**: 以下を実行します。
+     ```cmd
+     winget install astral-sh.uv
+     ```
+
+2. **セットアップ**:
+   本ツールのディレクトリへ移動し、以下のいずれかの方法でセットアップします。
+   * **方法 A: 自動セットアップ (推奨)**
+     `pyproject.toml` に基づいて自動で仮想環境の作成から依存パッケージのインストールまでを完了します：
+     ```cmd
+     uv sync
+     ```
+   * **方法 B: 手動セットアップ (従来方式)**
+     ```cmd
+     # 仮想環境の作成 (Pythonが未インストールなら自動取得)
+     uv venv
+     
+     # 仮想環境のアクティベート
+     # コマンドプロンプトの場合:
+     .venv\Scripts\activate.bat
+     # PowerShell の場合:
+     .venv\Scripts\Activate.ps1
+     
+     # パッケージのインストール
+     uv pip install -r requirements.txt
+     ```
+
+3. **実行 (`uv run`)**:
+   仮想環境をアクティベートすることなく、直接ツールを実行することができます：
+   ```cmd
+   uv run python main.py
+   ```
+   オプションを指定する場合も同様です：
+   ```cmd
+   uv run python main.py --direction space
+   ```
 
 **pip を使う場合**
 ```cmd
