@@ -1,6 +1,6 @@
 # Kindle to PDF Tools
 
-このリポジトリには、Kindle の書籍を高品質な PDF に変換するための 2 つのツールが含まれています。どちらも macOS の「テキスト認識表示 (Live Text)」に最適化された、画像ベースの PDF を生成します。
+このリポジトリには、Kindle の書籍を高品質な PDF に変換するための複数のツール、および既存のスキャンPDF を処理するエージェント・スクリプトが含まれています。Kindle キャプチャツールは macOS の「テキスト認識表示 (Live Text)」に最適化された、画像ベースの PDF を生成します。
 
 ## 🛠 ツール一覧
 
@@ -18,9 +18,17 @@
 - **仕組み**: `Playwright` を使用してブラウザを自動操作します。
 - **主な機能**: 自動 Chrome 起動、リモートデバッグ接続、レンダリング安定待機。
 
+### 3. [PDF Splitter & OCR Chapter Pipeline](./pdf-splitter/)
+**スキャンPDF をOCR処理して章ごとに自動分割するエージェントとスクリプト**です。
+- **特徴**: 電子書籍などのスキャンPDFを `ocrmypdf` で処理し、テキストから目次を抽出して章単位で分割します。
+- **2つのモード**:
+  - `pdf-ocr-chapter-splitter`: OCR + 目次解析による知的な章分割
+  - `pdf-splitter`: 単純な均等分割（20MB以下に自動調整）
+- **主な機能**: 日本語・英語対応 OCR、自動章分割、20MB超ファイルの自動細分割。
+
 ---
 
-## 🚀 共通の特長
+## 🚀 Kindle キャプチャツールの特長
 
 - **無劣化・最高画質**: `img2pdf` を使用し、キャプチャした PNG 画像を再エンコードなしで PDF に結合します。
 - **macOS Live Text 対応**: 生成された PDF は、macOS のプレビューアプリなどで開くと自動的に文字認識（OCR）が行われ、テキストの選択やコピーが可能です。
@@ -41,8 +49,6 @@
 
 ## 📖 クイックスタート
 
-各ディレクトリに移動し、`setup.sh` を実行して環境を構築してください。
-
 ### Kindle App 版を使用する場合
 ```bash
 cd kindle_app_to_pdf
@@ -56,6 +62,21 @@ cd kindle_to_pdf
 bash setup.sh
 python main.py --launch-chrome
 ```
+
+### PDF Splitter を使用する場合
+```bash
+cd pdf-splitter
+# 依存関係のインストール（初回のみ）
+uv pip install ocrmypdf pypdf
+
+# 章ごとに分割（OCR+目次解析）
+uv run scripts/pdf_chapter_pipeline.py input.pdf
+
+# または均等分割（20MB以下）
+uv run scripts/split_pdf.py input.pdf
+```
+
+詳細は各ツールのディレクトリ内の `README.md` をご覧ください。
 
 ---
 
@@ -72,6 +93,11 @@ python main.py --launch-chrome
 ├── kindle_to_pdf/           # クラウドリーダー用ツール
 │   ├── main.py
 │   ├── setup.sh
+│   └── README.md
+├── pdf-splitter/            # PDF OCR & 章分割エージェント・スクリプト
+│   ├── agents/
+│   ├── scripts/
+│   ├── plugin.json
 │   └── README.md
 └── memo/                    # 関連メモ・資料
 ```

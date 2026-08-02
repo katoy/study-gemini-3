@@ -20,10 +20,9 @@ import difflib
 import json
 import math
 import re
-import shutil
 import sys
 import unicodedata
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -494,9 +493,6 @@ def main():
         print(f"Error: {input_pdf} not found", file=sys.stderr)
         sys.exit(1)
 
-    if not pdf_utils.ensure_tesseract_installed():
-        print("Error: tesseract command not found. Run: brew install tesseract", file=sys.stderr)
-        sys.exit(1)
 
     if not pdf_utils.ensure_ocrmypdf_installed():
         print("Error: ocrmypdf command not found. Run: brew install ocrmypdf", file=sys.stderr)
@@ -536,7 +532,7 @@ def main():
         boundaries = sorted(boundaries, key=lambda e: e.physical_page)
         
         outputs = split_by_boundaries(reader, boundaries, chapters_dir)
-        print(f"[3/3] 20MB超の再分割中...", file=sys.stderr)
+        print("[3/3] 20MB超の再分割中...", file=sys.stderr)
         resplit_outputs = []
         for i, chapter_info in enumerate(outputs, start=1):
             prefix = f"{i:02d}"
@@ -581,7 +577,7 @@ def main():
             if detected_chapters and len(detected_chapters) >= 2:
                 fallback_used = True
                 outputs = split_by_boundaries(reader, detected_chapters, chapters_dir)
-                print(f"[3/3] 20MB超の再分割中...", file=sys.stderr)
+                print("[3/3] 20MB超の再分割中...", file=sys.stderr)
                 resplit_outputs = []
                 for i, chapter_info in enumerate(outputs, start=1):
                     prefix = f"{i:02d}"
@@ -596,7 +592,7 @@ def main():
                 outputs = uniform_fallback_split(reader, chapters_dir, total_size_mb, args.max_size_mb)
         else:
             outputs = split_by_boundaries(reader, boundaries, chapters_dir)
-            print(f"[3/3] 20MB超の再分割中...", file=sys.stderr)
+            print("[3/3] 20MB超の再分割中...", file=sys.stderr)
             resplit_outputs = []
             for i, chapter_info in enumerate(outputs, start=1):
                 prefix = f"{i:02d}"

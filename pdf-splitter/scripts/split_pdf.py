@@ -106,9 +106,6 @@ def process_folder(folder_path: str) -> None:
         print("❌ エラー: ocrmypdf がインストールされていません。'brew install ocrmypdf' 等を実行してください。", file=sys.stderr)
         sys.exit(1)
 
-    if not pdf_utils.ensure_tesseract_installed():
-        print("❌ エラー: tesseract がインストールされていません。'brew install tesseract' 等を実行してください。", file=sys.stderr)
-        sys.exit(1)
 
     # PDF ファイルを検出 (split_output 配下のファイルは除外)
     pdf_files = sorted([p for p in folder_path.glob("*.pdf") if p.parent == folder_path])
@@ -153,7 +150,7 @@ def process_folder(folder_path: str) -> None:
 
     # 結果をサマリー
     print(f"\n{'='*50}")
-    print(f"✅ 処理完了")
+    print("✅ 処理完了")
     print(f"   処理済みファイル: {total_files}")
     print(f"   出力ファイル: {total_parts}")
     print(f"   出力先: {output_dir}")

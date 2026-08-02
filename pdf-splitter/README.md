@@ -23,7 +23,7 @@
 
 このプラグインは、以下の2つの主要な処理機能を提供します。
 
-- **`pdf-ocr-chapter-splitter`**: 電子書籍などのスキャンPDFをOCR処理（`ocrmypdf` + `tesseract`）し、出力されたテキストから目次情報を解析して章ごとにPDFを分割します。また、分割後のファイルが20MBを超える場合は、自動的にさらに細かく分割します。
+- **`pdf-ocr-chapter-splitter`**: 電子書籍などのスキャンPDFをOCR処理（`ocrmypdf`）し、出力されたテキストから目次情報を解析して章ごとにPDFを分割します。また、分割後のファイルが20MBを超える場合は、自動的にさらに細かく分割します。
 - **`pdf-splitter`**: 指定フォルダ内のすべてのPDFファイルをスキャンし、単純に20MB以下の均等なページ数になるように自動分割します。
 
 ---
@@ -61,10 +61,10 @@ pdf-splitter/
    # uv がインストールされていない場合はインストールしてください
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-2. **Tesseract OCR** (日本語・英語のOCRエンジン)
+2. **ocrmypdf** (PDF OCRツール)
    ```bash
-   # macOS の場合
-   brew install tesseract tesseract-lang
+   # macOS の場合 (Tesseract OCR 等の依存パッケージも自動でインストールされます)
+   brew install ocrmypdf
    ```
 
 ---

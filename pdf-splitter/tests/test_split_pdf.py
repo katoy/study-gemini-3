@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch, mock_open
 # Add scripts directory to path to import split_pdf and pdf_utils
 sys.path.append(str(Path(__file__).parent.parent / "scripts"))
 
-import pytest
 import split_pdf
 import pdf_utils
 

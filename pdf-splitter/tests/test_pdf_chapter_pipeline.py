@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch, mock_open
 # Add scripts directory to path to import pdf_chapter_pipeline
 sys.path.append(str(Path(__file__).parent.parent / "scripts"))
 
-import pytest
 import pdf_chapter_pipeline
 from pdf_chapter_pipeline import TocEntry
 

@@ -7,15 +7,12 @@ from pathlib import Path
 try:
     from pypdf import PdfReader, PdfWriter
 except ImportError:
-    from PyPDF2 import PdfReader, PdfWriter
+    from PyPDF2 import PdfReader
 
 def ensure_ocrmypdf_installed() -> bool:
     """ocrmypdfが利用可能であることを確認。"""
     return bool(shutil.which("ocrmypdf"))
 
-def ensure_tesseract_installed() -> bool:
-    """tesseractが利用可能か確認。"""
-    return bool(shutil.which("tesseract"))
 
 def run_ocr(input_pdf: Path, output_pdf: Path, lang: str = "jpn+eng", force: bool = False, step_label: str = "") -> bool:
     """ocrmypdf でOCR実行。既存ファイルがあれば (force=False) スキップ。"""
