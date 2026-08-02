@@ -28,4 +28,5 @@ Thumbs.db
 # Project-specific output dirs (Local PDFs and split outputs)
 output/
 split_output/
+data/
 *.pdf
