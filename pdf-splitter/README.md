@@ -67,6 +67,49 @@ pdf-splitter/
    brew install ocrmypdf
    ```
 
+> [!IMPORTANT]
+> `uv` や `ocrmypdf` はスクリプトやエージェントによって**自動インストールされません**。
+> インストールされていない場合はエラー終了するため、事前に上記のコマンドで手動インストールを完了させておいてください。
+
+---
+
+## 実行方法とオプション
+
+### 基本的な実行方法
+`uv run` を使用して、依存ライブラリを自動解決しながらスクリプトを実行します。
+
+```bash
+uv run scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>"
+```
+
+### 高度なオプションとトラブルシューティング
+
+#### 1. 使用する Python バージョンの明示
+システムの Python 環境によっては、`uv` が特定の古いバージョンを探索してエラー終了することがあります。その場合は `--python 3.12`（または3.12以上のバージョン）を明示して実行してください。
+
+```bash
+uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --max-size-mb 20 --lang jpn+eng
+```
+
+#### 2. 目次解析の失敗（フォールバック）と手動による章指定 (`--chapters-json`)
+OCRのテキスト化精度やPDFのレイアウトによっては、自動的な目次ページの判定・解析に失敗し、キーワード検出や均等分割にフォールバックすることがあります。
+正確な章分割を行いたい場合は、手動で章の開始「物理ページ番号」を記述した JSON ファイルを作成し、`--chapters-json` で指定して再実行します。
+
+**JSON ファイルの作成例 (`chapters.json`)**:
+```json
+[
+  {"title": "まえがき", "page": 4},
+  {"title": "第 1 章 Agent Skills って何だろう", "page": 18},
+  {"title": "第 2 章 Agent Skills の仕組み", "page": 49},
+  {"title": "付録", "page": 291}
+]
+```
+
+**実行コマンド**:
+```bash
+uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --chapters-json "<作成したchapters.jsonの絶対パス>"
+```
+
 ---
 
 ## グローバルな設定・更新方法
