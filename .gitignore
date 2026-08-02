@@ -39,7 +39,7 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Project specific
-output/
+output/*
 kindle_app_to_pdf/KindleScreenshots/
 *.pdf
 *.png
