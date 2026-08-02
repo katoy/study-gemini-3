@@ -40,9 +40,6 @@ htmlcov/
 
 # Project specific
 output/
-!kindle_app_to_pdf/output/
-!kindle_app_to_pdf/output/pdf-chapter-splitter/
-!kindle_app_to_pdf/output/pdf-chapter-splitter/**
 kindle_app_to_pdf/KindleScreenshots/
 *.pdf
 *.png
