@@ -410,12 +410,34 @@ class WindowsKindleCapturer:
         print("Windows Kindle をキャプチャ中です...")
 
         while True:
+            # 1. 撮影前のチェック (ダイアログが出ていたら消去を試みる)
+            if self._is_dialog_active(window, book_title):
+                logger.info(
+                    "Windows: 撮影前にダイアログ（またはタイトル変化）を検出しました。消去を試みます。"
+                )
+                try:
+                    import pyautogui as py  # type: ignore
+
+                    py.press("esc")
+                except Exception as e:
+                    logger.debug(f"Escキー送信に失敗しました: {e}")
+                time.sleep(1.5)
+
             shot_path = book_dir / f"page_{len(screenshots) + 1:04d}.png"
 
             try:
                 self._capture_window_region(str(shot_path), bbox)
             except Exception as e:
                 logger.error(f"キャプチャエラー: {e}")
+                break
+
+            # 2. 撮影直後のチェック (撮影中にダイアログが出た場合)
+            if self._is_dialog_active(window, book_title):
+                logger.info(
+                    "Windows: 撮影した画像にダイアログが含まれている可能性があるため破棄します。"
+                )
+                if shot_path.exists():
+                    shot_path.unlink()
                 break
 
             cur_hash = _calculate_md5(shot_path)
@@ -475,6 +497,16 @@ class WindowsKindleCapturer:
             except Exception:
                 return 1.0
 
+    def _get_window_dpi_scale(self, hwnd: int) -> float:
+        """指定したウィンドウの DPI スケーリング係数を取得します。"""
+        try:
+            # Windows 10 (1607) 以降の GetDpiForWindow を優先使用
+            dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+            return float(dpi / 96.0)
+        except Exception:
+            # フォールバックしてシステム全体の DPI を取得
+            return self._get_dpi_scale()
+
     def _find_and_focus_kindle(self) -> tuple[int, int, int, int, Any]:
         """【改善】Kindle ウィンドウを検出し、DPIを考慮して確実にフォーカスを設定します。"""
         kindle_windows = gw.getWindowsWithTitle("Kindle")
@@ -521,7 +553,7 @@ class WindowsKindleCapturer:
             time.sleep(0.2)
 
             # 【改善】pyautogui に渡す座標を DPI スケールで補正（物理ピクセル -> 論理ピクセル）
-            dpi_scale = self._get_dpi_scale()
+            dpi_scale = self._get_window_dpi_scale(window._hWnd)
             click_x = int((window.left + 150) / dpi_scale)
             click_y = int((window.top + 15) / dpi_scale)
 
@@ -541,6 +573,32 @@ class WindowsKindleCapturer:
             if " - " in title:
                 return sanitize_filename(title.split(" - ", 1)[1])
         return "kindle_book"
+
+    def _is_dialog_active(self, window: Any, book_title: str) -> bool:
+        """Windows で評価ダイアログや終了画面（ウィンドウタイトルの変化）が表示されているか判定します。"""
+        try:
+            # 1. 前面ウィンドウが Kindle 自体でなくなっているかチェック
+            active_hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if active_hwnd != window._hWnd:
+                # ポップアップダイアログ（オーナーが Kindle ウィンドウ）の場合を判定
+                # GW_OWNER = 4
+                owner_hwnd = ctypes.windll.user32.GetWindow(active_hwnd, 4)
+                if owner_hwnd == window._hWnd:
+                    logger.info("Windows: 子ダイアログウィンドウを検出しました。")
+                    return True
+
+            # 2. ウィンドウタイトルの変化をチェック（本のタイトルが含まれなくなったら終端とみなす）
+            current_title = window.title
+            if book_title != "kindle_book" and book_title not in sanitize_filename(current_title):
+                logger.info(
+                    f"Windows: ウィンドウタイトルの変化を検出しました (現在: {current_title})"
+                )
+                return True
+
+            return False
+        except Exception as e:
+            logger.debug(f"Windows ダイアログチェック失敗 (無視して継続): {e}")
+            return False
 
     def _capture_window_region(self, output_path: str, bbox: tuple[int, int, int, int]) -> None:
         """Windows で Kindle ウィンドウの領域をスクリーンショット撮影します。"""

@@ -121,6 +121,10 @@ def _prepare_screenshots(
             raise FileNotFoundError(f"指定されたディレクトリが見つかりません: {shot_dir}")
 
         screenshots = sorted([str(p) for p in shot_dir.glob("page_*.png")])
+        if not screenshots:
+            raise FileNotFoundError(
+                f"指定されたディレクトリ内に 'page_*.png' パターンにマッチする画像が見つかりませんでした: {shot_dir}"
+            )
         book_title = shot_dir.name
         logger.info(f"[1/2] 既存画像を使用: {book_title} ({len(screenshots)} ページ)")
         return book_title, screenshots, None

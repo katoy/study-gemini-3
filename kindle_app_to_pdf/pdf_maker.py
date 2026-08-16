@@ -3,6 +3,7 @@
 img2pdf を使用して、画像を劣化させることなく PDF に結合します。
 """
 
+from collections.abc import Sequence
 import logging
 from pathlib import Path
 
@@ -12,18 +13,20 @@ logger = logging.getLogger(__name__)
 
 
 def make_pdf(
-    screenshots: list[str],
+    screenshots: Sequence[str | Path],
     output_path: str,
 ) -> None:
     """
     スクリーンショット画像から PDF を生成します。
 
     Args:
-        screenshots:  画像ファイルパスのリスト（ページ順）
+        screenshots:  画像ファイルパス（str または Path）のリスト（ページ順）
         output_path:  出力する PDF の保存先パス
     """
     if not screenshots:
         raise ValueError("スクリーンショットが 0 枚です。")
+
+    screenshot_paths = [str(p) for p in screenshots]
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -32,7 +35,7 @@ def make_pdf(
 
     try:
         with open(output_path, "wb") as f:
-            f.write(img2pdf.convert(screenshots))
+            f.write(img2pdf.convert(screenshot_paths))
     except Exception as e:
         logger.error(f"PDF 結合中にエラーが発生しました: {e}")
         raise
