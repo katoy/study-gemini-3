@@ -5,7 +5,6 @@ Mac Kindle デスクトップアプリをキャプチャして画像 PDF を生�
 
 import argparse
 import logging
-import shutil
 import sys
 from pathlib import Path
 
@@ -14,9 +13,7 @@ from pdf_maker import make_pdf
 
 # ログ設定
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
 )
 logger = logging.getLogger(__name__)
 
@@ -24,36 +21,37 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     """コマンドライン引数を解析します。"""
     parser = argparse.ArgumentParser(
-        description='Kindle アプリをキャプチャして PDF を生成します（Mac / Windows 対応）'
+        description="Kindle アプリをキャプチャして PDF を生成します（Mac / Windows 対応）"
     )
     parser.add_argument(
-        '--output-dir', '-o',
-        default='./output',
-        help='出力先ディレクトリ (デフォルト: ./output)',
+        "--output-dir",
+        "-o",
+        default="./output",
+        help="出力先ディレクトリ (デフォルト: ./output)",
     )
     parser.add_argument(
-        '--images-dir',
-        metavar='DIR',
-        help='既存の PNG 画像ディレクトリを入力として使用し、Kindle キャプチャをスキップする',
+        "--images-dir",
+        metavar="DIR",
+        help="既存の PNG 画像ディレクトリを入力として使用し、Kindle キャプチャをスキップする",
     )
     parser.add_argument(
-        '--screenshots',
-        choices=['delete', 'keep'],
-        default='delete',
-        help='キャプチャした PNG の後処理: delete=削除(デフォルト), keep=保持\n'
-             '※ --images-dir 指定時は既存ディレクトリのため常に保持される',
+        "--screenshots",
+        choices=["delete", "keep"],
+        default="delete",
+        help="キャプチャした PNG の後処理: delete=削除(デフォルト), keep=保持\n"
+        "※ --images-dir 指定時は既存ディレクトリのため常に保持される",
     )
     parser.add_argument(
-        '--page-delay',
+        "--page-delay",
         type=float,
         default=1.5,
-        help='ページ送り後の待機時間(秒) (デフォルト: 1.5)',
+        help="ページ送り後の待機時間(秒) (デフォルト: 1.5)",
     )
     parser.add_argument(
-        '--direction',
-        choices=['right', 'left', 'space'],
-        default='right',
-        help='ページめくりの方向: right=右矢印(デフォルト), left=左矢印, space=スペースキー',
+        "--direction",
+        choices=["right", "left", "space"],
+        default="right",
+        help="ページめくりの方向: right=右矢印(デフォルト), left=左矢印, space=スペースキー",
     )
     return parser.parse_args()
 
@@ -63,6 +61,20 @@ def run(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # 既存の画像ディレクトリから生成する場合はループさせず、1回のみ実行して終了する
+    if args.images_dir:
+        try:
+            book_title, screenshots, shot_dir = _prepare_screenshots(args, output_dir)
+            _generate_pdf(output_dir, book_title, screenshots)
+            # 既存画像指定時は screenshots の削除を行わない（args.screenshots にかかわらず保持）
+            pdf_path = output_dir / (sanitize_filename(book_title) + ".pdf")
+            _print_summary(pdf_path)
+        except Exception as e:
+            logger.error(f"PDF 再生成中にエラーが発生しました: {e}")
+            sys.exit(1)
+        return
+
+    # 通常のキャプチャ実行ループ
     while True:
         print("\n" + "!" * 60)
         print("Kindle アプリで処理したい本を開き、最初のページを表示してください。")
@@ -71,11 +83,11 @@ def run(args: argparse.Namespace) -> None:
         print("!" * 60 + "\n")
 
         user_input = input(">> ").strip().lower()
-        if user_input == 'q':
+        if user_input == "q":
             break
 
         try:
-            # Step 1: キャプチャ（または既存画像の取得）
+            # Step 1: キャプチャ
             book_title, screenshots, shot_dir = _prepare_screenshots(args, output_dir)
 
             try:
@@ -83,7 +95,7 @@ def run(args: argparse.Namespace) -> None:
                 pdf_path = _generate_pdf(output_dir, book_title, screenshots)
 
                 # Step 3: スクリーンショット削除
-                if args.screenshots == 'delete' and shot_dir is not None:
+                if args.screenshots == "delete" and shot_dir is not None:
                     _delete_screenshots(shot_dir)
 
                 _print_summary(pdf_path)
@@ -91,7 +103,7 @@ def run(args: argparse.Namespace) -> None:
                 logger.error(f"PDF 生成中にエラーが発生しました: {e}")
                 if shot_dir:
                     logger.info(f"キャプチャ済みの画像はここに残されています: {shot_dir}")
-                continue # 次の入力待ちへ
+                continue  # 次の入力待ちへ
 
             print("\n次の本を処理しますか？")
         except Exception as e:
@@ -108,7 +120,7 @@ def _prepare_screenshots(
         if not shot_dir.exists():
             raise FileNotFoundError(f"指定されたディレクトリが見つかりません: {shot_dir}")
 
-        screenshots = sorted([str(p) for p in shot_dir.glob('page_*.png')])
+        screenshots = sorted([str(p) for p in shot_dir.glob("page_*.png")])
         book_title = shot_dir.name
         logger.info(f"[1/2] 既存画像を使用: {book_title} ({len(screenshots)} ページ)")
         return book_title, screenshots, None
@@ -119,15 +131,17 @@ def _prepare_screenshots(
         page_delay=args.page_delay,
         direction=args.direction,
     )
-    
+
     if not screenshots:
-        raise RuntimeError("キャプチャされたページがありません。Kindle アプリの設定を確認してください。")
-    
+        raise RuntimeError(
+            "キャプチャされたページがありません。Kindle アプリの設定を確認してください。"
+        )
+
     if len(screenshots) == 1:
         logger.warning("キャプチャが 1 ページのみで終了しました。")
         logger.warning("ページ捲りが正しく行われていない可能性があります。")
         logger.warning("Kindle アプリにフォーカスが当たっているか確認し、")
-        alt_direction = 'space' if args.direction == 'right' else 'right'
+        alt_direction = "space" if args.direction == "right" else "right"
         logger.warning(f"改善しない場合は --direction {alt_direction} をお試しください。")
 
     logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
@@ -142,7 +156,7 @@ def _generate_pdf(
 ) -> Path:
     """PDF を生成します。"""
     base_name = sanitize_filename(book_title)
-    pdf_path = output_dir / (base_name + '.pdf')
+    pdf_path = output_dir / (base_name + ".pdf")
     counter = 2
     while pdf_path.exists():
         pdf_path = output_dir / f"{base_name}_{counter}.pdf"
@@ -157,10 +171,26 @@ def _generate_pdf(
 
 
 def _delete_screenshots(shot_dir: Path) -> None:
-    """スクリーンショットディレクトリを削除します。"""
-    logger.info(f"スクリーンショットを削除中: {shot_dir}")
-    shutil.rmtree(shot_dir, ignore_errors=True)
-    logger.info("      削除完了")
+    """スクリーンショットフォルダ内の対象PNGのみを安全に削除します。"""
+    logger.info(f"スクリーンショット一時ファイルを削除中: {shot_dir}")
+
+    # page_*.png パターンのファイルのみを個別に削除
+    png_files = list(shot_dir.glob("page_*.png"))
+    for file_path in png_files:
+        try:
+            file_path.unlink()
+        except Exception as e:
+            logger.warning(f"ファイルの削除に失敗しました ({file_path.name}): {e}")
+
+    # ディレクトリが空になった場合のみディレクトリ自体を削除
+    try:
+        if shot_dir.exists() and not any(shot_dir.iterdir()):
+            shot_dir.rmdir()
+            logger.info("      一時ディレクトリを削除しました")
+        else:
+            logger.info("      ファイルが残っているため、一時ディレクトリは保持されました")
+    except Exception as e:
+        logger.warning(f"ディレクトリの削除に失敗しました ({shot_dir}): {e}")
 
 
 def _print_summary(pdf_path: Path) -> None:
@@ -184,5 +214,5 @@ def main() -> None:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

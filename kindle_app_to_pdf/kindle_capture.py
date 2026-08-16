@@ -24,10 +24,11 @@ class KindleCapturer(Protocol):
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = 'right',
+        direction: str = "right",
     ) -> tuple[str, list[str]]:
         """Kindle デスクトップアプリの全ページをキャプチャします。"""
         ...
+
 
 # Windows 用のインポート
 if sys.platform == "win32":
@@ -63,15 +64,15 @@ MAX_SAME_PAGES = 3  # 同じ画面が何回続いたら終端とみなすか
 
 def sanitize_filename(name: str) -> str:
     """ファイル名として使用できない文字を除去・置換します。"""
-    name = re.sub(r'[<>:"/\\|?*\n\r\t]', '_', name)
-    name = re.sub(r'_+', '_', name).strip('_')
+    name = re.sub(r'[<>:"/\\|?*\n\r\t]', "_", name)
+    name = re.sub(r"_+", "_", name).strip("_")
     name = name[:80].strip()  # 80文字に切り詰めて末尾の空白を削除
-    return name or 'kindle_book'
+    return name or "kindle_book"
 
 
 def _escape_applescript_string(s: str) -> str:
     """AppleScript の文字列リテラル内で安全に使用できるようにエスケープします。"""
-    return s.replace('\\', '\\\\').replace('"', '\\"')
+    return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _calculate_md5(path: Path) -> str:
@@ -90,7 +91,7 @@ class MacKindleCapturer:
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = 'right',
+        direction: str = "right",
     ) -> tuple[str, list[str]]:
         """Mac 用の Kindle ページキャプチャ処理。"""
         app_name, process_name = self._find_and_activate_kindle()
@@ -117,7 +118,9 @@ class MacKindleCapturer:
         while True:
             # 1. 撮影前のチェック (ダイアログが出ていたらまず消去を試みる)
             if self._is_dialog_active(process_name, raw_book_title):
-                logger.info("撮影前にダイアログ（またはウィンドウ状態の変化）を検出しました。消去を試みます。")
+                logger.info(
+                    "撮影前にダイアログ（またはウィンドウ状態の変化）を検出しました。消去を試みます。"
+                )
                 self._dismiss_dialog(process_name)
                 time.sleep(1.5)
 
@@ -126,7 +129,9 @@ class MacKindleCapturer:
 
             # 2. 撮影直後のチェック (重要: 撮影中に評価ダイアログが出た場合)
             if self._is_dialog_active(process_name, raw_book_title):
-                logger.info("撮影した画像にダイアログが含まれている可能性があるため、破棄して終了します。")
+                logger.info(
+                    "撮影した画像にダイアログが含まれている可能性があるため、破棄して終了します。"
+                )
                 if shot_path.exists():
                     shot_path.unlink()
                 break
@@ -139,13 +144,17 @@ class MacKindleCapturer:
                 if shot_path.exists():
                     shot_path.unlink()
                 if same_count >= MAX_SAME_PAGES:
-                    print(f"\n終端を検出しました（画像重複による停滞）。合計 {len(screenshots)} ページ")
+                    print(
+                        f"\n終端を検出しました（画像重複による停滞）。合計 {len(screenshots)} ページ"
+                    )
                     # 【重要】進めなくなった際の最後の1枚（＝重複の起点となったダイアログ等）を削除
                     if screenshots:
                         last_path = screenshots.pop()
                         if Path(last_path).exists():
                             Path(last_path).unlink()
-                        print(f"末尾の重複元画像を除外しました。最終合計: {len(screenshots)} ページ")
+                        print(
+                            f"末尾の重複元画像を除外しました。最終合計: {len(screenshots)} ページ"
+                        )
                     break
             else:
                 same_count = 0
@@ -164,15 +173,10 @@ class MacKindleCapturer:
 
     def _run_applescript(self, script: str) -> str:
         """AppleScript を実行して標準出力を返します。"""
-        result = subprocess.run(
-            ['osascript', '-e', script],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"AppleScript エラー: {result.stderr.strip()}")
         return result.stdout.strip()
-
 
     def _find_and_activate_kindle(self) -> tuple[str, str]:
         """Kindle アプリをアクティブにして (アプリ名, プロセス名) を返します。"""
@@ -190,10 +194,9 @@ class MacKindleCapturer:
             "Kindle アプリが起動しており、本が表示されていることを確認してください。"
         )
 
-
     def _find_kindle_process_name(self) -> str:
         """System Events で動作中の Kindle プロセス名を取得します。"""
-        script = '''
+        script = """
 tell application "System Events"
     set kindleProcs to name of every process whose name contains "Kindle"
     if (count of kindleProcs) > 0 then
@@ -201,12 +204,11 @@ tell application "System Events"
     end if
     return ""
 end tell
-'''
+"""
         result = self._run_applescript(script)
         if result:
             return result
         raise RuntimeError("System Events で Kindle プロセスが見つかりません。")
-
 
     def _get_window_title(self, process_name: str) -> str:
         """System Events 経由で Kindle ウィンドウのタイトルを取得します。"""
@@ -223,8 +225,6 @@ end tell
         except Exception as e:
             logger.warning(f"ウィンドウタイトルの取得に失敗しました: {e}")
             return "kindle_book"
-
-
 
     def _get_window_bounds(self, process_name: str) -> tuple[int, int, int, int]:
         """Kindle 本体のウィンドウ（最も大きいウィンドウ）の領域を返します。"""
@@ -255,7 +255,7 @@ tell application "System Events"
 end tell
 '''
         raw = self._run_applescript(script)
-        parts = [int(v.strip()) for v in raw.split(',')]
+        parts = [int(v.strip()) for v in raw.split(",")]
         if len(parts) != 4:
             raise RuntimeError("ウィンドウ領域の取得に失敗しました。")
         return parts[0], parts[1], parts[2], parts[3]
@@ -277,18 +277,14 @@ end tell
         x, y, w, h = self._get_window_bounds(process_name)
         if w == 0 or h == 0:
             raise RuntimeError("Kindle ウィンドウが見つかりません。")
-        subprocess.run(
-            ['screencapture', '-x', '-R', f'{x},{y},{w},{h}', output_path],
-            check=True
-        )
+        subprocess.run(["screencapture", "-x", "-R", f"{x},{y},{w},{h}", output_path], check=True)
 
-
-    def _send_next_page(self, process_name: str, direction: str = 'right') -> None:
+    def _send_next_page(self, process_name: str, direction: str = "right") -> None:
         """次ページへ進むキーを Kindle アプリに送信します。"""
         # 123: 左矢印, 124: 右矢印, 49: スペース
-        if direction == 'left':
+        if direction == "left":
             key_code = 123
-        elif direction == 'space':
+        elif direction == "space":
             key_code = 49
         else:
             key_code = 124
@@ -325,7 +321,7 @@ end tell
         """評価ダイアログや終了画面が表示されているか判定します。"""
         safe_proc = _escape_applescript_string(process_name)
         safe_book_title = _escape_applescript_string(book_title)
-        
+
         script = f'''
 tell application "System Events"
     tell process "{safe_proc}"
@@ -373,12 +369,13 @@ end tell
             result = self._run_applescript(script)
             if not result or result == "false":
                 return False
-            
+
             logger.info(f"終端・ダイアログ検知: {result}")
             return True
         except Exception as e:
             logger.debug(f"ダイアログチェック失敗 (無視して継続): {e}")
             return False
+
 
 class WindowsKindleCapturer:
     """Windows 用の Kindle キャプチャ実装。"""
@@ -387,11 +384,11 @@ class WindowsKindleCapturer:
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = 'right',
+        direction: str = "right",
     ) -> tuple[str, list[str]]:
-        """Windows 用の Kindle ページキャプチャ処理。"""
-        # Kindle ウィンドウを一度だけ検出（位置を固定）
-        x, y, width, height = self._find_kindle_window()
+        """Windows 用 of Kindle ページキャプチャ処理。"""
+        # Kindle ウィンドウを検出してフォーカスを当てる
+        x, y, width, height, window = self._find_and_focus_kindle()
         bbox = (x, y, x + width, y + height)
 
         book_title = self._get_book_title()
@@ -405,7 +402,8 @@ class WindowsKindleCapturer:
         book_dir.mkdir(parents=True, exist_ok=True)
 
         screenshots: list[str] = []
-        last_hash = None
+        hash_history: list[str] = []  # 【改善】履歴管理を導入
+        MAX_HISTORY = 5
         same_count = 0
 
         logger.info(f"キャプチャ開始 (方向: {direction})...")
@@ -422,25 +420,37 @@ class WindowsKindleCapturer:
 
             cur_hash = _calculate_md5(shot_path)
 
-            # 前のページと同じハッシュかどうかをチェック
-            if cur_hash == last_hash:
+            # 【改善】Mac版と同様の複数世代ハッシュ履歴チェック
+            if cur_hash in hash_history:
                 same_count += 1
                 logger.debug(f"重複検出: {same_count}/{MAX_SAME_PAGES}")
                 if shot_path.exists():
                     shot_path.unlink()
                 if same_count >= MAX_SAME_PAGES:
-                    print(f"\n終端を検出しました（画像が変わらなくなった）。合計 {len(screenshots)} ページ")
+                    print(
+                        f"\n終端を検出しました（画像重複による停滞）。合計 {len(screenshots)} ページ"
+                    )
+                    # 末尾の重複元画像（ダイアログや最終ページ）を除外
+                    if screenshots:
+                        last_path = screenshots.pop()
+                        if Path(last_path).exists():
+                            Path(last_path).unlink()
+                        print(
+                            f"末尾の重複元画像を除外しました。最終合計: {len(screenshots)} ページ"
+                        )
                     break
             else:
                 same_count = 0
                 screenshots.append(str(shot_path))
-                last_hash = cur_hash
+                hash_history.append(cur_hash)
+                if len(hash_history) > MAX_HISTORY:
+                    hash_history.pop(0)
 
                 print(f"キャプチャ中: {len(screenshots)} ページ目...")
 
             # 次のページへ
             try:
-                self._send_next_page(direction=direction)
+                self._send_next_page(window, direction=direction)
             except Exception as e:
                 logger.warning(f"ページ送り エラー: {e}")
                 break
@@ -465,38 +475,18 @@ class WindowsKindleCapturer:
             except Exception:
                 return 1.0
 
-    def _find_kindle_window(self) -> tuple[int, int, int, int]:
-        """Windows で Kindle ウィンドウを検出し、クライアント領域を返します。"""
+    def _find_and_focus_kindle(self) -> tuple[int, int, int, int, Any]:
+        """【改善】Kindle ウィンドウを検出し、DPIを考慮して確実にフォーカスを設定します。"""
         kindle_windows = gw.getWindowsWithTitle("Kindle")
         if not kindle_windows:
-            raise RuntimeError("Kindle window not found. Please open the Kindle app and try again.")
+            raise RuntimeError(
+                "Kindle ウィンドウが見つかりません。Kindle アプリで本を表示した状態で実行してください。"
+            )
 
         window = kindle_windows[0]
-        logger.info(f"Found Kindle window: {window.title}")
+        logger.info(f"Kindle ウィンドウを検出: {window.title}")
 
-        try:
-            window.activate()
-        except Exception as e:
-            logger.warning(f"Kindle ウィンドウの有効化に失敗しました (通常起動試行): {e}")
-            try:
-                logger.info("ウィンドウの復元 (restore) を試みます...")
-                window.restore()
-                window.activate()
-            except Exception as e2:
-                logger.warning(f"ウィンドウの復元/有効化に失敗しました: {e2}")
-                logger.warning("手動で Kindle ウィンドウをクリックして最前面にしてください。")
-
-        # Windows のフォーカス奪取防止対策として、タイトルバーをクリックして確実にアクティブ化する
-        try:
-            import pyautogui as py  # type: ignore
-            time.sleep(0.2)
-            py.click(window.left + 150, window.top + 15)
-            time.sleep(0.1)
-            py.press('esc')  # タイトルバークリックで奪われたキーボードフォーカスを本文に戻す
-            logger.info("Kindle ウィンドウのタイトルバーをクリックしてフォーカスを設定しました。")
-        except Exception as e:
-            logger.warning(f"Kindle ウィンドウのクリックによるアクティブ化に失敗しました: {e}")
-        time.sleep(0.5)
+        self._focus_window(window)
 
         hwnd = window._hWnd
         rect = wintypes.RECT()
@@ -504,7 +494,6 @@ class WindowsKindleCapturer:
         client_rect = wintypes.RECT()
         ctypes.windll.user32.GetClientRect(hwnd, ctypes.byref(client_rect))
 
-        # クライアント領域の左上 (0, 0) をスクリーン座標に変換して正しいキャプチャ開始位置を取得する
         pt = wintypes.POINT(0, 0)
         ctypes.windll.user32.ClientToScreen(hwnd, ctypes.byref(pt))
 
@@ -512,10 +501,37 @@ class WindowsKindleCapturer:
         width = client_rect.right - client_rect.left
         height = client_rect.bottom - client_rect.top
 
-        dpi_scale = self._get_dpi_scale()
-        logger.info(f"Capture region: {width}x{height} (DPI: {dpi_scale:.2f}x)")
+        return x, y, width, height, window
 
-        return x, y, width, height
+    def _focus_window(self, window: Any) -> None:
+        """【共通化】ウィンドウをアクティブにし、DPIスケーリングを考慮してクリックフォーカスを合わせます。"""
+        try:
+            window.activate()
+        except Exception as e:
+            logger.warning(f"Kindle ウィンドウの有効化に失敗しました (通常起動試行): {e}")
+            try:
+                window.restore()
+                window.activate()
+            except Exception as e2:
+                logger.warning(f"ウィンドウの復元/有効化に失敗しました: {e2}")
+
+        try:
+            import pyautogui as py  # type: ignore
+
+            time.sleep(0.2)
+
+            # 【改善】pyautogui に渡す座標を DPI スケールで補正（物理ピクセル -> 論理ピクセル）
+            dpi_scale = self._get_dpi_scale()
+            click_x = int((window.left + 150) / dpi_scale)
+            click_y = int((window.top + 15) / dpi_scale)
+
+            py.click(click_x, click_y)
+            time.sleep(0.1)
+            py.press("esc")  # 本文へキーボードフォーカスを戻す
+            logger.debug(f"フォーカスクリック完了: ({click_x}, {click_y})")
+        except Exception as e:
+            logger.warning(f"ウィンドウクリックによるアクティブ化に失敗しました: {e}")
+        time.sleep(0.3)
 
     def _get_book_title(self) -> str:
         """Windows で Kindle ウィンドウのタイトルから本のタイトルを抽出します。"""
@@ -531,31 +547,21 @@ class WindowsKindleCapturer:
         screenshot = ImageGrab.grab(bbox=bbox)
         screenshot.convert("RGB").save(output_path, "PNG")
 
-    def _send_next_page(self, direction: str = 'right') -> None:
+    def _send_next_page(self, window: Any, direction: str = "right") -> None:
         """Windows で Kindle ウィンドウにページめくりキーを送信します。"""
         import pyautogui as py  # type: ignore
-        kindle_windows = gw.getWindowsWithTitle("Kindle")
-        if kindle_windows:
-            window = kindle_windows[0]
-            if not window.isActive:
-                try:
-                    window.activate()
-                    time.sleep(0.1)
-                    py.click(window.left + 150, window.top + 15)
-                    time.sleep(0.1)
-                    py.press('esc')  # タイトルバークリックで奪われたキーボードフォーカスを本文に戻す
-                except Exception as e:
-                    logger.debug(f"ページ送り時の Kindle ウィンドウ有効化に失敗しました (無視して継続します): {e}")
-                time.sleep(0.2)
 
-        key = 'left' if direction == 'left' else 'space' if direction == 'space' else 'right'
+        if not window.isActive:
+            self._focus_window(window)
+
+        key = "left" if direction == "left" else "space" if direction == "space" else "right"
         py.press(key)
 
 
 def capture_kindle_pages(
     output_dir: str,
     page_delay: float = 1.5,
-    direction: str = 'right',
+    direction: str = "right",
 ) -> tuple[str, list[str]]:
     """
     Kindle デスクトップアプリの全ページをキャプチャします。

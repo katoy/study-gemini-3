@@ -33,7 +33,9 @@ def split_pdf(input_path: str, max_mb: float, output_dir: str) -> list[str]:
 
     reader = PdfReader(input_path)
     total_pages = len(reader.pages)
-    print(f"入力: {input_file.name}  ({input_file.stat().st_size / 1_048_576:.1f} MB, {total_pages} ページ)")
+    print(
+        f"入力: {input_file.name}  ({input_file.stat().st_size / 1_048_576:.1f} MB, {total_pages} ページ)"
+    )
 
     output_files: list[str] = []
     part = 1
@@ -89,10 +91,12 @@ def split_pdf(input_path: str, max_mb: float, output_dir: str) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="PDF を指定サイズ以下に分割します")
     parser.add_argument("input", help="入力 PDF ファイルのパス")
-    parser.add_argument("--max-mb", type=float, default=200.0,
-                        help="分割後の最大サイズ（MB）。デフォルト: 200")
-    parser.add_argument("--output-dir", "-o", default="./output",
-                        help="出力ディレクトリ。デフォルト: ./output")
+    parser.add_argument(
+        "--max-mb", type=float, default=200.0, help="分割後の最大サイズ（MB）。デフォルト: 200"
+    )
+    parser.add_argument(
+        "--output-dir", "-o", default="./output", help="出力ディレクトリ。デフォルト: ./output"
+    )
     args = parser.parse_args()
 
     if not Path(args.input).exists():

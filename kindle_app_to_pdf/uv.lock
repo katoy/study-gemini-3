@@ -70,12 +70,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "img2pdf" },
+    { name = "img2pdf", specifier = ">=0.5.0" },
     { name = "mypy", marker = "extra == 'dev'" },
-    { name = "pillow" },
-    { name = "pyautogui" },
-    { name = "pygetwindow" },
-    { name = "pypdf" },
+    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "pyautogui", specifier = ">=0.9.50" },
+    { name = "pygetwindow", specifier = ">=0.0.9" },
+    { name = "pypdf", specifier = ">=4.0.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
 ]
