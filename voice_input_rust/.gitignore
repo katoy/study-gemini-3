@@ -1,0 +1,44 @@
+# Swift / Xcode / SPM
+.build/
+Packages/
+Package.resolved
+.swiftpm/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.xcodeproj
+*.xcworkspace
+
+# AI Agents & Tools
+.gemini/
+.claude/
+.agents/
+
+# Models & Evaluation Datasets (Local cache / sensitive audio)
+models/
+data/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.pcm
+
+# Logs & Temporary Files
+*.log
+scratch/
+.tmp/
+
+# Rust / Cargo
+/target/
+**/*.rs.bk
+
+# Profiling & Coverage
+*.profraw
+*.profdata
+
