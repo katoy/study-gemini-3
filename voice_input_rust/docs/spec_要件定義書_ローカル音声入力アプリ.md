@@ -1,11 +1,12 @@
-# 要件定義書: ローカルLLM音声入力デスクトップアプリ
+# 要件定義書: ローカルLLM音声入力デスクトップアプリ (Rust版)
 
 | 項目 | 内容 |
 |---|---|
-| ドキュメント版数 | v0.1(ドラフト) |
-| 作成日 | 2026-07-08 |
-| ステータス | レビュー待ち |
+| ドキュメント版数 | v1.0 |
+| 改訂日 | 2026-08-23 |
+| ステータス | Rust実装完了 / リファレンス更新 |
 | 対象読者 | 開発者本人(個人開発) |
+
 
 ---
 
@@ -219,17 +220,16 @@
 
 各プロトコルには `load() / unload() / warmup()` とリソース申告(推定メモリ)を含め、エンジンマネージャがロード状態とメモリを一元管理する。
 
-### 5.3 実装スタック
+### 5.3 実装スタック (Rust版現行構成)
 
-| 層 | 技術 | 理由 |
+| 層 | 技術 | 理由・用途 |
 |---|---|---|
-| アプリ本体 | Swift / SwiftUI + AppKit(メニューバー常駐) | 最軽量・最速。Apple純正API(SpeechAnalyzer、Foundation Models)とMLX Swiftへ直接アクセス可能 |
-| 音声キャプチャ | AVAudioEngine | 標準 |
-| テキスト挿入 | CGEvent + NSPasteboard + Accessibility API | 既存OSS(VoiceInk等)で実証済みの方式 |
-| ML推論 | MLX(Swift/Python) / Core ML / Apple純正API をアダプタで併用 | エンジンごとに最適なバックエンドを選択 |
-| 参考実装 | VoiceInk(GPL v3)、Handy(MIT)、speech-swift(soniqo) | パイプライン・エンジン実装の参照。ライセンス上コード流用の可否は個別確認 |
+| アプリ本体・GUI | Rust (2021 edition) / `egui` + `eframe` | 軽量・高速なクロスプラットフォーム GUI。日本語フォント自動ロード組み込み |
+| 音声キャプチャ | `cpal` | クロスプラットフォーム対応マイク音声入力。16kHz モノラル自動再サンプリング |
+| ASR推論 | `whisper-rs` (`whisper.cpp` Metal 有効) | Apple Silicon (Metal) GPU アクセラレーションによる高速局所推論 |
+| テキスト挿入 | `arboard`, `objc2` / `objc2-app-kit` (`NSRunningApplication`), `osascript` / `enigo` | フォーカス自動復元 + クリップボード経由の `Cmd+V` キーイベント合成ペースト |
+| 非同期実行基盤 | `tokio` | 高速な非同期ランタイム |
 
-> 補足: 開発初期はエンジン部分をPythonプロセス(JSON-RPC/HTTPブリッジ)で動かし、確定後にSwiftネイティブへ置き換える2段階戦略を許容する(プロトコル境界が同じなら差し替え可能)。
 
 ---
 
@@ -347,33 +347,19 @@
   - `AppConfig` / `EngineFactory`: 設定ファイル機構・エンジン選択
   - その他プロトコル実装
 
-### 10.2 テスト実装状況
+### 10.2 テスト実装状況 (Rust)
 
-| テストスイート | テスト数 | 項目 |
+| テストスイート | テスト数 | 内容 |
 |---|---|---|
-| **OutputValidator Tests** | 3 | 空文字検知、正常文、ループ検知 |
-| **OutputValidator Language Detection Tests** | 3 | 日本語検知、英語検知、混在テキスト |
-| **UserDictionary Tests** | 2 | 辞書操作、JSON エクスポート・インポート |
-| **UserDictionary CSV Tests** | 2 | CSV エクスポート・インポート、クォート処理 |
-| **RuleBasedRefiner Tests** | 4 | 標準整形、整形なし、文中の句点自動補完 |
-| **RefinementStrength Tests** | 3 | light/standard/aggressive 段階的処理 |
-| **VoiceInputPipeline Integration Tests** | 5 | E2E パイプライン、エラーハンドリング、フォールバック |
-| **AppConfig & EngineFactory Tests** | 4 | 設定読み込み、エンジン生成、パイプライン作成 |
-| **AppState & FocusManager Tests** | 2 | 履歴管理、フォーカス管理 |
-| **Total** | **26 テスト** | すべて合格 |
+| **`audio` モジュールテスト** | 3 | 空バッファ抽出、排他ロック失敗時のハンドリング、ステレオ→モノラル変換 & 16kHz再サンプリング |
+| **`dictionary` モジュールテスト** | 3 | 辞書インスタンス初期化、単語置換 (`apply`)、未ヒット時非変更検証 |
+| **`engine::asr` モジュールテスト** | 4 | `DummyAsrEngine` 動作、不正ファイルパスロード時エラー、`WhisperAsrEngine` プロンプト変更/転写、`StreamingAsrEngine` トレイト |
+| **`engine::refiner` モジュールテスト** | 2 | 定型ハルシネーション文言除去 (`clean_hallucinations`)、Refiner トレイト/オンオフ制御 |
+| **`inserter` モジュールテスト** | 4 | クリップボードコピー & ペースト動作、空文字ペーストスキップ、フォーカス復元 (None)、macOS PID 取得 & フォーカス復元関数呼び出し |
+| **`ui` モジュールテスト** | 4 | デフォルト状態初期化、モデルロード (正常系/異常系)、`egui` コンテキスト描画更新 |
+| **`main` テスト** | 1 | 日本語フォント自動ロード処理検証 |
+| **合計** | **21 テスト** | **全テスト成功 (100% PASS)** |
 
-### 10.3 カバレッジ達成方針
-
-- **ユニットテスト**: 各モジュールの入出力・境界条件を網羅
-- **統合テスト**: パイプライン全体の E2E 動作を検証
-- **エラーハンドリング**: 例外系・フォールバック機構を明示的にテスト
-- **モック・スタブ**: VAD / ASR エンジンを Mock で置換し、外部依存を排除
-
-### 10.4 保守性との両立
-
-- テストは常にプロダクションコードと同期を保つ
-- 新規要件追加時は、必ず対応テストを同時に実装
-- コードレビューで「テストなし」のマージを拒否
 
 ---
 
