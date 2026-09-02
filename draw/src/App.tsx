@@ -222,6 +222,7 @@ export default function App() {
   }, [excalidrawAPI]);
 
   // Convert & apply elements received from MCP server function calls to Excalidraw state
+  // 段階的アニメーション：要素を 1 つずつ出現させる
   const applyServerElements = (serverElements: any[]) => {
     if (!excalidrawAPI) {
       console.warn('excalidrawAPI is not initialized yet');
@@ -240,18 +241,28 @@ export default function App() {
 
       console.log('Final elements updating Excalidraw scene:', finalElements);
 
-      excalidrawAPI.updateScene({
-        elements: finalElements,
-      });
+      // 段階的描画：新規要素を 1 つずつ追加（アニメーション効果付き）
+      const newElementCount = serverElements.length;
+      const animationDelay = 300; // 各要素間の遅延（ms）
 
-      // Automatically fit viewport to show all elements on screen
-      if (finalElements.length > 0) {
+      for (let i = 0; i < newElementCount; i++) {
         setTimeout(() => {
-          excalidrawAPI.scrollToContent(finalElements, {
-            fitToViewport: true,
-            animate: true,
+          // 現在の要素まで含めた状態を更新
+          const elementsUpToIndex = finalElements.slice(0, finalElements.length - newElementCount + i + 1);
+          excalidrawAPI.updateScene({
+            elements: elementsUpToIndex,
           });
-        }, 50);
+
+          // 最後の要素の後に viewport をフィット
+          if (i === newElementCount - 1) {
+            setTimeout(() => {
+              excalidrawAPI.scrollToContent(elementsUpToIndex, {
+                fitToViewport: true,
+                animate: true,
+              });
+            }, 100);
+          }
+        }, animationDelay * i);
       }
     } catch (e) {
       console.error('Error updating Excalidraw scene:', e);
