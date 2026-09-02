@@ -1,0 +1,42 @@
+{
+  "name": "draw",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:server": "node --import tsx server.ts",
+    "dev:vite": "vite",
+    "dev": "vite",
+    "lint": "oxlint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@google/genai": "^2.19.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "express": "^5.2.1",
+    "lucide-react": "^1.38.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.23.13",
+    "vite": "^8.2.2",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "oxlint": "^1.81.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
