@@ -49,23 +49,77 @@ Gemini API Key を環境変数 `GEMINI_API_KEY` に設定します。
 export GEMINI_API_KEY="your-gemini-api-key"
 ```
 
-### 3. バックエンドサーバーの起動
+### 3. サーバーの起動
 
-Express API & WebSocket サーバー (ポート 3001) を起動します:
+#### 方法 A: 一括起動スクリプト（推奨）
+
+バックエンド＆フロントエンドを同時にバックグラウンドで起動：
 
 ```bash
-npm run dev:server
+./scripts/dev-all.sh start
 ```
 
-### 4. Vite フロントエンドの起動
-
-別ターミナルで Vite 開発サーバー (ポート 3000) を起動します:
+状態確認・停止・再起動：
 
 ```bash
+./scripts/dev-all.sh status    # サーバー状態確認
+./scripts/dev-all.sh stop      # 全サーバー停止
+./scripts/dev-all.sh restart   # 全サーバー再起動
+```
+
+#### 方法 B: 個別起動
+
+バックエンドサーバーのみ（Express API & WebSocket, ポート 3001）:
+
+```bash
+./scripts/server-control.sh start
+```
+
+フロントエンドサーバーのみ（Vite, ポート 3000）:
+
+```bash
+./scripts/frontend-control.sh start
+```
+
+個別スクリプトの操作：
+
+```bash
+./scripts/server-control.sh {start|stop|restart|status}
+./scripts/frontend-control.sh {start|stop|restart|status}
+```
+
+#### 方法 C: npm スクリプト（フォアグラウンド実行）
+
+別々のターミナルで実行：
+
+```bash
+# ターミナル1: バックエンド
+npm run dev:server
+
+# ターミナル2: フロントエンド
 npm run dev:vite
 ```
 
-ブラウザで [http://localhost:3000](http://localhost:3000) にアクセスしてください。
+### 4. ブラウザアクセス
+
+[http://localhost:3000](http://localhost:3000) にアクセスしてください。
+
+#### サーバー情報
+
+| サーバー | URL | 用途 |
+|---------|-----|------|
+| フロントエンド | http://localhost:3000 | Vite React UI |
+| バックエンド API | http://localhost:3001 | Express API |
+| WebSocket | ws://localhost:3001/api/ws | リアルタイム要素更新 |
+
+#### ログファイル
+
+バックグラウンド起動時のログ：
+
+```
+logs/backend.log   # バックエンドログ
+logs/frontend.log  # フロントエンドログ
+```
 
 ## 💬 使い方例
 
