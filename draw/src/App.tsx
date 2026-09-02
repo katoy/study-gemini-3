@@ -330,7 +330,7 @@ export default function App() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -369,7 +369,7 @@ export default function App() {
         <div className="chat-input-area">
           <div className="chat-input-row">
             <textarea
-              placeholder="質問や図の作成指示を入力... (Shift+Enterで改行)"
+              placeholder="質問や図の作成指示を入力... (Shift+Enterで送信)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
