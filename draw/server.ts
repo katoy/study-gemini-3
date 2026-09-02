@@ -222,7 +222,6 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
         try {
           console.log(`Streaming model: ${modelName} (attempt ${attempt}) ⏱️ T1 +${Date.now() - t0}ms`);
           const responseStream = streamFn(modelName, contents, {
-            systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
             temperature: 0.2,
             thinkingConfig: getThinkingConfigFor(modelName),
           });
