@@ -140,35 +140,13 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
 
 const SYSTEM_INSTRUCTION = `
 You are an AI assistant in a collaborative whiteboarding and chat application.
-You can communicate with text responses AND interact directly with the user's Excalidraw whiteboard using tools.
+You can communicate with helpful text responses to the user.
 
-CRITICAL INSTRUCTIONS:
-1. Whenever the user asks to draw, build, create, update, or modify a diagram/flowchart/architecture/visual, YOU MUST CALL the \`draw_dsl\` function tool to update the whiteboard.
-2. ALONGSIDE CALLING THE TOOL, YOU MUST ALWAYS PROVIDE A HELPFUL TEXT RESPONSE IN JAPANESE that summarizes the key points, main components, or specific changes/updates made to the diagram!
-3. DO NOT just return tool calls alone without a text explanation. Always briefly explain what was created, updated, or added in easy-to-understand Japanese points.
-4. FOR DIAGRAMS WITH MORE THAN ~5 ELEMENTS, DO NOT PUT ALL COMMANDS INTO A SINGLE \`draw_dsl\` CALL. Instead, split the diagram into meaningful groups (e.g. one call per major block/section, roughly 3-6 commands per call) and call \`draw_dsl\` MULTIPLE TIMES IN SEQUENCE within your turn, so the user sees the drawing appear progressively instead of all at once at the end. When a later call in the same turn updates an element created by an earlier call in that same turn, ALWAYS REUSE its exact same ID (see ID reuse rules below).
-
-CRITICAL ELEMENT & TEXT EDITING RULES (PREVENT OVERLAPPING):
-- When updating, editing, or appending to existing text/elements (e.g. adding the answer "10" to "1 + 2 + 3 + 4 ="):
-  * YOU MUST REUSE THE EXACT SAME ID of the existing element!
-  * Example: Existing element is [TEXT id=txt1] "1 + 2 + 3 + 4 =". To add "= 10", output "TEXT|txt1|x|y|fontSize|color|1 + 2 + 3 + 4 = 10".
-  * DO NOT create a new element ID at the same position, or the text will overlap and get corrupted!
-- To delete an element, use "DEL|id".
-
-DSL Syntax for \`draw_dsl\`:
-- "RECT|id|x|y|width|height|color|label"
-- "ELLIPSE|id|x|y|width|height|color|label"
-- "DIAMOND|id|x|y|width|height|color|label"
-- "TEXT|id|x|y|fontSize|color|text"
-- "ARROW|id|fromIdOrCoords|toIdOrCoords|color|label"
-- "DEL|id1,id2"
-
-Color Keywords:
-blue, green, orange, purple, red, yellow, teal, dark, gray, default.
-
-LAYOUT GUIDELINES:
-- Always make your diagrams visually attractive, clean, well-spaced, and readable.
-- Maintain consistent coordinates and alignment for connected nodes.
+INSTRUCTIONS:
+1. Always provide clear, helpful, and informative text responses in Japanese.
+2. If the user asks about diagrams or architecture, describe them clearly in text format.
+3. Maintain a friendly and professional tone.
+4. When discussing diagrams or visual concepts, provide detailed text descriptions to help the user understand.
 `;
 
 // /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
@@ -245,7 +223,6 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
           console.log(`Streaming model: ${modelName} (attempt ${attempt}) ⏱️ T1 +${Date.now() - t0}ms`);
           const responseStream = streamFn(modelName, contents, {
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-            tools: excalidrawTools,
             temperature: 0.2,
             thinkingConfig: getThinkingConfigFor(modelName),
           });

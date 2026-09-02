@@ -1,0 +1,680 @@
+{
+  "nodes": [
+    {
+      "id": "readme_overview",
+      "label": "Project README",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_package",
+      "label": "Voice Input Swift Package",
+      "file_type": "concept",
+      "source_file": "voice_input/Package.swift",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_package",
+      "label": "Voice Input Rust Package",
+      "file_type": "concept",
+      "source_file": "voice_input_rust/Cargo.toml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_appdelegate",
+      "label": "AppDelegate - Menu Bar & Hotkey Setup",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/voice_input.swift",
+      "source_location": "1-62",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_appstate",
+      "label": "AppState - Application State Management",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "26-183",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_pipeline",
+      "label": "VoiceInputPipeline - Audio Processing Pipeline",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/Pipeline.swift",
+      "source_location": "1-97",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_hudview",
+      "label": "HUDView - UI for Recording & History",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/HUDView.swift",
+      "source_location": "1-170",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_text_inserter",
+      "label": "TextInserter - Text Insertion & Focus Restore",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/TextInserter.swift",
+      "source_location": "1-57",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_engine_factory",
+      "label": "EngineFactory - Engine Creation",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/EngineFactory.swift",
+      "source_location": "1-82",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_engine_protocols",
+      "label": "Engine Protocols - VAD, ASR, Refiner",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "1-84",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_audio_chunk",
+      "label": "AudioChunk - Audio Data Structure",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "3-14",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_vad_status",
+      "label": "VADStatus - Voice Activity Detection State",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "16-22",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_refiner_context",
+      "label": "RefinerContext - LLM Refinement Configuration",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "51-76",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_main",
+      "label": "Rust Main - Entry Point & Font Setup",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/main.rs",
+      "source_location": "1-71",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_audio",
+      "label": "AudioRecorder & AudioBuffer",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/audio.rs",
+      "source_location": "1-106",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_audio_buffer",
+      "label": "AudioBuffer - Audio Sample Processing",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/audio.rs",
+      "source_location": "5-55",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_ui_app",
+      "label": "VoiceInputApp - egui Application",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "1-313",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_asr_engine",
+      "label": "WhisperAsrEngine - ASR Implementation",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/engine/asr.rs",
+      "source_location": "28-102",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_asr_dummy",
+      "label": "DummyAsrEngine - Test ASR",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/engine/asr.rs",
+      "source_location": "10-26",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_asr_trait",
+      "label": "BatchAsrEngine & StreamingAsrEngine Traits",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/engine/asr.rs",
+      "source_location": "1-3",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_vad_trait",
+      "label": "VadEngine - Voice Activity Detection Trait",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/engine/vad.rs",
+      "source_location": "1-3",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_refiner_engine",
+      "label": "TextRefiner & RefinerEngine",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/engine/refiner.rs",
+      "source_location": "1-119",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_inserter",
+      "label": "TextInserter - macOS Text Insertion",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/inserter.rs",
+      "source_location": "1-168",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_macos_focus",
+      "label": "macOS Focus Restoration (objc2)",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/inserter.rs",
+      "source_location": "7-50",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_rust_dictionary",
+      "label": "UserDictionary - Term Replacement",
+      "file_type": "code",
+      "source_file": "voice_input_rust/src/dictionary.rs",
+      "source_location": "1-57",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_architecture_vad",
+      "label": "VAD (Voice Activity Detection) Module",
+      "file_type": "rationale",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_architecture_asr",
+      "label": "ASR (Automatic Speech Recognition) Module",
+      "file_type": "rationale",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_architecture_refiner",
+      "label": "Text Refinement Module (Hallucination Removal)",
+      "file_type": "rationale",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_architecture_inserter",
+      "label": "Text Insertion Module (Clipboard & Paste)",
+      "file_type": "rationale",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "voice_input_swift_history_item",
+      "label": "HistoryItem - Transcription History Entry",
+      "file_type": "code",
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "5-24",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "gitignore_config",
+      "label": ".gitignore - Version Control Rules",
+      "file_type": "document",
+      "source_file": ".gitignore",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "voice_input_swift_package",
+      "target": "voice_input_swift_appdelegate",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Package.swift",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appdelegate",
+      "target": "voice_input_swift_appstate",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/voice_input.swift",
+      "source_location": "9",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appdelegate",
+      "target": "voice_input_swift_hudview",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/voice_input.swift",
+      "source_location": "32",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appstate",
+      "target": "voice_input_swift_pipeline",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "36",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appstate",
+      "target": "voice_input_swift_text_inserter",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "38,53",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appstate",
+      "target": "voice_input_swift_history_item",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "32,147",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_pipeline",
+      "target": "voice_input_swift_engine_protocols",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/Pipeline.swift",
+      "source_location": "5-8",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_pipeline",
+      "target": "voice_input_swift_refiner_context",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/Pipeline.swift",
+      "source_location": "82",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_hudview",
+      "target": "voice_input_swift_appstate",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/HUDView.swift",
+      "source_location": "5",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_engine_factory",
+      "target": "voice_input_swift_engine_protocols",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/EngineFactory.swift",
+      "source_location": "21-72",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_engine_factory",
+      "target": "voice_input_swift_pipeline",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/EngineFactory.swift",
+      "source_location": "74",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appstate",
+      "target": "voice_input_swift_engine_factory",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "65",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_package",
+      "target": "voice_input_rust_main",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/Cargo.toml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_main",
+      "target": "voice_input_rust_ui_app",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/main.rs",
+      "source_location": "56",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_ui_app",
+      "target": "voice_input_rust_audio",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "16,208",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_ui_app",
+      "target": "voice_input_rust_asr_engine",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "17,56",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_ui_app",
+      "target": "voice_input_rust_dictionary",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "18,195",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_ui_app",
+      "target": "voice_input_rust_refiner_engine",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "19,191",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_ui_app",
+      "target": "voice_input_rust_inserter",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/ui/mod.rs",
+      "source_location": "5,198",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_audio_buffer",
+      "target": "voice_input_rust_asr_engine",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "voice_input_rust/src/audio.rs",
+      "source_location": "20",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_asr_engine",
+      "target": "voice_input_rust_asr_trait",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/engine/asr.rs",
+      "source_location": "66",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_asr_dummy",
+      "target": "voice_input_rust_asr_trait",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/engine/asr.rs",
+      "source_location": "22",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_refiner_engine",
+      "target": "voice_input_architecture_refiner",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "voice_input_rust/src/engine/refiner.rs",
+      "source_location": "25",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_inserter",
+      "target": "voice_input_rust_macos_focus",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/inserter.rs",
+      "source_location": "62",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_pipeline",
+      "target": "voice_input_architecture_vad",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "voice_input/Sources/voice_input/Pipeline.swift",
+      "source_location": "5,40",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_pipeline",
+      "target": "voice_input_architecture_asr",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "voice_input/Sources/voice_input/Pipeline.swift",
+      "source_location": "6-7,57-60",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_appstate",
+      "target": "voice_input_architecture_inserter",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "voice_input/Sources/voice_input/AppState.swift",
+      "source_location": "152",
+      "weight": 1.0
+    },
+    {
+      "source": "readme_overview",
+      "target": "voice_input_swift_package",
+      "relation": "cites",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "readme_overview",
+      "target": "voice_input_rust_package",
+      "relation": "cites",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_audio_chunk",
+      "target": "voice_input_swift_engine_protocols",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "29-40",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_swift_vad_status",
+      "target": "voice_input_swift_engine_protocols",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input/Sources/voice_input/EngineProtocols.swift",
+      "source_location": "29",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_audio",
+      "target": "voice_input_rust_audio_buffer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "voice_input_rust/src/audio.rs",
+      "source_location": "79",
+      "weight": 1.0
+    },
+    {
+      "source": "voice_input_rust_dictionary",
+      "target": "voice_input_architecture_asr",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "voice_input_rust/src/dictionary.rs",
+      "source_location": "17-23",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

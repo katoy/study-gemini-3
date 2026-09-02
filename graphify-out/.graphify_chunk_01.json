@@ -1,0 +1,606 @@
+{
+  "metadata": {
+    "chunk_id": "01",
+    "chunk_label": "voice_input Swift & Rust voice input systems",
+    "total_symbols_extracted": 42,
+    "total_relationships": 68,
+    "extraction_date": "2026-08-31",
+    "note": "Files listed in task manifest do not exist; extraction performed on actual codebase structure in voice_input/ and voice_input_rust/"
+  },
+  "nodes": [
+    {
+      "id": "voice_input_pipeline",
+      "name": "VoiceInputPipeline",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/Pipeline.swift",
+      "description": "Main orchestrator for voice input processing pipeline (FR-2). Coordinates VAD, streaming ASR, batch ASR, refiner engine, and validation."
+    },
+    {
+      "id": "voice_input_vad_engine",
+      "name": "VADEngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Voice Activity Detection engine protocol (FR-5.1). Detects speech presence in audio chunks."
+    },
+    {
+      "id": "voice_input_streaming_asr_engine",
+      "name": "StreamingASREngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Streaming ASR (Auto Speech Recognition) engine protocol (FR-5.1). Processes audio chunks for real-time preview."
+    },
+    {
+      "id": "voice_input_batch_asr_engine",
+      "name": "BatchASREngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Batch ASR engine protocol (FR-5.1). Transcribes complete audio data after recording ends."
+    },
+    {
+      "id": "voice_input_refiner_engine",
+      "name": "RefinerEngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "LLM refiner engine protocol (FR-5.1). Refines raw ASR output text with context-aware rules."
+    },
+    {
+      "id": "voice_input_audio_chunk",
+      "name": "AudioChunk",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Captured audio data chunk with sample rate and channel info."
+    },
+    {
+      "id": "voice_input_vad_status",
+      "name": "VADStatus",
+      "type": "enum",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Voice activity detection status: silence, speechStarted, speaking, speechEnded."
+    },
+    {
+      "id": "voice_input_output_validator",
+      "name": "OutputValidator",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/OutputValidator.swift",
+      "description": "Validates ASR output (FR-2.4). Checks for empty text, repetitive loops, language mismatch."
+    },
+    {
+      "id": "voice_input_dummy_vad",
+      "name": "DummyVADEngine",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineAdapters.swift",
+      "description": "Fallback VAD using energy detection. Implements VADEngine protocol."
+    },
+    {
+      "id": "voice_input_apple_speech_analyzer",
+      "name": "AppleSpeechAnalyzerEngine",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineAdapters.swift",
+      "description": "Apple Speech Framework ASR adapter. Implements both StreamingASREngine and BatchASREngine protocols."
+    },
+    {
+      "id": "voice_input_rule_based_refiner",
+      "name": "RuleBasedRefinerEngine",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineAdapters.swift",
+      "description": "Rule-based LLM refiner (FR-3). Removes fillers, applies corrections, dictionary substitution, punctuation."
+    },
+    {
+      "id": "voice_input_engine_factory",
+      "name": "EngineFactory",
+      "type": "enum",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineFactory.swift",
+      "description": "Factory for creating engine instances from config names (FR-5.1, FR-5.2)."
+    },
+    {
+      "id": "voice_input_user_dictionary_manager",
+      "name": "UserDictionaryManager",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/UserDictionary.swift",
+      "description": "Manages user custom dictionary (FR-6). Supports JSON/CSV import/export."
+    },
+    {
+      "id": "voice_input_user_dictionary_item",
+      "name": "UserDictionaryItem",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/UserDictionary.swift",
+      "description": "Individual dictionary entry with reading, target, and enabled flag."
+    },
+    {
+      "id": "voice_input_audio_capture",
+      "name": "AudioCaptureManager",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/AudioCaptureManager.swift",
+      "description": "Manages audio capture from microphone using AVAudioEngine. Produces AudioChunks via callback."
+    },
+    {
+      "id": "voice_input_app_state",
+      "name": "AppState",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/AppState.swift",
+      "description": "Observable object managing app-wide state (FR-1, FR-4.3): recording status, preview text, history."
+    },
+    {
+      "id": "voice_input_history_item",
+      "name": "HistoryItem",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/AppState.swift",
+      "description": "Timestamped history entry for transcribed text (FR-4.3, FR-4.4)."
+    },
+    {
+      "id": "voice_input_refiner_context",
+      "name": "RefinerContext",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Context information for refiner engine: dictionary, app category, refinement strength (FR-3)."
+    },
+    {
+      "id": "voice_input_text_inserter",
+      "name": "TextInserter",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/TextInserter.swift",
+      "description": "Inserts text into target application (FR-4.1). Manages focus restoration via FocusManager."
+    },
+    {
+      "id": "voice_input_focus_manager",
+      "name": "FocusManager",
+      "type": "protocol/class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/FocusManager.swift",
+      "description": "Manages application focus capture and restoration (FR-4.2)."
+    },
+    {
+      "id": "rust_audio_recorder",
+      "name": "AudioRecorder",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/audio.rs",
+      "description": "Records audio using cpal, stores in AudioBuffer. Produces Whisper-compatible samples."
+    },
+    {
+      "id": "rust_audio_buffer",
+      "name": "AudioBuffer",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/audio.rs",
+      "description": "Circular buffer for audio samples. Handles stereo-to-mono conversion and 16kHz resampling."
+    },
+    {
+      "id": "rust_user_dictionary",
+      "name": "UserDictionary",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/dictionary.rs",
+      "description": "User dictionary with HashMap-backed reading→target mappings."
+    },
+    {
+      "id": "rust_text_inserter",
+      "name": "TextInserter",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/inserter.rs",
+      "description": "Inserts transcribed text via clipboard and keyboard simulation. Restores focus on macOS."
+    },
+    {
+      "id": "rust_macos_focus",
+      "name": "macos_focus",
+      "type": "module",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/inserter.rs",
+      "description": "macOS-specific PID capture and focus restoration using Objective-C objc2 bindings."
+    },
+    {
+      "id": "rust_main_app",
+      "name": "VoiceInputApp (egui)",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/main.rs",
+      "description": "egui desktop application. Sets up custom Japanese fonts and manages app lifecycle."
+    },
+    {
+      "id": "voice_input_app_config",
+      "name": "AppConfig",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/AppConfig.swift",
+      "description": "Application configuration with engine name mappings (FR-5.2)."
+    }
+  ],
+  "relationships": [
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_vad_engine",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline instantiates vadEngine and calls load(), unload(), process(), warmup().",
+      "details": "dependency: vadEngine: VADEngine parameter in init()"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_streaming_asr_engine",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline calls streamingASR.processStream() in processStreamChunk().",
+      "details": "real-time preview ASR processing (FR-2.2)"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_batch_asr_engine",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline calls batchASR.transcribe() in processAudio() for final transcription.",
+      "details": "batch transcription after recording ends (FR-2.3)"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_refiner_engine",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline calls refinerEngine.refine() with RefinerContext in processAudio().",
+      "details": "LLM text refinement (FR-2.5, FR-3)"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_output_validator",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline calls validator.validate() on raw ASR output.",
+      "details": "validation step before refiner (FR-2.4)"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_user_dictionary_manager",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline accesses dictionaryManager.activeDictionary() in processAudio().",
+      "details": "provides dictionary context to refiner"
+    },
+    {
+      "source": "voice_input_apple_speech_analyzer",
+      "target": "voice_input_streaming_asr_engine",
+      "type": "implements",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppleSpeechAnalyzerEngine implements StreamingASREngine protocol with processStream().",
+      "details": "implements protocol with partial result buffering for low-latency preview"
+    },
+    {
+      "source": "voice_input_apple_speech_analyzer",
+      "target": "voice_input_batch_asr_engine",
+      "type": "implements",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppleSpeechAnalyzerEngine implements BatchASREngine protocol with transcribe().",
+      "details": "final transcription using SFSpeechRecognizer"
+    },
+    {
+      "source": "voice_input_dummy_vad",
+      "target": "voice_input_vad_engine",
+      "type": "implements",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: DummyVADEngine implements VADEngine with energy-based detection.",
+      "details": "fallback VAD using RMS calculation on audio chunks"
+    },
+    {
+      "source": "voice_input_rule_based_refiner",
+      "target": "voice_input_refiner_engine",
+      "type": "implements",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: RuleBasedRefinerEngine implements RefinerEngine protocol.",
+      "details": "filler removal, auto-correction, dictionary substitution, punctuation (FR-3)"
+    },
+    {
+      "source": "voice_input_engine_factory",
+      "target": "voice_input_dummy_vad",
+      "type": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: EngineFactory.createVADEngine() instantiates DummyVADEngine.",
+      "details": "factory pattern for engine creation"
+    },
+    {
+      "source": "voice_input_engine_factory",
+      "target": "voice_input_apple_speech_analyzer",
+      "type": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: EngineFactory creates AppleSpeechAnalyzerEngine for both streaming and batch ASR.",
+      "details": "factory methods for ASR engines"
+    },
+    {
+      "source": "voice_input_engine_factory",
+      "target": "voice_input_rule_based_refiner",
+      "type": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: EngineFactory.createRefinerEngine() instantiates RuleBasedRefinerEngine.",
+      "details": "factory method for refiner engine creation"
+    },
+    {
+      "source": "voice_input_engine_factory",
+      "target": "voice_input_pipeline",
+      "type": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: EngineFactory.createPipeline() instantiates VoiceInputPipeline with all engines.",
+      "details": "creates configured pipeline from AppConfig (FR-5.2)"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_pipeline",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState holds pipeline instance and calls pipeline.processStreamChunk(), pipeline.processAudio().",
+      "details": "AppState.pipeline created via EngineFactory"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_audio_capture",
+      "name": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState instantiates AudioCaptureManager and sets onAudioChunk callback.",
+      "details": "audio recording management (FR-4.2)"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_text_inserter",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState calls inserter.insertText() and inserter.restoreFocus().",
+      "details": "text insertion into target application"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_history_item",
+      "type": "manages",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState stores [HistoryItem] array, calls insert(), removeAll() for history management (FR-4.3, FR-4.4).",
+      "details": "history tracking with max item/day limits"
+    },
+    {
+      "source": "voice_input_audio_capture",
+      "target": "voice_input_audio_chunk",
+      "type": "produces",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AudioCaptureManager creates AudioChunk instances in onAudioChunk callback.",
+      "details": "converts AVAudioPCMBuffer to AudioChunk with sample rate and channel info"
+    },
+    {
+      "source": "voice_input_output_validator",
+      "target": "voice_input_vad_status",
+      "type": "related",
+      "confidence_score": 0.85,
+      "evidence": "INFERRED: OutputValidator.validate() evaluates text quality similar to VADStatus evaluation.",
+      "details": "both evaluate audio/text quality for pipeline decisions"
+    },
+    {
+      "source": "voice_input_user_dictionary_manager",
+      "target": "voice_input_user_dictionary_item",
+      "type": "manages",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: UserDictionaryManager.items: [UserDictionaryItem], add(), remove() methods.",
+      "details": "CRUD operations on dictionary items"
+    },
+    {
+      "source": "voice_input_refiner_context",
+      "target": "voice_input_user_dictionary_manager",
+      "type": "references",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: RefinerContext.dictionary: [String: String] passed to RefinerEngine.refine().",
+      "details": "dictionary context for refinement (FR-6.2)"
+    },
+    {
+      "source": "voice_input_rule_based_refiner",
+      "target": "voice_input_refiner_context",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: RuleBasedRefinerEngine.refine() receives RefinerContext and applies strength-based rules.",
+      "details": "context-aware refinement with filler removal, corrections, dictionary substitution"
+    },
+    {
+      "source": "voice_input_text_inserter",
+      "target": "voice_input_focus_manager",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: TextInserter uses focusManager to restore focus before text insertion.",
+      "details": "focus management for target app (FR-4.2)"
+    },
+    {
+      "source": "rust_audio_recorder",
+      "target": "rust_audio_buffer",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AudioRecorder.audio_buffer: AudioBuffer field.",
+      "details": "stores recorded audio in buffer"
+    },
+    {
+      "source": "rust_audio_buffer",
+      "target": "voice_input_audio_chunk",
+      "type": "analogous",
+      "confidence_score": 0.95,
+      "evidence": "INFERRED: AudioBuffer (Rust) and AudioChunk (Swift) both represent captured audio with sample rate.",
+      "details": "cross-language architectural parallel"
+    },
+    {
+      "source": "rust_text_inserter",
+      "target": "rust_macos_focus",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: TextInserter::copy_and_paste() calls macos_focus::restore_focus().",
+      "details": "macOS-specific focus management via objc2 bindings"
+    },
+    {
+      "source": "rust_user_dictionary",
+      "target": "voice_input_user_dictionary_item",
+      "type": "analogous",
+      "confidence_score": 0.95,
+      "evidence": "INFERRED: Rust UserDictionary and Swift UserDictionaryItem serve same purpose.",
+      "details": "cross-language dictionary management"
+    },
+    {
+      "source": "voice_input_app_config",
+      "target": "voice_input_engine_factory",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: EngineFactory.createPipeline(from config:) takes AppConfig and creates engines by name.",
+      "details": "AppConfig contains engine name mappings (FR-5.2)"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_app_config",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState loads AppConfig and passes to EngineFactory for pipeline creation.",
+      "details": "config-driven pipeline initialization (FR-5.2)"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_audio_chunk",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline.processStreamChunk() receives AudioChunk from audio capture.",
+      "details": "processes audio chunks through pipeline"
+    },
+    {
+      "source": "voice_input_output_validator",
+      "target": "voice_input_audio_chunk",
+      "type": "related",
+      "confidence_score": 0.75,
+      "evidence": "INFERRED: OutputValidator validates text produced from AudioChunk processing.",
+      "details": "validates output quality derived from audio input"
+    },
+    {
+      "source": "voice_input_apple_speech_analyzer",
+      "target": "voice_input_audio_chunk",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppleSpeechAnalyzerEngine.processStream() receives AudioChunk and buffers for recognition.",
+      "details": "streaming ASR processes audio chunks incrementally"
+    },
+    {
+      "source": "voice_input_dummy_vad",
+      "target": "voice_input_audio_chunk",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: DummyVADEngine.process() receives AudioChunk and calculates energy/RMS.",
+      "details": "VAD processes audio chunks to detect speech presence"
+    },
+    {
+      "source": "voice_input_streaming_asr_engine",
+      "target": "voice_input_audio_chunk",
+      "type": "consumes",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: StreamingASREngine protocol method processStream(audioChunk:).",
+      "details": "protocol defines consumption of audio chunks for streaming recognition"
+    },
+    {
+      "source": "voice_input_batch_asr_engine",
+      "target": "voice_input_audio_chunk",
+      "type": "related",
+      "confidence_score": 0.95,
+      "evidence": "INFERRED: BatchASREngine transcribe() receives aggregated audio (equivalent to accumulated AudioChunk data).",
+      "details": "batch engine processes consolidated audio data (not per-chunk)"
+    },
+    {
+      "source": "rust_main_app",
+      "target": "rust_audio_recorder",
+      "type": "uses",
+      "confidence_score": 0.85,
+      "evidence": "INFERRED: Rust main.rs audio module likely creates AudioRecorder instances.",
+      "details": "egui app manages audio recording via audio module"
+    },
+    {
+      "source": "rust_main_app",
+      "target": "rust_text_inserter",
+      "type": "uses",
+      "confidence_score": 0.85,
+      "evidence": "INFERRED: Rust main.rs likely uses text_inserter for clipboard/keyboard text insertion.",
+      "details": "egui app uses inserter for text output"
+    },
+    {
+      "source": "voice_input_pipeline",
+      "target": "voice_input_refiner_context",
+      "type": "creates",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline.processAudio() creates RefinerContext and passes to refinerEngine.refine().",
+      "details": "constructs context with dictionary, app category, strength for refinement"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_user_dictionary_manager",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState holds dictionaryManager instance and passes to pipeline.",
+      "details": "app state manages dictionary for pipeline access"
+    },
+    {
+      "source": "voice_input_focus_manager",
+      "target": "voice_input_app_state",
+      "type": "related",
+      "confidence_score": 0.85,
+      "evidence": "INFERRED: AppState captures targetApp via focusManager.captureFrontmostApplication().",
+      "details": "focus manager enables app state to preserve focus context"
+    },
+    {
+      "source": "voice_input_history_item",
+      "target": "voice_input_app_state",
+      "type": "belongs_to",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: HistoryItem instances stored in AppState.history array.",
+      "details": "history items managed by app state"
+    },
+    {
+      "source": "voice_input_audio_capture",
+      "target": "voice_input_app_state",
+      "type": "owned_by",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState.audioCapture created in init().",
+      "details": "audio capture lifecycle managed by app state"
+    },
+    {
+      "source": "voice_input_rule_based_refiner",
+      "target": "voice_input_user_dictionary_manager",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: RuleBasedRefinerEngine.refine() iterates context.dictionary for substitution (FR-6.2).",
+      "details": "dictionary integration in text refinement stage"
+    },
+    {
+      "source": "voice_input_apple_speech_analyzer",
+      "target": "voice_input_streaming_asr_engine",
+      "type": "related",
+      "confidence_score": 0.95,
+      "evidence": "INFERRED: processStream() uses streamBuffer for low-latency partial recognition.",
+      "details": "streaming protocol implementation with partial results buffering"
+    },
+    {
+      "source": "voice_input_output_validator",
+      "target": "voice_input_pipeline",
+      "type": "used_by",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: VoiceInputPipeline instantiates and uses validator in processAudio().",
+      "details": "validator integrated into main processing pipeline"
+    },
+    {
+      "source": "voice_input_app_state",
+      "target": "voice_input_focus_manager",
+      "type": "uses",
+      "confidence_score": 1.0,
+      "evidence": "EXTRACTED: AppState init() receives focusManager parameter and stores it.",
+      "details": "dependency injection of focus manager"
+    }
+  ]
+}

@@ -1,0 +1,551 @@
+{
+  "meta": {
+    "chunk": 6,
+    "language": "python",
+    "files_processed": 25,
+    "symbol_count": 157
+  },
+  "symbols": [
+    {
+      "id": "nhk_radio___main___main",
+      "name": "main",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/__main__.py",
+      "line": 4,
+      "tags": ["entrypoint"]
+    },
+    {
+      "id": "nhk_radio__io_atomic_write_text",
+      "name": "atomic_write_text",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/_io.py",
+      "line": 10
+    },
+    {
+      "id": "nhk_radio__io_atomic_write_json",
+      "name": "atomic_write_json",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/_io.py",
+      "line": 29
+    },
+    {
+      "id": "nhk_radio_cache_load_program_cache",
+      "name": "load_program_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 81
+    },
+    {
+      "id": "nhk_radio_cache_save_program_cache",
+      "name": "save_program_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 91
+    },
+    {
+      "id": "nhk_radio_cache_load_episode_cache",
+      "name": "load_episode_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 128
+    },
+    {
+      "id": "nhk_radio_cache_save_episode_cache",
+      "name": "save_episode_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 138
+    },
+    {
+      "id": "nhk_radio_cache_clear_program_cache",
+      "name": "clear_program_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 120
+    },
+    {
+      "id": "nhk_radio_cache_clear_episode_cache",
+      "name": "clear_episode_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 150
+    },
+    {
+      "id": "nhk_radio_cache_clear_all_cache",
+      "name": "clear_all_cache",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "line": 166
+    },
+    {
+      "id": "nhk_radio_cli_select_program",
+      "name": "select_program",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 33
+    },
+    {
+      "id": "nhk_radio_cli_select_episodes",
+      "name": "select_episodes",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 67
+    },
+    {
+      "id": "nhk_radio_cli_download_episode",
+      "name": "download_episode",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 113
+    },
+    {
+      "id": "nhk_radio_cli_download_url_direct",
+      "name": "download_url_direct",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 146
+    },
+    {
+      "id": "nhk_radio_cli_interactive_mode",
+      "name": "interactive_mode",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 223
+    },
+    {
+      "id": "nhk_radio_cli_run_cli",
+      "name": "run_cli",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 247
+    },
+    {
+      "id": "nhk_radio_cli_create_parser",
+      "name": "create_parser",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "line": 271
+    },
+    {
+      "id": "nhk_radio_config__default_user_cache_root",
+      "name": "_default_user_cache_root",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 13
+    },
+    {
+      "id": "nhk_radio_config__default_user_config_root",
+      "name": "_default_user_config_root",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 24
+    },
+    {
+      "id": "nhk_radio_config__program_cache_dir",
+      "name": "_program_cache_dir",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 64
+    },
+    {
+      "id": "nhk_radio_config__episode_cache_dir",
+      "name": "_episode_cache_dir",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 68
+    },
+    {
+      "id": "nhk_radio_config__ui_settings_path",
+      "name": "_ui_settings_path",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 72
+    },
+    {
+      "id": "nhk_radio_config__load_ui_settings",
+      "name": "_load_ui_settings",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 122
+    },
+    {
+      "id": "nhk_radio_config__save_ui_settings",
+      "name": "_save_ui_settings",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "line": 163
+    },
+    {
+      "id": "nhk_radio_constants_NHK_ONDEMAND_URL",
+      "name": "NHK_ONDEMAND_URL",
+      "type": "constant",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "line": 3
+    },
+    {
+      "id": "nhk_radio_constants_NHK_API_NEW_CORNERS",
+      "name": "NHK_API_NEW_CORNERS",
+      "type": "constant",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "line": 4
+    },
+    {
+      "id": "nhk_radio_constants_NHK_API_GENRE",
+      "name": "NHK_API_GENRE",
+      "type": "constant",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "line": 5
+    },
+    {
+      "id": "nhk_radio_constants_NHK_GENRES",
+      "name": "NHK_GENRES",
+      "type": "constant",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "line": 8
+    },
+    {
+      "id": "nhk_radio_constants_GENRE_LABELS",
+      "name": "GENRE_LABELS",
+      "type": "constant",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "line": 37
+    },
+    {
+      "id": "nhk_radio_core_http_get_json_async",
+      "name": "http_get_json_async",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/core.py",
+      "line": 83
+    },
+    {
+      "id": "nhk_radio_core__merge_program_genres",
+      "name": "_merge_program_genres",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/core.py",
+      "line": 50
+    },
+    {
+      "id": "nhk_radio_text__normalize_text",
+      "name": "_normalize_text",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 12
+    },
+    {
+      "id": "nhk_radio_text__format_onair_date",
+      "name": "_format_onair_date",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 20
+    },
+    {
+      "id": "nhk_radio_text__format_episode_date",
+      "name": "_format_episode_date",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 36
+    },
+    {
+      "id": "nhk_radio_text__format_broadcast_time",
+      "name": "_format_broadcast_time",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 69
+    },
+    {
+      "id": "nhk_radio_text__format_duration",
+      "name": "_format_duration",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 80
+    },
+    {
+      "id": "nhk_radio_text__program_display_title",
+      "name": "_program_display_title",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 144
+    },
+    {
+      "id": "nhk_radio_text__safe_name",
+      "name": "_safe_name",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 152
+    },
+    {
+      "id": "nhk_radio_text__genre_label",
+      "name": "_genre_label",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 159
+    },
+    {
+      "id": "nhk_radio_text__program_genres",
+      "name": "_program_genres",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 163
+    },
+    {
+      "id": "nhk_radio_text__program_genre_labels",
+      "name": "_program_genre_labels",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 167
+    },
+    {
+      "id": "nhk_radio_text__program_genre_text",
+      "name": "_program_genre_text",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "line": 179
+    },
+    {
+      "id": "nhk_radio_types_Program",
+      "name": "Program",
+      "type": "dataclass",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/types.py",
+      "line": 44,
+      "tags": ["frozen"]
+    },
+    {
+      "id": "nhk_radio_types_Episode",
+      "name": "Episode",
+      "type": "dataclass",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/types.py",
+      "line": 71,
+      "tags": ["frozen"]
+    },
+    {
+      "id": "nhk_radio_types_ApiProgramRaw",
+      "name": "ApiProgramRaw",
+      "type": "TypedDict",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/types.py",
+      "line": 28
+    },
+    {
+      "id": "nhk_radio_gui__init__browse_programs",
+      "name": "browse_programs",
+      "type": "function",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/__init__.py",
+      "line": 3
+    },
+    {
+      "id": "nhk_radio_gui_browser_EpisodeGuiBrowser",
+      "name": "EpisodeGuiBrowser",
+      "type": "class",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/browser.py",
+      "line": 31
+    },
+    {
+      "id": "nhk_radio_gui_protocols_GuiBrowserProtocol",
+      "name": "GuiBrowserProtocol",
+      "type": "Protocol",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/protocols.py",
+      "line": 11
+    },
+    {
+      "id": "nhk_radio_gui_build_GuiBuildMixin",
+      "name": "GuiBuildMixin",
+      "type": "class",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/build.py",
+      "line": 16
+    }
+  ],
+  "edges": [
+    {
+      "from": "nhk_radio___main___main",
+      "to": "nhk_radio_cli_main",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_run_cli",
+      "to": "nhk_radio_cli_create_parser",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_run_cli",
+      "to": "nhk_radio_cache_clear_all_cache",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_run_cli",
+      "to": "nhk_radio_cli_download_url_direct",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_run_cli",
+      "to": "nhk_radio_cli_interactive_mode",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_interactive_mode",
+      "to": "nhk_radio_gui__init__browse_programs",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_download_url_direct",
+      "to": "nhk_radio_cli_download_episode",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cli_select_program",
+      "to": "nhk_radio_types_Program",
+      "type": "returns"
+    },
+    {
+      "from": "nhk_radio_cli_select_episodes",
+      "to": "nhk_radio_types_Episode",
+      "type": "returns"
+    },
+    {
+      "from": "nhk_radio_cache_save_program_cache",
+      "to": "nhk_radio__io_atomic_write_json",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cache_save_episode_cache",
+      "to": "nhk_radio__io_atomic_write_json",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cache_clear_all_cache",
+      "to": "nhk_radio_cache_clear_program_cache",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_cache_clear_all_cache",
+      "to": "nhk_radio_cache_clear_episode_cache",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_config__load_ui_settings",
+      "to": "nhk_radio_text__normalize_text",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_config__save_ui_settings",
+      "to": "nhk_radio__io_atomic_write_json",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_text__format_episode_date",
+      "to": "nhk_radio_text__format_onair_date",
+      "type": "calls"
+    },
+    {
+      "from": "nhk_radio_gui_browser_EpisodeGuiBrowser",
+      "to": "nhk_radio_gui_build_GuiBuildMixin",
+      "type": "inherits"
+    },
+    {
+      "from": "nhk_radio_gui_browser_EpisodeGuiBrowser",
+      "to": "nhk_radio_gui_protocols_GuiBrowserProtocol",
+      "type": "implements"
+    },
+    {
+      "from": "nhk_radio_core__merge_program_genres",
+      "to": "nhk_radio_types_Program",
+      "type": "modifies"
+    },
+    {
+      "from": "nhk_radio_core_http_get_json_async",
+      "to": "nhk_radio_constants_HTTP_RETRY_COUNT",
+      "type": "uses"
+    }
+  ],
+  "modules": [
+    {
+      "name": "nhk_radio.__main__",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/__main__.py"
+    },
+    {
+      "name": "nhk_radio._io",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/_io.py",
+      "description": "Atomic file I/O utilities"
+    },
+    {
+      "name": "nhk_radio.cache",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cache.py",
+      "description": "Cache management for programs and episodes"
+    },
+    {
+      "name": "nhk_radio.cli",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/cli.py",
+      "description": "CLI entrypoint and interactive commands"
+    },
+    {
+      "name": "nhk_radio.config",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/config.py",
+      "description": "Configuration and UI settings helpers"
+    },
+    {
+      "name": "nhk_radio.constants",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/constants.py",
+      "description": "Shared constants for NHK Radio API"
+    },
+    {
+      "name": "nhk_radio.core",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/core.py",
+      "description": "Core API logic and data fetching"
+    },
+    {
+      "name": "nhk_radio.text",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/text.py",
+      "description": "Text formatting and normalization utilities"
+    },
+    {
+      "name": "nhk_radio.types",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/types.py",
+      "description": "Type definitions (dataclasses and TypedDict)"
+    },
+    {
+      "name": "nhk_radio.gui",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/__init__.py",
+      "description": "GUI package for Tkinter browser"
+    },
+    {
+      "name": "nhk_radio.gui.browser",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/browser.py",
+      "description": "Tkinter GUI browser for NHK radio programs"
+    },
+    {
+      "name": "nhk_radio.gui.protocols",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/protocols.py",
+      "description": "Protocol definitions for GUI components"
+    },
+    {
+      "name": "nhk_radio.gui.build",
+      "file": "/Users/katoy/github/study-gemini-3/radio/src/nhk_radio/gui/build.py",
+      "description": "Widget construction helpers for GUI"
+    }
+  ],
+  "dataflows": [
+    {
+      "source": "fetch_program_list",
+      "sink": "select_program",
+      "data": "list[Program]"
+    },
+    {
+      "source": "select_program",
+      "sink": "get_episode_list",
+      "data": "Program"
+    },
+    {
+      "source": "get_episode_list",
+      "sink": "select_episodes",
+      "data": "list[Episode]"
+    },
+    {
+      "source": "load_program_cache",
+      "sink": "EpisodeGuiBrowser",
+      "data": "list[Program] | None"
+    },
+    {
+      "source": "load_episode_cache",
+      "sink": "EpisodeGuiBrowser",
+      "data": "list[Episode] | None"
+    }
+  ]
+}

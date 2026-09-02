@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "id": "page_0010_kindle",
+      "type": "application",
+      "label": "Kindle Reader",
+      "file": "page_0010.jpg",
+      "description": "Kindle application displaying children's book content"
+    },
+    {
+      "id": "page_0010_book",
+      "type": "resource",
+      "label": "Book Content",
+      "parent": "page_0010_kindle",
+      "description": "My Mum is a Loser - children's story with illustrations"
+    },
+    {
+      "id": "page_0010_ide_windows",
+      "type": "interface",
+      "label": "IDE Windows",
+      "parent": "page_0010_kindle",
+      "description": "Terminal and development windows visible in background"
+    },
+    {
+      "id": "demo_gif",
+      "type": "media",
+      "label": "Demo Animation",
+      "file": "demo.gif",
+      "description": "Radio application demonstration animation (too large to process)"
+    }
+  ],
+  "edges": [
+    {
+      "source": "page_0010_kindle",
+      "target": "page_0010_book",
+      "relationship": "displays"
+    },
+    {
+      "source": "page_0010_kindle",
+      "target": "page_0010_ide_windows",
+      "relationship": "coexists_with"
+    }
+  ],
+  "metadata": {
+    "chunk": 14,
+    "total_chunks": 15,
+    "extraction_method": "visual_analysis",
+    "notes": "Chunk contains media files rather than architecture diagrams. First file shows Kindle reader UI. Second file (demo.gif) exceeds size limits for processing."
+  }
+}

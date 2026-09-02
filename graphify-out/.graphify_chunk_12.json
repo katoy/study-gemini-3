@@ -1,0 +1,357 @@
+{
+  "nodes": [
+    {
+      "id": "teach_skill",
+      "type": "skill",
+      "name": "teach",
+      "description": "Teach the user a new skill or concept, within a stateful learning workspace",
+      "file": "radio-web/.agents/skills/teach/SKILL.md",
+      "concepts": ["mission", "glossary", "learning_records", "resources", "zone_of_proximal_development"]
+    },
+    {
+      "id": "glossary_format",
+      "type": "documentation",
+      "name": "GLOSSARY Format",
+      "description": "Canonical language for teaching workspace with term definitions and taxonomy",
+      "file": "radio-web/.agents/skills/teach/GLOSSARY-FORMAT.md",
+      "rules": ["add_term_only_when_understood", "be_opinionated", "keep_definitions_tight"]
+    },
+    {
+      "id": "learning_record_format",
+      "type": "documentation",
+      "name": "Learning Record Format",
+      "description": "Captures non-obvious lessons and key insights for zone of proximal development",
+      "file": "radio-web/.agents/skills/teach/LEARNING-RECORD-FORMAT.md",
+      "triggers": ["genuine_understanding", "prior_knowledge_disclosed", "misconception_corrected", "mission_shifted"]
+    },
+    {
+      "id": "mission_format",
+      "type": "documentation",
+      "name": "MISSION Format",
+      "description": "Captures the reason user is learning a topic - the compass for all teaching decisions",
+      "file": "radio-web/.agents/skills/teach/MISSION-FORMAT.md",
+      "sections": ["why", "success_looks_like", "constraints", "out_of_scope"]
+    },
+    {
+      "id": "resources_format",
+      "type": "documentation",
+      "name": "RESOURCES Format",
+      "description": "Curated set of trusted knowledge sources for learning topic",
+      "file": "radio-web/.agents/skills/teach/RESOURCES-FORMAT.md",
+      "groups": ["knowledge", "wisdom"]
+    },
+    {
+      "id": "to_issues_skill",
+      "type": "skill",
+      "name": "to-issues",
+      "description": "Break a plan into independently-grabbable issues using tracer bullet vertical slices",
+      "file": "radio-web/.agents/skills/to-issues/SKILL.md"
+    },
+    {
+      "id": "to_prd_skill",
+      "type": "skill",
+      "name": "to-prd",
+      "description": "Turn conversation context into a PRD and publish to issue tracker",
+      "file": "radio-web/.agents/skills/to-prd/SKILL.md"
+    },
+    {
+      "id": "triage_skill",
+      "type": "skill",
+      "name": "triage",
+      "description": "Move issues through state machine driven by triage roles",
+      "file": "radio-web/.agents/skills/triage/SKILL.md",
+      "categories": ["bug", "enhancement"],
+      "states": ["needs_triage", "needs_info", "ready_for_agent", "ready_for_human", "wontfix"]
+    },
+    {
+      "id": "agent_brief_format",
+      "type": "documentation",
+      "name": "Agent Brief Format",
+      "description": "Structured comment on GitHub issue when moving to ready-for-agent",
+      "file": "radio-web/.agents/skills/triage/AGENT-BRIEF.md",
+      "principles": ["durability_over_precision", "behavioral_not_procedural", "complete_acceptance_criteria", "explicit_scope_boundaries"]
+    },
+    {
+      "id": "out_of_scope_format",
+      "type": "documentation",
+      "name": "Out-of-Scope Knowledge Base",
+      "description": "Persistent records of rejected feature requests",
+      "file": "radio-web/.agents/skills/triage/OUT-OF-SCOPE.md",
+      "uses": ["institutional_memory", "deduplication"]
+    },
+    {
+      "id": "ubiquitous_language_skill",
+      "type": "skill",
+      "name": "ubiquitous-language",
+      "description": "Extract DDD-style ubiquitous language glossary from conversation",
+      "file": "radio-web/.agents/skills/ubiquitous-language/SKILL.md"
+    },
+    {
+      "id": "write_skill_skill",
+      "type": "skill",
+      "name": "write-a-skill",
+      "description": "Create new agent skills with proper structure and progressive disclosure",
+      "file": "radio-web/.agents/skills/write-a-skill/SKILL.md"
+    },
+    {
+      "id": "writing_beats_skill",
+      "type": "skill",
+      "name": "writing-beats",
+      "description": "Shape article as journey of beats, choose-your-own-adventure style",
+      "file": "radio-web/.agents/skills/writing-beats/SKILL.md"
+    },
+    {
+      "id": "writing_fragments_skill",
+      "type": "skill",
+      "name": "writing-fragments",
+      "description": "Mine user for fragments - heterogeneous nuggets of writing for raw material",
+      "file": "radio-web/.agents/skills/writing-fragments/SKILL.md"
+    },
+    {
+      "id": "writing_shape_skill",
+      "type": "skill",
+      "name": "writing-shape",
+      "description": "Shape markdown file of raw material into article through conversational session",
+      "file": "radio-web/.agents/skills/writing-shape/SKILL.md"
+    },
+    {
+      "id": "zoom_out_skill",
+      "type": "skill",
+      "name": "zoom-out",
+      "description": "Zoom out and give broader context or higher-level perspective",
+      "file": "radio-web/.agents/skills/zoom-out/SKILL.md"
+    },
+    {
+      "id": "dependency_audit_workflow",
+      "type": "workflow",
+      "name": "依存関係セキュリティ監査",
+      "description": "GitHub Actions workflow for security audits",
+      "file": "radio-web/.github/workflows/dependency-audit.yml",
+      "triggers": ["push_main", "pull_request_main", "weekly_schedule"],
+      "steps": ["checkout", "python_setup", "uv_install", "pip_audit", "mypy", "ruff"]
+    },
+    {
+      "id": "gui_test_workflow",
+      "type": "workflow",
+      "name": "Playwright GUI テスト",
+      "description": "GitHub Actions workflow for GUI testing with Playwright",
+      "file": "radio-web/.github/workflows/gui-test.yml",
+      "triggers": ["push_main", "pull_request_main"]
+    },
+    {
+      "id": "radio_web_design",
+      "type": "design_system",
+      "name": "radio-web Design System",
+      "description": "Agentic AI-first interface design with minimal controls",
+      "file": "radio-web/DESIGN.md",
+      "colors": ["primary", "secondary", "success", "warning", "danger", "surface", "text"],
+      "typography": ["h1_playfair", "body_playfair", "mono_jetbrains"]
+    },
+    {
+      "id": "fastapi_app",
+      "type": "application",
+      "name": "radio-web",
+      "description": "FastAPI + htmx Web application for NHK radio podcast management",
+      "file": "radio-web/README.md",
+      "framework": "fastapi",
+      "ui_framework": "htmx",
+      "python_version": "3.13+",
+      "test_coverage": "99.68%"
+    },
+    {
+      "id": "fastapi_routes",
+      "type": "module",
+      "name": "app/routes",
+      "description": "FastAPI routes split into 6 functional modules",
+      "file": "radio-web/DESIGN.md",
+      "modules": ["_shared.py", "html.py", "api_v1.py", "internal.py", "ws.py"]
+    },
+    {
+      "id": "nhk_radio_core",
+      "type": "module",
+      "name": "nhk_radio_web/core",
+      "description": "Core logic for fetching programs and episodes from NHK API",
+      "file": "radio-web/README.md",
+      "functions": ["fetch_programs", "fetch_episodes"]
+    },
+    {
+      "id": "job_manager",
+      "type": "module",
+      "name": "nhk_radio_web/job_manager",
+      "description": "Download job queue management with concurrency control",
+      "file": "radio-web/README.md",
+      "features": ["parallel_download", "retry_logic", "cancellation"]
+    },
+    {
+      "id": "cache_module",
+      "type": "module",
+      "name": "nhk_radio_web/cache",
+      "description": "JSON cache with TTL and schema versioning",
+      "file": "radio-web/README.md",
+      "ttl": "3600s",
+      "stale_ttl": "10^12s"
+    },
+    {
+      "id": "downloads_module",
+      "type": "module",
+      "name": "nhk_radio_web/downloads",
+      "description": "Download tracking and yt-dlp command generation",
+      "file": "radio-web/README.md"
+    },
+    {
+      "id": "html_template_base",
+      "type": "template",
+      "name": "base.html",
+      "description": "Base HTML layout with theme switching and font size controls",
+      "file": "radio-web/templates/base.html",
+      "features": ["theme_switcher", "font_size_slider", "modal_system", "keyboard_shortcuts"]
+    },
+    {
+      "id": "html_downloads_template",
+      "type": "template",
+      "name": "downloads.html",
+      "description": "Download job list page with status display",
+      "file": "radio-web/templates/downloads.html",
+      "displays": ["program_title", "episode_title", "job_status"]
+    },
+    {
+      "id": "help_content",
+      "type": "documentation",
+      "name": "Help Documentation",
+      "description": "User-facing help and troubleshooting guide",
+      "file": "radio-web/help.md",
+      "sections": ["basic_operations", "keyboard_shortcuts", "display_settings", "search_filter", "downloads", "troubleshooting"]
+    },
+    {
+      "id": "code_review_2026_05_29",
+      "type": "documentation",
+      "name": "Code Review (2026-05-29)",
+      "description": "Comprehensive code review covering strengths and improvement points",
+      "file": "radio-web/REVIEW.md",
+      "evaluation_areas": ["api_design", "error_handling", "mcp_support", "testing", "scalability", "documentation", "security"]
+    }
+  ],
+  "edges": [
+    {
+      "source": "teach_skill",
+      "target": "glossary_format",
+      "relationship": "uses_format"
+    },
+    {
+      "source": "teach_skill",
+      "target": "learning_record_format",
+      "relationship": "uses_format"
+    },
+    {
+      "source": "teach_skill",
+      "target": "mission_format",
+      "relationship": "uses_format"
+    },
+    {
+      "source": "teach_skill",
+      "target": "resources_format",
+      "relationship": "uses_format"
+    },
+    {
+      "source": "to_issues_skill",
+      "target": "agent_brief_format",
+      "relationship": "produces"
+    },
+    {
+      "source": "triage_skill",
+      "target": "agent_brief_format",
+      "relationship": "uses_format"
+    },
+    {
+      "source": "triage_skill",
+      "target": "out_of_scope_format",
+      "relationship": "manages"
+    },
+    {
+      "source": "to_prd_skill",
+      "target": "to_issues_skill",
+      "relationship": "typically_followed_by"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "fastapi_routes",
+      "relationship": "contains"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "nhk_radio_core",
+      "relationship": "depends_on"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "job_manager",
+      "relationship": "depends_on"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "cache_module",
+      "relationship": "depends_on"
+    },
+    {
+      "source": "job_manager",
+      "target": "downloads_module",
+      "relationship": "depends_on"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "html_template_base",
+      "relationship": "renders"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "html_downloads_template",
+      "relationship": "renders"
+    },
+    {
+      "source": "html_template_base",
+      "target": "html_downloads_template",
+      "relationship": "extends"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "dependency_audit_workflow",
+      "relationship": "tested_by"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "gui_test_workflow",
+      "relationship": "tested_by"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "radio_web_design",
+      "relationship": "implements"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "help_content",
+      "relationship": "documented_by"
+    },
+    {
+      "source": "fastapi_app",
+      "target": "code_review_2026_05_29",
+      "relationship": "reviewed_in"
+    }
+  ],
+  "metadata": {
+    "chunk_number": 12,
+    "total_chunks": 15,
+    "file_count": 25,
+    "generated_at": "2026-08-31",
+    "primary_project": "radio-web",
+    "key_themes": [
+      "agent_skills_framework",
+      "teaching_workspace_formats",
+      "issue_triage_workflow",
+      "fastapi_web_application",
+      "nhk_podcast_management",
+      "test_driven_development",
+      "technical_writing"
+    ]
+  }
+}

@@ -1,0 +1,818 @@
+{
+  "nodes": [
+    {
+      "id": "voice_input_rust",
+      "type": "Project",
+      "name": "VoiceInput Rust",
+      "description": "完全ローカル LLM 音声入力デスクトップアプリ (Rust版)",
+      "language": "Rust",
+      "version": "0.1.0",
+      "edition": "2021"
+    },
+    {
+      "id": "voice_input_swift",
+      "type": "Project",
+      "name": "VoiceInput Swift",
+      "description": "完全ローカル LLM 音声入力デスクトップアプリ (Swift版)",
+      "language": "Swift",
+      "swift_version": "6.0",
+      "min_os": "macOS 15.0"
+    },
+    {
+      "id": "vad_engine_protocol",
+      "type": "EngineProtocol",
+      "name": "VADEngine",
+      "description": "音声区間検出 (Voice Activity Detection)",
+      "methods": ["load", "unload", "warmup", "process"],
+      "input": "AudioChunk",
+      "output": "VADStatus"
+    },
+    {
+      "id": "streaming_asr_engine_protocol",
+      "type": "EngineProtocol",
+      "name": "StreamingASREngine",
+      "description": "リアルタイムプレビュー用ストリーミング音声認識",
+      "methods": ["load", "unload", "processStream", "resetStream"],
+      "input": "AudioChunk",
+      "output": "String"
+    },
+    {
+      "id": "batch_asr_engine_protocol",
+      "type": "EngineProtocol",
+      "name": "BatchASREngine",
+      "description": "高精度確定転写用バッチ音声認識",
+      "methods": ["load", "unload", "transcribe"],
+      "input": "Data (Audio)",
+      "output": "String"
+    },
+    {
+      "id": "refiner_engine_protocol",
+      "type": "EngineProtocol",
+      "name": "RefinerEngine",
+      "description": "LLM/ルールベース整形層",
+      "responsibilities": [
+        "フィラー除去",
+        "言い直し解決",
+        "句読点付与",
+        "固有名詞表記変換",
+        "逆テキスト正規化"
+      ]
+    },
+    {
+      "id": "audio_chunk_struct",
+      "type": "DataStructure",
+      "name": "AudioChunk",
+      "fields": ["data", "sampleRate", "channels"],
+      "default_sample_rate": 16000,
+      "default_channels": 1
+    },
+    {
+      "id": "vad_status_enum",
+      "type": "Enum",
+      "name": "VADStatus",
+      "values": ["silence", "speechStarted", "speaking", "speechEnded"]
+    },
+    {
+      "id": "refinement_strength_enum",
+      "type": "Enum",
+      "name": "RefinementStrength",
+      "description": "テキスト整形の強度設定",
+      "values": ["none", "light", "standard", "aggressive"]
+    },
+    {
+      "id": "refiner_context_struct",
+      "type": "DataStructure",
+      "name": "RefinerContext",
+      "fields": ["dictionary", "appCategory", "strength", "customInstruction"],
+      "description": "LLM整形層のコンテキスト情報"
+    },
+    {
+      "id": "pipeline_core",
+      "type": "Component",
+      "name": "Pipeline Core",
+      "description": "OS非依存のパイプラインコア",
+      "stages": [
+        "AudioCapture",
+        "VADEngine",
+        "StreamingASREngine",
+        "BatchASREngine",
+        "OutputValidator",
+        "RefinerEngine"
+      ]
+    },
+    {
+      "id": "macos_layer",
+      "type": "Component",
+      "name": "macOS Layer",
+      "description": "macOS固有層",
+      "responsibilities": [
+        "メニューバーUI",
+        "HUD (フローティングウィンドウ)",
+        "グローバルホットキー",
+        "アクセシビリティ挿入"
+      ]
+    },
+    {
+      "id": "text_inserter_component",
+      "type": "Component",
+      "name": "TextInserter",
+      "description": "アクティブアプリのカーソル位置へのテキスト挿入",
+      "file_rust": "src/inserter.rs",
+      "file_swift": "Sources/voice_input/TextInserter.swift"
+    },
+    {
+      "id": "user_dictionary_component",
+      "type": "Component",
+      "name": "UserDictionary",
+      "description": "ユーザー辞書管理 (読み→表記のペア管理)",
+      "file_rust": "src/dictionary.rs",
+      "file_swift": "Sources/voice_input/UserDictionary.swift"
+    },
+    {
+      "id": "audio_recorder_component",
+      "type": "Component",
+      "name": "AudioRecorder",
+      "description": "音声キャプチャ",
+      "file_rust": "src/audio.rs"
+    },
+    {
+      "id": "requirement_privacy_security",
+      "type": "Requirement",
+      "req_id": "NFR-3",
+      "name": "プライバシー・セキュリティ",
+      "description": "音声・転写テキスト・辞書・履歴は端末外に送信しない。推論時のネットワーク通信はゼロ。"
+    },
+    {
+      "id": "requirement_performance_latency",
+      "type": "Requirement",
+      "req_id": "NFR-1",
+      "name": "性能 (レイテンシ予算)",
+      "endpoint_target": "1.5秒以内 (標準構成・15秒発話)",
+      "ideal_target": "1.0秒以内"
+    },
+    {
+      "id": "requirement_plugin_architecture",
+      "type": "Requirement",
+      "req_id": "FR-5",
+      "name": "エンジン管理 (差し替え可能性)",
+      "description": "4コンポーネント (Streaming ASR/Batch ASR/LLM/VAD) を共通プロトコルの背後に実装し、コード変更なしでエンジンを差し替え可能"
+    },
+    {
+      "id": "requirement_text_insertion",
+      "type": "Requirement",
+      "req_id": "FR-4",
+      "name": "テキスト挿入機能",
+      "features": [
+        "アクティブアプリのカーソル位置に挿入",
+        "ペーストボード退避・復元",
+        "挿入履歴保持",
+        "履歴の自動ローテーション"
+      ]
+    },
+    {
+      "id": "requirement_refiner_features",
+      "type": "Requirement",
+      "req_id": "FR-3",
+      "name": "LLM整形層",
+      "features": [
+        "フィラー除去",
+        "言い直し解決",
+        "句読点付与",
+        "固有名詞表記変換",
+        "逆テキスト正規化",
+        "文体プロファイル切り替え"
+      ]
+    },
+    {
+      "id": "requirement_hotkey_activation",
+      "type": "Requirement",
+      "req_id": "FR-1",
+      "name": "音声入力の起動・終了",
+      "features": [
+        "グローバルホットキー対応 (Option + Space)",
+        "メニューバー常駐アプリ",
+        "フローティングHUD",
+        "どのアプリでも動作"
+      ]
+    },
+    {
+      "id": "architecture_specification",
+      "type": "Document",
+      "name": "要件定義書: ローカルLLM音声入力デスクトップアプリ",
+      "file": "voice_input_rust/docs/spec_要件定義書_ローカル音声入力アプリ.md",
+      "version": "1.0",
+      "status": "Rust実装完了 / リファレンス更新"
+    },
+    {
+      "id": "dependency_cpal",
+      "type": "Dependency",
+      "name": "cpal",
+      "version": "0.15",
+      "purpose": "クロスプラットフォーム マイク音声入力"
+    },
+    {
+      "id": "dependency_whisper_rs",
+      "type": "Dependency",
+      "name": "whisper-rs",
+      "version": "0.13",
+      "features": ["metal"],
+      "purpose": "Apple Silicon (Metal) GPU アクセラレーション音声認識"
+    },
+    {
+      "id": "dependency_egui",
+      "type": "Dependency",
+      "name": "egui / eframe",
+      "version": "0.29",
+      "purpose": "クロスプラットフォーム軽量GUI"
+    },
+    {
+      "id": "dependency_tokio",
+      "type": "Dependency",
+      "name": "tokio",
+      "version": "1.38",
+      "purpose": "非同期ランタイム"
+    },
+    {
+      "id": "dependency_arboard",
+      "type": "Dependency",
+      "name": "arboard",
+      "version": "3.4",
+      "purpose": "クリップボード操作"
+    },
+    {
+      "id": "dependency_enigo",
+      "type": "Dependency",
+      "name": "enigo",
+      "version": "0.2",
+      "purpose": "キーイベント合成、テキスト挿入"
+    },
+    {
+      "id": "candidate_streaming_nemotron",
+      "type": "EngineCandidate",
+      "name": "Nemotron 3.5 ASR Streaming 0.6B",
+      "category": "Streaming ASR",
+      "priority": "第一候補",
+      "japanese_support": true,
+      "features": ["cache-aware", "40言語", "句読点内蔵", "sub-100ms EOU"]
+    },
+    {
+      "id": "candidate_batch_qwen",
+      "type": "EngineCandidate",
+      "name": "Qwen3-ASR-1.7B-JA (neosophie)",
+      "category": "Batch ASR",
+      "priority": "第一候補",
+      "japanese_support": true,
+      "features": ["日本語固有名詞特化", "ファインチューン"]
+    },
+    {
+      "id": "candidate_refiner_qwen",
+      "type": "EngineCandidate",
+      "name": "Qwen3.5-4B (MLX 4bit)",
+      "category": "Refiner (LLM)",
+      "priority": "第一候補",
+      "japanese_support": true,
+      "estimated_memory": "2.5-3GB"
+    },
+    {
+      "id": "candidate_vad_silero",
+      "type": "EngineCandidate",
+      "name": "Silero VAD",
+      "category": "VAD",
+      "priority": "第一候補",
+      "status": "デファクト"
+    },
+    {
+      "id": "preset_standard",
+      "type": "Preset",
+      "name": "標準(品質)",
+      "streaming": "Nemotron 3.5",
+      "batch": "Qwen3-ASR-1.7B-JA",
+      "refiner": "Qwen3.5-4B",
+      "estimated_memory": "6GB",
+      "use_case": "日常の既定"
+    },
+    {
+      "id": "preset_lightweight",
+      "type": "Preset",
+      "name": "軽量",
+      "streaming": "SpeechAnalyzer",
+      "batch": "SpeechAnalyzer",
+      "refiner": "Foundation Models",
+      "estimated_memory": "1GB未満",
+      "use_case": "省電力・外出時"
+    },
+    {
+      "id": "test_suite_coverage",
+      "type": "TestSuite",
+      "name": "テストカバレッジ",
+      "target": "100%",
+      "modules": [
+        "OutputValidator",
+        "RuleBasedRefinerEngine",
+        "UserDictionaryManager",
+        "VoiceInputPipeline",
+        "AppConfig",
+        "EngineFactory"
+      ]
+    },
+    {
+      "id": "phase_p1_evaluation",
+      "type": "DevPhase",
+      "name": "P1: 評価基盤",
+      "description": "評価データセット作成 + 評価ハーネス実装",
+      "deliverables": ["各候補エンジンの実測レポート (CER/F1/RTF)", "既定エンジン決定"]
+    },
+    {
+      "id": "phase_p2_pipeline",
+      "type": "DevPhase",
+      "name": "P2: コアパイプライン",
+      "description": "プロトコル定義 + エンジンマネージャ + 最小パイプライン実装",
+      "deliverables": ["マイク入力から整形済みテキストまでの処理"]
+    },
+    {
+      "id": "phase_p3_desktop",
+      "type": "DevPhase",
+      "name": "P3: デスクトップアプリ化",
+      "description": "メニューバー常駐、ホットキー、HUD、カーソル挿入、設定UI",
+      "deliverables": ["日常業務で常用可能なアプリ"]
+    },
+    {
+      "id": "phase_p4_streaming",
+      "type": "DevPhase",
+      "name": "P4: ストリーミング統合",
+      "description": "StreamingASREngine統合、プレビュー表示",
+      "performance_goal": "プレビュー遅延 <= 500ms"
+    },
+    {
+      "id": "phase_p5_quality",
+      "type": "DevPhase",
+      "name": "P5: 品質引き上げ",
+      "description": "アプリ別文体プロファイル、辞書自動提案、既製品との比較",
+      "performance_goal": "NFR-4精度目標達成"
+    },
+    {
+      "id": "risk_nemotron_accuracy",
+      "type": "Risk",
+      "name": "Nemotron日本語精度リスク",
+      "impact": "プレビュー品質低下",
+      "mitigation": "フェーズ1で最優先実測。不合格ならSpeechAnalyzerをプレビューに昇格"
+    },
+    {
+      "id": "risk_llm_hallucination",
+      "type": "Risk",
+      "name": "LLM整形による意味改変",
+      "impact": "信頼性低下",
+      "mitigation": "整形強度設定 + 生出力フォールバック + 回帰テスト"
+    },
+    {
+      "id": "rust_main_module",
+      "type": "RustModule",
+      "name": "main",
+      "file": "voice_input_rust/src/main.rs",
+      "key_functions": ["setup_custom_fonts", "main"],
+      "responsibilities": ["日本語フォント自動ロード", "egui初期化"]
+    },
+    {
+      "id": "rust_ui_module",
+      "type": "RustModule",
+      "name": "ui",
+      "file": "voice_input_rust/src/ui/mod.rs",
+      "contains": ["VoiceInputApp", "MODEL_PRESETS"],
+      "fields": ["recording", "preview_text", "model_path", "asr_engine", "dictionary"]
+    },
+    {
+      "id": "rust_audio_module",
+      "type": "RustModule",
+      "name": "audio",
+      "file": "voice_input_rust/src/audio.rs",
+      "component": "AudioRecorder"
+    },
+    {
+      "id": "rust_engine_module",
+      "type": "RustModule",
+      "name": "engine",
+      "file": "voice_input_rust/src/engine/mod.rs",
+      "submodules": ["asr", "refiner", "vad"]
+    },
+    {
+      "id": "rust_engine_asr_module",
+      "type": "RustModule",
+      "name": "engine::asr",
+      "file": "voice_input_rust/src/engine/asr.rs",
+      "traits": ["BatchAsrEngine"],
+      "implementations": ["DummyAsrEngine", "WhisperAsrEngine"]
+    },
+    {
+      "id": "rust_inserter_module",
+      "type": "RustModule",
+      "name": "inserter",
+      "file": "voice_input_rust/src/inserter.rs",
+      "component": "TextInserter"
+    },
+    {
+      "id": "rust_dictionary_module",
+      "type": "RustModule",
+      "name": "dictionary",
+      "file": "voice_input_rust/src/dictionary.rs",
+      "component": "UserDictionary"
+    },
+    {
+      "id": "swift_engine_protocols",
+      "type": "SwiftModule",
+      "name": "EngineProtocols",
+      "file": "Sources/voice_input/EngineProtocols.swift",
+      "contains": [
+        "AudioChunk",
+        "VADStatus",
+        "VADEngine",
+        "StreamingASREngine",
+        "BatchASREngine",
+        "RefinerContext",
+        "RefinementStrength"
+      ]
+    },
+    {
+      "id": "swift_text_inserter",
+      "type": "SwiftModule",
+      "name": "TextInserter",
+      "file": "Sources/voice_input/TextInserter.swift"
+    },
+    {
+      "id": "swift_user_dictionary",
+      "type": "SwiftModule",
+      "name": "UserDictionary",
+      "file": "Sources/voice_input/UserDictionary.swift"
+    },
+    {
+      "id": "swift_pipeline",
+      "type": "SwiftModule",
+      "name": "Pipeline",
+      "file": "Sources/voice_input/Pipeline.swift",
+      "description": "音声処理パイプライン実装"
+    },
+    {
+      "id": "swift_app_state",
+      "type": "SwiftModule",
+      "name": "AppState",
+      "file": "Sources/voice_input/AppState.swift"
+    },
+    {
+      "id": "swift_engine_factory",
+      "type": "SwiftModule",
+      "name": "EngineFactory",
+      "file": "Sources/voice_input/EngineFactory.swift",
+      "description": "エンジンの生成・管理"
+    },
+    {
+      "id": "swift_hud_view",
+      "type": "SwiftModule",
+      "name": "HUDView",
+      "file": "Sources/voice_input/HUDView.swift",
+      "description": "フローティングHUDウィンドウ"
+    },
+    {
+      "id": "swift_focus_manager",
+      "type": "SwiftModule",
+      "name": "FocusManager",
+      "file": "Sources/voice_input/FocusManager.swift"
+    }
+  ],
+  "edges": [
+    {
+      "source": "voice_input_rust",
+      "target": "pipeline_core",
+      "relationship": "implements",
+      "label": "実装する"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "macos_layer",
+      "relationship": "contains",
+      "label": "含む"
+    },
+    {
+      "source": "voice_input_swift",
+      "target": "pipeline_core",
+      "relationship": "implements",
+      "label": "実装する"
+    },
+    {
+      "source": "voice_input_swift",
+      "target": "macos_layer",
+      "relationship": "contains",
+      "label": "含む"
+    },
+    {
+      "source": "pipeline_core",
+      "target": "vad_engine_protocol",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "pipeline_core",
+      "target": "streaming_asr_engine_protocol",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "pipeline_core",
+      "target": "batch_asr_engine_protocol",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "pipeline_core",
+      "target": "refiner_engine_protocol",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "macos_layer",
+      "target": "text_inserter_component",
+      "relationship": "contains",
+      "label": "含む"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_cpal",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_whisper_rs",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_egui",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_tokio",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_arboard",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "dependency_enigo",
+      "relationship": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "vad_engine_protocol",
+      "target": "audio_chunk_struct",
+      "relationship": "uses",
+      "label": "入力として使用"
+    },
+    {
+      "source": "vad_engine_protocol",
+      "target": "vad_status_enum",
+      "relationship": "outputs",
+      "label": "出力"
+    },
+    {
+      "source": "streaming_asr_engine_protocol",
+      "target": "audio_chunk_struct",
+      "relationship": "uses",
+      "label": "入力として使用"
+    },
+    {
+      "source": "batch_asr_engine_protocol",
+      "target": "audio_chunk_struct",
+      "relationship": "uses",
+      "label": "入力として使用"
+    },
+    {
+      "source": "refiner_engine_protocol",
+      "target": "refiner_context_struct",
+      "relationship": "uses",
+      "label": "コンテキスト参照"
+    },
+    {
+      "source": "refiner_engine_protocol",
+      "target": "refinement_strength_enum",
+      "relationship": "uses",
+      "label": "整形強度設定"
+    },
+    {
+      "source": "requirement_plugin_architecture",
+      "target": "vad_engine_protocol",
+      "relationship": "defines",
+      "label": "定義"
+    },
+    {
+      "source": "requirement_plugin_architecture",
+      "target": "streaming_asr_engine_protocol",
+      "relationship": "defines",
+      "label": "定義"
+    },
+    {
+      "source": "requirement_plugin_architecture",
+      "target": "batch_asr_engine_protocol",
+      "relationship": "defines",
+      "label": "定義"
+    },
+    {
+      "source": "requirement_plugin_architecture",
+      "target": "refiner_engine_protocol",
+      "relationship": "defines",
+      "label": "定義"
+    },
+    {
+      "source": "requirement_text_insertion",
+      "target": "text_inserter_component",
+      "relationship": "specifies",
+      "label": "仕様"
+    },
+    {
+      "source": "requirement_refiner_features",
+      "target": "refiner_engine_protocol",
+      "relationship": "specifies",
+      "label": "仕様"
+    },
+    {
+      "source": "requirement_hotkey_activation",
+      "target": "macos_layer",
+      "relationship": "specifies",
+      "label": "仕様"
+    },
+    {
+      "source": "candidate_streaming_nemotron",
+      "target": "streaming_asr_engine_protocol",
+      "relationship": "implements",
+      "label": "実装候補"
+    },
+    {
+      "source": "candidate_batch_qwen",
+      "target": "batch_asr_engine_protocol",
+      "relationship": "implements",
+      "label": "実装候補"
+    },
+    {
+      "source": "candidate_refiner_qwen",
+      "target": "refiner_engine_protocol",
+      "relationship": "implements",
+      "label": "実装候補"
+    },
+    {
+      "source": "candidate_vad_silero",
+      "target": "vad_engine_protocol",
+      "relationship": "implements",
+      "label": "実装候補"
+    },
+    {
+      "source": "preset_standard",
+      "target": "candidate_streaming_nemotron",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "preset_standard",
+      "target": "candidate_batch_qwen",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "preset_standard",
+      "target": "candidate_refiner_qwen",
+      "relationship": "uses",
+      "label": "使用"
+    },
+    {
+      "source": "architecture_specification",
+      "target": "voice_input_rust",
+      "relationship": "documents",
+      "label": "仕様書"
+    },
+    {
+      "source": "architecture_specification",
+      "target": "voice_input_swift",
+      "relationship": "documents",
+      "label": "仕様書"
+    },
+    {
+      "source": "phase_p1_evaluation",
+      "target": "candidate_streaming_nemotron",
+      "relationship": "evaluates",
+      "label": "評価対象"
+    },
+    {
+      "source": "phase_p1_evaluation",
+      "target": "candidate_batch_qwen",
+      "relationship": "evaluates",
+      "label": "評価対象"
+    },
+    {
+      "source": "phase_p2_pipeline",
+      "target": "pipeline_core",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "phase_p3_desktop",
+      "target": "macos_layer",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "phase_p4_streaming",
+      "target": "streaming_asr_engine_protocol",
+      "relationship": "integrates",
+      "label": "統合"
+    },
+    {
+      "source": "risk_nemotron_accuracy",
+      "target": "candidate_streaming_nemotron",
+      "relationship": "concerns",
+      "label": "懸念"
+    },
+    {
+      "source": "risk_llm_hallucination",
+      "target": "refiner_engine_protocol",
+      "relationship": "concerns",
+      "label": "懸念"
+    },
+    {
+      "source": "rust_main_module",
+      "target": "voice_input_rust",
+      "relationship": "part_of",
+      "label": "構成要素"
+    },
+    {
+      "source": "rust_ui_module",
+      "target": "voice_input_rust",
+      "relationship": "part_of",
+      "label": "構成要素"
+    },
+    {
+      "source": "rust_engine_module",
+      "target": "voice_input_rust",
+      "relationship": "part_of",
+      "label": "構成要素"
+    },
+    {
+      "source": "rust_engine_asr_module",
+      "target": "batch_asr_engine_protocol",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "rust_inserter_module",
+      "target": "text_inserter_component",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "rust_dictionary_module",
+      "target": "user_dictionary_component",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "swift_engine_protocols",
+      "target": "voice_input_swift",
+      "relationship": "part_of",
+      "label": "構成要素"
+    },
+    {
+      "source": "swift_pipeline",
+      "target": "pipeline_core",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "swift_text_inserter",
+      "target": "text_inserter_component",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "swift_user_dictionary",
+      "target": "user_dictionary_component",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "swift_hud_view",
+      "target": "macos_layer",
+      "relationship": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "swift_engine_factory",
+      "target": "requirement_plugin_architecture",
+      "relationship": "supports",
+      "label": "実装"
+    }
+  ]
+}

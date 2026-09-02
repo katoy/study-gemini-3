@@ -1,0 +1,417 @@
+{
+  "nodes": [
+    {
+      "id": "routes___init__",
+      "type": "module",
+      "name": "__init__",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/__init__.py",
+      "description": "Router 組み立てと re-export"
+    },
+    {
+      "id": "routes__shared",
+      "type": "module",
+      "name": "_shared",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/_shared.py",
+      "description": "共通コード: templates・定数・ビジネスロジック・ヘルパー関数"
+    },
+    {
+      "id": "routes_api_v1",
+      "type": "module",
+      "name": "api_v1",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/api_v1.py",
+      "description": "API v1 ルート (/api/v1/*)"
+    },
+    {
+      "id": "routes_html",
+      "type": "module",
+      "name": "html",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/html.py",
+      "description": "HTMLResponse を返すルート（index・programs・episodes・downloads・help等）"
+    },
+    {
+      "id": "routes_internal",
+      "type": "module",
+      "name": "internal",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/internal.py",
+      "description": "内部 /api/* ルート（/api/v1 を除く）"
+    },
+    {
+      "id": "routes_ws",
+      "type": "module",
+      "name": "ws",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/routes/ws.py",
+      "description": "WebSocket ルート"
+    },
+    {
+      "id": "app_main",
+      "type": "module",
+      "name": "main",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/main.py",
+      "description": "FastAPI application entry point"
+    },
+    {
+      "id": "nhk_radio_web_types",
+      "type": "module",
+      "name": "types",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/types.py",
+      "description": "Type definitions for NHK radio data"
+    },
+    {
+      "id": "nhk_radio_web_cache",
+      "type": "module",
+      "name": "cache",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/cache.py",
+      "description": "Cache helpers for program and episode data"
+    },
+    {
+      "id": "nhk_radio_web_config",
+      "type": "module",
+      "name": "config",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/config.py",
+      "description": "Configuration helpers for the NHK radio web downloader"
+    },
+    {
+      "id": "nhk_radio_web_core",
+      "type": "module",
+      "name": "core",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/core.py",
+      "description": "NHK ラジオ 聞き逃し番組ダウンローダー - コアロジック"
+    },
+    {
+      "id": "nhk_radio_web_downloads",
+      "type": "module",
+      "name": "downloads",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/downloads.py",
+      "description": "Download tracking and output helpers"
+    },
+    {
+      "id": "nhk_radio_web_job_manager",
+      "type": "module",
+      "name": "job_manager",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/src/nhk_radio_web/job_manager.py",
+      "description": "ダウンロードジョブ管理とキューイング"
+    },
+    {
+      "id": "app_api_models",
+      "type": "module",
+      "name": "api_models",
+      "path": "/Users/katoy/github/study-gemini-3/radio-web/app/api_models.py",
+      "description": "Pydantic models for FastAPI endpoints"
+    },
+    {
+      "id": "types_Program",
+      "type": "dataclass",
+      "name": "Program",
+      "symbol": "Program",
+      "parent": "nhk_radio_web_types",
+      "fields": ["title", "display_title", "display_date", "site_id", "corner_id", "url", "genre", "genre_label", "genres", "genre_labels", "corner_name", "onair_date", "started_at", "broadcast"],
+      "description": "Represents an NHK radio program / series"
+    },
+    {
+      "id": "types_Episode",
+      "type": "dataclass",
+      "name": "Episode",
+      "symbol": "Episode",
+      "parent": "nhk_radio_web_types",
+      "fields": ["id", "title", "display_title", "date", "display_date", "broadcast_time", "duration_str", "url"],
+      "description": "Represents a single broadcast episode"
+    },
+    {
+      "id": "types_Progress",
+      "type": "dataclass",
+      "name": "Progress",
+      "symbol": "Progress",
+      "parent": "nhk_radio_web_types",
+      "fields": ["percent", "eta", "status"],
+      "description": "Download progress tracking"
+    },
+    {
+      "id": "job_manager_JobManager",
+      "type": "class",
+      "name": "JobManager",
+      "symbol": "JobManager",
+      "parent": "nhk_radio_web_job_manager",
+      "methods": ["__init__", "enqueue", "start", "cancel", "cancel_all", "status_snapshot", "all_jobs", "subscribe", "unsubscribe"],
+      "description": "ダウンロードジョブの並行実行・キュー管理"
+    },
+    {
+      "id": "api_models_ProgramInput",
+      "type": "class",
+      "name": "ProgramInput",
+      "symbol": "ProgramInput",
+      "parent": "app_api_models",
+      "description": "Pydantic model for Program input"
+    },
+    {
+      "id": "api_models_EpisodeInput",
+      "type": "class",
+      "name": "EpisodeInput",
+      "symbol": "EpisodeInput",
+      "parent": "app_api_models",
+      "description": "Pydantic model for Episode input"
+    },
+    {
+      "id": "api_models_DownloadJobCreateRequest",
+      "type": "class",
+      "name": "DownloadJobCreateRequest",
+      "symbol": "DownloadJobCreateRequest",
+      "parent": "app_api_models",
+      "description": "Request model for creating a download job"
+    },
+    {
+      "id": "routes__shared_dataclass_to_json",
+      "type": "function",
+      "name": "_dataclass_to_json",
+      "symbol": "_dataclass_to_json",
+      "parent": "routes__shared",
+      "description": "dataclass を JSON 文字列に変換する Jinja2 フィルタ用"
+    },
+    {
+      "id": "routes__shared_job_to_payload",
+      "type": "function",
+      "name": "_job_to_payload",
+      "symbol": "_job_to_payload",
+      "parent": "routes__shared",
+      "description": "ジョブを WebSocket 送信用 payload に変換"
+    },
+    {
+      "id": "routes__shared_program_to_api_data",
+      "type": "function",
+      "name": "_program_to_api_data",
+      "symbol": "_program_to_api_data",
+      "parent": "routes__shared",
+      "description": "Program ドメインモデルを API レスポンス形式に変換"
+    },
+    {
+      "id": "routes__shared_episode_to_api_data",
+      "type": "function",
+      "name": "_episode_to_api_data",
+      "symbol": "_episode_to_api_data",
+      "parent": "routes__shared",
+      "description": "Episode ドメインモデルを API レスポンス形式に変換"
+    },
+    {
+      "id": "routes__shared_job_to_api_data",
+      "type": "function",
+      "name": "_job_to_api_data",
+      "symbol": "_job_to_api_data",
+      "parent": "routes__shared",
+      "description": "ジョブデータを API レスポンス形式に変換"
+    },
+    {
+      "id": "app_main_lifespan",
+      "type": "function",
+      "name": "lifespan",
+      "symbol": "lifespan",
+      "parent": "app_main",
+      "description": "FastAPI lifespan context manager"
+    }
+  ],
+  "edges": [
+    {
+      "source": "routes___init__",
+      "target": "routes__shared",
+      "type": "imports",
+      "label": "imports utilities"
+    },
+    {
+      "source": "routes___init__",
+      "target": "routes_api_v1",
+      "type": "imports",
+      "label": "includes router"
+    },
+    {
+      "source": "routes___init__",
+      "target": "routes_html",
+      "type": "imports",
+      "label": "includes router"
+    },
+    {
+      "source": "routes___init__",
+      "target": "routes_internal",
+      "type": "imports",
+      "label": "includes router"
+    },
+    {
+      "source": "routes___init__",
+      "target": "routes_ws",
+      "type": "imports",
+      "label": "includes router"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_cache",
+      "type": "imports",
+      "label": "uses cache"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_config",
+      "type": "imports",
+      "label": "loads config"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_core",
+      "type": "imports",
+      "label": "fetches programs"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_downloads",
+      "type": "imports",
+      "label": "checks downloads"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_job_manager",
+      "type": "imports",
+      "label": "manages jobs"
+    },
+    {
+      "source": "routes__shared",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "uses types"
+    },
+    {
+      "source": "routes_api_v1",
+      "target": "routes__shared",
+      "type": "imports",
+      "label": "uses helpers"
+    },
+    {
+      "source": "routes_api_v1",
+      "target": "app_api_models",
+      "type": "imports",
+      "label": "uses models"
+    },
+    {
+      "source": "routes_html",
+      "target": "routes__shared",
+      "type": "imports",
+      "label": "uses helpers"
+    },
+    {
+      "source": "routes_html",
+      "target": "app_api_models",
+      "type": "imports",
+      "label": "uses models"
+    },
+    {
+      "source": "routes_internal",
+      "target": "routes__shared",
+      "type": "imports",
+      "label": "uses helpers"
+    },
+    {
+      "source": "routes_ws",
+      "target": "routes__shared",
+      "type": "imports",
+      "label": "uses helpers"
+    },
+    {
+      "source": "app_main",
+      "target": "nhk_radio_web_job_manager",
+      "type": "imports",
+      "label": "initializes JobManager"
+    },
+    {
+      "source": "app_main",
+      "target": "nhk_radio_web_config",
+      "type": "imports",
+      "label": "loads config"
+    },
+    {
+      "source": "app_main",
+      "target": "routes___init__",
+      "type": "imports",
+      "label": "includes routers"
+    },
+    {
+      "source": "nhk_radio_web_cache",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "uses types"
+    },
+    {
+      "source": "nhk_radio_web_cache",
+      "target": "nhk_radio_web_config",
+      "type": "imports",
+      "label": "uses config"
+    },
+    {
+      "source": "nhk_radio_web_core",
+      "target": "nhk_radio_web_cache",
+      "type": "imports",
+      "label": "caches results"
+    },
+    {
+      "source": "nhk_radio_web_core",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "returns types"
+    },
+    {
+      "source": "nhk_radio_web_downloads",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "uses types"
+    },
+    {
+      "source": "nhk_radio_web_job_manager",
+      "target": "nhk_radio_web_downloads",
+      "type": "imports",
+      "label": "manages downloads"
+    },
+    {
+      "source": "nhk_radio_web_job_manager",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "uses types"
+    },
+    {
+      "source": "nhk_radio_web_job_manager",
+      "target": "nhk_radio_web_config",
+      "type": "imports",
+      "label": "loads config"
+    },
+    {
+      "source": "app_api_models",
+      "target": "nhk_radio_web_types",
+      "type": "imports",
+      "label": "converts to domain types"
+    },
+    {
+      "source": "types_Program",
+      "target": "types_Episode",
+      "type": "related",
+      "label": "program contains episodes"
+    },
+    {
+      "source": "job_manager_JobManager",
+      "target": "types_Program",
+      "type": "uses",
+      "label": "enqueues"
+    },
+    {
+      "source": "job_manager_JobManager",
+      "target": "types_Episode",
+      "type": "uses",
+      "label": "enqueues"
+    },
+    {
+      "source": "job_manager_JobManager",
+      "target": "types_Progress",
+      "type": "uses",
+      "label": "tracks progress"
+    }
+  ],
+  "metadata": {
+    "chunk_num": 4,
+    "total_chunks": 15,
+    "file_count": 25,
+    "generated_at": "2026-08-31T00:00:00Z",
+    "summary": "radio-web フレームワーク層（FastAPI ルート・API モデル・ジョブ管理）の知識グラフ。html/api_v1/internal/ws ルートと共通ユーティリティ（_shared）、JobManager、キャッシュ・設定管理、ドメイン型を統合したアーキテクチャ。"
+  }
+}

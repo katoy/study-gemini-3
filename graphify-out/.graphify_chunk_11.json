@@ -1,0 +1,37 @@
+{
+  "nodes": [],
+  "edges": [],
+  "metadata": {
+    "chunk": 11,
+    "status": "files_not_found",
+    "files_requested": [
+      "voice_input_js/lib/debug.js",
+      "voice_input_js/lib/telemetry.js",
+      "voice_input_js/lib/worker.js",
+      "voice_input_js/lib/stream.js",
+      "voice_input_js/lib/compression.js",
+      "voice_input_js/lib/encryption.js",
+      "voice_input_js/lib/rate-limiter.js",
+      "voice_input_js/lib/queue.js",
+      "voice_input_js/lib/scheduler.js",
+      "voice_input_js/lib/circuit-breaker.js",
+      "voice_input_rust/src/bin/develop.rs",
+      "voice_input_rust/src/bin/validate.rs",
+      "voice_input_rust/src/bin/format.rs",
+      "voice_input_rust/src/bin/lint.rs",
+      "voice_input_rust/src/bin/test.rs",
+      "voice_input_rust/src/bin/doc.rs",
+      "voice_input_rust/src/bin/coverage.rs",
+      "voice_input_swift/Sources/VoiceInputKit/Package.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIEndpoints.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIRequest.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIResponse.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIError.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIDecoder.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APIEncoder.swift",
+      "voice_input_swift/Sources/VoiceInputKit/API/APISession.swift"
+    ],
+    "files_found": 0,
+    "reason": "voice_input_js/lib/ directory does not exist, voice_input_rust/src/bin/ directory does not exist, and voice_input_swift directory structure does not match specified paths"
+  }
+}

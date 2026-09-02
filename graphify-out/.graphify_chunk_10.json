@@ -1,0 +1,372 @@
+{
+  "nodes": [
+    {
+      "id": "paper_to_pdf_project",
+      "label": "paper_to_pdf プロジェクト",
+      "file_type": "project",
+      "source_file": "paper_to_pdf/",
+      "description": "スマホで撮影した書籍の見開きページを AI 補正してクリーンな PDF に変換する CLI ツール"
+    },
+    {
+      "id": "paper_to_pdf_requirements",
+      "label": "requirements.txt",
+      "file_type": "config",
+      "source_file": "paper_to_pdf/requirements.txt",
+      "description": "依存パッケージリスト（opencv-python, Pillow, numpy, torch, requests等）"
+    },
+    {
+      "id": "paper_to_pdf_review_claude",
+      "label": "review_by_claude.md",
+      "file_type": "document",
+      "source_file": "paper_to_pdf/review_by_claude.md",
+      "description": "コード レビューレポート：設計、最適化、テスト品質の評価"
+    },
+    {
+      "id": "paper_to_pdf_review_gemini",
+      "label": "review_by_gemini.md",
+      "file_type": "document",
+      "source_file": "paper_to_pdf/review_by_gemini.md",
+      "description": "Gemini によるコード レビュー：アーキテクチャ、マークダウン抽出、テスト設計の評価"
+    },
+    {
+      "id": "pdf_splitter_project",
+      "label": "pdf-splitter プラグイン",
+      "file_type": "project",
+      "source_file": "pdf-splitter/",
+      "description": "スキャン PDF の OCR 処理と章ごと自動分割、20MB 均等分割エージェント"
+    },
+    {
+      "id": "pdf_splitter_readme",
+      "label": "pdf-splitter/README.md",
+      "file_type": "document",
+      "source_file": "pdf-splitter/README.md",
+      "description": "PDF Splitter & OCR Chapter Pipeline プラグインの使用方法・セットアップガイド"
+    },
+    {
+      "id": "pdf_splitter_claude_md",
+      "label": "pdf-splitter/CLAUDE.md",
+      "file_type": "config",
+      "source_file": "pdf-splitter/CLAUDE.md",
+      "description": "Token 最適化ガイドライン（rtk使用、quiet フラグ、ファイル範囲指定等）"
+    },
+    {
+      "id": "pdf_ocr_chapter_splitter_agent",
+      "label": "pdf-ocr-chapter-splitter エージェント",
+      "file_type": "agent",
+      "source_file": "pdf-splitter/agents/pdf-ocr-chapter-splitter/agent.md",
+      "description": "OCR & 目次解析・章分割エージェント"
+    },
+    {
+      "id": "pdf_splitter_skill",
+      "label": "pdf-splitter スキル",
+      "file_type": "skill",
+      "source_file": "pdf-splitter/skills/pdf-splitter/SKILL.md",
+      "description": "pdf-splitter スキルの説明・使用例"
+    },
+    {
+      "id": "radio_web_project",
+      "label": "radio-web プロジェクト",
+      "file_type": "project",
+      "source_file": "radio-web/",
+      "description": "NHK ラジオ「らじる★らじる」聞き逃し番組の検索・ダウンロード FastAPI + htmx Web アプリ"
+    },
+    {
+      "id": "radio_web_caveman_skill",
+      "label": "caveman スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/caveman/SKILL.md",
+      "description": "Ultra-compressed communication mode（トークン使用量~75% 削減）"
+    },
+    {
+      "id": "radio_web_design_interface_skill",
+      "label": "design-an-interface スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/design-an-interface/SKILL.md",
+      "description": "複数の根本的に異なるインターフェース設計を並列生成・比較するスキル"
+    },
+    {
+      "id": "radio_web_grill_with_docs_skill",
+      "label": "grill-with-docs スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/grill-with-docs/SKILL.md",
+      "description": "ドメイン モデル・ADR の更新を含む計画のストレステスト スキル"
+    },
+    {
+      "id": "radio_web_edit_article_skill",
+      "label": "edit-article スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/edit-article/SKILL.md",
+      "description": "記事の構造改善、明確性向上、散文の簡潔化スキル"
+    },
+    {
+      "id": "radio_web_git_guardrails_skill",
+      "label": "git-guardrails-claude-code スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/git-guardrails-claude-code/SKILL.md",
+      "description": "危険な git コマンド（push, reset --hard等）をブロックするフック設定スキル"
+    },
+    {
+      "id": "radio_web_grill_me_skill",
+      "label": "grill-me スキル",
+      "file_type": "skill",
+      "source_file": "radio-web/.agents/skills/grill-me/SKILL.md",
+      "description": "計画・設計を徹底的にインタビューして共通理解に到達するスキル"
+    },
+    {
+      "id": "radio_web_antigravity_rules",
+      "label": "antigravity-rtk-rules.md",
+      "file_type": "config",
+      "source_file": "radio-web/.agents/rules/antigravity-rtk-rules.md",
+      "description": "Rust Token Killer（RTK）使用ルール：シェル コマンドの Token 最適化"
+    },
+    {
+      "id": "radio_web_deepening",
+      "label": "improve-codebase-architecture/DEEPENING.md",
+      "file_type": "document",
+      "source_file": "radio-web/.agents/skills/improve-codebase-architecture/DEEPENING.md",
+      "description": "浅いモジュール クラスタのセーフな深化方法・依存関係分類・テスト戦略"
+    },
+    {
+      "id": "rtk_tool",
+      "label": "RTK (Rust Token Killer)",
+      "file_type": "tool",
+      "description": "シェル コマンド出力を圧縮して LLM context に送る Token 最適化 CLI プロキシ"
+    },
+    {
+      "id": "ocrmypdf_tool",
+      "label": "ocrmypdf",
+      "file_type": "tool",
+      "description": "PDF に OCR 処理を適用して検索可能にするツール（Tesseract OCR依存）"
+    },
+    {
+      "id": "uv_tool",
+      "label": "uv",
+      "file_type": "tool",
+      "description": "Python パッケージマネージャ・依存関係管理ツール"
+    },
+    {
+      "id": "fastapi_framework",
+      "label": "FastAPI",
+      "file_type": "framework",
+      "description": "Python 非同期 Web フレームワーク（radio-web で使用）"
+    },
+    {
+      "id": "htmx_framework",
+      "label": "htmx",
+      "file_type": "framework",
+      "description": "HTML を直接アクセスして AJAX リクエスト・状態管理を実現（radio-web で使用）"
+    },
+    {
+      "id": "concept_token_optimization",
+      "label": "Token 最適化",
+      "file_type": "concept",
+      "description": "caveman, rtk, quiet フラグ等で LLM コンテキスト消費を 60-90% 削減"
+    },
+    {
+      "id": "concept_module_deepening",
+      "label": "モジュール深化",
+      "file_type": "concept",
+      "description": "複数の浅いモジュールを統合して深いモジュールを作成する設計パターン"
+    },
+    {
+      "id": "concept_interface_design",
+      "label": "インターフェース設計",
+      "file_type": "concept",
+      "description": "複数の根本的に異なる設計を探索して最適な API/モジュール形状を決定"
+    },
+    {
+      "id": "concept_domain_driven_design",
+      "label": "ドメイン駆動設計",
+      "file_type": "concept",
+      "description": "CONTEXT.md（用語集）、ADR、ドメイン モデルに基づく設計アプローチ"
+    },
+    {
+      "id": "testing_concept_regression",
+      "label": "回帰テスト",
+      "file_type": "concept",
+      "description": "非決定的な OCR 出力への対応：完全一致ではなく類似度（98%）による検証"
+    },
+    {
+      "id": "design_pattern_seam",
+      "label": "Seam（設計パターン）",
+      "file_type": "pattern",
+      "description": "モジュール間の依存を注入可能にする設計パターン（ポート・アダプタ）"
+    },
+    {
+      "id": "process_pdf_chapter_split",
+      "label": "PDF 章分割処理",
+      "file_type": "process",
+      "description": "OCR → 目次抽出 → 章判定 → ページ分割 → 20MB 超時の細分割"
+    },
+    {
+      "id": "process_radio_download",
+      "label": "ラジオ番組ダウンロード処理",
+      "file_type": "process",
+      "description": "番組取得 → エピソード取得 → yt-dlp コマンド生成 → ジョブ追跡 → マニフェスト管理"
+    }
+  ],
+  "edges": [
+    {
+      "source": "paper_to_pdf_project",
+      "target": "paper_to_pdf_requirements",
+      "relation": "contains",
+      "label": "依存パッケージを定義"
+    },
+    {
+      "source": "paper_to_pdf_project",
+      "target": "paper_to_pdf_review_claude",
+      "relation": "documented_by",
+      "label": "レビュー対象"
+    },
+    {
+      "source": "paper_to_pdf_project",
+      "target": "paper_to_pdf_review_gemini",
+      "relation": "documented_by",
+      "label": "レビュー対象"
+    },
+    {
+      "source": "paper_to_pdf_review_claude",
+      "target": "concept_module_deepening",
+      "relation": "mentions",
+      "label": "設計改善で言及"
+    },
+    {
+      "source": "paper_to_pdf_review_gemini",
+      "target": "testing_concept_regression",
+      "relation": "demonstrates",
+      "label": "テスト設計の例示"
+    },
+    {
+      "source": "pdf_splitter_project",
+      "target": "pdf_splitter_readme",
+      "relation": "contains",
+      "label": "ドキュメント"
+    },
+    {
+      "source": "pdf_splitter_project",
+      "target": "pdf_splitter_claude_md",
+      "relation": "contains",
+      "label": "ガイドライン"
+    },
+    {
+      "source": "pdf_splitter_project",
+      "target": "pdf_ocr_chapter_splitter_agent",
+      "relation": "contains",
+      "label": "エージェント"
+    },
+    {
+      "source": "pdf_splitter_project",
+      "target": "pdf_splitter_skill",
+      "relation": "contains",
+      "label": "スキル"
+    },
+    {
+      "source": "pdf_splitter_project",
+      "target": "process_pdf_chapter_split",
+      "relation": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "pdf_splitter_claude_md",
+      "target": "rtk_tool",
+      "relation": "recommends",
+      "label": "使用推奨"
+    },
+    {
+      "source": "pdf_splitter_claude_md",
+      "target": "concept_token_optimization",
+      "relation": "documents",
+      "label": "Token 最適化ガイドライン"
+    },
+    {
+      "source": "pdf_splitter_readme",
+      "target": "ocrmypdf_tool",
+      "relation": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "pdf_splitter_readme",
+      "target": "uv_tool",
+      "relation": "depends_on",
+      "label": "依存"
+    },
+    {
+      "source": "process_pdf_chapter_split",
+      "target": "ocrmypdf_tool",
+      "relation": "uses",
+      "label": "OCR 実行"
+    },
+    {
+      "source": "radio_web_project",
+      "target": "fastapi_framework",
+      "relation": "uses",
+      "label": "Web フレームワーク"
+    },
+    {
+      "source": "radio_web_project",
+      "target": "htmx_framework",
+      "relation": "uses",
+      "label": "フロントエンド"
+    },
+    {
+      "source": "radio_web_project",
+      "target": "process_radio_download",
+      "relation": "implements",
+      "label": "実装"
+    },
+    {
+      "source": "radio_web_caveman_skill",
+      "target": "concept_token_optimization",
+      "relation": "implements",
+      "label": "Token 削減 ~75%"
+    },
+    {
+      "source": "radio_web_design_interface_skill",
+      "target": "concept_interface_design",
+      "relation": "implements",
+      "label": "複数設計の並列生成・比較"
+    },
+    {
+      "source": "radio_web_grill_with_docs_skill",
+      "target": "concept_domain_driven_design",
+      "relation": "implements",
+      "label": "CONTEXT.md/ADR の更新"
+    },
+    {
+      "source": "radio_web_git_guardrails_skill",
+      "target": "radio_web_project",
+      "relation": "enhances",
+      "label": "安全フック設定"
+    },
+    {
+      "source": "radio_web_deepening",
+      "target": "concept_module_deepening",
+      "relation": "documents",
+      "label": "詳細ガイド"
+    },
+    {
+      "source": "radio_web_deepening",
+      "target": "design_pattern_seam",
+      "relation": "discusses",
+      "label": "Seam 設計パターン"
+    },
+    {
+      "source": "radio_web_antigravity_rules",
+      "target": "rtk_tool",
+      "relation": "configures",
+      "label": "使用ルール"
+    },
+    {
+      "source": "rtk_tool",
+      "target": "concept_token_optimization",
+      "relation": "implements",
+      "label": "Token 削減 60-90%"
+    },
+    {
+      "source": "process_radio_download",
+      "target": "htmx_framework",
+      "relation": "updates_ui_with",
+      "label": "ステータス更新"
+    }
+  ]
+}

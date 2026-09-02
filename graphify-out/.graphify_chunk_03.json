@@ -1,0 +1,696 @@
+{
+  "version": "1.0",
+  "chunk": 3,
+  "nodes": [
+    {
+      "id": "paper_to_pdf_device",
+      "type": "module",
+      "label": "paper_to_pdf/utils/device.py",
+      "tags": ["pytorch", "device-selection", "hardware-detection"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/device.py"
+    },
+    {
+      "id": "paper_to_pdf_device_get_device",
+      "type": "function",
+      "label": "get_device",
+      "description": "利用可能な最適なデバイスを取得する。優先順位: MPS > CUDA > CPU",
+      "tags": ["pytorch", "device-selection"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "() -> torch.device | str",
+      "parent": "paper_to_pdf_device"
+    },
+    {
+      "id": "paper_to_pdf_image",
+      "type": "module",
+      "label": "paper_to_pdf/utils/image.py",
+      "tags": ["image-processing", "exif", "opencv", "pil"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/image.py"
+    },
+    {
+      "id": "paper_to_pdf_image_fix_exif_rotation",
+      "type": "function",
+      "label": "fix_exif_rotation",
+      "description": "EXIF情報を参照して画像を正しい向きに回転させ、BGR形式で返す",
+      "tags": ["image-processing", "exif"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(image_path: str | Path) -> np.ndarray | None",
+      "parent": "paper_to_pdf_image"
+    },
+    {
+      "id": "paper_to_pdf_image_extract_line_profiles",
+      "type": "function",
+      "label": "extract_line_profiles",
+      "description": "画像からテキスト行のうねり（プロファイル）を抽出",
+      "tags": ["image-processing", "document-dewarping"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(gray: np.ndarray, target_h: int, margin_v: float, margin_h: float) -> tuple[np.ndarray, np.ndarray, float]",
+      "parent": "paper_to_pdf_image"
+    },
+    {
+      "id": "paper_to_pdf_image_sort_by_filename",
+      "type": "function",
+      "label": "sort_by_filename",
+      "description": "ファイル名で自然順ソートする",
+      "tags": ["file-handling"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(paths: list[Path]) -> list[Path]",
+      "parent": "paper_to_pdf_image"
+    },
+    {
+      "id": "paper_to_pdf_image_bgr_to_pil",
+      "type": "function",
+      "label": "bgr_to_pil",
+      "description": "BGR配列をPIL Image (RGB) に変換する",
+      "tags": ["image-processing"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(image: np.ndarray) -> Image.Image",
+      "parent": "paper_to_pdf_image"
+    },
+    {
+      "id": "paper_to_pdf_download",
+      "type": "module",
+      "label": "paper_to_pdf/utils/download.py",
+      "tags": ["download", "hash-verification", "timeout"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/download.py"
+    },
+    {
+      "id": "paper_to_pdf_download_verify_hash",
+      "type": "function",
+      "label": "verify_hash",
+      "description": "ファイルのSHA256ハッシュを検証する",
+      "tags": ["file-verification"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(path: Path, expected_sha256: str) -> bool",
+      "parent": "paper_to_pdf_download"
+    },
+    {
+      "id": "paper_to_pdf_download_download_file",
+      "type": "function",
+      "label": "download_file",
+      "description": "urlを dest にダウンロードする（タイムアウト・ハッシュ検証付き）",
+      "tags": ["download", "file-transfer"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(url: str, dest: Path, timeout: int, expected_sha256: str | None) -> None",
+      "parent": "paper_to_pdf_download"
+    },
+    {
+      "id": "paper_to_pdf_paths",
+      "type": "module",
+      "label": "paper_to_pdf/utils/paths.py",
+      "tags": ["configuration", "paths"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/paths.py"
+    },
+    {
+      "id": "paper_to_pdf_paths_CACHE_DIR",
+      "type": "constant",
+      "label": "CACHE_DIR",
+      "description": "キャッシュディレクトリ",
+      "tags": ["configuration"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "value": "Path.home() / '.cache' / 'paper_to_pdf'",
+      "parent": "paper_to_pdf_paths"
+    },
+    {
+      "id": "paper_to_pdf_dewarpnet",
+      "type": "module",
+      "label": "paper_to_pdf/utils/dewarpnet_arch.py",
+      "tags": ["neural-network", "pytorch", "document-dewarping"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/dewarpnet_arch.py"
+    },
+    {
+      "id": "paper_to_pdf_dewarpnet_convert_state_dict",
+      "type": "function",
+      "label": "convert_state_dict",
+      "description": "PyTorchモデルの状態辞書を変換する",
+      "tags": ["pytorch", "model-conversion"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(state_dict: dict) -> OrderedDict",
+      "parent": "paper_to_pdf_dewarpnet"
+    },
+    {
+      "id": "paper_to_pdf_dewarpnet_UnetSkipConnectionBlock",
+      "type": "class",
+      "label": "UnetSkipConnectionBlock",
+      "description": "U-Netアーキテクチャのスキップ接続ブロック",
+      "tags": ["neural-network", "pytorch"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "paper_to_pdf_dewarpnet",
+      "extends": "nn.Module"
+    },
+    {
+      "id": "pdf_splitter_split_pdf",
+      "type": "module",
+      "label": "pdf-splitter/scripts/split_pdf.py",
+      "tags": ["pdf", "file-splitting"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/pdf-splitter/scripts/split_pdf.py"
+    },
+    {
+      "id": "pdf_splitter_split_pdf_split_pdf",
+      "type": "function",
+      "label": "split_pdf",
+      "description": "PDFを分割します。各パートがなるべく同じページ数になるように分割",
+      "tags": ["pdf", "file-splitting"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(pdf_path: str, output_dir: str, base_filename: str) -> List[str]",
+      "parent": "pdf_splitter_split_pdf"
+    },
+    {
+      "id": "radio_web_main",
+      "type": "module",
+      "label": "radio-web/app/main.py",
+      "tags": ["fastapi", "web-application"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/radio-web/app/main.py"
+    },
+    {
+      "id": "radio_web_main_lifespan",
+      "type": "function",
+      "label": "lifespan",
+      "description": "FastAPIアプリケーションのライフサイクル管理",
+      "tags": ["fastapi", "lifecycle"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(app: FastAPI) -> AsyncContextManager",
+      "parent": "radio_web_main"
+    },
+    {
+      "id": "radio_web_main_app",
+      "type": "variable",
+      "label": "app",
+      "description": "FastAPIアプリケーションインスタンス",
+      "tags": ["fastapi"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_main",
+      "type_": "FastAPI"
+    },
+    {
+      "id": "radio_web_main_api_http_exception_handler",
+      "type": "function",
+      "label": "api_http_exception_handler",
+      "description": "API用の構造化エラーレスポンスハンドラ",
+      "tags": ["fastapi", "error-handling"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "signature": "(request: Request, exc: HTTPException) -> JSONResponse",
+      "parent": "radio_web_main"
+    },
+    {
+      "id": "radio_web_api_models",
+      "type": "module",
+      "label": "radio-web/app/api_models.py",
+      "tags": ["pydantic", "models", "fastapi"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "location": "/Users/katoy/github/study-gemini-3/radio-web/app/api_models.py"
+    },
+    {
+      "id": "radio_web_api_models_ProgramInput",
+      "type": "class",
+      "label": "ProgramInput",
+      "description": "番組入力モデル",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_EpisodeInput",
+      "type": "class",
+      "label": "EpisodeInput",
+      "description": "エピソード入力モデル",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_DownloadJobCreateRequest",
+      "type": "class",
+      "label": "DownloadJobCreateRequest",
+      "description": "ダウンロードジョブ作成リクエスト",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_SettingsUpdateRequest",
+      "type": "class",
+      "label": "SettingsUpdateRequest",
+      "description": "設定更新リクエスト",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_HealthData",
+      "type": "class",
+      "label": "HealthData",
+      "description": "ヘルスチェックデータ",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_HealthResponse",
+      "type": "class",
+      "label": "HealthResponse",
+      "description": "ヘルスチェックレスポンス",
+      "tags": ["pydantic", "model", "response"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_MetaData",
+      "type": "class",
+      "label": "MetaData",
+      "description": "メタデータ",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_GenreData",
+      "type": "class",
+      "label": "GenreData",
+      "description": "ジャンルデータ",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_ProgramData",
+      "type": "class",
+      "label": "ProgramData",
+      "description": "番組データレスポンス",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_EpisodeData",
+      "type": "class",
+      "label": "EpisodeData",
+      "description": "エピソードデータレスポンス",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_DownloadJobData",
+      "type": "class",
+      "label": "DownloadJobData",
+      "description": "ダウンロードジョブデータ",
+      "tags": ["pydantic", "model"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_DownloadJobResponse",
+      "type": "class",
+      "label": "DownloadJobResponse",
+      "description": "ダウンロードジョブレスポンス",
+      "tags": ["pydantic", "model", "response"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_ErrorDetail",
+      "type": "class",
+      "label": "ErrorDetail",
+      "description": "エラー詳細情報",
+      "tags": ["pydantic", "model", "error"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    },
+    {
+      "id": "radio_web_api_models_ErrorResponse",
+      "type": "class",
+      "label": "ErrorResponse",
+      "description": "エラーレスポンス",
+      "tags": ["pydantic", "model", "response"],
+      "source": "EXTRACTED",
+      "confidence": 1.0,
+      "parent": "radio_web_api_models",
+      "extends": "BaseModel"
+    }
+  ],
+  "edges": [
+    {
+      "source": "paper_to_pdf_device_get_device",
+      "target": "paper_to_pdf_device",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_image_fix_exif_rotation",
+      "target": "paper_to_pdf_image",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_image_extract_line_profiles",
+      "target": "paper_to_pdf_image",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_image_sort_by_filename",
+      "target": "paper_to_pdf_image",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_image_bgr_to_pil",
+      "target": "paper_to_pdf_image",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_download_verify_hash",
+      "target": "paper_to_pdf_download",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_download_download_file",
+      "target": "paper_to_pdf_download",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_download_download_file",
+      "target": "paper_to_pdf_download_verify_hash",
+      "type": "calls",
+      "label": "呼び出す",
+      "confidence": 0.95,
+      "rationale": "download_file()はexpected_sha256が指定されたときにverify_hash()を呼び出す"
+    },
+    {
+      "source": "paper_to_pdf_paths_CACHE_DIR",
+      "target": "paper_to_pdf_paths",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_dewarpnet_convert_state_dict",
+      "target": "paper_to_pdf_dewarpnet",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "paper_to_pdf_dewarpnet_UnetSkipConnectionBlock",
+      "target": "paper_to_pdf_dewarpnet",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "pdf_splitter_split_pdf_split_pdf",
+      "target": "pdf_splitter_split_pdf",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_main_lifespan",
+      "target": "radio_web_main",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_main_app",
+      "target": "radio_web_main",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_main_api_http_exception_handler",
+      "target": "radio_web_main",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_main_lifespan",
+      "target": "radio_web_main_app",
+      "type": "configures",
+      "label": "設定する",
+      "confidence": 0.95,
+      "rationale": "lifespanコンテキストマネージャはapp.state.job_managerを初期化"
+    },
+    {
+      "source": "radio_web_api_models_ProgramInput",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_EpisodeInput",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobCreateRequest",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobCreateRequest",
+      "target": "radio_web_api_models_ProgramInput",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "DownloadJobCreateRequestはprogram: ProgramInputフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobCreateRequest",
+      "target": "radio_web_api_models_EpisodeInput",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "DownloadJobCreateRequestはepisode: EpisodeInputフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_SettingsUpdateRequest",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_HealthData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_HealthResponse",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_HealthResponse",
+      "target": "radio_web_api_models_HealthData",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "HealthResponseはdata: HealthDataフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_MetaData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_GenreData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_ProgramData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_EpisodeData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobData",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobData",
+      "target": "radio_web_api_models_ProgramData",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "DownloadJobDataはprogram: ProgramDataフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobData",
+      "target": "radio_web_api_models_EpisodeData",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "DownloadJobDataはepisode: EpisodeDataフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobResponse",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_DownloadJobResponse",
+      "target": "radio_web_api_models_DownloadJobData",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "DownloadJobResponseはdata: DownloadJobDataフィールドを持つ"
+    },
+    {
+      "source": "radio_web_api_models_ErrorDetail",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_ErrorResponse",
+      "target": "radio_web_api_models",
+      "type": "defined_in",
+      "label": "定義されている",
+      "confidence": 1.0
+    },
+    {
+      "source": "radio_web_api_models_ErrorResponse",
+      "target": "radio_web_api_models_ErrorDetail",
+      "type": "contains",
+      "label": "含む",
+      "confidence": 0.95,
+      "rationale": "ErrorResponseはerror: ErrorDetailフィールドを持つ"
+    },
+    {
+      "source": "radio_web_main_api_http_exception_handler",
+      "target": "radio_web_api_models_ErrorResponse",
+      "type": "uses",
+      "label": "使用する",
+      "confidence": 0.95,
+      "rationale": "HTTPエクセプションハンドラはErrorResponseモデルを使用"
+    },
+    {
+      "source": "radio_web_api_models_ProgramInput",
+      "target": "radio_web_api_models_ProgramData",
+      "type": "similar_to",
+      "label": "類似",
+      "confidence": 0.85,
+      "rationale": "ProgramInputはリクエスト用、ProgramDataはレスポンス用"
+    },
+    {
+      "source": "radio_web_api_models_EpisodeInput",
+      "target": "radio_web_api_models_EpisodeData",
+      "type": "similar_to",
+      "label": "類似",
+      "confidence": 0.85,
+      "rationale": "EpisodeInputはリクエスト用、EpisodeDataはレスポンス用"
+    }
+  ],
+  "metadata": {
+    "extraction_timestamp": "2026-08-31",
+    "total_nodes": 44,
+    "total_edges": 37,
+    "files_processed": [
+      "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/device.py",
+      "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/image.py",
+      "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/download.py",
+      "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/paths.py",
+      "/Users/katoy/github/study-gemini-3/paper_to_pdf/utils/dewarpnet_arch.py",
+      "/Users/katoy/github/study-gemini-3/pdf-splitter/scripts/split_pdf.py",
+      "/Users/katoy/github/study-gemini-3/radio-web/app/main.py",
+      "/Users/katoy/github/study-gemini-3/radio-web/app/api_models.py"
+    ],
+    "extraction_notes": "主要なユーティリティモジュール、FastAPIアプリケーション、Pydantic APIモデルを抽出。paper_to_pdf のコンポーネント（デバイス選択、画像処理、ダウンロード管理、ニューラルネットワークアーキテクチャ）と radio-web の API レイヤーを分析。"
+  }
+}

@@ -1,0 +1,507 @@
+{
+  "nodes": [
+    {
+      "id": "radio_nhk_api",
+      "type": "system",
+      "label": "NHK Radio Program API",
+      "description": "API for fetching NHK radio ondemand programs and episodes"
+    },
+    {
+      "id": "radio_nhk_api_corners_new_arrivals",
+      "type": "endpoint",
+      "label": "GET /app/v1/web/ondemand/corners/new_arrivals",
+      "description": "Fetch new arrival programs and corners from NHK radio API",
+      "parent": "radio_nhk_api"
+    },
+    {
+      "id": "radio_nhk_api_series",
+      "type": "endpoint",
+      "label": "GET /app/v1/web/ondemand/series",
+      "description": "Fetch series by genre from NHK radio API",
+      "parent": "radio_nhk_api"
+    },
+    {
+      "id": "radio_types_program",
+      "type": "dataclass",
+      "label": "Program",
+      "description": "Normalized program data structure with site_id, title, genre_label, display_date"
+    },
+    {
+      "id": "radio_types_episode",
+      "type": "dataclass",
+      "label": "Episode",
+      "description": "Episode data structure with id, title, display_title, broadcast date and URL"
+    },
+    {
+      "id": "radio_web",
+      "type": "application",
+      "label": "radio-web",
+      "description": "FastAPI + htmx web application for NHK radio program search and download"
+    },
+    {
+      "id": "radio_web_templates_index",
+      "type": "template",
+      "label": "index.html",
+      "description": "Main dashboard with genre filters, program list/grid view toggle, search functionality",
+      "parent": "radio_web"
+    },
+    {
+      "id": "radio_web_templates_help",
+      "type": "template",
+      "label": "help.html",
+      "description": "Help page with markdown rendered content",
+      "parent": "radio_web"
+    },
+    {
+      "id": "radio_web_program_list_partial",
+      "type": "template",
+      "label": "program_list.html",
+      "description": "Program card list/grid view with sorting and filtering",
+      "parent": "radio_web"
+    },
+    {
+      "id": "radio_web_episode_list_partial",
+      "type": "template",
+      "label": "episode_list.html",
+      "description": "Episode table with download status, checkboxes, action buttons",
+      "parent": "radio_web"
+    },
+    {
+      "id": "radio_web_download_status_partial",
+      "type": "template",
+      "label": "download_status.html",
+      "description": "Download job status display with progress bar and htmx polling",
+      "parent": "radio_web"
+    },
+    {
+      "id": "radio_python",
+      "type": "application",
+      "label": "radio (Python GUI)",
+      "description": "Tkinter-based desktop GUI for NHK radio program download"
+    },
+    {
+      "id": "radio_python_downloads",
+      "type": "module",
+      "label": "downloads.py",
+      "description": "Download tracking, yt-dlp execution, manifest management",
+      "parent": "radio_python"
+    },
+    {
+      "id": "radio_python_core",
+      "type": "module",
+      "label": "core.py",
+      "description": "Program/episode fetching logic with API integration",
+      "parent": "radio_python"
+    },
+    {
+      "id": "radio_python_cache",
+      "type": "module",
+      "label": "cache.py",
+      "description": "TTL-based JSON caching for programs and episodes",
+      "parent": "radio_python"
+    },
+    {
+      "id": "radio_python_gui",
+      "type": "module",
+      "label": "gui/",
+      "description": "Tkinter GUI components with mixin architecture",
+      "parent": "radio_python"
+    },
+    {
+      "id": "radio_api_md",
+      "type": "document",
+      "label": "API.md",
+      "description": "Detailed NHK Radio API documentation with normalization rules and aggregation behavior"
+    },
+    {
+      "id": "radio_readme_md",
+      "type": "document",
+      "label": "README.md",
+      "description": "Radio application documentation with features, setup, usage, performance optimizations"
+    },
+    {
+      "id": "radio_changelog_md",
+      "type": "document",
+      "label": "CHANGELOG.md",
+      "description": "Release notes documenting performance improvements and bug fixes"
+    },
+    {
+      "id": "radio_help_md",
+      "type": "document",
+      "label": "help.md",
+      "description": "User guide for GUI operation including shortcuts, filtering, download management"
+    },
+    {
+      "id": "voice_input",
+      "type": "application",
+      "label": "voice_input (Swift)",
+      "description": "Complete local LLM voice input desktop app for macOS using Swift 6"
+    },
+    {
+      "id": "voice_input_architecture",
+      "type": "component",
+      "label": "Pipeline Architecture",
+      "description": "4-layer pluggable architecture: VADEngine, StreamingASREngine, BatchASREngine, RefinerEngine",
+      "parent": "voice_input"
+    },
+    {
+      "id": "voice_input_vad_engine",
+      "type": "component",
+      "label": "VADEngine",
+      "description": "Voice Activity Detection engine for identifying speech regions",
+      "parent": "voice_input_architecture"
+    },
+    {
+      "id": "voice_input_streaming_asr",
+      "type": "component",
+      "label": "StreamingASREngine",
+      "description": "Real-time preview ASR for live transcription during speech",
+      "parent": "voice_input_architecture"
+    },
+    {
+      "id": "voice_input_batch_asr",
+      "type": "component",
+      "label": "BatchASREngine",
+      "description": "High-precision final transcription engine",
+      "parent": "voice_input_architecture"
+    },
+    {
+      "id": "voice_input_refiner",
+      "type": "component",
+      "label": "RefinerEngine",
+      "description": "LLM/rule-based text refinement for punctuation, filler removal, correction resolution",
+      "parent": "voice_input_architecture"
+    },
+    {
+      "id": "voice_input_readme",
+      "type": "document",
+      "label": "README.md",
+      "description": "Voice input Swift app documentation with features, system design, build instructions"
+    },
+    {
+      "id": "voice_input_spec",
+      "type": "document",
+      "label": "spec_要件定義書.md",
+      "description": "Requirements specification for local LLM voice input app (v0.1 draft)"
+    },
+    {
+      "id": "voice_input_rust",
+      "type": "application",
+      "label": "voice_input_rust (Rust)",
+      "description": "Rust implementation of local voice input app using egui and whisper-rs with Metal acceleration"
+    },
+    {
+      "id": "voice_input_rust_architecture",
+      "type": "component",
+      "label": "Rust Pipeline Architecture",
+      "description": "Rust version of 4-layer plugin architecture with whisper.cpp Metal backend",
+      "parent": "voice_input_rust"
+    },
+    {
+      "id": "voice_input_rust_vad",
+      "type": "component",
+      "label": "VadEngine (Rust)",
+      "description": "Voice Activity Detection engine in Rust",
+      "parent": "voice_input_rust_architecture"
+    },
+    {
+      "id": "voice_input_rust_streaming_asr",
+      "type": "component",
+      "label": "StreamingAsrEngine (Rust)",
+      "description": "Real-time ASR preview engine in Rust",
+      "parent": "voice_input_rust_architecture"
+    },
+    {
+      "id": "voice_input_rust_batch_asr",
+      "type": "component",
+      "label": "BatchAsrEngine (Rust)",
+      "description": "High-precision ASR engine using whisper-rs",
+      "parent": "voice_input_rust_architecture"
+    },
+    {
+      "id": "voice_input_rust_refiner",
+      "type": "component",
+      "label": "RefinerEngine (Rust)",
+      "description": "LLM/rule-based text refinement in Rust",
+      "parent": "voice_input_rust_architecture"
+    },
+    {
+      "id": "voice_input_rust_readme",
+      "type": "document",
+      "label": "README.md",
+      "description": "Rust voice input app documentation with features, tech stack, setup instructions"
+    },
+    {
+      "id": "voice_input_rust_spec",
+      "type": "document",
+      "label": "spec_要件定義書.md",
+      "description": "Requirements specification for Rust voice input app (v1.0 complete)"
+    },
+    {
+      "id": "fr_1_voice_activation",
+      "type": "requirement",
+      "label": "FR-1: Voice Input Activation",
+      "description": "Global hotkey (Option+Space), menu bar icon, floating HUD, accessibility support"
+    },
+    {
+      "id": "fr_2_audio_pipeline",
+      "type": "requirement",
+      "label": "FR-2: Audio Processing Pipeline",
+      "description": "VAD detection, streaming ASR preview, batch ASR, output validation, fallback"
+    },
+    {
+      "id": "fr_3_llm_refinement",
+      "type": "requirement",
+      "label": "FR-3: LLM Text Refinement",
+      "description": "Filler removal, correction resolution, punctuation, user dictionary, style adaptation"
+    },
+    {
+      "id": "fr_4_text_insertion",
+      "type": "requirement",
+      "label": "FR-4: Text Insertion",
+      "description": "Auto-paste to active app cursor, clipboard preservation, accessibility integration"
+    },
+    {
+      "id": "nfr_3_privacy",
+      "type": "requirement",
+      "label": "NFR-3: Complete Local Privacy",
+      "description": "All processing offline, no external server transmission, complete local inference"
+    },
+    {
+      "id": "download_management",
+      "type": "component",
+      "label": "Download Management System",
+      "description": "Parallel download handling, progress tracking, yt-dlp subprocess management, manifest tracking"
+    },
+    {
+      "id": "manifest_caching",
+      "type": "optimization",
+      "label": "Manifest Caching",
+      "description": "TTL 10s + mtime verification for download history tracking, prevents N+1 I/O"
+    },
+    {
+      "id": "dynamic_polling",
+      "type": "optimization",
+      "label": "Dynamic Polling",
+      "description": "Adaptive polling interval based on download count (50ms for 3+, 100ms for 1-2)"
+    },
+    {
+      "id": "yt_dlp",
+      "type": "external_tool",
+      "label": "yt-dlp",
+      "description": "External command-line tool for audio extraction from NHK radio ondemand"
+    },
+    {
+      "id": "whisper_cpp",
+      "type": "external_tool",
+      "label": "whisper.cpp",
+      "description": "C++ Whisper implementation with Metal GPU acceleration for Apple Silicon"
+    }
+  ],
+  "edges": [
+    {
+      "source": "radio_web",
+      "target": "radio_nhk_api",
+      "type": "calls",
+      "label": "fetches programs/episodes"
+    },
+    {
+      "source": "radio_python",
+      "target": "radio_nhk_api",
+      "type": "calls",
+      "label": "fetches programs/episodes"
+    },
+    {
+      "source": "radio_web_templates_index",
+      "target": "radio_web_program_list_partial",
+      "type": "includes",
+      "label": "renders"
+    },
+    {
+      "source": "radio_web_program_list_partial",
+      "target": "radio_types_program",
+      "type": "uses",
+      "label": "displays"
+    },
+    {
+      "source": "radio_web_episode_list_partial",
+      "target": "radio_types_episode",
+      "type": "uses",
+      "label": "displays"
+    },
+    {
+      "source": "radio_python_core",
+      "target": "radio_nhk_api",
+      "type": "calls",
+      "label": "fetches"
+    },
+    {
+      "source": "radio_python_cache",
+      "target": "radio_python_core",
+      "type": "caches",
+      "label": "stores results"
+    },
+    {
+      "source": "radio_python_downloads",
+      "target": "yt_dlp",
+      "type": "calls",
+      "label": "executes"
+    },
+    {
+      "source": "radio_python_downloads",
+      "target": "download_management",
+      "type": "implements",
+      "label": "parallel handling"
+    },
+    {
+      "source": "download_management",
+      "target": "manifest_caching",
+      "type": "uses",
+      "label": "optimization"
+    },
+    {
+      "source": "voice_input",
+      "target": "voice_input_architecture",
+      "type": "implements",
+      "label": "uses"
+    },
+    {
+      "source": "voice_input_architecture",
+      "target": "voice_input_vad_engine",
+      "type": "contains",
+      "label": "layer 1"
+    },
+    {
+      "source": "voice_input_architecture",
+      "target": "voice_input_streaming_asr",
+      "type": "contains",
+      "label": "layer 2"
+    },
+    {
+      "source": "voice_input_architecture",
+      "target": "voice_input_batch_asr",
+      "type": "contains",
+      "label": "layer 3"
+    },
+    {
+      "source": "voice_input_architecture",
+      "target": "voice_input_refiner",
+      "type": "contains",
+      "label": "layer 4"
+    },
+    {
+      "source": "voice_input_streaming_asr",
+      "target": "voice_input_vad_engine",
+      "type": "depends_on",
+      "label": "output"
+    },
+    {
+      "source": "voice_input_batch_asr",
+      "target": "voice_input_vad_engine",
+      "type": "depends_on",
+      "label": "input"
+    },
+    {
+      "source": "voice_input_refiner",
+      "target": "voice_input_batch_asr",
+      "type": "receives_input_from",
+      "label": "transcribed text"
+    },
+    {
+      "source": "voice_input_rust",
+      "target": "voice_input_rust_architecture",
+      "type": "implements",
+      "label": "uses"
+    },
+    {
+      "source": "voice_input_rust_architecture",
+      "target": "voice_input_rust_vad",
+      "type": "contains",
+      "label": "layer 1"
+    },
+    {
+      "source": "voice_input_rust_architecture",
+      "target": "voice_input_rust_streaming_asr",
+      "type": "contains",
+      "label": "layer 2"
+    },
+    {
+      "source": "voice_input_rust_architecture",
+      "target": "voice_input_rust_batch_asr",
+      "type": "contains",
+      "label": "layer 3"
+    },
+    {
+      "source": "voice_input_rust_architecture",
+      "target": "voice_input_rust_refiner",
+      "type": "contains",
+      "label": "layer 4"
+    },
+    {
+      "source": "voice_input_rust_batch_asr",
+      "target": "whisper_cpp",
+      "type": "uses",
+      "label": "Metal acceleration"
+    },
+    {
+      "source": "fr_2_audio_pipeline",
+      "target": "voice_input_vad_engine",
+      "type": "defines",
+      "label": "layer"
+    },
+    {
+      "source": "fr_2_audio_pipeline",
+      "target": "voice_input_streaming_asr",
+      "type": "defines",
+      "label": "layer"
+    },
+    {
+      "source": "fr_2_audio_pipeline",
+      "target": "voice_input_batch_asr",
+      "type": "defines",
+      "label": "layer"
+    },
+    {
+      "source": "fr_3_llm_refinement",
+      "target": "voice_input_refiner",
+      "type": "defines",
+      "label": "requirements"
+    },
+    {
+      "source": "nfr_3_privacy",
+      "target": "voice_input",
+      "type": "constrains",
+      "label": "architecture decision"
+    },
+    {
+      "source": "radio_readme_md",
+      "target": "radio_api_md",
+      "type": "references",
+      "label": "API implementation"
+    },
+    {
+      "source": "radio_changelog_md",
+      "target": "manifest_caching",
+      "type": "documents",
+      "label": "Priority 3-4"
+    },
+    {
+      "source": "radio_changelog_md",
+      "target": "dynamic_polling",
+      "type": "documents",
+      "label": "Priority 12"
+    },
+    {
+      "source": "voice_input_readme",
+      "target": "voice_input_spec",
+      "type": "references",
+      "label": "detailed requirements"
+    },
+    {
+      "source": "voice_input_rust_readme",
+      "target": "voice_input_rust_spec",
+      "type": "references",
+      "label": "detailed requirements"
+    }
+  ]
+}

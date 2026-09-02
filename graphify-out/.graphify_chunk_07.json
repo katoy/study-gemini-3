@@ -1,0 +1,532 @@
+{
+  "version": "1.0",
+  "chunk": {
+    "num": 7,
+    "total": 15
+  },
+  "nodes": [
+    {
+      "id": "radio_tests",
+      "type": "package",
+      "label": "radio/tests",
+      "props": {
+        "module": "radio/tests",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "radio_tests_cache",
+      "type": "module",
+      "label": "test_cache",
+      "props": {
+        "file": "radio/tests/test_cache.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_cli",
+      "type": "module",
+      "label": "test_cli",
+      "props": {
+        "file": "radio/tests/test_cli.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_config",
+      "type": "module",
+      "label": "test_config",
+      "props": {
+        "file": "radio/tests/test_config.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_core",
+      "type": "module",
+      "label": "test_core",
+      "props": {
+        "file": "radio/tests/test_core.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_downloads",
+      "type": "module",
+      "label": "test_downloads",
+      "props": {
+        "file": "radio/tests/test_downloads.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_entrypoints",
+      "type": "module",
+      "label": "test_entrypoints",
+      "props": {
+        "file": "radio/tests/test_entrypoints.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_gui_smoke",
+      "type": "module",
+      "label": "test_gui_smoke",
+      "props": {
+        "file": "radio/tests/test_gui_smoke.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_cli_extended",
+      "type": "module",
+      "label": "test_cli_extended",
+      "props": {
+        "file": "radio/tests/test_cli_extended.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_coverage_gap",
+      "type": "module",
+      "label": "test_coverage_gap",
+      "props": {
+        "file": "radio/tests/test_coverage_gap.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_coverage_gap_backend",
+      "type": "module",
+      "label": "test_coverage_gap_backend",
+      "props": {
+        "file": "radio/tests/test_coverage_gap_backend.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_gui_browser",
+      "type": "module",
+      "label": "test_gui_browser",
+      "props": {
+        "file": "radio/tests/test_gui_browser.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_gui_consistency",
+      "type": "module",
+      "label": "test_gui_consistency",
+      "props": {
+        "file": "radio/tests/test_gui_consistency.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_gui_downloads",
+      "type": "module",
+      "label": "test_gui_downloads",
+      "props": {
+        "file": "radio/tests/test_gui_downloads.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_help_markdown",
+      "type": "module",
+      "label": "test_help_markdown",
+      "props": {
+        "file": "radio/tests/test_help_markdown.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_help_markdown_extended",
+      "type": "module",
+      "label": "test_help_markdown_extended",
+      "props": {
+        "file": "radio/tests/test_help_markdown_extended.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_text",
+      "type": "module",
+      "label": "test_text",
+      "props": {
+        "file": "radio/tests/test_text.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_theme_manager",
+      "type": "module",
+      "label": "test_theme_manager",
+      "props": {
+        "file": "radio/tests/test_theme_manager.py",
+        "language": "Python",
+        "kind": "test"
+      }
+    },
+    {
+      "id": "radio_tests_support",
+      "type": "module",
+      "label": "_support",
+      "props": {
+        "file": "radio/tests/_support.py",
+        "language": "Python",
+        "kind": "utility"
+      }
+    },
+    {
+      "id": "radio_tests_init",
+      "type": "module",
+      "label": "__init__",
+      "props": {
+        "file": "radio/tests/__init__.py",
+        "language": "Python",
+        "kind": "package_marker"
+      }
+    },
+    {
+      "id": "nhk_radio_cache",
+      "type": "module",
+      "label": "nhk_radio.cache",
+      "props": {
+        "module": "nhk_radio.cache",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_cli",
+      "type": "module",
+      "label": "nhk_radio.cli",
+      "props": {
+        "module": "nhk_radio.cli",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_config",
+      "type": "module",
+      "label": "nhk_radio.config",
+      "props": {
+        "module": "nhk_radio.config",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_core",
+      "type": "module",
+      "label": "nhk_radio.core",
+      "props": {
+        "module": "nhk_radio.core",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_downloads",
+      "type": "module",
+      "label": "nhk_radio.downloads",
+      "props": {
+        "module": "nhk_radio.downloads",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_text",
+      "type": "module",
+      "label": "nhk_radio.text",
+      "props": {
+        "module": "nhk_radio.text",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_types",
+      "type": "module",
+      "label": "nhk_radio.types",
+      "props": {
+        "module": "nhk_radio.types",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_gui_browser",
+      "type": "module",
+      "label": "nhk_radio.gui.browser",
+      "props": {
+        "module": "nhk_radio.gui.browser",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_gui_data_manager",
+      "type": "module",
+      "label": "nhk_radio.gui.data_manager",
+      "props": {
+        "module": "nhk_radio.gui.data_manager",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_gui_theme_manager",
+      "type": "module",
+      "label": "nhk_radio.gui.theme_manager",
+      "props": {
+        "module": "nhk_radio.gui.theme_manager",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "nhk_radio_gui_download_manager",
+      "type": "module",
+      "label": "nhk_radio.gui.download_manager",
+      "props": {
+        "module": "nhk_radio.gui.download_manager",
+        "language": "Python"
+      }
+    },
+    {
+      "id": "voice_input_framework",
+      "type": "package",
+      "label": "voice_input",
+      "props": {
+        "module": "voice_input",
+        "language": "Swift",
+        "type": "executable_package",
+        "min_platform": "macOS 15"
+      }
+    },
+    {
+      "id": "voice_input_appconfig",
+      "type": "class",
+      "label": "AppConfig",
+      "props": {
+        "file": "voice_input/Sources/voice_input/AppConfig.swift",
+        "language": "Swift",
+        "protocols": ["Codable", "Sendable"],
+        "visibility": "public"
+      }
+    },
+    {
+      "id": "voice_input_appconfig_engineconfig",
+      "type": "struct",
+      "label": "EngineConfiguration",
+      "props": {
+        "file": "voice_input/Sources/voice_input/AppConfig.swift",
+        "language": "Swift",
+        "parent": "AppConfig",
+        "protocols": ["Codable", "Sendable"],
+        "visibility": "public"
+      }
+    },
+    {
+      "id": "voice_input_appstate",
+      "type": "class",
+      "label": "AppState",
+      "props": {
+        "file": "voice_input/Sources/voice_input/AppState.swift",
+        "language": "Swift",
+        "protocols": ["ObservableObject", "Sendable"],
+        "visibility": "public"
+      }
+    },
+    {
+      "id": "voice_input_historyitem",
+      "type": "struct",
+      "label": "HistoryItem",
+      "props": {
+        "file": "voice_input/Sources/voice_input/AppState.swift",
+        "language": "Swift",
+        "protocols": ["Codable", "Hashable", "Identifiable"],
+        "visibility": "public"
+      }
+    },
+    {
+      "id": "voice_input_audiocapturemanager",
+      "type": "class",
+      "label": "AudioCaptureManager",
+      "props": {
+        "file": "voice_input/Sources/voice_input/AudioCaptureManager.swift",
+        "language": "Swift",
+        "visibility": "public",
+        "framework_deps": ["AVFoundation"]
+      }
+    },
+    {
+      "id": "voice_input_engineadapters",
+      "type": "module",
+      "label": "EngineAdapters",
+      "props": {
+        "file": "voice_input/Sources/voice_input/EngineAdapters.swift",
+        "language": "Swift"
+      }
+    },
+    {
+      "id": "voice_input_dummyvadengine",
+      "type": "class",
+      "label": "DummyVADEngine",
+      "props": {
+        "file": "voice_input/Sources/voice_input/EngineAdapters.swift",
+        "language": "Swift",
+        "protocols": ["VADEngine", "Sendable"],
+        "visibility": "public"
+      }
+    },
+    {
+      "id": "script_precommit",
+      "type": "script",
+      "label": "pre-commit",
+      "props": {
+        "file": "scripts/hooks/pre-commit",
+        "language": "bash",
+        "purpose": "test_and_coverage_check"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "radio_tests_cache",
+      "target": "nhk_radio_cache",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_cache",
+      "target": "nhk_radio_types",
+      "type": "uses",
+      "label": "uses Episode, Program types"
+    },
+    {
+      "source": "radio_tests_cli",
+      "target": "nhk_radio_cli",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_cli",
+      "target": "nhk_radio_types",
+      "type": "uses",
+      "label": "uses Episode, Program types"
+    },
+    {
+      "source": "radio_tests_config",
+      "target": "nhk_radio_config",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_config",
+      "target": "nhk_radio_text",
+      "type": "uses",
+      "label": "uses _normalize_text"
+    },
+    {
+      "source": "radio_tests_core",
+      "target": "nhk_radio_core",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_core",
+      "target": "nhk_radio_types",
+      "type": "uses",
+      "label": "uses Episode, Program types"
+    },
+    {
+      "source": "radio_tests_downloads",
+      "target": "nhk_radio_downloads",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_downloads",
+      "target": "nhk_radio_types",
+      "type": "uses",
+      "label": "uses Episode, Program types"
+    },
+    {
+      "source": "radio_tests_entrypoints",
+      "target": "nhk_radio_cli",
+      "type": "tests",
+      "label": "tests module"
+    },
+    {
+      "source": "radio_tests_gui_smoke",
+      "target": "nhk_radio_gui_browser",
+      "type": "tests",
+      "label": "tests EpisodeGuiBrowser"
+    },
+    {
+      "source": "radio_tests_gui_smoke",
+      "target": "nhk_radio_gui_data_manager",
+      "type": "mocks",
+      "label": "mocks dependency"
+    },
+    {
+      "source": "radio_tests_gui_smoke",
+      "target": "nhk_radio_gui_theme_manager",
+      "type": "mocks",
+      "label": "mocks dependency"
+    },
+    {
+      "source": "radio_tests_gui_smoke",
+      "target": "nhk_radio_gui_download_manager",
+      "type": "mocks",
+      "label": "mocks dependency"
+    },
+    {
+      "source": "radio_tests",
+      "target": "radio_tests_support",
+      "type": "contains",
+      "label": "test support utilities"
+    },
+    {
+      "source": "voice_input_appstate",
+      "target": "voice_input_audiocapturemanager",
+      "type": "uses",
+      "label": "manages instance"
+    },
+    {
+      "source": "voice_input_appstate",
+      "target": "voice_input_historyitem",
+      "type": "uses",
+      "label": "stores array of HistoryItem"
+    },
+    {
+      "source": "voice_input_appconfig",
+      "target": "voice_input_appconfig_engineconfig",
+      "type": "contains",
+      "label": "nested struct"
+    },
+    {
+      "source": "voice_input_dummyvadengine",
+      "target": "voice_input_engineadapters",
+      "type": "defined_in",
+      "label": "engine implementation"
+    },
+    {
+      "source": "script_precommit",
+      "target": "radio_tests",
+      "type": "tests",
+      "label": "runs tests"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "format": "graphify-1",
+  "chunk": 5,
+  "total_chunks": 15,
+  "timestamp": "2026-08-31T00:00:00Z",
+  "requested_files": [
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Utils/StorageTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Integration/VoiceInputTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Utils/LoggingTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Utils/ConcurrencyTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/db.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Utils/FileIOTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/HuggingFaceTranscriber.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/OpenAITranscriber.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/WhisperTranscriber.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/LocalWhisperTranscriber.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/email.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/auth.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/UI/VoiceInputUITests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/lib/monitoring.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/monitoring.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/health.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/uploads.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_swift/Tests/Integration/VoiceInputManagerTests.swift",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/__tests__/e2e/full-flow.test.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/index.html",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/base.css",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/favicon.png",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/prettify.css",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/prettify.js",
+    "/Users/katoy/github/study-gemini-3/voice_input_js/coverage/sort.js"
+  ],
+  "files_found": 0,
+  "files_not_found": 25,
+  "nodes": [],
+  "edges": [],
+  "metadata": {
+    "note": "None of the requested files were found in the repository. The voice_input_swift and voice_input_js directories do not exist.",
+    "available_directories": [
+      "/Users/katoy/github/study-gemini-3/voice_ai",
+      "/Users/katoy/github/study-gemini-3/voice_input",
+      "/Users/katoy/github/study-gemini-3/voice_input_rust"
+    ]
+  }
+}

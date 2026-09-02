@@ -1,0 +1,523 @@
+{
+  "nodes": [
+    {
+      "id": "enginefactory",
+      "label": "EngineFactory",
+      "type": "enum",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineFactory.swift",
+      "description": "エンジンファクトリ：設定名からエンジンインスタンスを生成"
+    },
+    {
+      "id": "enginefactory_factoryerror",
+      "label": "FactoryError",
+      "type": "enum",
+      "language": "swift",
+      "parent": "enginefactory",
+      "description": "エンジン生成エラー"
+    },
+    {
+      "id": "enginefactory_createvadengine",
+      "label": "createVADEngine",
+      "type": "function",
+      "language": "swift",
+      "parent": "enginefactory",
+      "signature": "static func createVADEngine(from engineName: String) throws -> VADEngine"
+    },
+    {
+      "id": "enginefactory_createstreamingasrengine",
+      "label": "createStreamingASREngine",
+      "type": "function",
+      "language": "swift",
+      "parent": "enginefactory",
+      "signature": "static func createStreamingASREngine(from engineName: String) throws -> StreamingASREngine"
+    },
+    {
+      "id": "enginefactory_createbatchasrengine",
+      "label": "createBatchASREngine",
+      "type": "function",
+      "language": "swift",
+      "parent": "enginefactory",
+      "signature": "static func createBatchASREngine(from engineName: String) throws -> BatchASREngine"
+    },
+    {
+      "id": "enginefactory_createrefinerfactory",
+      "label": "createRefinerEngine",
+      "type": "function",
+      "language": "swift",
+      "parent": "enginefactory",
+      "signature": "static func createRefinerEngine(from engineName: String) throws -> RefinerEngine"
+    },
+    {
+      "id": "enginefactory_createpipeline",
+      "label": "createPipeline",
+      "type": "function",
+      "language": "swift",
+      "parent": "enginefactory",
+      "signature": "static func createPipeline(from config: AppConfig, dictionaryManager: UserDictionaryManager) throws -> VoiceInputPipeline"
+    },
+    {
+      "id": "engineprotocols_audiochunk",
+      "label": "AudioChunk",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "キャプチャされた音声データチャンク"
+    },
+    {
+      "id": "engineprotocols_vadstatus",
+      "label": "VADStatus",
+      "type": "enum",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "VAD (音声区間検出) のステータス"
+    },
+    {
+      "id": "engineprotocols_vadengine",
+      "label": "VADEngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "VAD エンジンプロトコル"
+    },
+    {
+      "id": "engineprotocols_streamingasrengine",
+      "label": "StreamingASREngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "ストリーミング ASR エンジンプロトコル"
+    },
+    {
+      "id": "engineprotocols_batchasrengine",
+      "label": "BatchASREngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "バッチ ASR エンジンプロトコル"
+    },
+    {
+      "id": "engineprotocols_refinercontext",
+      "label": "RefinerContext",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "LLM整形層コンテキスト情報"
+    },
+    {
+      "id": "engineprotocols_refinementstrength",
+      "label": "RefinementStrength",
+      "type": "enum",
+      "language": "swift",
+      "parent": "engineprotocols_refinercontext",
+      "description": "テキスト整形の強度"
+    },
+    {
+      "id": "engineprotocols_refinerengine",
+      "label": "RefinerEngine",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/EngineProtocols.swift",
+      "description": "Refiner (LLM整形) エンジンプロトコル"
+    },
+    {
+      "id": "focusmanaging",
+      "label": "FocusManaging",
+      "type": "protocol",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/FocusManager.swift",
+      "description": "アプリケーションのフォーカス管理プロトコル"
+    },
+    {
+      "id": "focusmanager",
+      "label": "FocusManager",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/FocusManager.swift",
+      "conforms_to": ["focusmanaging"],
+      "description": "アプリケーションのフォーカス管理実装"
+    },
+    {
+      "id": "globalhotkeymanager",
+      "label": "GlobalHotKeyManager",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/GlobalHotKeyManager.swift",
+      "description": "グローバルホットキー管理（Option+Space）"
+    },
+    {
+      "id": "globalhotkeymanager_hotkeymode",
+      "label": "HotKeyMode",
+      "type": "enum",
+      "language": "swift",
+      "parent": "globalhotkeymanager",
+      "description": "ホットキーモード（Push-to-Talkまたはトグル）"
+    },
+    {
+      "id": "globalhotkeymanager_registerhotkey",
+      "label": "registerHotKey",
+      "type": "function",
+      "language": "swift",
+      "parent": "globalhotkeymanager",
+      "signature": "func registerHotKey() throws"
+    },
+    {
+      "id": "hudview",
+      "label": "HUDView",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/HUDView.swift",
+      "description": "常駐メニューバー HUD ビュー"
+    },
+    {
+      "id": "outputvalidator",
+      "label": "OutputValidator",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/OutputValidator.swift",
+      "description": "ASR出力の品質・安全性を検証する検証器"
+    },
+    {
+      "id": "outputvalidator_validationresult",
+      "label": "ValidationResult",
+      "type": "enum",
+      "language": "swift",
+      "parent": "outputvalidator",
+      "description": "検証結果"
+    },
+    {
+      "id": "outputvalidator_validate",
+      "label": "validate",
+      "type": "function",
+      "language": "swift",
+      "parent": "outputvalidator",
+      "signature": "func validate(text: String) -> ValidationResult"
+    },
+    {
+      "id": "voiceinputpipeline",
+      "label": "VoiceInputPipeline",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/Pipeline.swift",
+      "description": "音声入力処理パイプライン"
+    },
+    {
+      "id": "voiceinputpipeline_start",
+      "label": "start",
+      "type": "function",
+      "language": "swift",
+      "parent": "voiceinputpipeline",
+      "signature": "func start() async throws"
+    },
+    {
+      "id": "voiceinputpipeline_processstreamchunk",
+      "label": "processStreamChunk",
+      "type": "function",
+      "language": "swift",
+      "parent": "voiceinputpipeline",
+      "signature": "func processStreamChunk(_ chunk: AudioChunk) async throws -> (status: VADStatus, preview: String?)"
+    },
+    {
+      "id": "voiceinputpipeline_processaudio",
+      "label": "processAudio",
+      "type": "function",
+      "language": "swift",
+      "parent": "voiceinputpipeline",
+      "signature": "func processAudio(audioData: Data, sampleRate: Double, appCategory: String?, strength: RefinerContext.RefinementStrength) async throws -> String"
+    },
+    {
+      "id": "textinserter",
+      "label": "TextInserter",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/TextInserter.swift",
+      "description": "テキスト挿入・クリップボード操作マネージャ"
+    },
+    {
+      "id": "textinserter_inserttext",
+      "label": "insertText",
+      "type": "function",
+      "language": "swift",
+      "parent": "textinserter",
+      "signature": "func insertText(_ text: String, targetApp: NSRunningApplication?) -> Void"
+    },
+    {
+      "id": "userdictionaryitem",
+      "label": "UserDictionaryItem",
+      "type": "struct",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/UserDictionary.swift",
+      "description": "ユーザー辞書アイテム"
+    },
+    {
+      "id": "userdictionarymanager",
+      "label": "UserDictionaryManager",
+      "type": "class",
+      "language": "swift",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input/Sources/voice_input/UserDictionary.swift",
+      "description": "ユーザー辞書マネージャ"
+    },
+    {
+      "id": "userdictionarymanager_add",
+      "label": "add",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func add(reading: String, target: String)"
+    },
+    {
+      "id": "userdictionarymanager_remove",
+      "label": "remove",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func remove(id: UUID)"
+    },
+    {
+      "id": "userdictionarymanager_activedictionary",
+      "label": "activeDictionary",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func activeDictionary() -> [String: String]"
+    },
+    {
+      "id": "userdictionarymanager_exportjson",
+      "label": "exportJSON",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func exportJSON() throws -> Data"
+    },
+    {
+      "id": "userdictionarymanager_importjson",
+      "label": "importJSON",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func importJSON(_ data: Data) throws"
+    },
+    {
+      "id": "userdictionarymanager_exportcsv",
+      "label": "exportCSV",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func exportCSV() throws -> Data"
+    },
+    {
+      "id": "userdictionarymanager_importcsv",
+      "label": "importCSV",
+      "type": "function",
+      "language": "swift",
+      "parent": "userdictionarymanager",
+      "signature": "func importCSV(_ data: Data) throws"
+    },
+    {
+      "id": "rs_audiobuffer",
+      "label": "AudioBuffer",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/audio.rs",
+      "description": "音声バッファ（Whisper用に16kHz モノに変換）"
+    },
+    {
+      "id": "rs_audiorecorder",
+      "label": "AudioRecorder",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/audio.rs",
+      "description": "音声レコーダー（cpal を使用）"
+    },
+    {
+      "id": "rs_userdictionary",
+      "label": "UserDictionary",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/dictionary.rs",
+      "description": "ユーザー辞書（HashMap ベース）"
+    },
+    {
+      "id": "rs_streamingasrengine",
+      "label": "StreamingAsrEngine",
+      "type": "trait",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/asr.rs",
+      "description": "ストリーミング ASR エンジントレイト"
+    },
+    {
+      "id": "rs_batchasrengine",
+      "label": "BatchAsrEngine",
+      "type": "trait",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/asr.rs",
+      "description": "バッチ ASR エンジントレイト"
+    },
+    {
+      "id": "rs_dummyasrengine",
+      "label": "DummyAsrEngine",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/asr.rs",
+      "implements": ["rs_batchasrengine"],
+      "description": "テスト用ダミー ASR エンジン"
+    },
+    {
+      "id": "rs_whisperasrengine",
+      "label": "WhisperAsrEngine",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/asr.rs",
+      "implements": ["rs_batchasrengine"],
+      "description": "Whisper ベース ASR エンジン"
+    },
+    {
+      "id": "rs_refinerengine",
+      "label": "RefinerEngine",
+      "type": "trait",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/refiner.rs",
+      "description": "テキスト整形エンジントレイト"
+    },
+    {
+      "id": "rs_textrefiner",
+      "label": "TextRefiner",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/refiner.rs",
+      "implements": ["rs_refinerengine"],
+      "description": "テキスト整形エンジン（ハルシネーション除去）"
+    },
+    {
+      "id": "rs_vadengine",
+      "label": "VadEngine",
+      "type": "trait",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/engine/vad.rs",
+      "description": "音声区間検出エンジントレイト"
+    },
+    {
+      "id": "rs_textinserter",
+      "label": "TextInserter",
+      "type": "struct",
+      "language": "rust",
+      "file": "/Users/katoy/github/study-gemini-3/voice_input_rust/src/inserter.rs",
+      "description": "テキスト挿入・クリップボード操作"
+    },
+    {
+      "id": "rs_macos_focus",
+      "label": "macos_focus",
+      "type": "module",
+      "language": "rust",
+      "parent": "rs_textinserter",
+      "description": "macOS フォーカス管理モジュール"
+    }
+  ],
+  "edges": [
+    {
+      "source": "voiceinputpipeline",
+      "target": "engineprotocols_vadengine",
+      "type": "uses"
+    },
+    {
+      "source": "voiceinputpipeline",
+      "target": "engineprotocols_streamingasrengine",
+      "type": "uses"
+    },
+    {
+      "source": "voiceinputpipeline",
+      "target": "engineprotocols_batchasrengine",
+      "type": "uses"
+    },
+    {
+      "source": "voiceinputpipeline",
+      "target": "engineprotocols_refinerengine",
+      "type": "uses"
+    },
+    {
+      "source": "voiceinputpipeline",
+      "target": "outputvalidator",
+      "type": "uses"
+    },
+    {
+      "source": "voiceinputpipeline",
+      "target": "userdictionarymanager",
+      "type": "uses"
+    },
+    {
+      "source": "textinserter",
+      "target": "focusmanaging",
+      "type": "uses"
+    },
+    {
+      "source": "enginefactory_createpipeline",
+      "target": "voiceinputpipeline",
+      "type": "creates"
+    },
+    {
+      "source": "enginefactory_createvadengine",
+      "target": "engineprotocols_vadengine",
+      "type": "creates"
+    },
+    {
+      "source": "enginefactory_createstreamingasrengine",
+      "target": "engineprotocols_streamingasrengine",
+      "type": "creates"
+    },
+    {
+      "source": "enginefactory_createbatchasrengine",
+      "target": "engineprotocols_batchasrengine",
+      "type": "creates"
+    },
+    {
+      "source": "enginefactory_createrefinerfactory",
+      "target": "engineprotocols_refinerengine",
+      "type": "creates"
+    },
+    {
+      "source": "focusmanager",
+      "target": "focusmanaging",
+      "type": "implements"
+    },
+    {
+      "source": "hudview",
+      "target": "voiceinputpipeline",
+      "type": "uses"
+    },
+    {
+      "source": "userdictionarymanager",
+      "target": "userdictionaryitem",
+      "type": "manages"
+    },
+    {
+      "source": "rs_whisperasrengine",
+      "target": "rs_batchasrengine",
+      "type": "implements"
+    },
+    {
+      "source": "rs_dummyasrengine",
+      "target": "rs_batchasrengine",
+      "type": "implements"
+    },
+    {
+      "source": "rs_textrefiner",
+      "target": "rs_refinerengine",
+      "type": "implements"
+    },
+    {
+      "source": "rs_textinserter",
+      "target": "rs_macos_focus",
+      "type": "uses"
+    },
+    {
+      "source": "engineprotocols_refinercontext",
+      "target": "engineprotocols_refinementstrength",
+      "type": "contains"
+    },
+    {
+      "source": "outputvalidator_validate",
+      "target": "outputvalidator_validationresult",
+      "type": "returns"
+    }
+  ]
+}
