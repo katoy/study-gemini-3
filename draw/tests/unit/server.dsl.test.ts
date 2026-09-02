@@ -83,6 +83,77 @@ describe('parseDSLToElements', () => {
   });
 });
 
+describe('parseDSLToElements の分岐カバレッジ（デフォルト値・不正入力）', () => {
+  it('文字列でないコマンドや空文字コマンドは無視する', () => {
+    const elements = parseDSLToElements([null as any, '   ', 'RECT|box1|0|0|10|10|blue|A']);
+    expect(elements).toHaveLength(1);
+    expect(elements[0].id).toBe('box1');
+  });
+
+  it('DEL は id 省略時 ids が空文字になる', () => {
+    const [elem] = parseDSLToElements(['DEL']);
+    expect(elem).toEqual({ type: 'delete', ids: '' });
+  });
+
+  it('RECT は全パラメータ省略時にデフォルト値を使う', () => {
+    const [elem] = parseDSLToElements(['RECT']);
+    expect(elem.id).toMatch(/^elem_/);
+    expect(elem).toMatchObject({ type: 'rectangle', x: 100, y: 100, width: 140, height: 70 });
+    expect(elem.backgroundColor).toBe(COLOR_PALETTE.blue.fill);
+  });
+
+  it('RECT は未知の色キー指定時 blue にフォールバックする', () => {
+    const [elem] = parseDSLToElements(['RECT|box1|0|0|10|10|nosuchcolor|A']);
+    expect(elem.backgroundColor).toBe(COLOR_PALETTE.blue.fill);
+  });
+
+  it('TEXT は全パラメータ省略時にデフォルト値を使う', () => {
+    const [elem] = parseDSLToElements(['TEXT']);
+    expect(elem.id).toMatch(/^txt_/);
+    expect(elem).toMatchObject({ type: 'text', x: 100, y: 100, fontSize: 18, text: '' });
+    expect(elem.strokeColor).toBe(COLOR_PALETTE.dark.stroke);
+  });
+
+  it('TEXT は未知の色キー指定時 dark にフォールバックする', () => {
+    const [elem] = parseDSLToElements(['TEXT|t1|0|0|18|nosuchcolor|hi']);
+    expect(elem.strokeColor).toBe(COLOR_PALETTE.dark.stroke);
+  });
+
+  it('ARROW は全パラメータ省略時にデフォルト値を使う', () => {
+    const [elem] = parseDSLToElements(['ARROW']);
+    expect(elem.id).toMatch(/^arr_/);
+    expect(elem.strokeColor).toBe(COLOR_PALETTE.dark.stroke);
+  });
+
+  it('ARROW は未知の色キー指定時 dark にフォールバックする', () => {
+    const [elem] = parseDSLToElements(['ARROW|a1|0,0|100,0|nosuchcolor|']);
+    expect(elem.strokeColor).toBe(COLOR_PALETTE.dark.stroke);
+  });
+
+  it('ARROW は from/to が存在しないIDのとき原点付近のデフォルト座標になる', () => {
+    const [elem] = parseDSLToElements(['ARROW|a1|missingFrom|missingTo|dark|']);
+    expect(elem.x).toBe(0);
+    expect(elem.y).toBe(0);
+    expect(elem.points).toEqual([[0, 0], [100, 0]]);
+  });
+
+  it('ARROW の座標指定で x 部分が 0（falsy）のときは 100 にフォールバックする', () => {
+    const [elem] = parseDSLToElements(['ARROW|a1|0,0|0,50|dark|']);
+    // toRef "0,50" -> endX = Number('0') || 100 = 100
+    expect(elem.points).toEqual([[0, 0], [100, 50]]);
+  });
+
+  it('ARROW の始点と終点の x が同じとき width は 1 にフォールバックする', () => {
+    const [elem] = parseDSLToElements(['ARROW|a1|50,0|50,80|dark|']);
+    expect(elem.width).toBe(1);
+  });
+
+  it('ARROW はラベル指定時にラベル付きオブジェクトを返す', () => {
+    const [elem] = parseDSLToElements(['ARROW|a1|0,0|100,0|dark|接続']);
+    expect(elem.label).toEqual({ text: '接続', fontSize: 14, strokeColor: '#1e1e1e' });
+  });
+});
+
 describe('getThinkingConfigFor', () => {
   it('flash 系モデルは thinkingBudget を 0 にする', () => {
     expect(getThinkingConfigFor('gemini-3.6-flash')).toEqual({ thinkingBudget: 0 });

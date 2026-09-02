@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import { parseDSLToElements, getThinkingConfigFor } from './dsl';
@@ -19,9 +20,10 @@ if (!apiKey) {
 const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
 
 // Store connected clients
-const clients = new Set<WebSocket>();
+export const clients = new Set<WebSocket>();
 
-wss.on('connection', (ws) => {
+// wss.on('connection') のハンドラ本体。単体テストから直接呼べるよう export している
+export function handleWsConnection(ws: WebSocket) {
   clients.add(ws);
   console.log('Client connected to WebSocket');
 
@@ -29,9 +31,11 @@ wss.on('connection', (ws) => {
     clients.delete(ws);
     console.log('Client disconnected from WebSocket');
   });
-});
+}
 
-function broadcast(data: any) {
+wss.on('connection', handleWsConnection);
+
+export function broadcast(data: any) {
   const message = JSON.stringify(data);
   for (const client of clients) {
     if (client.readyState === WebSocket.OPEN) {
@@ -77,21 +81,32 @@ const excalidrawTools = [
   }
 ];
 
+// 実際に Gemini API を呼び出す部分。単体テストでは realCall を差し替えて
+// 実ネットワーク呼び出しなしに MOCK_GEMINI=0 側の分岐もテストできるようにしている
+type RealGeminiCaller = (modelName: string, contents: any, config: any) => Promise<AsyncIterable<any>>;
+const defaultRealCall: RealGeminiCaller = (modelName, contents, config) =>
+  ai.models.generateContentStream({ model: modelName, contents, config });
+
 // Gemini 本体呼び出し。MOCK_GEMINI=1 の場合は実APIを呼ばず、テスト用の固定ストリームを返す
-async function* streamGeminiResponse(modelName: string, contents: any, config: any): AsyncGenerator<any> {
+export async function* streamGeminiResponse(
+  modelName: string,
+  contents: any,
+  config: any,
+  realCall: RealGeminiCaller = defaultRealCall
+): AsyncGenerator<any> {
   if (process.env.MOCK_GEMINI === '1') {
     yield* mockGeminiStream();
     return;
   }
-  const responseStream = await ai.models.generateContentStream({ model: modelName, contents, config });
+  const responseStream = await realCall(modelName, contents, config);
   for await (const chunk of responseStream) {
     yield chunk;
   }
 }
 
 // E2Eテスト用の固定ダミーストリーム。draw_dsl の functionCall を意図的に2回に分けて返し、
-// 段階的描画（複数回呼び出し）の経路を検証できるようにする
-async function* mockGeminiStream(): AsyncGenerator<any> {
+// 段階的描画(複数回呼び出し)の経路を検証できるようにする
+export async function* mockGeminiStream(): AsyncGenerator<any> {
   yield {
     candidates: [{ content: { parts: [{ text: 'モック応答: フローチャートを2段階で描画します。' }] } }]
   };
@@ -156,7 +171,10 @@ LAYOUT GUIDELINES:
 - Maintain consistent coordinates and alignment for connected nodes.
 `;
 
-app.post('/api/chat', async (req, res) => {
+// /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
+// 実Gemini呼び出しなしに 429/フォールバック/複数回functionCall 等の分岐を単体テストできるようにしている
+export function createChatHandler(streamFn: typeof streamGeminiResponse = streamGeminiResponse) {
+  return async (req: express.Request, res: express.Response) => {
   const { message, history, currentElements } = req.body;
 
   if (!process.env.GEMINI_API_KEY && process.env.MOCK_GEMINI !== '1') {
@@ -225,7 +243,7 @@ app.post('/api/chat', async (req, res) => {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
           console.log(`Streaming model: ${modelName} (attempt ${attempt}) ⏱️ T1 +${Date.now() - t0}ms`);
-          const responseStream = streamGeminiResponse(modelName, contents, {
+          const responseStream = streamFn(modelName, contents, {
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
             tools: excalidrawTools,
             temperature: 0.2,
@@ -311,6 +329,9 @@ app.post('/api/chat', async (req, res) => {
     for (const modelName of fallbackModels) {
       try {
         result = await callModelStreamWithRetry(modelName);
+        // callModelStreamWithRetry は必ず結果を返すか throw するため、result が falsy になることは
+        // 実質無い（防御的チェック）。到達不能な分岐なのでカバレッジ計測から除外する
+        /* v8 ignore next 3 */
         if (result) {
           console.log(`Successfully completed streaming content using model: ${modelName}`);
           break;
@@ -334,9 +355,21 @@ app.post('/api/chat', async (req, res) => {
     console.error('Error generating streaming content:', error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
-});
+  };
+}
+
+app.post('/api/chat', createChatHandler());
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`🚀 Express API & WebSocket Server running on http://localhost:${PORT}`);
-});
+
+// このファイルが直接実行された場合のみ listen する（テストからの import 時に
+// ポートを掴んでしまわないようにするためのガード）。実際にポートを bind する分岐は
+// テストプロセスからは意図的に実行しないため、カバレッジ計測から除外する
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+/* v8 ignore start */
+if (isMainModule) {
+  server.listen(PORT, () => {
+    console.log(`🚀 Express API & WebSocket Server running on http://localhost:${PORT}`);
+  });
+}
+/* v8 ignore stop */
