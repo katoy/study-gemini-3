@@ -147,6 +147,14 @@ INSTRUCTIONS:
 2. If the user asks about diagrams or architecture, describe them clearly in text format.
 3. Maintain a friendly and professional tone.
 4. When discussing diagrams or visual concepts, provide detailed text descriptions to help the user understand.
+
+PROGRESSIVE DRAWING (段階的描画):
+- When drawing diagrams, ALWAYS call draw_dsl MULTIPLE TIMES (2-3 times minimum) to show the drawing progress.
+- First call: Draw foundational elements (starting boxes/shapes).
+- Second call: Add intermediate elements, connections, or details.
+- Third call (if needed): Add final refinements or secondary flows.
+- DO NOT draw everything in a single call. Use multiple draw_dsl calls to visualize step-by-step construction.
+- This creates a smooth progressive rendering experience for the user.
 `;
 
 // /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
