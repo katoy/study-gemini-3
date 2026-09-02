@@ -50,7 +50,7 @@ const excalidrawTools = [
     functionDeclarations: [
       {
         name: 'draw_dsl',
-        description: 'Creates or updates the diagram canvas using fast compact DSL commands array. YOU MUST ALWAYS CALL THIS TOOL when asked to draw, create, or modify a diagram/flowchart/architecture.',
+        description: 'Creates or updates the diagram canvas using fast compact DSL commands array. YOU MUST CALL THIS TOOL MULTIPLE TIMES (at least 2-3 times) when drawing diagrams to show progressive rendering: (1) foundational elements, (2) connections/details, (3) refinements. Never draw everything in a single call.',
         parameters: {
           type: 'OBJECT',
           properties: {
