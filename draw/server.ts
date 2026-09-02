@@ -104,12 +104,13 @@ export async function* streamGeminiResponse(
   }
 }
 
-// E2Eテスト用の固定ダミーストリーム。draw_dsl の functionCall を意図的に2回に分けて返し、
-// 段階的描画(複数回呼び出し)の経路を検証できるようにする
+// E2Eテスト用の固定ダミーストリーム。draw_dsl の functionCall を複数回に分けて返し、
+// 1要素ずつの段階的描画(複数回呼び出し)の経路を検証できるようにする
 export async function* mockGeminiStream(): AsyncGenerator<any> {
   yield {
-    candidates: [{ content: { parts: [{ text: 'モック応答: フローチャートを2段階で描画します。' }] } }]
+    candidates: [{ content: { parts: [{ text: 'モック応答: フローチャートを3段階で描画します。' }] } }]
   };
+  // ステップ1: Start要素
   yield {
     candidates: [{
       content: {
@@ -123,6 +124,7 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
       }
     }]
   };
+  // ステップ2: End要素
   yield {
     candidates: [{
       content: {
@@ -130,7 +132,21 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
           functionCall: {
             id: 'mock-fc-2',
             name: 'draw_dsl',
-            args: { commands: ['RECT|box2|300|100|140|70|green|End', 'ARROW|arr1|box1|box2|dark|next'] }
+            args: { commands: ['RECT|box2|300|100|140|70|green|End'] }
+          }
+        }]
+      }
+    }]
+  };
+  // ステップ3: Arrow要素
+  yield {
+    candidates: [{
+      content: {
+        parts: [{
+          functionCall: {
+            id: 'mock-fc-3',
+            name: 'draw_dsl',
+            args: { commands: ['ARROW|arr1|box1|box2|dark|next'] }
           }
         }]
       }
