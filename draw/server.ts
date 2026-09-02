@@ -212,9 +212,8 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
     ];
 
     const fallbackModels = [
-      'gemini-3.6-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-pro-preview'
+      'gemini-3.7-flash',
+      'gemini-3.5-flash'
     ];
 
     const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 2500): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
@@ -223,7 +222,6 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
           console.log(`Streaming model: ${modelName} (attempt ${attempt}) ⏱️ T1 +${Date.now() - t0}ms`);
           const responseStream = streamFn(modelName, contents, {
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-            temperature: 0.2,
             thinkingConfig: getThinkingConfigFor(modelName),
           });
 
