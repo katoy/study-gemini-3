@@ -212,9 +212,9 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
     ];
 
     const fallbackModels = [
-      'gemini-3.6-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-pro-preview'
+      'gemini-3-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-pro'
     ];
 
     const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 2500): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
