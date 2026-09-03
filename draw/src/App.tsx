@@ -243,12 +243,13 @@ export default function App() {
 
       // 段階的描画：新規要素を 1 つずつ追加（アニメーション効果付き）
       const newElementCount = serverElements.length;
-      const animationDelay = 300; // 各要素間の遅延（ms）
+      const animationDelay = 500; // 各要素間の遅延（ms）Excalidraw レンダリング時間を考慮
 
       for (let i = 0; i < newElementCount; i++) {
         setTimeout(() => {
           // 現在の要素まで含めた状態を更新
           const elementsUpToIndex = finalElements.slice(0, finalElements.length - newElementCount + i + 1);
+          console.log(`⏱️ Adding element ${i + 1}/${newElementCount} at ${Date.now()}`);
           excalidrawAPI.updateScene({
             elements: elementsUpToIndex,
           });
@@ -256,11 +257,12 @@ export default function App() {
           // 最後の要素の後に viewport をフィット
           if (i === newElementCount - 1) {
             setTimeout(() => {
+              console.log(`✨ Fitting viewport at ${Date.now()}`);
               excalidrawAPI.scrollToContent(elementsUpToIndex, {
                 fitToViewport: true,
                 animate: true,
               });
-            }, 100);
+            }, 200);
           }
         }, animationDelay * i);
       }
