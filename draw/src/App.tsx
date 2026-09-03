@@ -244,6 +244,7 @@ export default function App() {
       // 段階的描画：新規要素を 1 つずつ追加（アニメーション効果付き）
       const newElementCount = serverElements.length;
       const animationDelay = 500; // 各要素間の遅延（ms）Excalidraw レンダリング時間を考慮
+      const initialDelay = 600; // 最初の要素追加前に WebSocket メッセージ受信を待つ
 
       for (let i = 0; i < newElementCount; i++) {
         setTimeout(() => {
@@ -264,7 +265,7 @@ export default function App() {
               });
             }, 200);
           }
-        }, animationDelay * i);
+        }, initialDelay + animationDelay * i);
       }
     } catch (e) {
       console.error('Error updating Excalidraw scene:', e);
