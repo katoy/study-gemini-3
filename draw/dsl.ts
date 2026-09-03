@@ -54,12 +54,16 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         y,
         width,
         height,
+        text: labelText || '',
+        fontSize: 16,
+        textAlign: 'center',
+        verticalAlign: 'middle',
         strokeColor: colors.stroke,
         backgroundColor: colors.fill,
         fillStyle: 'solid',
+        strokeStyle: 'solid',
         strokeWidth: 2,
-        roughness: 1,
-        label: labelText ? { text: labelText, fontSize: 16, strokeColor: '#1e1e1e' } : undefined
+        roughness: 1
       };
 
       elementMap.set(id, elemObj);
@@ -80,8 +84,8 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         id,
         x,
         y,
-        width: Math.max(text.length * fontSize * 0.6, 100), // 文字列長を推定
-        height: fontSize + 8,
+        width: Math.max(text.length * (fontSize * 0.55), 50), // 文字幅推定（より正確な係数）
+        height: fontSize * 1.5,
         text,
         fontSize,
         textAlign: 'left',
@@ -89,6 +93,7 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         strokeColor: colors.stroke,
         backgroundColor: 'transparent',
         fillStyle: 'solid',
+        strokeStyle: 'solid',
         roughness: 1
       };
 
@@ -136,14 +141,17 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         y: startY,
         width: Math.abs(dx) || 1,
         height: Math.abs(dy) || 1,
+        text: labelText || '',
+        fontSize: 14,
         strokeColor: colors.stroke,
         backgroundColor: 'transparent',
         fillStyle: 'solid',
+        strokeStyle: 'solid',
         strokeWidth: 2,
         roughness: 1,
+        startArrowhead: null,
         endArrowhead: 'arrow',
-        points: [[0, 0], [dx, dy]],
-        label: labelText ? { text: labelText, fontSize: 14, strokeColor: '#1e1e1e' } : undefined
+        points: [[0, 0], [dx, dy]]
       });
     }
   }
