@@ -130,7 +130,10 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         width: Math.abs(dx) || 1,
         height: Math.abs(dy) || 1,
         strokeColor: colors.stroke,
+        backgroundColor: 'transparent',
+        fillStyle: 'solid',
         strokeWidth: 2,
+        roughness: 1,
         endArrowhead: 'arrow',
         points: [[0, 0], [dx, dy]],
         label: labelText ? { text: labelText, fontSize: 14, strokeColor: '#1e1e1e' } : undefined
