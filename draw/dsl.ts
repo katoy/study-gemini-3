@@ -80,8 +80,12 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         id,
         x,
         y,
+        width: Math.max(text.length * fontSize * 0.6, 100), // 文字列長を推定
+        height: fontSize + 8,
         text,
         fontSize,
+        textAlign: 'left',
+        verticalAlign: 'top',
         strokeColor: colors.stroke,
         backgroundColor: 'transparent',
         fillStyle: 'solid',
