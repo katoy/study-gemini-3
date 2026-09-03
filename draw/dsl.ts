@@ -82,7 +82,10 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         y,
         text,
         fontSize,
-        strokeColor: colors.stroke
+        strokeColor: colors.stroke,
+        backgroundColor: 'transparent',
+        fillStyle: 'solid',
+        roughness: 1
       };
 
       elementMap.set(id, elemObj);
