@@ -35,19 +35,37 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
     }
 
     if (type === 'RECT' || type === 'ELLIPSE' || type === 'DIAMOND') {
-      // Syntax: TYPE|id|x|y|width|height|color|label
+      // Syntax: TYPE|id|x|y|width|height|color|label|angle
+      // またはカンマ座標: TYPE|id|x,y,w,h|color|label|angle
       const id = parts[1] || `elem_${Math.random().toString(36).substring(2, 7)}`;
-      const x = Number(parts[2] || 100);
-      const y = Number(parts[3] || 100);
-      const width = Number(parts[4] || 140);
-      const height = Number(parts[5] || 70);
-      const colorKey = (parts[6] || 'blue').toLowerCase();
-      const labelText = parts[7] || '';
+      let x = 100, y = 100, width = 140, height = 70;
+      let colorKey = 'blue', labelText = '', rawAngle = '';
+
+      if (parts[2] && parts[2].includes(',')) {
+        const coords = parts[2].split(',').map(Number);
+        x = Number(coords[0] || 100);
+        y = Number(coords[1] || 100);
+        width = Number(coords[2] || 140);
+        height = Number(coords[3] || 70);
+        colorKey = (parts[3] || 'blue').toLowerCase();
+        labelText = parts[4] || '';
+        rawAngle = parts[5] || '';
+      } else {
+        x = Number(parts[2] || 100);
+        y = Number(parts[3] || 100);
+        width = Number(parts[4] || 140);
+        height = Number(parts[5] || 70);
+        colorKey = (parts[6] || 'blue').toLowerCase();
+        labelText = parts[7] || '';
+        rawAngle = parts[8] || '';
+      }
 
       const colors = COLOR_PALETTE[colorKey] || COLOR_PALETTE.blue;
       const shapeType = type === 'RECT' ? 'rectangle' : type === 'ELLIPSE' ? 'ellipse' : 'diamond';
+      const numAngle = Number(rawAngle || 0);
+      const angle = Math.abs(numAngle) > Math.PI * 2 ? (numAngle * Math.PI) / 180 : numAngle;
 
-      const elemObj = {
+      const elemObj: any = {
         type: shapeType,
         id,
         x,
@@ -66,16 +84,80 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         roughness: 1
       };
 
+      if (angle !== 0) {
+        elemObj.angle = angle;
+      }
+
+      elementMap.set(id, elemObj);
+      elements.push(elemObj);
+    } else if (type === 'TRIANGLE') {
+      // Syntax: TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label
+      const id = parts[1] || `tri_${Math.random().toString(36).substring(2, 7)}`;
+      const p1 = (parts[2] || '0,0').split(',').map(Number);
+      const p2 = (parts[3] || '100,0').split(',').map(Number);
+      const p3 = (parts[4] || '50,100').split(',').map(Number);
+      const colorKey = (parts[5] || 'blue').toLowerCase();
+      const labelText = parts[6] || '';
+
+      const colors = COLOR_PALETTE[colorKey] || COLOR_PALETTE.blue;
+      const x1 = p1[0] || 0, y1 = p1[1] || 0;
+      const x2 = p2[0] || 0, y2 = p2[1] || 0;
+      const x3 = p3[0] || 0, y3 = p3[1] || 0;
+
+      const minX = Math.min(x1, x2, x3);
+      const minY = Math.min(y1, y2, y3);
+      const maxX = Math.max(x1, x2, x3);
+      const maxY = Math.max(y1, y2, y3);
+      const width = Math.max(maxX - minX, 1);
+      const height = Math.max(maxY - minY, 1);
+
+      const elemObj = {
+        type: 'line',
+        id,
+        x: minX,
+        y: minY,
+        width,
+        height,
+        text: labelText || '',
+        fontSize: 16,
+        strokeColor: colors.stroke,
+        backgroundColor: colors.fill,
+        fillStyle: 'solid',
+        strokeStyle: 'solid',
+        strokeWidth: 2,
+        roughness: 1,
+        startArrowhead: null,
+        endArrowhead: null,
+        points: [
+          [x1 - minX, y1 - minY],
+          [x2 - minX, y2 - minY],
+          [x3 - minX, y3 - minY],
+          [x1 - minX, y1 - minY]
+        ]
+      };
+
       elementMap.set(id, elemObj);
       elements.push(elemObj);
     } else if (type === 'TEXT') {
       // Syntax: TEXT|id|x|y|fontSize|color|text
+      // またはカンマ座標: TEXT|id|x,y|fontSize|color|text
       const id = parts[1] || `txt_${Math.random().toString(36).substring(2, 7)}`;
-      const x = Number(parts[2] || 100);
-      const y = Number(parts[3] || 100);
-      const fontSize = Number(parts[4] || 18);
-      const colorKey = (parts[5] || 'dark').toLowerCase();
-      const text = parts[6] || '';
+      let x = 100, y = 100, fontSize = 18, colorKey = 'dark', text = '';
+
+      if (parts[2] && parts[2].includes(',')) {
+        const coords = parts[2].split(',').map(Number);
+        x = Number(coords[0] || 100);
+        y = Number(coords[1] || 100);
+        fontSize = Number(parts[3] || 18);
+        colorKey = (parts[4] || 'dark').toLowerCase();
+        text = parts[5] || '';
+      } else {
+        x = Number(parts[2] || 100);
+        y = Number(parts[3] || 100);
+        fontSize = Number(parts[4] || 18);
+        colorKey = (parts[5] || 'dark').toLowerCase();
+        text = parts[6] || '';
+      }
 
       const colors = COLOR_PALETTE[colorKey] || COLOR_PALETTE.dark;
 
@@ -84,7 +166,7 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         id,
         x,
         y,
-        width: Math.max(text.length * (fontSize * 0.55), 50), // 文字幅推定（より正確な係数）
+        width: Math.max(text.length * (fontSize * 0.55), 50),
         height: fontSize * 1.5,
         text,
         fontSize,
@@ -99,9 +181,9 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
 
       elementMap.set(id, elemObj);
       elements.push(elemObj);
-    } else if (type === 'ARROW') {
-      // Syntax: ARROW|id|fromRef|toRef|color|label
-      const id = parts[1] || `arr_${Math.random().toString(36).substring(2, 7)}`;
+    } else if (type === 'ARROW' || type === 'LINE') {
+      // Syntax: ARROW/LINE|id|fromRef|toRef|color|label
+      const id = parts[1] || `${type === 'LINE' ? 'line' : 'arr'}_${Math.random().toString(36).substring(2, 7)}`;
       const fromRef = parts[2] || '0,0';
       const toRef = parts[3] || '100,0';
       const colorKey = (parts[4] || 'dark').toLowerCase();
@@ -135,7 +217,7 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
       const dy = endY - startY;
 
       elements.push({
-        type: 'arrow',
+        type: type === 'LINE' ? 'line' : 'arrow',
         id,
         x: startX,
         y: startY,
@@ -150,7 +232,7 @@ export function parseDSLToElements(commands: string[], elementMap: Map<string, a
         strokeWidth: 2,
         roughness: 1,
         startArrowhead: null,
-        endArrowhead: 'arrow',
+        endArrowhead: type === 'LINE' ? null : 'arrow',
         points: [[0, 0], [dx, dy]]
       });
     }

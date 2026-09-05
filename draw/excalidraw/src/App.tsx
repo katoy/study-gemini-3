@@ -21,6 +21,10 @@ export default function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const draftInputRef = useRef<string>('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -221,64 +225,73 @@ export default function App() {
     };
   }, [excalidrawAPI]);
 
-  // Convert & apply elements received from MCP server function calls to Excalidraw state
-  // 段階的アニメーション：要素を 1 つずつ出現させる
-  const applyServerElements = (serverElements: any[]) => {
-    if (!excalidrawAPI) {
-      console.warn('excalidrawAPI is not initialized yet');
-      return;
-    }
+  // 段階的アニメーションキューの管理：要素を 1 つずつ順次追加する
+  const animationQueueRef = useRef<any[]>([]);
+  const isAnimatingRef = useRef(false);
 
-    if (!Array.isArray(serverElements) || serverElements.length === 0) {
-      return;
-    }
-
-    console.log('applyServerElements received:', serverElements);
+  const processAnimationQueue = async () => {
+    if (isAnimatingRef.current || !excalidrawAPI) return;
+    isAnimatingRef.current = true;
 
     try {
-      const currentSceneElements = excalidrawAPI.getSceneElements() || [];
-      const finalElements = mergeServerElements(currentSceneElements, serverElements, convertToExcalidrawElements);
+      while (animationQueueRef.current.length > 0) {
+        const nextElement = animationQueueRef.current.shift();
+        const currentScene = excalidrawAPI.getSceneElements() || [];
+        const updated = mergeServerElements(currentScene, [nextElement], convertToExcalidrawElements);
 
-      console.log('Final elements updating Excalidraw scene:', finalElements);
+        console.log(`⏱️ Adding element at ${Date.now()}:`, nextElement);
+        excalidrawAPI.updateScene({ elements: updated });
 
-      // 段階的描画：新規要素を 1 つずつ追加（アニメーション効果付き）
-      const newElementCount = serverElements.length;
-      const animationDelay = 500; // 各要素間の遅延（ms）Excalidraw レンダリング時間を考慮
-      const initialDelay = 600; // 最初の要素追加前に WebSocket メッセージ受信を待つ
-
-      for (let i = 0; i < newElementCount; i++) {
-        setTimeout(() => {
-          // 現在の要素まで含めた状態を更新
-          const elementsUpToIndex = finalElements.slice(0, finalElements.length - newElementCount + i + 1);
-          console.log(`⏱️ Adding element ${i + 1}/${newElementCount} at ${Date.now()}`);
-          excalidrawAPI.updateScene({
-            elements: elementsUpToIndex,
-          });
-
-          // 最後の要素の後に viewport をフィット
-          if (i === newElementCount - 1) {
-            setTimeout(() => {
+        if (animationQueueRef.current.length > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+        } else {
+          // キュー内の全要素描画完了後、画面内に収める
+          setTimeout(() => {
+            const final = excalidrawAPI.getSceneElements();
+            if (final && final.length > 0) {
               console.log(`✨ Fitting viewport at ${Date.now()}`);
-              excalidrawAPI.scrollToContent(elementsUpToIndex, {
+              excalidrawAPI.scrollToContent(final, {
                 fitToViewport: true,
                 animate: true,
               });
-            }, 200);
-          }
-        }, initialDelay + animationDelay * i);
+            }
+          }, 300);
+        }
       }
-    } catch (e) {
-      console.error('Error updating Excalidraw scene:', e);
+    } catch (err) {
+      console.error('Error in animation queue:', err);
+    } finally {
+      isAnimatingRef.current = false;
     }
   };
 
+  const applyServerElements = (serverElements: any[]) => {
+    if (!excalidrawAPI || !Array.isArray(serverElements) || serverElements.length === 0) {
+      return;
+    }
+
+    console.log('applyServerElements queued:', serverElements);
+    animationQueueRef.current.push(...serverElements);
+    processAnimationQueue();
+  };
+
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    setPromptHistory((prev) => {
+      if (prev.length > 0 && prev[prev.length - 1] === trimmed) {
+        return prev;
+      }
+      return [...prev, trimmed];
+    });
+    setHistoryIndex(-1);
+    draftInputRef.current = '';
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: trimmed,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -347,6 +360,60 @@ export default function App() {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
       sendMessage();
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      const isSingleLineOrAtTop = !input.includes('\n') || e.currentTarget.selectionStart <= input.indexOf('\n');
+      if (promptHistory.length > 0 && (historyIndex !== -1 || isSingleLineOrAtTop)) {
+        e.preventDefault();
+        let nextIndex = historyIndex;
+        if (historyIndex === -1) {
+          draftInputRef.current = input;
+          nextIndex = promptHistory.length - 1;
+        } else if (historyIndex > 0) {
+          nextIndex = historyIndex - 1;
+        }
+
+        if (nextIndex !== -1) {
+          setHistoryIndex(nextIndex);
+          const historyText = promptHistory[nextIndex];
+          setInput(historyText);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = historyText.length;
+            }
+          }, 0);
+        }
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      if (historyIndex !== -1) {
+        e.preventDefault();
+        if (historyIndex < promptHistory.length - 1) {
+          const nextIndex = historyIndex + 1;
+          setHistoryIndex(nextIndex);
+          const historyText = promptHistory[nextIndex];
+          setInput(historyText);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = historyText.length;
+            }
+          }, 0);
+        } else {
+          setHistoryIndex(-1);
+          const draftText = draftInputRef.current;
+          setInput(draftText);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = draftText.length;
+            }
+          }, 0);
+        }
+      }
+      return;
     }
   };
 
@@ -383,9 +450,15 @@ export default function App() {
         <div className="chat-input-area">
           <div className="chat-input-row">
             <textarea
+              ref={textareaRef}
               placeholder="質問や図の作成指示を入力... (Shift+Enterで送信)"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (historyIndex !== -1) {
+                  draftInputRef.current = e.target.value;
+                }
+              }}
               onKeyDown={handleKeyDown}
             />
             <button

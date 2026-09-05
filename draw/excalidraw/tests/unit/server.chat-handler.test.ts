@@ -246,7 +246,7 @@ describe('createChatHandler', () => {
   it('429エラーが retries 回続くモデルはフォールバック先モデルで成功する', async () => {
     vi.useFakeTimers();
     const streamFn: StreamFn = async function* (modelName) {
-      if (modelName === 'gemini-3.6-flash') {
+      if (modelName === 'gemini-3.5-flash') {
         const err: any = new Error('429 rate limited');
         throw err;
       }
@@ -258,7 +258,7 @@ describe('createChatHandler', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await done;
     expect(res.statusCode).toBe(200);
-    expect(res.body.reply).toBe('成功: gemini-3.5-flash-lite');
+    expect(res.body.reply).toBe('成功: gemini-3.7-flash');
   });
 
   it('全モデルが失敗すると500を返す', async () => {
@@ -280,7 +280,7 @@ describe('createChatHandler', () => {
 
   it('429以外のエラーはリトライせず即座に次モデルへフォールバックする', async () => {
     const streamFn: StreamFn = async function* (modelName) {
-      if (modelName === 'gemini-3.6-flash') {
+      if (modelName === 'gemini-3.5-flash') {
         throw new Error('unexpected failure');
       }
       yield textChunk(`成功: ${modelName}`);
@@ -289,6 +289,6 @@ describe('createChatHandler', () => {
     const res = buildRes();
     await handler(buildReq({ message: 'hi' }), res);
     expect(res.statusCode).toBe(200);
-    expect(res.body.reply).toBe('成功: gemini-3.5-flash-lite');
+    expect(res.body.reply).toBe('成功: gemini-3.7-flash');
   });
 });

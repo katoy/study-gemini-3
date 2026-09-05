@@ -11,9 +11,9 @@ describe('parseDSLToElements', () => {
       y: 20,
       width: 140,
       height: 70,
+      text: 'Hello',
       strokeColor: COLOR_PALETTE.blue.stroke,
       backgroundColor: COLOR_PALETTE.blue.fill,
-      label: { text: 'Hello' },
     });
   });
 
@@ -148,9 +148,52 @@ describe('parseDSLToElements の分岐カバレッジ（デフォルト値・不
     expect(elem.width).toBe(1);
   });
 
-  it('ARROW はラベル指定時にラベル付きオブジェクトを返す', () => {
+  it('ARROW はラベル指定時に text を返す', () => {
     const [elem] = parseDSLToElements(['ARROW|a1|0,0|100,0|dark|接続']);
-    expect(elem.label).toEqual({ text: '接続', fontSize: 14, strokeColor: '#1e1e1e' });
+    expect(elem.text).toBe('接続');
+  });
+
+  it('LINE は矢頭なしの line 要素を返す', () => {
+    const [elem] = parseDSLToElements(['LINE|l1|10,20|110,120|red|直線']);
+    expect(elem.type).toBe('line');
+    expect(elem.startArrowhead).toBeNull();
+    expect(elem.endArrowhead).toBeNull();
+    expect(elem.text).toBe('直線');
+  });
+
+  it('TRIANGLE は3点から閉じた line 要素（三角形）を生成する', () => {
+    const [elem] = parseDSLToElements(['TRIANGLE|tri1|100,200|100,100|200,200|green|直角三角形']);
+    expect(elem.type).toBe('line');
+    expect(elem.x).toBe(100);
+    expect(elem.y).toBe(100);
+    expect(elem.width).toBe(100);
+    expect(elem.height).toBe(100);
+    expect(elem.text).toBe('直角三角形');
+    expect(elem.points).toEqual([[0, 100], [0, 0], [100, 100], [0, 100]]);
+  });
+
+  it('RECT は angle（度数法・ラジアン）の回転プロパティをサポートする', () => {
+    const [degElem] = parseDSLToElements(['RECT|r1|10|20|100|50|blue||45']);
+    expect(degElem.angle).toBeCloseTo((45 * Math.PI) / 180, 5);
+
+    const [radElem] = parseDSLToElements(['RECT|r2|10|20|100|50|blue||0.5']);
+    expect(radElem.angle).toBe(0.5);
+  });
+
+  it('RECT および TEXT はカンマ区切りの座標形式をフォールバックパースする', () => {
+    const [rect] = parseDSLToElements(['RECT|r1|200,100,120,80|yellow|ラベル|30']);
+    expect(rect.x).toBe(200);
+    expect(rect.y).toBe(100);
+    expect(rect.width).toBe(120);
+    expect(rect.height).toBe(80);
+    expect(rect.text).toBe('ラベル');
+    expect(rect.angle).toBeCloseTo((30 * Math.PI) / 180, 5);
+
+    const [text] = parseDSLToElements(['TEXT|t1|150,250|20|dark|数式']);
+    expect(text.x).toBe(150);
+    expect(text.y).toBe(250);
+    expect(text.fontSize).toBe(20);
+    expect(text.text).toBe('数式');
   });
 });
 

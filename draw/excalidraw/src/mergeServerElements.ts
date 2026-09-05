@@ -54,6 +54,14 @@ export function mergeServerElements(
       formatted.points = [[0, 0], [formatted.width, formatted.height]];
     }
 
+    if (elem.angle !== undefined) {
+      formatted.angle = elem.angle;
+    }
+
+    if (elem.startArrowhead !== undefined) {
+      formatted.startArrowhead = elem.startArrowhead;
+    }
+
     if (elem.endArrowhead) {
       formatted.endArrowhead = elem.endArrowhead;
     }

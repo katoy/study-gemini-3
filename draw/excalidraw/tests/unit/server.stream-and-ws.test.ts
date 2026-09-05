@@ -9,12 +9,13 @@ async function drain(gen: AsyncGenerator<any>) {
 }
 
 describe('mockGeminiStream', () => {
-  it('テキスト1件と draw_dsl の functionCall を2件返す', async () => {
+  it('テキスト1件と draw_dsl の functionCall を3件返す', async () => {
     const chunks = await drain(mockGeminiStream());
-    expect(chunks).toHaveLength(3);
+    expect(chunks).toHaveLength(4);
     expect(chunks[0].candidates[0].content.parts[0].text).toBeTypeOf('string');
     expect(chunks[1].candidates[0].content.parts[0].functionCall.id).toBe('mock-fc-1');
     expect(chunks[2].candidates[0].content.parts[0].functionCall.id).toBe('mock-fc-2');
+    expect(chunks[3].candidates[0].content.parts[0].functionCall.id).toBe('mock-fc-3');
   });
 });
 
@@ -35,7 +36,7 @@ describe('streamGeminiResponse', () => {
       })
     );
     expect(realCallInvoked).toBe(false);
-    expect(chunks).toHaveLength(3);
+    expect(chunks).toHaveLength(4);
   });
 
   it('MOCK_GEMINI が無効なら注入した realCall を使う', async () => {

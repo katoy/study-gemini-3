@@ -153,4 +153,12 @@ describe('mergeServerElements', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('box1');
   });
+
+  it('angle と startArrowhead が指定された場合は正しく引き継ぐ', () => {
+    const [elem] = mergeServerElements([], [
+      { type: 'rectangle', id: 'rot1', angle: 0.785, startArrowhead: null },
+    ], fakeConvert);
+    expect(elem.angle).toBe(0.785);
+    expect(elem.startArrowhead).toBeNull();
+  });
 });

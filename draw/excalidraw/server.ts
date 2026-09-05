@@ -50,13 +50,13 @@ const excalidrawTools = [
     functionDeclarations: [
       {
         name: 'draw_dsl',
-        description: 'Creates or updates the diagram canvas using fast compact DSL commands array. YOU MUST CALL THIS TOOL MULTIPLE TIMES (at least 2-3 times) when drawing diagrams to show progressive rendering: (1) foundational elements, (2) connections/details, (3) refinements. Never draw everything in a single call.',
+        description: 'Creates or updates the diagram canvas using compact DSL commands array. When drawing, include ALL components (shapes, connectors, labels) ordered logically (foundations -> connections -> details). The client animates each element sequentially.',
         parameters: {
           type: 'OBJECT',
           properties: {
             commands: {
               type: 'ARRAY',
-              description: 'List of DSL strings. Formats: "RECT|id|x|y|w|h|color|label", "ELLIPSE|id|x|y|w|h|color|label", "DIAMOND|id|x|y|w|h|color|label", "TEXT|id|x|y|fontSize|color|text", "ARROW|id|fromIdOrX,Y|toIdOrX,Y|color|label", "DEL|id1,id2".',
+              description: 'List of DSL strings in drawing order. Formats: "RECT|id|x|y|w|h|color|label|angle", "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label", "ELLIPSE|id|x|y|w|h|color|label", "DIAMOND|id|x|y|w|h|color|label", "LINE|id|fromX,fromY|toX,toY|color|label", "ARROW|id|fromIdOrX,Y|toIdOrX,Y|color|label", "TEXT|id|x|y|fontSize|color|text", "DEL|id1,id2". (angle in RECT is optional rotation in degrees or radians).',
               items: { type: 'STRING' }
             }
           },
@@ -165,12 +165,18 @@ INSTRUCTIONS:
 4. When discussing diagrams or visual concepts, provide detailed text descriptions to help the user understand.
 
 PROGRESSIVE DRAWING (段階的描画):
-- When drawing diagrams, ALWAYS call draw_dsl MULTIPLE TIMES (2-3 times minimum) to show the drawing progress.
-- First call: Draw foundational elements (starting boxes/shapes).
-- Second call: Add intermediate elements, connections, or details.
-- Third call (if needed): Add final refinements or secondary flows.
-- DO NOT draw everything in a single call. Use multiple draw_dsl calls to visualize step-by-step construction.
-- This creates a smooth progressive rendering experience for the user.
+- When the user asks to draw diagrams, flowcharts, or shapes, generate COMPLETE diagrams with all necessary components (boxes, shapes, connectors, labels).
+- NEVER output only a single partial element unless specifically requested. Always build the full diagram requested by the user.
+- Order commands logically in the array: (1) foundational shapes/boxes first, (2) intermediate shapes & connectors second, (3) labels & refinements third.
+- The client frontend renders the elements sequentially one by one with a smooth animated delay based on this order.
+- You may call draw_dsl once with all elements ordered, or multiple times in succession. Always ensure the entire diagram is drawn.
+
+MATHEMATICAL & GEOMETRICAL DIAGRAMS (幾何学図形・三平方の定理など):
+- For triangles or geometry (e.g. Pythagorean theorem a² + b² = c²):
+  * Use "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label" to draw real right-angled or arbitrary triangles.
+  * Use "RECT|id|x|y|w|h|color|label|angle" to draw squares on triangle sides. "angle" supports rotation in degrees (e.g. -36.87 or 36.87) to attach squares along slanted hypotenuse.
+  * Use "LINE|id|x1,y1|x2,y2|color|label" for straight lines without arrowheads (for right-angle marks, borders, axes).
+  * Use "TEXT" for clear formula annotations (e.g. "a² + b² = c²", "3² + 4² = 5²").
 `;
 
 // /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
@@ -235,12 +241,14 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
       { role: 'user', parts: [{ text: promptText }] }
     ];
 
-    const fallbackModels = [
-      'gemini-3.7-flash',
-      'gemini-3.5-flash'
-    ];
+    const fallbackModels = process.env.GEMINI_MODELS
+      ? process.env.GEMINI_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
+      : [
+          'gemini-3.5-flash',
+          'gemini-3.7-flash'
+        ];
 
-    const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 2500): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
+    const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 1000): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
           console.log(`Streaming model: ${modelName} (attempt ${attempt}) ⏱️ T1 +${Date.now() - t0}ms`);
