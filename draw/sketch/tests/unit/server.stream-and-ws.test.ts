@@ -4,7 +4,6 @@ import {
   broadcast,
   clients,
   handleWsConnection,
-  mockGeminiStream,
   streamGeminiResponse,
 } from '../../server';
 

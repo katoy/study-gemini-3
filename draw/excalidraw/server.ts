@@ -1,9 +1,14 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import { parseDSLToElements, getThinkingConfigFor } from './dsl';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
@@ -50,13 +55,13 @@ const excalidrawTools = [
     functionDeclarations: [
       {
         name: 'draw_dsl',
-        description: 'Creates or updates the diagram canvas using compact DSL commands array. When drawing, include ALL components (shapes, connectors, labels) ordered logically (foundations -> connections -> details). The client animates each element sequentially.',
+        description: 'Creates or updates the diagram canvas using compact DSL commands array. When drawing, include ALL components (shapes, connectors, labels) ordered logically (foundations -> connections -> details). Supports loops, components, auto-layout, and Excalidraw MCP operations.',
         parameters: {
           type: 'OBJECT',
           properties: {
             commands: {
               type: 'ARRAY',
-              description: 'List of DSL strings in drawing order. Formats: "RECT|id|x|y|w|h|color|label|angle", "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label", "ELLIPSE|id|x|y|w|h|color|label", "DIAMOND|id|x|y|w|h|color|label", "LINE|id|fromX,fromY|toX,toY|color|label", "ARROW|id|fromIdOrX,Y|toIdOrX,Y|color|label", "TEXT|id|x|y|fontSize|color|text", "DEL|id1,id2". (angle in RECT is optional rotation in degrees or radians).',
+              description: 'List of DSL strings in drawing order. Programmable: "LET|var=val", "DEF|name(p1,p2)|cmd1;cmd2", "CALL|name|arg1|arg2", "FOR|i|start..end|cmd", "REPEAT|count|cmd", "CONNECT|a -> b -> c|color|label|styles", "ROW|x,y,gap|cmd1;cmd2", "COL|x,y,gap|cmd1;cmd2". MCP & Ops: "GROUP|groupId|id1,id2", "UNGROUP|id1,id2", "LINK|id|url", "FRONT|id1,id2", "BACK|id1,id2". Creation: "CHESSBOARD|id|x|y|size|lightColor|darkColor|pieces|styles", "GRID|id|x|y|w|h|rows,cols|color1|color2|styles", "RECT|id|x|y|w|h|color|label|angle|styles", "CIRCLE|id|cx|cy|radius|color|label|styles", "ELLIPSE|id|x|y|w|h|color|label|angle|styles", "DIAMOND|id|x|y|w|h|color|label|angle|styles", "STAR|id|cx|cy|radius|color|label|styles", "CLOUD|id|x|y|w|h|color|label|styles", "FRAME|id|x|y|w|h|color|label|styles", "CARD|id|x|y|w|h|color|title|body|styles", "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label|styles", "POLYGON|id|x1,y1|x2,y2|...|xn,yn|color|label|styles", "POLYLINE|id|x1,y1|x2,y2|...|xn,yn|color|label|styles", "LINE|id|from|to|color|label|styles", "ARROW|id|from|to|color|label|styles", "BIARROW|id|from|to|color|label|styles", "ELBOW|id|from|to|color|label|styles", "TEXT|id|x|y|fontSize|color|text|styles". Manipulation: "MOVE|id|x,y", "MOVE_BY|id|dx,dy", "RESIZE|id|w,h", "SCALE|id|factor", "ROTATE|id|angle", "ROTATE_BY|id|angle", "HIDE|id1,id2", "SHOW|id1,id2|opacity", "DEL|id1,id2". styles: comma/semicolon separated options (dashed, dotted, hachure, cross-hatch, dots, round, sharp, w=N, opacity=N, font=virgil/sans/mono, align=left/center/right, both/double).',
               items: { type: 'STRING' }
             }
           },
@@ -154,30 +159,49 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
   };
 }
 
-const SYSTEM_INSTRUCTION = `
-You are an AI assistant in a collaborative whiteboarding and chat application.
-You can communicate with helpful text responses to the user.
+const SYSTEM_INSTRUCTION_PATH = path.join(__dirname, 'SYSTEM_INSTRUCTION.md');
+export const SYSTEM_INSTRUCTION = fs.readFileSync(SYSTEM_INSTRUCTION_PATH, 'utf-8');
 
-INSTRUCTIONS:
-1. Always provide clear, helpful, and informative text responses in Japanese.
-2. If the user asks about diagrams or architecture, describe them clearly in text format.
-3. Maintain a friendly and professional tone.
-4. When discussing diagrams or visual concepts, provide detailed text descriptions to help the user understand.
+// 画像URLを検出して Gemini API 用の inlineData に変換するヘルパー関数
+export async function fetchImageAsInlineData(url: string, timeoutMs = 8000): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
 
-PROGRESSIVE DRAWING (段階的描画):
-- When the user asks to draw diagrams, flowcharts, or shapes, generate COMPLETE diagrams with all necessary components (boxes, shapes, connectors, labels).
-- NEVER output only a single partial element unless specifically requested. Always build the full diagram requested by the user.
-- Order commands logically in the array: (1) foundational shapes/boxes first, (2) intermediate shapes & connectors second, (3) labels & refinements third.
-- The client frontend renders the elements sequentially one by one with a smooth animated delay based on this order.
-- You may call draw_dsl once with all elements ordered, or multiple times in succession. Always ensure the entire diagram is drawn.
+    if (!resp.ok) {
+      console.warn(`Failed to fetch image from ${url}: ${resp.status} ${resp.statusText}`);
+      return null;
+    }
 
-MATHEMATICAL & GEOMETRICAL DIAGRAMS (幾何学図形・三平方の定理など):
-- For triangles or geometry (e.g. Pythagorean theorem a² + b² = c²):
-  * Use "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label" to draw real right-angled or arbitrary triangles.
-  * Use "RECT|id|x|y|w|h|color|label|angle" to draw squares on triangle sides. "angle" supports rotation in degrees (e.g. -36.87 or 36.87) to attach squares along slanted hypotenuse.
-  * Use "LINE|id|x1,y1|x2,y2|color|label" for straight lines without arrowheads (for right-angle marks, borders, axes).
-  * Use "TEXT" for clear formula annotations (e.g. "a² + b² = c²", "3² + 4² = 5²").
-`;
+    const contentType = resp.headers.get('content-type') || '';
+    // 画像形式判定
+    let mimeType = contentType.split(';')[0].trim().toLowerCase();
+    if (!mimeType.startsWith('image/')) {
+      if (url.endsWith('.webp')) mimeType = 'image/webp';
+      else if (url.endsWith('.png')) mimeType = 'image/png';
+      else if (url.endsWith('.jpg') || url.endsWith('.jpeg')) mimeType = 'image/jpeg';
+      else if (url.endsWith('.svg')) mimeType = 'image/svg+xml';
+      else {
+        console.warn(`URL does not appear to be an image: ${url} (${contentType})`);
+        return null;
+      }
+    }
+
+    const arrayBuffer = await resp.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    return {
+      inlineData: {
+        mimeType,
+        data: base64
+      }
+    };
+  } catch (err: any) {
+    console.warn(`Error fetching image from ${url}:`, err.message);
+    return null;
+  }
+}
 
 // /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
 // 実Gemini呼び出しなしに 429/フォールバック/複数回functionCall 等の分岐を単体テストできるようにしている
@@ -236,16 +260,32 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
         `  * DO NOT overlap existing bounds [X: ${Math.round(minX)}-${Math.round(maxX)}, Y: ${Math.round(minY)}-${Math.round(maxY)}]!`;
     }
 
+    // ユーザーメッセージ内の画像URL（http:// または https:// で画像拡張子を持つURL）を抽出して fetch
+    const userParts: any[] = [{ text: promptText }];
+    const imageUrlRegex = /https?:\/\/[^\s"'<>)]+\.(?:webp|png|jpe?g|gif|svg)(?:\?[^\s"'<>]*)?/gi;
+    const matchedUrls = message ? (message.match(imageUrlRegex) || []) : [];
+
+    for (const url of matchedUrls) {
+      console.log(`🖼️ Fetching image from URL: ${url}`);
+      const inlineImage = await fetchImageAsInlineData(url);
+      if (inlineImage) {
+        userParts.push(inlineImage);
+        console.log(`✅ Attached image inlineData for Gemini multimodal input: ${url}`);
+      }
+    }
+
     const contents = [
       ...formattedHistory,
-      { role: 'user', parts: [{ text: promptText }] }
+      { role: 'user', parts: userParts }
     ];
 
     const fallbackModels = process.env.GEMINI_MODELS
       ? process.env.GEMINI_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
       : [
           'gemini-3.5-flash',
-          'gemini-3.7-flash'
+          'gemini-3.7-flash',
+          'gemini-3.5-flash-lite',
+          'gemini-3.1-pro-preview'
         ];
 
     const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 1000): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
@@ -256,6 +296,7 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
             tools: excalidrawTools,
             thinkingConfig: getThinkingConfigFor(modelName),
+            maxOutputTokens: 8192,
           });
 
           let replyText = '';
@@ -319,9 +360,19 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
 
           return { replyText, toolCallsExecuted };
         } catch (err: any) {
-          const is429 = err.status === 'RESOURCE_EXHAUSTED' || err.message?.includes('429') || err.message?.includes('Quota exceeded');
-          if (is429 && attempt < retries) {
-            console.warn(`Model ${modelName} hit rate limit (429). Retrying in ${delayMs / 1000}s... (attempt ${attempt}/${retries})`);
+          const errMsg = err.message || '';
+          const isTransient =
+            err.status === 'RESOURCE_EXHAUSTED' ||
+            err.status === 'UNAVAILABLE' ||
+            err.code === 503 ||
+            errMsg.includes('429') ||
+            errMsg.includes('503') ||
+            errMsg.includes('UNAVAILABLE') ||
+            errMsg.includes('high demand') ||
+            errMsg.includes('Quota exceeded');
+
+          if (isTransient && attempt < retries) {
+            console.warn(`Model ${modelName} hit transient error (429/503). Retrying in ${delayMs / 1000}s... (attempt ${attempt}/${retries})`);
             await new Promise((resolve) => setTimeout(resolve, delayMs));
             continue;
           }

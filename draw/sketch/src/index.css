@@ -181,19 +181,16 @@ html, body, #root {
 }
 
 .whiteboard-toolbar {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 20;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   background-color: rgba(255, 255, 255, 0.95);
-  padding: 6px 12px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   backdrop-filter: blur(6px);
-  border: 1px solid #e2e8f0;
+  z-index: 10;
 }
 
 .toolbar-divider {
@@ -257,4 +254,25 @@ html, body, #root {
 
 .mcp-indicator.off .dot {
   background-color: #94a3b8;
+}
+
+@keyframes sketch-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sketch-animate-spin {
+  animation: sketch-spin 2.5s linear infinite;
+}
+
+.sketch-animate-spin-once {
+  animation: sketch-spin 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.sketch-transition-transform {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), x 0.35s ease, y 0.35s ease;
 }

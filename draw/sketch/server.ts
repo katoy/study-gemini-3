@@ -1,11 +1,100 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import { parseDSLToElements, getThinkingConfigFor } from './dsl';
 
-const app = express();
+export function extractImageSources(text: string): Array<{ type: 'url' | 'file'; path: string }> {
+  if (!text) return [];
+  const results: Array<{ type: 'url' | 'file'; path: string }> = [];
+
+  // 1. Web URL 抽出
+  const urlRegex = /(https?:\/\/[^\s<>"'{}|\\^`]+)/gi;
+  const urlMatches = text.match(urlRegex) || [];
+  for (const url of urlMatches) {
+    const cleanUrl = url.split('?')[0].toLowerCase();
+    if (/\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(cleanUrl) || cleanUrl.includes('image')) {
+      results.push({ type: 'url', path: url });
+    }
+  }
+
+  // 2. ローカル絶対パス抽出 (例: /Users/.../スクリーンショット.png や C:\...)
+  const extRegex = /\.(png|jpe?g|webp|gif|bmp|svg)\b/gi;
+  let match: RegExpExecArray | null;
+  while ((match = extRegex.exec(text)) !== null) {
+    const endIdx = match.index + match[0].length;
+    // 先頭方向へスラッシュまたは行頭まで遡って探索
+    const sub = text.substring(0, endIdx);
+    const slashIdx = sub.search(/(?:\/|[a-zA-Z]:\\)/);
+    if (slashIdx !== -1) {
+      const candidate = sub.substring(slashIdx).trim();
+      if (fs.existsSync(candidate)) {
+        results.push({ type: 'file', path: candidate });
+      }
+    }
+  }
+
+  return results;
+}
+
+export async function loadImageAsBase64(source: { type: 'url' | 'file'; path: string }, timeoutMs = 8000): Promise<{ data: string; mimeType: string } | null> {
+  try {
+    if (source.type === 'file') {
+      const ext = path.extname(source.path).toLowerCase();
+      let mimeType = 'image/jpeg';
+      if (ext === '.webp') mimeType = 'image/webp';
+      else if (ext === '.png') mimeType = 'image/png';
+      else if (ext === '.gif') mimeType = 'image/gif';
+      else if (ext === '.svg') mimeType = 'image/svg+xml';
+
+      const buffer = await fs.promises.readFile(source.path);
+      return { data: buffer.toString('base64'), mimeType };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(source.path, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      console.warn(`[ImageFetch] HTTP error ${response.status} for ${source.path}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    let mimeType = contentType.split(';')[0].trim().toLowerCase();
+    if (!mimeType || mimeType === 'application/octet-stream') {
+      const lower = source.path.split('?')[0].toLowerCase();
+      if (lower.endsWith('.webp')) mimeType = 'image/webp';
+      else if (lower.endsWith('.png')) mimeType = 'image/png';
+      else if (lower.endsWith('.gif')) mimeType = 'image/gif';
+      else if (lower.endsWith('.svg')) mimeType = 'image/svg+xml';
+      else mimeType = 'image/jpeg';
+    }
+
+    if (!mimeType.startsWith('image/')) {
+      console.warn(`[ImageFetch] Response is not an image (${contentType}) for ${source.path}`);
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    return { data: buffer.toString('base64'), mimeType };
+  } catch (err: any) {
+    console.warn(`[ImageFetch] Error loading image from ${source.path}:`, err?.message || err);
+    return null;
+  }
+}
+
+export const app = express();
 app.use(express.json());
 
 const server = http.createServer(app);
@@ -17,7 +106,7 @@ if (!apiKey) {
   console.warn("⚠️ Warning: GEMINI_API_KEY environment variable is not set.");
 }
 
-const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
+export const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
 
 // Store connected clients
 export const clients = new Set<WebSocket>();
@@ -49,13 +138,13 @@ export const sketchTools = [
     functionDeclarations: [
       {
         name: 'draw_dsl',
-        description: 'Creates or updates the Sketch diagram canvas using compact DSL commands array. When drawing, include ALL components (shapes, connectors, labels) ordered logically (foundations -> connections -> details). The client animates each element sequentially.',
+        description: 'Creates or updates the Sketch diagram canvas using compact programmable DSL commands array. Supports shapes, connectors, labels, artboards, groups, macros (DEF/CALL), loops (REPEAT, GRID), variables (LET), and relative positioning (BELOW, RIGHT_OF).',
         parameters: {
           type: 'OBJECT',
           properties: {
             commands: {
               type: 'ARRAY',
-              description: 'List of DSL strings in drawing order. Formats: "RECT|id|x|y|w|h|color|label|angle", "OVAL|id|x|y|w|h|color|label", "DIAMOND|id|x|y|w|h|color|label", "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label", "LINE|id|fromX,fromY|toX,toY|color|label", "ARROW|id|fromIdOrX,Y|toIdOrX,Y|color|label", "TEXT|id|x|y|fontSize|color|text", "DEL|id1,id2".',
+              description: 'List of DSL strings in drawing order. Commands include: "ARTBOARD|id|x|y|w|h|color|name", "GROUP|id|x|y|w|h|name|childIds", "RECT|id|x|y|w|h|color|label|angle|options", "OVAL|id|x|y|w|h|color|label|angle|options", "DIAMOND|id|x|y|w|h|color|label|angle|options", "TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label", "POLYGON|id|x1,y1|x2,y2|x3,y3...|color|label", "LINE|id|fromX,fromY|toX,toY|color|label", "ARROW|id|fromIdOrX,Y|toIdOrX,Y|color|label", "TEXT|id|x|y|fontSize|color|text", "DEL|id1,id2", "LET var = expr", "DEF Name(...) ... END", "CALL Name(...)", "REPEAT count AS $i ... END", "GRID rows, cols AS $r, $c AT x, y SIZE w, h ... END". Relative coords: BELOW(id, gap), RIGHT_OF(id, gap).',
               items: { type: 'STRING' }
             }
           },
@@ -162,26 +251,9 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
   };
 }
 
-export const SYSTEM_INSTRUCTION = `
-You are an AI design and architecture assistant integrated with Sketch and Sketch-mcp.
-You assist users by generating clear explanations, architecture diagrams, wireframes, flowcharts, and visual components in Japanese.
+const SYSTEM_INSTRUCTION_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'SYSTEM_INSTRUCTION.md');
+export const SYSTEM_INSTRUCTION = fs.readFileSync(SYSTEM_INSTRUCTION_PATH, 'utf-8');
 
-INSTRUCTIONS:
-1. Always provide clear, helpful, and informative text responses in Japanese.
-2. If the user asks about diagrams, architecture, or UI/UX wireframes, describe them clearly in text format.
-3. Maintain a friendly, professional design-centric tone.
-
-PROGRESSIVE DRAWING (段階的描画):
-- When the user asks to draw diagrams, flowcharts, wireframes, or shapes, generate COMPLETE diagrams with all necessary components (boxes, shapes, connectors, labels).
-- NEVER output only a single partial element unless specifically requested. Always build the full diagram requested by the user.
-- Order commands logically in the array: (1) foundational artboard/shapes first, (2) intermediate shapes & connectors second, (3) labels & refinements third.
-- The client frontend renders the elements sequentially one by one with a smooth animated delay based on this order.
-- You may call draw_dsl once with all elements ordered, or multiple times in succession. Always ensure the entire diagram is drawn.
-
-SKETCH-MCP & SKETCH API INTEGRATION:
-- You have access to draw_dsl, create_view, and run_sketch_code.
-- Use draw_dsl for clean vector drawing commands.
-`;
 
 export function createChatHandler(streamFn: typeof streamGeminiResponse = streamGeminiResponse) {
   return async (req: express.Request, res: express.Response) => {
@@ -233,15 +305,37 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
           `- Suggested next position: BELOW (X=${Math.round(minX)}, Y=${suggestedNextY}) or RIGHT (X=${suggestedNextX}, Y=${Math.round(minY)})`;
       }
 
+      const imageSources = extractImageSources(message);
+      const imageParts: any[] = [];
+      for (const source of imageSources) {
+        console.log(`🖼️ Detected image input (${source.type}): ${source.path}, loading...`);
+        const img = await loadImageAsBase64(source);
+        if (img) {
+          console.log(`✅ Image loaded successfully (${img.mimeType}, ${img.data.length} chars)`);
+          imageParts.push({
+            inlineData: {
+              data: img.data,
+              mimeType: img.mimeType
+            }
+          });
+        }
+      }
+
+      const userParts: any[] = [{ text: promptText }, ...imageParts];
+
       const contents = [
         ...formattedHistory,
-        { role: 'user', parts: [{ text: promptText }] }
+        { role: 'user', parts: userParts }
       ];
 
       const fallbackModels = process.env.GEMINI_MODELS
         ? process.env.GEMINI_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
         : [
-            'gemini-2.5-flash',
+            'gemini-3.6-flash',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-flash-latest',
+            'gemini-3.8-flash',
             'gemini-3.7-flash',
             'gemini-3.5-flash'
           ];
@@ -361,7 +455,7 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
 }
 
 // Sketch MCP Server (`http://localhost:31126/mcp`) への接続状態確認エンドポイント
-app.get('/api/sketch-mcp/status', async (_req, res) => {
+export async function getSketchMcpStatus(_req: express.Request, res: express.Response) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -377,7 +471,9 @@ app.get('/api/sketch-mcp/status', async (_req, res) => {
   } catch {
     return res.json({ connected: false, url: 'http://localhost:31126/mcp' });
   }
-});
+}
+
+app.get('/api/sketch-mcp/status', getSketchMcpStatus);
 
 app.post('/api/chat', createChatHandler());
 

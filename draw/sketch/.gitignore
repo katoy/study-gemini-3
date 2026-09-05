@@ -1,10 +1,44 @@
-node_modules
-dist
-logs
+# Dependencies
+node_modules/
+
+# Production & Build output
+dist/
+dist-ssr/
+
+# Cache & Temporary
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs & PIDs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 .backend.pid
 .frontend.pid
-.vite
-coverage
-test-results
-playwright-report
-blob-report
+*.pid
+*.pid.lock
+
+# Test coverage & reports
+coverage/
+*.lcov
+test-results/
+playwright-report/
+blob-report/
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+

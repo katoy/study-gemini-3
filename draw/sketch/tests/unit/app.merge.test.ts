@@ -38,6 +38,10 @@ describe('mergeServerElements for Sketch', () => {
     const result = mergeServerElements(current, serverElems, defaultConverter);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('box2');
+
+    // 全削除（ids: '*'）
+    const cleared = mergeServerElements(current, [{ type: 'delete', ids: '*' }], defaultConverter);
+    expect(cleared).toHaveLength(0);
   });
 
   it('cameraUpdate は無視される', () => {
@@ -57,6 +61,52 @@ describe('mergeServerElements for Sketch', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('txt2');
     expect(result[0].text).toBe('New Title');
+  });
+
+  it('points や arrowheads、angle、label を持つ要素を適切に変換する', () => {
+    const serverElems = [
+      {
+        id: 'poly1',
+        type: 'polygon',
+        x: 10,
+        y: 10,
+        points: [[0, 0], [10, 0], [5, 10]],
+        angle: 45,
+        startArrowhead: null,
+        endArrowhead: 'arrow',
+        label: { text: 'Poly Label', fontSize: 14, strokeColor: '#123456' },
+      },
+      {
+        id: 'line1',
+        type: 'line',
+        x: 0,
+        y: 0,
+        label: 'String Label',
+      }
+    ];
+
+    const result = mergeServerElements([], serverElems, defaultConverter);
+    expect(result).toHaveLength(2);
+    expect(result[0].points).toEqual([[0, 0], [10, 0], [5, 10]]);
+    expect(result[0].angle).toBe(45);
+    expect(result[0].endArrowhead).toBe('arrow');
+    expect(result[0].label?.text).toBe('Poly Label');
+    expect(result[1].points).toEqual([[0, 0], [140, 70]]);
+    expect(result[1].label?.text).toBe('String Label');
+  });
+
+  it('オセロの列ラベル (A〜H, 間隔60px) のように隣接するテキストは削除されず保持される', () => {
+    const colLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    let current: any[] = [];
+
+    // アニメーションキューのように1つずつ追加
+    colLabels.forEach((label, i) => {
+      const newElem = [{ id: `col_${label}`, type: 'text', x: 155 + i * 60, y: 110, text: label }];
+      current = mergeServerElements(current, newElem, defaultConverter);
+    });
+
+    expect(current).toHaveLength(8);
+    expect(current.map((e) => e.text)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
   });
 
   it('arrow/line の points や angle, label プロパティを正しく保持する', () => {

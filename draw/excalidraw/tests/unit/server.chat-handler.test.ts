@@ -291,4 +291,72 @@ describe('createChatHandler', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.reply).toBe('成功: gemini-3.7-flash');
   });
+
+  it('ユーザーメッセージに画像URLが含まれている場合、画像を取得して parts に追加する', async () => {
+    let capturedContents: any = null;
+    const streamFn: StreamFn = async function* (_model, contents) {
+      capturedContents = contents;
+      yield textChunk('画像を認識しました');
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'image/png' }),
+      arrayBuffer: async () => Buffer.from('mock-png-data'),
+    } as any);
+
+    try {
+      const handler = createChatHandler(streamFn);
+      const res = buildRes();
+      await handler(
+        buildReq({
+          message: 'https://example.com/test.png の図を書いて',
+        }),
+        res
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(capturedContents).toBeDefined();
+      const userMessage = capturedContents.find((c: any) => c.role === 'user');
+      expect(userMessage.parts).toHaveLength(2);
+      expect(userMessage.parts[1]).toMatchObject({
+        inlineData: {
+          mimeType: 'image/png',
+          data: Buffer.from('mock-png-data').toString('base64'),
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('画像fetchが失敗した場合はエラーにならずテキストのみで継続する', async () => {
+    let capturedContents: any = null;
+    const streamFn: StreamFn = async function* (_model, contents) {
+      capturedContents = contents;
+      yield textChunk('テキストで回答');
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+
+    try {
+      const handler = createChatHandler(streamFn);
+      const res = buildRes();
+      await handler(
+        buildReq({
+          message: 'https://example.com/fail.png の図を書いて',
+        }),
+        res
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(capturedContents).toBeDefined();
+      const userMessage = capturedContents.find((c: any) => c.role === 'user');
+      expect(userMessage.parts).toHaveLength(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

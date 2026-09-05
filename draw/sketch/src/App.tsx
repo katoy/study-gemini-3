@@ -35,6 +35,12 @@ export interface SketchElement {
     fontSize?: number;
     strokeColor?: string;
   };
+  cornerRadius?: number;
+  dash?: number[];
+  shadow?: string;
+  childIds?: string[];
+  presetName?: string;
+  animation?: string;
 }
 
 export default function App() {
@@ -355,22 +361,93 @@ export default function App() {
     const stroke = el.strokeColor || '#0f172a';
     const fill = el.backgroundColor || 'transparent';
     const strokeWidth = el.strokeWidth || 2;
-    const transform = el.angle ? `rotate(${el.angle} ${el.x + el.width / 2} ${el.y + el.height / 2})` : undefined;
+    const opacity = (el.opacity ?? 100) / 100;
+    const strokeDasharray = el.dash ? el.dash.join(' ') : undefined;
+    const centerX = el.x + el.width / 2;
+    const centerY = el.y + el.height / 2;
+    const transform = el.angle ? `rotate(${el.angle} ${centerX} ${centerY})` : undefined;
+    const filterStyle = el.shadow ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' : undefined;
+
+    const animClass = el.animation === 'spin' || el.animation === 'rotate'
+      ? 'sketch-animate-spin'
+      : el.animation === 'spin-once'
+      ? 'sketch-animate-spin-once'
+      : 'sketch-transition-transform';
+
+    const groupStyle: React.CSSProperties = {
+      filter: filterStyle,
+      transformOrigin: `${centerX}px ${centerY}px`,
+    };
 
     switch (el.type) {
-      case 'rectangle':
+      case 'artboard':
         return (
-          <g key={el.id} transform={transform}>
+          <g key={el.id} transform={transform} opacity={opacity}>
+            {/* アートボード外枠 & 背景 */}
             <rect
               x={el.x}
               y={el.y}
               width={el.width}
               height={el.height}
-              rx={8}
-              ry={8}
               fill={fill}
               stroke={stroke}
               strokeWidth={strokeWidth}
+              rx={el.cornerRadius ?? 8}
+              ry={el.cornerRadius ?? 8}
+              style={{ filter: 'drop-shadow(0 10px 25px rgba(0,0,0,0.08))' }}
+            />
+            {/* アートボードのラベル（上部） */}
+            <text
+              x={el.x}
+              y={el.y - 8}
+              fontSize={13}
+              fill="#64748b"
+              fontWeight="600"
+            >
+              {el.name || el.text || 'Artboard'} ({el.width} × {el.height})
+            </text>
+          </g>
+        );
+      case 'group':
+        return (
+          <g key={el.id} transform={transform} opacity={opacity}>
+            <rect
+              x={el.x}
+              y={el.y}
+              width={el.width}
+              height={el.height}
+              fill="transparent"
+              stroke="#94a3b8"
+              strokeWidth={1}
+              strokeDasharray="4 4"
+            />
+            {el.name && (
+              <text
+                x={el.x + 4}
+                y={el.y - 4}
+                fontSize={11}
+                fill="#94a3b8"
+                fontWeight="500"
+              >
+                {el.name}
+              </text>
+            )}
+          </g>
+        );
+      case 'rectangle':
+        return (
+          <g key={el.id} className={animClass} transform={transform} opacity={opacity} style={groupStyle}>
+            <rect
+              x={el.x}
+              y={el.y}
+              width={el.width}
+              height={el.height}
+              rx={el.cornerRadius !== undefined ? el.cornerRadius : 8}
+              ry={el.cornerRadius !== undefined ? el.cornerRadius : 8}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={strokeWidth}
+              strokeDasharray={strokeDasharray}
             />
             {el.text && (
               <text
@@ -389,7 +466,7 @@ export default function App() {
       case 'oval':
       case 'ellipse':
         return (
-          <g key={el.id} transform={transform}>
+          <g key={el.id} className={animClass} transform={transform} opacity={opacity} style={groupStyle}>
             <ellipse
               cx={el.x + el.width / 2}
               cy={el.y + el.height / 2}
@@ -398,6 +475,7 @@ export default function App() {
               fill={fill}
               stroke={stroke}
               strokeWidth={strokeWidth}
+              strokeDasharray={strokeDasharray}
             />
             {el.text && (
               <text
@@ -418,8 +496,8 @@ export default function App() {
         const cy = el.y + el.height / 2;
         const points = `${cx},${el.y} ${el.x + el.width},${cy} ${cx},${el.y + el.height} ${el.x},${cy}`;
         return (
-          <g key={el.id} transform={transform}>
-            <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+          <g key={el.id} className={animClass} transform={transform} opacity={opacity} style={groupStyle}>
+            <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
             {el.text && (
               <text
                 x={cx}
@@ -435,17 +513,19 @@ export default function App() {
           </g>
         );
       }
-      case 'triangle': {
+      case 'triangle':
+      case 'polygon': {
         const points = el.points
           ? el.points.map(([px, py]) => `${el.x + px},${el.y + py}`).join(' ')
           : `${el.x + el.width / 2},${el.y} ${el.x + el.width},${el.y + el.height} ${el.x},${el.y + el.height}`;
+        const textY = el.type === 'triangle' ? el.y + (el.height * 2) / 3 : el.y + el.height / 2 + 5;
         return (
-          <g key={el.id} transform={transform}>
-            <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+          <g key={el.id} className={animClass} transform={transform} opacity={opacity} style={groupStyle}>
+            <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
             {el.text && (
               <text
                 x={el.x + el.width / 2}
-                y={el.y + (el.height * 2) / 3}
+                y={textY}
                 textAnchor="middle"
                 fontSize={el.fontSize || 16}
                 fill={stroke}

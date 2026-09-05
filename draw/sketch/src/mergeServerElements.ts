@@ -11,6 +11,7 @@ export function mergeServerElements(
   serverElements: any[],
   convert: ElementConverter = defaultConverter
 ): any[] {
+  let deleteAll = false;
   const elementsToDelete = new Set<string>();
   const rawNewElements: any[] = [];
 
@@ -22,7 +23,11 @@ export function mergeServerElements(
     if (elem.type === 'delete') {
       if (elem.ids) {
         const idsToDelete = elem.ids.split(',').map((id: string) => id.trim());
-        idsToDelete.forEach((id: string) => elementsToDelete.add(id));
+        if (idsToDelete.includes('*') || idsToDelete.includes('all') || idsToDelete.includes('ALL')) {
+          deleteAll = true;
+        } else {
+          idsToDelete.forEach((id: string) => elementsToDelete.add(id));
+        }
       }
       continue;
     }
@@ -90,17 +95,18 @@ export function mergeServerElements(
   );
   const newElementsList = Array.from(newElemMap.values());
 
-  const updatedExisting = currentSceneElements
+  const updatedExisting = deleteAll ? [] : currentSceneElements
     .filter((el: any) => {
       if (elementsToDelete.has(el.id)) return false;
 
-      // 重複排除: 新しいテキスト要素とほぼ同位置にある古いテキスト要素を削除
+      // 重複排除: 新しいテキスト要素とほぼ同位置（同一ラベル更新など）にある古いテキスト要素のみ削除
+      // 近隣のラベル（オセロ盤面の列・行ラベルなど）が誤削除されないよう近接判定を厳密化
       const isOverlappedByNew = newElementsList.some((newEl: any) => {
         if (newEl.id === el.id) return false;
         if (el.type === 'text' && newEl.type === 'text') {
           const dx = Math.abs(Number(el.x || 0) - Number(newEl.x || 0));
           const dy = Math.abs(Number(el.y || 0) - Number(newEl.y || 0));
-          return dx < 150 && dy < 40;
+          return dx < 20 && dy < 20;
         }
         return false;
       });

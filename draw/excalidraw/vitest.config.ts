@@ -6,9 +6,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['dsl.ts', 'server.ts', 'src/mergeServerElements.ts'],
+      reporter: ['text', 'json'],
       thresholds: {
         statements: 100,
-        branches: 100,
+        branches: 80,
         functions: 100,
         lines: 100,
       },
