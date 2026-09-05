@@ -18,3 +18,72 @@ test('チャット送信で複数回の draw_dsl 呼び出しがすべてキャ�
   // Excalidraw のキャンバスが描画されていることも確認する
   await expect(page.locator('canvas').first()).toBeVisible();
 });
+
+test('元に戻す(Undo)・やり直す(Redo)ボタンが正しく動作する', async ({ page }) => {
+  // /api/chat をモックしてツールコールを返す
+  await page.route('/api/chat', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        reply: '図を作成しました。',
+        toolCalls: [
+          {
+            name: 'create_view',
+            args: {
+              elements: [
+                {
+                  id: 'box1',
+                  type: 'rectangle',
+                  x: 100,
+                  y: 100,
+                  width: 140,
+                  height: 70,
+                  backgroundColor: '#e0e7ff',
+                  strokeColor: '#3730a3',
+                  label: { text: 'Start' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto('/');
+
+  const undoBtn = page.getByRole('button', { name: /元に戻す/ });
+  const redoBtn = page.getByRole('button', { name: /やり直す/ });
+
+  await expect(undoBtn).toBeVisible();
+  await expect(redoBtn).toBeVisible();
+
+  // 初期状態ではUndo/Redoともに無効
+  await expect(undoBtn).toBeDisabled();
+  await expect(redoBtn).toBeDisabled();
+
+  // チャットで図を生成
+  const textarea = page.locator('textarea');
+  await textarea.fill('フローチャートを描いて');
+  await page.getByRole('button', { name: '送信' }).click();
+
+  await expect(page.getByText(/\d+ tool call/)).toBeVisible({ timeout: 10_000 });
+
+  // 生成後はUndoが有効化される
+  await expect(undoBtn).toBeEnabled({ timeout: 5_000 });
+  await expect(redoBtn).toBeDisabled();
+
+  // Undo を実行
+  await undoBtn.click();
+  // Undo後は Redo が有効化される
+  await expect(redoBtn).toBeEnabled();
+
+  // Redo を実行
+  await redoBtn.click();
+  // Redo後は Redo が再度無効化され、Undoが有効
+  await expect(redoBtn).toBeDisabled();
+  await expect(undoBtn).toBeEnabled();
+});
+
+

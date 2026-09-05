@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createChatHandler, extractImageSources } from '../../server';
+import { createChatHandler, extractImageSources, DEFAULT_FALLBACK_MODELS, isTokenLimitError } from '../../server';
 
 describe('createChatHandler for Sketch', () => {
   function makeReqRes(body: any) {
@@ -109,7 +109,7 @@ describe('createChatHandler for Sketch', () => {
     }
 
     const streamFn = vi.fn().mockImplementation((modelName: string) => {
-      if (modelName === 'gemini-3.6-flash') {
+      if (modelName === 'gemini-3.8-flash') {
         return failingStream();
       }
       return successStream();
@@ -126,6 +126,68 @@ describe('createChatHandler for Sketch', () => {
       expect(res.statusCode).toBe(200);
       expect(res.jsonData.reply).toBe('フォールバック成功');
       expect(callCount).toBeGreaterThanOrEqual(1);
+    } finally {
+      process.env.MOCK_GEMINI = origMock;
+    }
+  });
+
+  it('デフォルトフォールバックモデルの先頭が gemini-3.8-flash であること', () => {
+    expect(DEFAULT_FALLBACK_MODELS[0]).toBe('gemini-3.8-flash');
+  });
+
+  it('isTokenLimitError でトークン関連エラーを正しく判定する', () => {
+    expect(isTokenLimitError(new Error('Request exceeds the maximum token limit'))).toBe(true);
+    expect(isTokenLimitError(new Error('RESOURCE_EXHAUSTED: Quota exceeded for Tokens'))).toBe(true);
+    expect(isTokenLimitError(new Error('Rate limit: tokens per minute exceeded'))).toBe(true);
+    expect(isTokenLimitError(new Error('context length exceeded'))).toBe(true);
+    expect(isTokenLimitError(new Error('Something went wrong'))).toBe(false);
+    expect(isTokenLimitError(null)).toBe(false);
+  });
+
+  it('finishReason が MAX_TOKENS の場合にトークン制限の警告がテキストに追加される', async () => {
+    async function* tokenLimitStream() {
+      yield {
+        candidates: [{
+          finishReason: 'MAX_TOKENS',
+          content: {
+            parts: [{ text: '途中の生成結果' }],
+          },
+        }],
+      };
+    }
+
+    const streamFn = vi.fn().mockReturnValue(tokenLimitStream());
+    const handler = createChatHandler(streamFn as any);
+    const origMock = process.env.MOCK_GEMINI;
+    process.env.MOCK_GEMINI = '1';
+
+    try {
+      const { req, res } = makeReqRes({ message: 'テスト' });
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.jsonData.reply).toContain('途中の生成結果');
+      expect(res.jsonData.reply).toContain('トークン制限（Token Limit）に達したため');
+    } finally {
+      process.env.MOCK_GEMINI = origMock;
+    }
+  });
+
+  it('token limit エラーが発生した場合、500ではなくテキスト返答（200 OK）を返す', async () => {
+    const streamFn = vi.fn().mockImplementation(() => {
+      throw new Error('exceeds the maximum token limit for context length');
+    });
+
+    const handler = createChatHandler(streamFn as any);
+    const origMock = process.env.MOCK_GEMINI;
+    process.env.MOCK_GEMINI = '1';
+
+    try {
+      const { req, res } = makeReqRes({ message: '大きなプロンプト' });
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.jsonData.reply).toContain('トークン制限（Token Limit）に達しました');
     } finally {
       process.env.MOCK_GEMINI = origMock;
     }

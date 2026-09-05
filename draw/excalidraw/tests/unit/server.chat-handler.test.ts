@@ -246,7 +246,7 @@ describe('createChatHandler', () => {
   it('429エラーが retries 回続くモデルはフォールバック先モデルで成功する', async () => {
     vi.useFakeTimers();
     const streamFn: StreamFn = async function* (modelName) {
-      if (modelName === 'gemini-3.5-flash') {
+      if (modelName === 'gemini-3.8-flash') {
         const err: any = new Error('429 rate limited');
         throw err;
       }
@@ -280,7 +280,7 @@ describe('createChatHandler', () => {
 
   it('429以外のエラーはリトライせず即座に次モデルへフォールバックする', async () => {
     const streamFn: StreamFn = async function* (modelName) {
-      if (modelName === 'gemini-3.5-flash') {
+      if (modelName === 'gemini-3.8-flash') {
         throw new Error('unexpected failure');
       }
       yield textChunk(`成功: ${modelName}`);
@@ -358,5 +358,26 @@ describe('createChatHandler', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('finishReasonがMAX_TOKENSの場合はトークン上限到達の案内テキストを返答に付加する', async () => {
+    const streamFn: StreamFn = async function* () {
+      yield {
+        candidates: [
+          {
+            content: { parts: [{ text: '途中の図形データ' }] },
+            finishReason: 'MAX_TOKENS',
+          },
+        ],
+      };
+    };
+
+    const handler = createChatHandler(streamFn);
+    const res = buildRes();
+    await handler(buildReq({ message: 'とても大きな図を書いて' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.reply).toContain('途中の図形データ');
+    expect(res.body.reply).toContain('出力トークン数の上限（token limit）に達したため');
   });
 });

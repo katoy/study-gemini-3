@@ -4,6 +4,18 @@
 // 走るため）Node環境での単体テストが困難になるので、依存注入で切り離している。
 export type ElementConverter = (rawElements: any[]) => any[];
 
+// エスケープされた \n などを実際の改行に変換する
+export function unescapeText(str: string): string {
+  if (!str) return '';
+  return str.replace(/\\([ntr\\])/g, (_, ch) => {
+    if (ch === 'n') return '\n';
+    if (ch === 't') return '\t';
+    if (ch === 'r') return '\r';
+    if (ch === '\\') return '\\';
+    return ch;
+  });
+}
+
 // server から届いた要素配列を既存シーン要素とマージする純粋関数。
 // App コンポーネントから切り出すことで単体テスト可能にしている（React/DOM への依存なし）。
 // カメラ更新はスキップ、DEL指定は削除、同一IDは上書き、近接テキストは重複排除する。
@@ -228,19 +240,19 @@ export function mergeServerElements(
 
     if (formatted.type === 'text') {
       const textStr = typeof elem.text === 'string' ? elem.text : (elem.label?.text || elem.label || 'Text');
-      formatted.text = textStr;
+      formatted.text = unescapeText(textStr);
       formatted.fontSize = elem.fontSize || elem.label?.fontSize || 20;
     } else if (elem.label) {
       const labelText = typeof elem.label === 'string' ? elem.label : elem.label.text;
       if (labelText) {
         formatted.label = {
-          text: labelText,
+          text: unescapeText(labelText),
           fontSize: elem.label?.fontSize || 16,
           strokeColor: elem.label?.strokeColor || '#1e1e1e'
         };
       }
     } else if (elem.text) {
-      formatted.label = { text: elem.text, fontSize: 16 };
+      formatted.label = { text: unescapeText(elem.text), fontSize: 16 };
     }
 
     rawNewElements.push(formatted);

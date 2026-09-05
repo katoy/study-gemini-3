@@ -36,6 +36,18 @@ describe('mergeServerElements', () => {
     expect(ids).toContain('txt-new');
   });
 
+  it('テキスト要素内の \\n エスケープ文字列が実際の改行に変換される', () => {
+    const result = mergeServerElements([], [
+      { type: 'text', id: 'txt-ml', x: 100, y: 100, text: '行1\\n行2\\n行3' },
+      { type: 'rectangle', id: 'box-ml', x: 200, y: 200, label: { text: 'ラベル1\\nラベル2' } }
+    ], fakeConvert);
+    const textEl = result.find((e: any) => e.id === 'txt-ml');
+    expect(textEl.text).toBe('行1\n行2\n行3');
+
+    const boxEl = result.find((e: any) => e.id === 'box-ml');
+    expect(boxEl.label.text).toBe('ラベル1\nラベル2');
+  });
+
   it('離れた位置のテキスト要素は重複排除されず両方残る', () => {
     const existing = [{ id: 'txt-old', type: 'text', x: 0, y: 0, text: 'A' }];
     const result = mergeServerElements(existing, [

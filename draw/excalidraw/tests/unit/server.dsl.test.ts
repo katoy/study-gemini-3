@@ -220,13 +220,20 @@ describe('parseDSLToElements の分岐カバレッジ（デフォルト値・不
 });
 
 describe('getThinkingConfigFor', () => {
-  it('flash 系モデルは thinkingBudget を 0 にする', () => {
-    expect(getThinkingConfigFor('gemini-3.6-flash')).toEqual({ thinkingBudget: 0 });
-    expect(getThinkingConfigFor('gemini-3.5-flash-lite')).toEqual({ thinkingBudget: 0 });
+  it('デフォルトで thinkingBudget を 1024 に設定する', () => {
+    delete process.env.GEMINI_THINKING_BUDGET;
+    expect(getThinkingConfigFor('gemini-3.8-flash')).toEqual({ thinkingBudget: 1024 });
+    expect(getThinkingConfigFor('gemini-3.1-pro-preview')).toEqual({ thinkingBudget: 1024 });
   });
 
-  it('pro 系モデルは thinkingBudget を最小許容値(128)にする', () => {
-    expect(getThinkingConfigFor('gemini-3.1-pro-preview')).toEqual({ thinkingBudget: 128 });
+  it('GEMINI_THINKING_BUDGET 環境変数の指定を反映する', () => {
+    process.env.GEMINI_THINKING_BUDGET = '512';
+    expect(getThinkingConfigFor('gemini-3.8-flash')).toEqual({ thinkingBudget: 512 });
+
+    process.env.GEMINI_THINKING_BUDGET = '0';
+    expect(getThinkingConfigFor('gemini-3.8-flash')).toEqual({ thinkingBudget: 0 });
+
+    delete process.env.GEMINI_THINKING_BUDGET;
   });
 });
 
@@ -310,6 +317,19 @@ describe('拡張 DSL 機能（スタイル・新形状・矢印・テキスト�
     expect(titleElem.text).toBe('タイトル');
     expect(bodyElem.type).toBe('text');
     expect(bodyElem.text).toBe('詳細な本文です');
+  });
+
+  it('CARD や TEXT コマンド内の \\n エスケープ文字列が実際の改行に展開される', () => {
+    const elements = parseDSLToElements([
+      'CARD|info|650|150|220|260|blue|操作方法|・移動\\n・発射\\n・クリア|round',
+      'TEXT|txt|100|100|16|dark|1行目\\n2行目\\n3行目|align=left'
+    ]);
+    const cardBody = elements.find((e) => e.id === 'info_body');
+    expect(cardBody.text).toBe('・移動\n・発射\n・クリア');
+
+    const textElem = elements.find((e) => e.id === 'txt');
+    expect(textElem.text).toBe('1行目\n2行目\n3行目');
+    expect(textElem.height).toBeGreaterThan(16 * 1.5);
   });
 
   it('BIARROW / ARROW2 で両端矢頭の arrow 要素が生成される', () => {
@@ -463,6 +483,14 @@ describe('拡張 DSL 機能（スタイル・新形状・矢印・テキスト�
     expect(elements[1].x).toBe(220);
     expect(elements[2].id).toBe('item_2');
     expect(elements[2].x).toBe(340);
+  });
+
+  it('FOR コマンド内の三項演算子（トランプ絵札等）が正しく評価される', () => {
+    const elements = parseDSLToElements([
+      "FOR|i|0..3|CARD|c_{i}|{50 + i * 70}|100|60|90|blue|♠ {i==0?'A':i==1?'J':i==2?'Q':'K'}|Spade|round"
+    ]);
+    const titles = elements.filter((e) => e.id.endsWith('_title')).map((e) => e.text);
+    expect(titles).toEqual(['♠ A', '♠ J', '♠ Q', '♠ K']);
   });
 
   it('CONNECT コマンドで連鎖矢印が一括生成される', () => {

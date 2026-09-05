@@ -254,6 +254,33 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
 const SYSTEM_INSTRUCTION_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'SYSTEM_INSTRUCTION.md');
 export const SYSTEM_INSTRUCTION = fs.readFileSync(SYSTEM_INSTRUCTION_PATH, 'utf-8');
 
+export const DEFAULT_FALLBACK_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest'
+];
+
+export function isTokenLimitError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || String(err)).toLowerCase();
+  return (
+    msg.includes('token limit') ||
+    msg.includes('token_limit') ||
+    msg.includes('tokens per minute') ||
+    msg.includes('token quota') ||
+    msg.includes('context length') ||
+    msg.includes('context window') ||
+    msg.includes('max_tokens') ||
+    msg.includes('maximum token') ||
+    msg.includes('exceeds the token limit') ||
+    msg.includes('too many tokens') ||
+    (msg.includes('resource_exhausted') && msg.includes('token'))
+  );
+}
 
 export function createChatHandler(streamFn: typeof streamGeminiResponse = streamGeminiResponse) {
   return async (req: express.Request, res: express.Response) => {
@@ -330,15 +357,7 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
 
       const fallbackModels = process.env.GEMINI_MODELS
         ? process.env.GEMINI_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
-        : [
-            'gemini-3.6-flash',
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-            'gemini-flash-latest',
-            'gemini-3.8-flash',
-            'gemini-3.7-flash',
-            'gemini-3.5-flash'
-          ];
+        : DEFAULT_FALLBACK_MODELS;
 
       const callModelStreamWithRetry = async (modelName: string, retries = 2, delayMs = 1000): Promise<{ replyText: string; toolCallsExecuted: any[] }> => {
         for (let attempt = 1; attempt <= retries; attempt++) {
@@ -351,6 +370,7 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
             });
 
             let replyText = '';
+            let hitTokenLimit = false;
             const toolCallsExecuted: any[] = [];
             const processedFunctionCallIds = new Set<string>();
             let anonymousCallCounter = 0;
@@ -359,7 +379,12 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
               const candidates = chunk.candidates;
               if (!candidates || candidates.length === 0) continue;
 
-              const parts = candidates[0].content?.parts || [];
+              const candidate = candidates[0];
+              if (candidate.finishReason === 'MAX_TOKENS') {
+                hitTokenLimit = true;
+              }
+
+              const parts = candidate.content?.parts || [];
               for (const part of parts) {
                 if (part.text) {
                   replyText += part.text;
@@ -407,6 +432,11 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
               }
             }
 
+            if (hitTokenLimit) {
+              const notice = '\n\n【注意】トークン制限（Token Limit）に達したため、生成が途中で終了しました。';
+              replyText = replyText ? `${replyText}${notice}` : 'トークン制限（Token Limit）に達したため、出力を完了できませんでした。';
+            }
+
             return { replyText, toolCallsExecuted };
           } catch (err: any) {
             const is429 = err.status === 'RESOURCE_EXHAUSTED' || err.message?.includes('429') || err.message?.includes('Quota exceeded');
@@ -439,6 +469,13 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
       }
 
       if (!result) {
+        const tokenLimitHit = errors.some((e) => isTokenLimitError({ message: e }));
+        if (tokenLimitHit) {
+          return res.json({
+            reply: 'トークン制限（Token Limit）に達しました。プロンプトを短くするか、キャンバスの要素数を減らして再度お試しください。',
+            toolCalls: []
+          });
+        }
         throw new Error(`全モデルの呼び出しに失敗しました:\n${errors.join('\n')}`);
       }
 
@@ -449,6 +486,12 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
 
     } catch (error: any) {
       console.error('Error generating streaming content:', error);
+      if (isTokenLimitError(error)) {
+        return res.json({
+          reply: 'トークン制限（Token Limit）に達しました。プロンプトを短くするか、キャンバスの要素数を減らして再度お試しください。',
+          toolCalls: []
+        });
+      }
       return res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
   };

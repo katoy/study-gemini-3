@@ -282,8 +282,9 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
     const fallbackModels = process.env.GEMINI_MODELS
       ? process.env.GEMINI_MODELS.split(',').map((s) => s.trim()).filter(Boolean)
       : [
-          'gemini-3.5-flash',
+          'gemini-3.8-flash',
           'gemini-3.7-flash',
+          'gemini-3.5-flash',
           'gemini-3.5-flash-lite',
           'gemini-3.1-pro-preview'
         ];
@@ -300,6 +301,7 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
           });
 
           let replyText = '';
+          let isTokenLimitReached = false;
           const toolCallsExecuted: any[] = [];
           const processedFunctionCallIds = new Set<string>();
           let anonymousCallCounter = 0;
@@ -308,7 +310,13 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
             const candidates = chunk.candidates;
             if (!candidates || candidates.length === 0) continue;
 
-            const parts = candidates[0].content?.parts || [];
+            const candidate = candidates[0];
+            const finishReason = candidate.finishReason || (candidate as any).finish_reason;
+            if (finishReason === 'MAX_TOKENS') {
+              isTokenLimitReached = true;
+            }
+
+            const parts = candidate.content?.parts || [];
             for (const part of parts) {
               if (part.text) {
                 replyText += part.text;
@@ -356,6 +364,11 @@ export function createChatHandler(streamFn: typeof streamGeminiResponse = stream
                 }
               }
             }
+          }
+
+          if (isTokenLimitReached) {
+            const tokenLimitNotice = '\n\n⚠️ 出力トークン数の上限（token limit）に達したため、生成が途中で中断されました。描画の続きが必要な場合は、続きの作成を指示してください。';
+            replyText = replyText ? `${replyText}${tokenLimitNotice}` : tokenLimitNotice.trim();
           }
 
           return { replyText, toolCallsExecuted };

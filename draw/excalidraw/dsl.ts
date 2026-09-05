@@ -36,6 +36,18 @@ export function resolveColor(colorStr: string, fallback: { fill: string; stroke:
   return fallback;
 }
 
+// ユーザー入力やLLMが出力したリテラル "\n" や "\t" などのエスケープ文字列を実際の改行・制御文字にデコードする
+export function unescapeText(str: string): string {
+  if (!str) return '';
+  return str.replace(/\\([ntr\\])/g, (_, ch) => {
+    if (ch === 'n') return '\n';
+    if (ch === 't') return '\t';
+    if (ch === 'r') return '\r';
+    if (ch === '\\') return '\\';
+    return ch;
+  });
+}
+
 export interface StyleProps {
   strokeStyle?: 'solid' | 'dashed' | 'dotted';
   fillStyle?: 'solid' | 'hachure' | 'cross-hatch' | 'dots';
@@ -201,20 +213,33 @@ export function resolveAnchor(ref: string, elementMap: Map<string, any>, default
   return [defaultX, defaultY];
 }
 
-// 安全な簡単な四則演算の評価
-export function evaluateSimpleMath(expr: string): number {
-  const sanitized = expr.replace(/\s+/g, '');
-  if (!/^[-+*/0-9.()]+$/.test(sanitized)) return NaN;
+// 安全な式評価（四則演算および三項演算子、比較演算子、文字列リテラル）
+export function evaluateExpression(expr: string): any {
+  const sanitized = expr.trim();
+  // 許可される文字: 数字, 英数文字列リテラル, 演算子 (+, -, *, /, %, ?, :, ==, ===, !=, !==, <, >, <=, >=, (, ), 引数, 空白, 単一引用符/二重引用符)
+  // 危険なキーワード（import, require, window, global, eval, process, Function 等）を禁止
+  if (/\b(window|global|process|require|import|eval|Function|this|constructor|prototype)\b/i.test(sanitized)) {
+    return NaN;
+  }
   try {
     const fn = new Function(`"use strict"; return (${sanitized});`);
     const res = fn();
-    return typeof res === 'number' && !isNaN(res) ? res : NaN;
+    if (res !== undefined && res !== null && (typeof res === 'number' || typeof res === 'string' || typeof res === 'boolean')) {
+      return res;
+    }
+    return NaN;
   } catch {
     return NaN;
   }
 }
 
-// テンプレート置換 ({var} や {100 + i * 50})
+// 後方互換性用
+export function evaluateSimpleMath(expr: string): number {
+  const res = evaluateExpression(expr);
+  return typeof res === 'number' && !isNaN(res) ? res : NaN;
+}
+
+// テンプレート置換 ({var} や {100 + i * 50} や {i==0?'A':i==10?'J':...})
 export function interpolateTemplate(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{([^{}]+)\}/g, (match, rawExpr) => {
     let expr = rawExpr.trim();
@@ -223,24 +248,23 @@ export function interpolateTemplate(template: string, vars: Record<string, strin
     for (const [k, v] of Object.entries(vars)) {
       const regex = new RegExp(`\\b${k}\\b`, 'g');
       if (regex.test(expr)) {
-        expr = expr.replace(regex, String(v));
+        // 文字列値の場合は引用符で囲むかそのまま埋め込むかを判断
+        const valStr = typeof v === 'number' ? String(v) : JSON.stringify(v);
+        expr = expr.replace(regex, valStr);
         hasReplaced = true;
       }
     }
 
+    // 式を評価
+    const res = evaluateExpression(expr);
+    if (res !== undefined && res !== null && !Number.isNaN(res)) {
+      return String(res);
+    }
+
     if (!hasReplaced && !(expr in vars)) {
-      // 数式のみの式かチェック
-      const num = evaluateSimpleMath(expr);
-      if (!isNaN(num)) {
-        return String(num);
-      }
       return match; // 変数が vars に存在しない場合は元の波括弧 {var} を保持
     }
 
-    const num = evaluateSimpleMath(expr);
-    if (!isNaN(num)) {
-      return String(num);
-    }
     return expr;
   });
 }
@@ -610,7 +634,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y,
         width,
         height,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 16,
         textAlign: styles.textAlign || 'center',
         verticalAlign: styles.verticalAlign || 'middle',
@@ -668,7 +692,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: cy - radius,
         width: radius * 2,
         height: radius * 2,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 16,
         textAlign: styles.textAlign || 'center',
         verticalAlign: styles.verticalAlign || 'middle',
@@ -736,14 +760,15 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
 
       if (labelText) {
         const labelId = `${id}_label`;
+        const unescapedLabel = unescapeText(labelText);
         const labelElem: any = {
           type: 'text',
           id: labelId,
           x: x + 12,
           y: y + 10,
-          width: Math.max(labelText.length * 10, 60),
+          width: Math.max(unescapedLabel.length * 10, 60),
           height: 22,
-          text: labelText,
+          text: unescapedLabel,
           fontSize: 16,
           fontFamily: styles.fontFamily || 2,
           strokeColor: colors.stroke,
@@ -816,7 +841,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
           y: y + 10,
           width: width - 24,
           height: 22,
-          text: titleText,
+          text: unescapeText(titleText),
           fontSize: 16,
           fontFamily: styles.fontFamily || 2,
           strokeColor: colors.stroke,
@@ -839,7 +864,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
           y: y + (titleText ? 36 : 12),
           width: width - 24,
           height: Math.max(height - 48, 20),
-          text: bodyText,
+          text: unescapeText(bodyText),
           fontSize: 14,
           fontFamily: styles.fontFamily || 2,
           strokeColor: '#333333',
@@ -904,7 +929,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: minY,
         width,
         height,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 16,
         strokeColor: colors.stroke,
         backgroundColor: colors.fill,
@@ -959,7 +984,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: minY,
         width: polyW,
         height: polyH,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 16,
         strokeColor: colors.stroke,
         backgroundColor: colors.fill,
@@ -986,13 +1011,18 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
       const pointCoords: [number, number][] = [];
 
       if (type === 'TRIANGLE') {
-        const p1 = (parts[2] || '0,0').split(',').map(Number);
-        const p2 = (parts[3] || '100,0').split(',').map(Number);
-        const p3 = (parts[4] || '50,100').split(',').map(Number);
-        pointCoords.push([p1[0] || 0, p1[1] || 0], [p2[0] || 0, p2[1] || 0], [p3[0] || 0, p3[1] || 0]);
-        colorKey = (parts[5] || 'blue').toLowerCase();
-        labelText = parts[6] || '';
-        rawStyles = parts[7] || '';
+        let i = 2;
+        while (i < 5 && parts[i] && parts[i].includes(',')) {
+          const pt = parts[i].split(',').map(Number);
+          pointCoords.push([pt[0] || 0, pt[1] || 0]);
+          i++;
+        }
+        if (pointCoords.length < 3) {
+          pointCoords.push([50, 0], [100, 100], [0, 100]);
+        }
+        colorKey = (parts[i] || 'blue').toLowerCase();
+        labelText = parts[i + 1] || '';
+        rawStyles = parts[i + 2] || '';
       } else {
         let i = 2;
         while (i < parts.length && parts[i].includes(',')) {
@@ -1019,7 +1049,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: minY,
         width,
         height,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 16,
         strokeColor: colors.stroke,
         backgroundColor: colors.fill,
@@ -1074,7 +1104,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: minY,
         width,
         height,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 14,
         strokeColor: colors.stroke,
         backgroundColor: 'transparent',
@@ -1116,15 +1146,18 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.dark);
       const styles = parseStyleProps(rawStyles);
+      const unescapedText = unescapeText(text);
+      const lines = unescapedText.split('\n');
+      const maxLineLen = Math.max(...lines.map(l => l.length), 1);
 
       const elemObj: any = {
         type: 'text',
         id,
         x,
         y,
-        width: Math.max(text.length * (fontSize * 0.55), 50),
-        height: fontSize * 1.5,
-        text,
+        width: Math.max(maxLineLen * (fontSize * 0.55), 50),
+        height: Math.max(lines.length * (fontSize * 1.3), fontSize * 1.5),
+        text: unescapedText,
         fontSize,
         textAlign: styles.textAlign || 'left',
         verticalAlign: styles.verticalAlign || 'top',
@@ -1202,7 +1235,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
         y: startY,
         width: Math.abs(dx) || 1,
         height: Math.abs(dy) || 1,
-        text: labelText || '',
+        text: unescapeText(labelText),
         fontSize: 14,
         strokeColor: colors.stroke,
         backgroundColor: 'transparent',
@@ -1550,12 +1583,17 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
   return elements;
 }
 
-// モデルごとの thinking 設定。thinking は出力（テキスト・関数呼び出し）が
-// 始まる前に発生する先行遅延になるため、flash 系は無効化して最小化し、
-// pro 系は 0 を拒否される可能性があるため最小許容値を使う
+// モデルごとの thinking 設定。
+// GEMINI_THINKING_BUDGET 環境変数が指定されている場合はその値を優先します。
+// 未指定の場合、幾何学的推論や整合性検証を行えるよう、思考を許可（pro: 1024, flash: 1024）します。
 export function getThinkingConfigFor(modelName: string): { thinkingBudget: number } {
-  if (modelName.includes('pro')) {
-    return { thinkingBudget: 128 };
+  if (process.env.GEMINI_THINKING_BUDGET !== undefined) {
+    const envVal = parseInt(process.env.GEMINI_THINKING_BUDGET, 10);
+    if (!isNaN(envVal) && envVal >= 0) {
+      return { thinkingBudget: envVal };
+    }
   }
-  return { thinkingBudget: 0 };
+
+  // デフォルトで思考（Thinking）を許可
+  return { thinkingBudget: 1024 };
 }

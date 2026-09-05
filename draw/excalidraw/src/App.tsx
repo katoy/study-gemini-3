@@ -54,6 +54,8 @@ export default function App() {
           files = parsed.files || {};
         }
 
+        recordHistorySnapshot();
+
         excalidrawAPI.updateScene({
           elements,
           appState,
@@ -190,13 +192,137 @@ export default function App() {
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Undo / Redo 履歴管理
+  interface HistorySnapshot {
+    elements: any[];
+    appState: any;
+    files: any;
+  }
+
+  const undoStackRef = useRef<HistorySnapshot[]>([]);
+  const redoStackRef = useRef<HistorySnapshot[]>([]);
+  const isUndoRedoOpRef = useRef<boolean>(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const updateUndoRedoState = () => {
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(redoStackRef.current.length > 0);
   };
 
+  const handleUndo = () => {
+    if (!excalidrawAPI || undoStackRef.current.length === 0) return;
+
+    // 現在の状態を取得して redoStack に退避
+    const currentElements = excalidrawAPI.getSceneElements() || [];
+    const currentAppState = excalidrawAPI.getAppState() || {};
+    const currentFiles = excalidrawAPI.getFiles() || {};
+
+    const previous = undoStackRef.current.pop()!;
+    redoStackRef.current.push({
+      elements: currentElements,
+      appState: currentAppState,
+      files: currentFiles,
+    });
+
+    isUndoRedoOpRef.current = true;
+    excalidrawAPI.updateScene({
+      elements: previous.elements,
+      appState: previous.appState,
+      files: previous.files,
+    });
+    setTimeout(() => {
+      isUndoRedoOpRef.current = false;
+    }, 50);
+
+    updateUndoRedoState();
+  };
+
+  const handleRedo = () => {
+    if (!excalidrawAPI || redoStackRef.current.length === 0) return;
+
+    // 現在の状態を取得して undoStack に退避
+    const currentElements = excalidrawAPI.getSceneElements() || [];
+    const currentAppState = excalidrawAPI.getAppState() || {};
+    const currentFiles = excalidrawAPI.getFiles() || {};
+
+    const next = redoStackRef.current.pop()!;
+    undoStackRef.current.push({
+      elements: currentElements,
+      appState: currentAppState,
+      files: currentFiles,
+    });
+
+    isUndoRedoOpRef.current = true;
+    excalidrawAPI.updateScene({
+      elements: next.elements,
+      appState: next.appState,
+      files: next.files,
+    });
+    setTimeout(() => {
+      isUndoRedoOpRef.current = false;
+    }, 50);
+
+    updateUndoRedoState();
+  };
+
+  const recordHistorySnapshot = () => {
+    if (!excalidrawAPI || isUndoRedoOpRef.current) return;
+    const currentElements = excalidrawAPI.getSceneElements() || [];
+    const currentAppState = excalidrawAPI.getAppState() || {};
+    const currentFiles = excalidrawAPI.getFiles() || {};
+
+    undoStackRef.current.push({
+      elements: currentElements,
+      appState: currentAppState,
+      files: currentFiles,
+    });
+
+    if (undoStackRef.current.length > 50) {
+      undoStackRef.current.shift();
+    }
+
+    // 新たな操作が行われたため redo スタックはクリア
+    redoStackRef.current = [];
+    updateUndoRedoState();
+  };
+
+  // キーボードショートカット (Cmd+Z / Ctrl+Z, Cmd+Shift+Z / Ctrl+Shift+Z / Ctrl+Y)
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // テキスト入力中はExcalidrawや入力欄の標準動作を優先
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      if (!isCtrlOrCmd) return;
+
+      if (e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if (e.key.toLowerCase() === 'y' && !e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [excalidrawAPI]);
 
   // WebSocket Connection to receive real-time Excalidraw updates from Gemini
   useEffect(() => {
@@ -268,6 +394,10 @@ export default function App() {
   const applyServerElements = (serverElements: any[]) => {
     if (!excalidrawAPI || !Array.isArray(serverElements) || serverElements.length === 0) {
       return;
+    }
+
+    if (animationQueueRef.current.length === 0 && !isAnimatingRef.current) {
+      recordHistorySnapshot();
     }
 
     console.log('applyServerElements queued:', serverElements);
@@ -484,6 +614,23 @@ export default function App() {
           />
           <button className="toolbar-btn" onClick={triggerFileInput} title="JSONファイルを読み込んで図を復元">
             📂 アップロード
+          </button>
+
+          <button
+            className="toolbar-btn"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            title="元に戻す (Ctrl+Z / Cmd+Z)"
+          >
+            ↩️ 元に戻す
+          </button>
+          <button
+            className="toolbar-btn"
+            onClick={handleRedo}
+            disabled={!canRedo}
+            title="やり直す (Ctrl+Shift+Z / Cmd+Shift+Z)"
+          >
+            ↪️ やり直す
           </button>
 
           <span className="toolbar-divider" />
