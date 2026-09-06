@@ -380,4 +380,24 @@ describe('createChatHandler', () => {
     expect(res.body.reply).toContain('途中の図形データ');
     expect(res.body.reply).toContain('出力トークン数の上限（token limit）に達したため');
   });
+
+  it('テキスト出力なしでMAX_TOKENSに達した場合は案内テキスト単体を返答とする', async () => {
+    const streamFn: StreamFn = async function* () {
+      yield {
+        candidates: [
+          {
+            content: { parts: [] },
+            finishReason: 'MAX_TOKENS',
+          },
+        ],
+      };
+    };
+
+    const handler = createChatHandler(streamFn);
+    const res = buildRes();
+    await handler(buildReq({ message: '大きな図' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.reply).toBe('⚠️ 出力トークン数の上限（token limit）に達したため、生成が途中で中断されました。描画の続きが必要な場合は、続きの作成を指示してください。');
+  });
 });

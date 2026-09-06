@@ -142,10 +142,10 @@ describe('parseDSLToElements の分岐カバレッジ（デフォルト値・不
     expect(elem.points).toEqual([[0, 0], [100, 0]]);
   });
 
-  it('ARROW の座標指定で x 部分が 0（falsy）のときは 100 にフォールバックする', () => {
+  it('ARROW の座標指定で x 部分が 0 でもデフォルト値に化けず正しく解決される', () => {
     const [elem] = parseDSLToElements(['ARROW|a1|0,0|0,50|dark|']);
-    // toRef "0,50" -> endX = Number('0') || 100 = 100
-    expect(elem.points).toEqual([[0, 0], [100, 50]]);
+    // toRef "0,50" -> endX はデフォルト値(100)にフォールバックせず 0 のまま解決される
+    expect(elem.points).toEqual([[0, 0], [0, 50]]);
   });
 
   it('ARROW の始点と終点の x が同じとき width は 1 にフォールバックする', () => {
@@ -194,12 +194,13 @@ describe('parseDSLToElements の分岐カバレッジ（デフォルト値・不
     ]);
   });
 
-  it('RECT は angle（度数法・ラジアン）の回転プロパティをサポートする', () => {
+  it('RECT の angle は常に度数法として解釈される', () => {
     const [degElem] = parseDSLToElements(['RECT|r1|10|20|100|50|blue||45']);
     expect(degElem.angle).toBeCloseTo((45 * Math.PI) / 180, 5);
 
-    const [radElem] = parseDSLToElements(['RECT|r2|10|20|100|50|blue||0.5']);
-    expect(radElem.angle).toBe(0.5);
+    // 小さい数値（かつては誤ってラジアンとして扱われていた）も度数法として変換される
+    const [smallDegElem] = parseDSLToElements(['RECT|r2|10|20|100|50|blue||0.5']);
+    expect(smallDegElem.angle).toBeCloseTo((0.5 * Math.PI) / 180, 5);
   });
 
   it('RECT および TEXT はカンマ区切りの座標形式をフォールバックパースする', () => {

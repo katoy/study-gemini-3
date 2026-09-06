@@ -210,6 +210,17 @@ export default function App() {
     setCanRedo(redoStackRef.current.length > 0);
   };
 
+  const cloneSnapshot = (elements: any[], appState: any, files: any): HistorySnapshot => {
+    return {
+      elements: elements.map((el: any) => ({
+        ...el,
+        points: Array.isArray(el.points) ? el.points.map((p: any) => (Array.isArray(p) ? [...p] : p)) : undefined,
+      })),
+      appState: { ...appState },
+      files: { ...files },
+    };
+  };
+
   const handleUndo = () => {
     if (!excalidrawAPI || undoStackRef.current.length === 0) return;
 
@@ -219,11 +230,7 @@ export default function App() {
     const currentFiles = excalidrawAPI.getFiles() || {};
 
     const previous = undoStackRef.current.pop()!;
-    redoStackRef.current.push({
-      elements: currentElements,
-      appState: currentAppState,
-      files: currentFiles,
-    });
+    redoStackRef.current.push(cloneSnapshot(currentElements, currentAppState, currentFiles));
 
     isUndoRedoOpRef.current = true;
     excalidrawAPI.updateScene({
@@ -247,11 +254,7 @@ export default function App() {
     const currentFiles = excalidrawAPI.getFiles() || {};
 
     const next = redoStackRef.current.pop()!;
-    undoStackRef.current.push({
-      elements: currentElements,
-      appState: currentAppState,
-      files: currentFiles,
-    });
+    undoStackRef.current.push(cloneSnapshot(currentElements, currentAppState, currentFiles));
 
     isUndoRedoOpRef.current = true;
     excalidrawAPI.updateScene({
@@ -272,11 +275,7 @@ export default function App() {
     const currentAppState = excalidrawAPI.getAppState() || {};
     const currentFiles = excalidrawAPI.getFiles() || {};
 
-    undoStackRef.current.push({
-      elements: currentElements,
-      appState: currentAppState,
-      files: currentFiles,
-    });
+    undoStackRef.current.push(cloneSnapshot(currentElements, currentAppState, currentFiles));
 
     if (undoStackRef.current.length > 50) {
       undoStackRef.current.shift();
@@ -324,6 +323,10 @@ export default function App() {
     };
   }, [excalidrawAPI]);
 
+  const excalidrawAPIRef = useRef<any>(null);
+  excalidrawAPIRef.current = excalidrawAPI;
+  const receivedWsUpdatesCountRef = useRef(0);
+
   // WebSocket Connection to receive real-time Excalidraw updates from Gemini
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -334,7 +337,8 @@ export default function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'EXCALIDRAW_UPDATE' && excalidrawAPI) {
+        if (data.type === 'EXCALIDRAW_UPDATE' && excalidrawAPIRef.current) {
+          receivedWsUpdatesCountRef.current += 1;
           if (!firstUpdateLogged) {
             firstUpdateLogged = true;
             console.log(`⏱️ First EXCALIDRAW_UPDATE received at ${Date.now()}`);
@@ -349,34 +353,38 @@ export default function App() {
     return () => {
       ws.close();
     };
-  }, [excalidrawAPI]);
+  }, []);
 
   // 段階的アニメーションキューの管理：要素を 1 つずつ順次追加する
   const animationQueueRef = useRef<any[]>([]);
   const isAnimatingRef = useRef(false);
 
   const processAnimationQueue = async () => {
-    if (isAnimatingRef.current || !excalidrawAPI) return;
+    const api = excalidrawAPIRef.current;
+    if (isAnimatingRef.current || !api) return;
     isAnimatingRef.current = true;
 
     try {
       while (animationQueueRef.current.length > 0) {
         const nextElement = animationQueueRef.current.shift();
-        const currentScene = excalidrawAPI.getSceneElements() || [];
+        const currentScene = api.getSceneElements() || [];
         const updated = mergeServerElements(currentScene, [nextElement], convertToExcalidrawElements);
 
         console.log(`⏱️ Adding element at ${Date.now()}:`, nextElement);
-        excalidrawAPI.updateScene({ elements: updated });
+        api.updateScene({ elements: updated });
 
         if (animationQueueRef.current.length > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+          const qLen = animationQueueRef.current.length;
+          // 残り要素数に応じて待機時間を動的調整（大量要素描画時の極端な待機を短縮）
+          const delay = qLen > 10 ? 200 : qLen > 4 ? 400 : 700;
+          await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
           // キュー内の全要素描画完了後、画面内に収める
           setTimeout(() => {
-            const final = excalidrawAPI.getSceneElements();
+            const final = api.getSceneElements();
             if (final && final.length > 0) {
               console.log(`✨ Fitting viewport at ${Date.now()}`);
-              excalidrawAPI.scrollToContent(final, {
+              api.scrollToContent(final, {
                 fitToViewport: true,
                 animate: true,
               });
@@ -392,7 +400,8 @@ export default function App() {
   };
 
   const applyServerElements = (serverElements: any[]) => {
-    if (!excalidrawAPI || !Array.isArray(serverElements) || serverElements.length === 0) {
+    const api = excalidrawAPIRef.current;
+    if (!api || !Array.isArray(serverElements) || serverElements.length === 0) {
       return;
     }
 
@@ -428,6 +437,8 @@ export default function App() {
     setInput('');
     setLoading(true);
 
+    const wsCountBefore = receivedWsUpdatesCountRef.current;
+
     try {
       // Get current Excalidraw elements to send context to Gemini
       const currentElements = excalidrawAPI ? excalidrawAPI.getSceneElements() : [];
@@ -443,6 +454,8 @@ export default function App() {
             type: el.type,
             x: el.x,
             y: el.y,
+            width: el.width,
+            height: el.height,
             text: el.text || el.label?.text,
           })),
         }),
@@ -463,8 +476,9 @@ export default function App() {
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Also apply tool call updates locally if any
-      if (data.toolCalls) {
+      // WebSocket 経由でリアルタイム受信できなかった場合のみフォールバックとして適用
+      const hasReceivedViaWs = receivedWsUpdatesCountRef.current > wsCountBefore;
+      if (!hasReceivedViaWs && data.toolCalls) {
         for (const tc of data.toolCalls) {
           if (tc.name === 'create_view' && tc.args?.elements) {
             applyServerElements(tc.args.elements);

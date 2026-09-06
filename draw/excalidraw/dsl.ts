@@ -43,8 +43,7 @@ export function unescapeText(str: string): string {
     if (ch === 'n') return '\n';
     if (ch === 't') return '\t';
     if (ch === 'r') return '\r';
-    if (ch === '\\') return '\\';
-    return ch;
+    return '\\';
   });
 }
 
@@ -197,13 +196,60 @@ function pointsToRelativePolygon(pointCoords: [number, number][]) {
   return { minX, minY, width, height, points };
 }
 
+// "x,y,w,h" のカンマ結合1トークン、または x|y|w|h のパイプ区切り4トークンの
+// どちらの記法でも矩形範囲を読み取る共通ヘルパー。FRAME/CARD/CLOUD/GRID で共通利用する。
+function readBoxCoords(
+  parts: string[],
+  startIndex: number,
+  defaults: { x: number; y: number; width: number; height: number }
+): { x: number; y: number; width: number; height: number; nextIndex: number } {
+  const token = parts[startIndex];
+  if (token && token.includes(',')) {
+    const coords = token.split(',').map(Number);
+    return {
+      x: Number(coords[0] || defaults.x),
+      y: Number(coords[1] || defaults.y),
+      width: Number(coords[2] || defaults.width),
+      height: Number(coords[3] || defaults.height),
+      nextIndex: startIndex + 1
+    };
+  }
+  return {
+    x: Number(parts[startIndex] || defaults.x),
+    y: Number(parts[startIndex + 1] || defaults.y),
+    width: Number(parts[startIndex + 2] || defaults.width),
+    height: Number(parts[startIndex + 3] || defaults.height),
+    nextIndex: startIndex + 4
+  };
+}
+
+// parts[startIndex] 以降の "x,y" 形式トークンを、カンマを含まなくなるまで（または
+// maxPoints に達するまで）連続して読み取る。TRIANGLE/POLYGON/POLYLINE の頂点座標
+// 収集ロジックを共通化したもの。
+function collectPointArgs(
+  parts: string[],
+  startIndex: number,
+  maxPoints?: number
+): { points: [number, number][]; nextIndex: number } {
+  const points: [number, number][] = [];
+  let i = startIndex;
+  while (i < parts.length && parts[i] && parts[i].includes(',') && (maxPoints === undefined || points.length < maxPoints)) {
+    const pt = parts[i].split(',').map(Number);
+    points.push([pt[0] || 0, pt[1] || 0]);
+    i++;
+  }
+  return { points, nextIndex: i };
+}
+
 // Helper to resolve reference point (ID or comma coordinates)
 export function resolveAnchor(ref: string, elementMap: Map<string, any>, defaultX: number, defaultY: number, isTarget: boolean = false): [number, number] {
   if (!ref) return [defaultX, defaultY];
   if (ref.includes(',')) {
     const [x, y] = ref.split(',').map(Number);
-    const resolvedX = isTarget ? (x || defaultX) : (x || 0);
-    const resolvedY = y || 0;
+    // `|| ` だと座標 0 が falsy 判定されデフォルト値に化けてしまうため、NaN（パース失敗）のみを
+    // デフォルト値へのフォールバック対象とする
+    const resolvedX = Number.isNaN(x) ? (isTarget ? defaultX : 0) : x;
+    const resolvedY = Number.isNaN(y) ? 0 : y;
     return [resolvedX, resolvedY];
   }
   if (elementMap.has(ref)) {
@@ -213,19 +259,221 @@ export function resolveAnchor(ref: string, elementMap: Map<string, any>, default
   return [defaultX, defaultY];
 }
 
-// 安全な式評価（四則演算および三項演算子、比較演算子、文字列リテラル）
+// 安全な式評価（四則演算および三項演算子、比較演算子、文字列リテラル、ブール値）
+// new Function / eval を一切使わず、再帰下降構文解析で安全に評価する（RCEリスクの完全排除）
 export function evaluateExpression(expr: string): any {
-  const sanitized = expr.trim();
-  // 許可される文字: 数字, 英数文字列リテラル, 演算子 (+, -, *, /, %, ?, :, ==, ===, !=, !==, <, >, <=, >=, (, ), 引数, 空白, 単一引用符/二重引用符)
-  // 危険なキーワード（import, require, window, global, eval, process, Function 等）を禁止
-  if (/\b(window|global|process|require|import|eval|Function|this|constructor|prototype)\b/i.test(sanitized)) {
-    return NaN;
+  const src = expr.trim();
+  if (!src) return NaN;
+
+  let pos = 0;
+
+  function skipWhitespace() {
+    while (pos < src.length && /\s/.test(src[pos])) pos++;
   }
+
+  function peek(): string {
+    skipWhitespace();
+    return pos < src.length ? src[pos] : '';
+  }
+
+  function parseStringLiteral(): string {
+    const quote = src[pos++]; // ' or "
+    let result = '';
+    while (pos < src.length) {
+      const ch = src[pos++];
+      if (ch === quote) return result;
+      if (ch === '\\' && pos < src.length) {
+        const nextCh = src[pos++];
+        if (nextCh === 'n') result += '\n';
+        else if (nextCh === 't') result += '\t';
+        else if (nextCh === 'r') result += '\r';
+        else result += nextCh;
+      } else {
+        result += ch;
+      }
+    }
+    throw new Error('Unterminated string');
+  }
+
+  function parsePrimary(): any {
+    skipWhitespace();
+    const ch = peek();
+    if (ch === '') throw new Error('Unexpected end of input');
+
+    if (ch === "'" || ch === '"') {
+      return parseStringLiteral();
+    }
+
+    if (ch === '(') {
+      pos++; // consume '('
+      const val = parseTernary();
+      skipWhitespace();
+      if (src[pos] !== ')') throw new Error('Expected )');
+      pos++; // consume ')'
+      return val;
+    }
+
+    if (ch === '!') {
+      pos++;
+      return !parsePrimary();
+    }
+
+    if (ch === '+' || ch === '-') {
+      pos++;
+      const val = parsePrimary();
+      return ch === '-' ? -Number(val) : Number(val);
+    }
+
+    // Number or Boolean or Identifier
+    const start = pos;
+    while (pos < src.length && /[a-zA-Z0-9_.]/.test(src[pos])) pos++;
+    const word = src.slice(start, pos);
+
+    if (word === 'true') return true;
+    if (word === 'false') return false;
+    if (word === 'null') return null;
+
+    const num = Number(word);
+    if (!isNaN(num) && word !== '') return num;
+
+    throw new Error(`Invalid token: ${word}`);
+  }
+
+  function parseMultiplicative(): any {
+    let left = parsePrimary();
+    while (true) {
+      skipWhitespace();
+      const op1 = src[pos];
+      if (op1 === '*' || op1 === '/' || op1 === '%') {
+        pos++;
+        const right = parsePrimary();
+        if (op1 === '*') left = Number(left) * Number(right);
+        else if (op1 === '/') left = Number(left) / Number(right);
+        else left = Number(left) % Number(right);
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseAdditive(): any {
+    let left = parseMultiplicative();
+    while (true) {
+      skipWhitespace();
+      const op = src[pos];
+      if (op === '+' || op === '-') {
+        pos++;
+        const right = parseMultiplicative();
+        if (op === '+') {
+          if (typeof left === 'string' || typeof right === 'string') {
+            left = String(left) + String(right);
+          } else {
+            left = Number(left) + Number(right);
+          }
+        } else {
+          left = Number(left) - Number(right);
+        }
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseRelational(): any {
+    let left = parseAdditive();
+    while (true) {
+      skipWhitespace();
+      const op2 = src.slice(pos, pos + 2);
+      const op1 = src[pos];
+      if (op2 === '<=' || op2 === '>=') {
+        pos += 2;
+        const right = parseAdditive();
+        left = op2 === '<=' ? left <= right : left >= right;
+      } else if (op1 === '<' || op1 === '>') {
+        pos++;
+        const right = parseAdditive();
+        left = op1 === '<' ? left < right : left > right;
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseEquality(): any {
+    let left = parseRelational();
+    while (true) {
+      skipWhitespace();
+      const op3 = src.slice(pos, pos + 3);
+      const op2 = src.slice(pos, pos + 2);
+      if (op3 === '===' || op3 === '!==') {
+        pos += 3;
+        const right = parseRelational();
+        left = op3 === '===' ? left === right : left !== right;
+      } else if (op2 === '==' || op2 === '!=') {
+        pos += 2;
+        const right = parseRelational();
+        left = op2 === '==' ? left == right : left != right;
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseLogicalAnd(): any {
+    let left = parseEquality();
+    while (true) {
+      skipWhitespace();
+      if (src.slice(pos, pos + 2) === '&&') {
+        pos += 2;
+        const right = parseEquality();
+        left = left && right;
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseLogicalOr(): any {
+    let left = parseLogicalAnd();
+    while (true) {
+      skipWhitespace();
+      if (src.slice(pos, pos + 2) === '||') {
+        pos += 2;
+        const right = parseLogicalAnd();
+        left = left || right;
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseTernary(): any {
+    const cond = parseLogicalOr();
+    skipWhitespace();
+    if (src[pos] === '?') {
+      pos++; // consume '?'
+      const trueVal = parseTernary();
+      skipWhitespace();
+      if (src[pos] !== ':') throw new Error('Expected :');
+      pos++; // consume ':'
+      const falseVal = parseTernary();
+      return cond ? trueVal : falseVal;
+    }
+    return cond;
+  }
+
   try {
-    const fn = new Function(`"use strict"; return (${sanitized});`);
-    const res = fn();
-    if (res !== undefined && res !== null && (typeof res === 'number' || typeof res === 'string' || typeof res === 'boolean')) {
-      return res;
+    const result = parseTernary();
+    skipWhitespace();
+    if (pos !== src.length) return NaN; // 余剰トークンあり
+    if (result !== undefined && result !== null && (typeof result === 'number' || typeof result === 'string' || typeof result === 'boolean')) {
+      return result;
     }
     return NaN;
   } catch {
@@ -567,8 +815,10 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
     if (type === 'ROTATE' || type === 'ROTATE_BY') {
       const id = parts[1] || '';
       const isRelative = type === 'ROTATE_BY';
+      // angle は常に度数法として解釈する（度数/ラジアンの自動判定は小さい度数値を
+      // ラジアンと誤認する盲点があるため廃止）
       const numAngle = Number(parts[2] || 0);
-      const angle = Math.abs(numAngle) > Math.PI * 2 ? (numAngle * Math.PI) / 180 : numAngle;
+      const angle = (numAngle * Math.PI) / 180;
       elements.push({ type: 'rotate', id, angle, isRelative });
       if (elementMap.has(id)) {
         const el = elementMap.get(id);
@@ -623,8 +873,10 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.blue);
       const shapeType = type === 'RECT' ? 'rectangle' : type === 'ELLIPSE' ? 'ellipse' : 'diamond';
+      // angle は常に度数法として解釈する（度数/ラジアンの自動判定は小さい度数値を
+      // ラジアンと誤認する盲点があるため廃止）
       const numAngle = Number(rawAngle || 0);
-      const angle = Math.abs(numAngle) > Math.PI * 2 ? (numAngle * Math.PI) / 180 : numAngle;
+      const angle = (numAngle * Math.PI) / 180;
       const styles = parseStyleProps(rawStyles);
 
       const elemObj: any = {
@@ -711,27 +963,11 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
     } else if (type === 'FRAME' || type === 'CONTAINER') {
       // Syntax: FRAME|id|x|y|w|h|color|label|styles
       const id = parts[1] || `frame_${Math.random().toString(36).substring(2, 7)}`;
-      let x = 100, y = 100, width = 400, height = 300;
-      let colorKey = 'gray', labelText = '', rawStyles = '';
-
-      if (parts[2] && parts[2].includes(',')) {
-        const coords = parts[2].split(',').map(Number);
-        x = Number(coords[0] || 100);
-        y = Number(coords[1] || 100);
-        width = Number(coords[2] || 400);
-        height = Number(coords[3] || 300);
-        colorKey = (parts[3] || 'gray').toLowerCase();
-        labelText = parts[4] || '';
-        rawStyles = parts[5] || '';
-      } else {
-        x = Number(parts[2] || 100);
-        y = Number(parts[3] || 100);
-        width = Number(parts[4] || 400);
-        height = Number(parts[5] || 300);
-        colorKey = (parts[6] || 'gray').toLowerCase();
-        labelText = parts[7] || '';
-        rawStyles = parts[8] || '';
-      }
+      const box = readBoxCoords(parts, 2, { x: 100, y: 100, width: 400, height: 300 });
+      const { x, y, width, height } = box;
+      const colorKey = (parts[box.nextIndex] || 'gray').toLowerCase();
+      const labelText = parts[box.nextIndex + 1] || '';
+      const rawStyles = parts[box.nextIndex + 2] || '';
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.gray);
       const styles = parseStyleProps(rawStyles);
@@ -783,29 +1019,12 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
     } else if (type === 'CARD') {
       // Syntax: CARD|id|x|y|w|h|color|title|body|styles
       const id = parts[1] || `card_${Math.random().toString(36).substring(2, 7)}`;
-      let x = 100, y = 100, width = 180, height = 110;
-      let colorKey = 'blue', titleText = '', bodyText = '', rawStyles = '';
-
-      if (parts[2] && parts[2].includes(',')) {
-        const coords = parts[2].split(',').map(Number);
-        x = Number(coords[0] || 100);
-        y = Number(coords[1] || 100);
-        width = Number(coords[2] || 180);
-        height = Number(coords[3] || 110);
-        colorKey = (parts[3] || 'blue').toLowerCase();
-        titleText = parts[4] || '';
-        bodyText = parts[5] || '';
-        rawStyles = parts[6] || '';
-      } else {
-        x = Number(parts[2] || 100);
-        y = Number(parts[3] || 100);
-        width = Number(parts[4] || 180);
-        height = Number(parts[5] || 110);
-        colorKey = (parts[6] || 'blue').toLowerCase();
-        titleText = parts[7] || '';
-        bodyText = parts[8] || '';
-        rawStyles = parts[9] || '';
-      }
+      const box = readBoxCoords(parts, 2, { x: 100, y: 100, width: 180, height: 110 });
+      const { x, y, width, height } = box;
+      const colorKey = (parts[box.nextIndex] || 'blue').toLowerCase();
+      const titleText = parts[box.nextIndex + 1] || '';
+      const bodyText = parts[box.nextIndex + 2] || '';
+      const rawStyles = parts[box.nextIndex + 3] || '';
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.blue);
       const styles = parseStyleProps(rawStyles);
@@ -950,27 +1169,11 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
       // Syntax: CLOUD|id|x|y|w|h|color|label|styles
       // またはカンマ座標 CLOUD|id|x,y,w,h|color|label|styles
       const id = parts[1] || `cloud_${Math.random().toString(36).substring(2, 7)}`;
-      let x = 100, y = 100, width = 160, height = 100;
-      let colorKey = 'teal', labelText = '', rawStyles = '';
-
-      if (parts[2] && parts[2].includes(',')) {
-        const coords = parts[2].split(',').map(Number);
-        x = Number(coords[0] || 100);
-        y = Number(coords[1] || 100);
-        width = Number(coords[2] || 160);
-        height = Number(coords[3] || 100);
-        colorKey = (parts[3] || 'teal').toLowerCase();
-        labelText = parts[4] || '';
-        rawStyles = parts[5] || '';
-      } else {
-        x = Number(parts[2] || 100);
-        y = Number(parts[3] || 100);
-        width = Number(parts[4] || 160);
-        height = Number(parts[5] || 100);
-        colorKey = (parts[6] || 'teal').toLowerCase();
-        labelText = parts[7] || '';
-        rawStyles = parts[8] || '';
-      }
+      const box = readBoxCoords(parts, 2, { x: 100, y: 100, width: 160, height: 100 });
+      const { x, y, width, height } = box;
+      const colorKey = (parts[box.nextIndex] || 'teal').toLowerCase();
+      const labelText = parts[box.nextIndex + 1] || '';
+      const rawStyles = parts[box.nextIndex + 2] || '';
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.teal);
       const styles = parseStyleProps(rawStyles);
@@ -1005,38 +1208,20 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
       // Syntax: TRIANGLE|id|x1,y1|x2,y2|x3,y3|color|label|styles
       // Syntax: POLYGON|id|x1,y1|x2,y2|...|xn,yn|color|label|styles
       const id = parts[1] || `${type.toLowerCase()}_${Math.random().toString(36).substring(2, 7)}`;
-      let colorKey = 'blue';
-      let labelText = '';
-      let rawStyles = '';
-      const pointCoords: [number, number][] = [];
+      const collected = collectPointArgs(parts, 2, type === 'TRIANGLE' ? 3 : undefined);
+      const pointCoords: [number, number][] = collected.points;
+      const i = collected.nextIndex;
 
-      if (type === 'TRIANGLE') {
-        let i = 2;
-        while (i < 5 && parts[i] && parts[i].includes(',')) {
-          const pt = parts[i].split(',').map(Number);
-          pointCoords.push([pt[0] || 0, pt[1] || 0]);
-          i++;
-        }
-        if (pointCoords.length < 3) {
+      if (pointCoords.length < 3) {
+        if (type === 'TRIANGLE') {
           pointCoords.push([50, 0], [100, 100], [0, 100]);
-        }
-        colorKey = (parts[i] || 'blue').toLowerCase();
-        labelText = parts[i + 1] || '';
-        rawStyles = parts[i + 2] || '';
-      } else {
-        let i = 2;
-        while (i < parts.length && parts[i].includes(',')) {
-          const pt = parts[i].split(',').map(Number);
-          pointCoords.push([pt[0] || 0, pt[1] || 0]);
-          i++;
-        }
-        if (pointCoords.length < 3) {
+        } else {
           pointCoords.push([0, 0], [100, 0], [100, 100], [0, 100]);
         }
-        colorKey = (parts[i] || 'blue').toLowerCase();
-        labelText = parts[i + 1] || '';
-        rawStyles = parts[i + 2] || '';
       }
+      const colorKey = (parts[i] || 'blue').toLowerCase();
+      const labelText = parts[i + 1] || '';
+      const rawStyles = parts[i + 2] || '';
 
       const colors = resolveColor(colorKey, COLOR_PALETTE.blue);
       const styles = parseStyleProps(rawStyles);
@@ -1070,13 +1255,9 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
       // Syntax: POLYLINE|id|x1,y1|x2,y2|...|xn,yn|color|label|styles
       // Open multi-point line
       const id = parts[1] || `polyline_${Math.random().toString(36).substring(2, 7)}`;
-      const pointCoords: [number, number][] = [];
-      let i = 2;
-      while (i < parts.length && parts[i].includes(',')) {
-        const pt = parts[i].split(',').map(Number);
-        pointCoords.push([pt[0] || 0, pt[1] || 0]);
-        i++;
-      }
+      const collected = collectPointArgs(parts, 2);
+      const pointCoords: [number, number][] = collected.points;
+      const i = collected.nextIndex;
       if (pointCoords.length < 2) {
         pointCoords.push([0, 0], [100, 100]);
       }
@@ -1256,29 +1437,12 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
       // Syntax: GRID|id|x|y|w|h|rows,cols|color1|color2|styles
       // または カンマ座標: GRID|id|x,y,w,h|rows,cols|color1|color2|styles
       const id = parts[1] || `grid_${Math.random().toString(36).substring(2, 7)}`;
-      let x = 100, y = 100, width = 400, height = 400;
-      let rowsCols = '8,8', color1Key = '#ffffff', color2Key = '', rawStyles = '';
-
-      if (parts[2] && parts[2].includes(',')) {
-        const coords = parts[2].split(',').map(Number);
-        x = Number(coords[0] || 100);
-        y = Number(coords[1] || 100);
-        width = Number(coords[2] || 400);
-        height = Number(coords[3] || 400);
-        rowsCols = parts[3] || '8,8';
-        color1Key = parts[4] || '#ffffff';
-        color2Key = parts[5] || '';
-        rawStyles = parts[6] || '';
-      } else {
-        x = Number(parts[2] || 100);
-        y = Number(parts[3] || 100);
-        width = Number(parts[4] || 400);
-        height = Number(parts[5] || 400);
-        rowsCols = parts[6] || '8,8';
-        color1Key = parts[7] || '#ffffff';
-        color2Key = parts[8] || '';
-        rawStyles = parts[9] || '';
-      }
+      const box = readBoxCoords(parts, 2, { x: 100, y: 100, width: 400, height: 400 });
+      const { x, y, width, height } = box;
+      const rowsCols = parts[box.nextIndex] || '8,8';
+      const color1Key = parts[box.nextIndex + 1] || '#ffffff';
+      const color2Key = parts[box.nextIndex + 2] || '';
+      const rawStyles = parts[box.nextIndex + 3] || '';
 
       const styles = parseStyleProps(rawStyles);
       const [rStr, cStr] = rowsCols.includes(',') ? rowsCols.split(',') : [rowsCols, rowsCols];
@@ -1586,7 +1750,7 @@ export function parseDSLToElements(rawCommands: string[], elementMap: Map<string
 // モデルごとの thinking 設定。
 // GEMINI_THINKING_BUDGET 環境変数が指定されている場合はその値を優先します。
 // 未指定の場合、幾何学的推論や整合性検証を行えるよう、思考を許可（pro: 1024, flash: 1024）します。
-export function getThinkingConfigFor(modelName: string): { thinkingBudget: number } {
+export function getThinkingConfigFor(_modelName: string): { thinkingBudget: number } {
   if (process.env.GEMINI_THINKING_BUDGET !== undefined) {
     const envVal = parseInt(process.env.GEMINI_THINKING_BUDGET, 10);
     if (!isNaN(envVal) && envVal >= 0) {

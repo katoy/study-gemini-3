@@ -158,7 +158,7 @@ Excalidraw の図形を簡潔かつ高速に生成するためのパイプ区切
 - `MOVE_BY|id|dx,dy`: 指定 ID の要素を相対移動（dx, dy 分シフト）
 - `RESIZE|id|w,h`: 指定 ID の幅・高さを変更
 - `SCALE|id|factor`: 指定 ID のサイズを倍率変更（例: `SCALE|box1|1.5` で 1.5 倍）
-- `ROTATE|id|angle`: 絶対角度を設定（度数法・ラジアン自動変換）
+- `ROTATE|id|angle`: 絶対角度を設定（度数法）
 - `ROTATE_BY|id|angle`: 相対回転
 - `HIDE|id1,id2,...`: 要素を非表示（透明度 0%）
 - `SHOW|id1,id2,...|opacity`: 非表示要素を再表示（デフォルト 100%）

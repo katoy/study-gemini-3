@@ -4,17 +4,8 @@
 // 走るため）Node環境での単体テストが困難になるので、依存注入で切り離している。
 export type ElementConverter = (rawElements: any[]) => any[];
 
-// エスケープされた \n などを実際の改行に変換する
-export function unescapeText(str: string): string {
-  if (!str) return '';
-  return str.replace(/\\([ntr\\])/g, (_, ch) => {
-    if (ch === 'n') return '\n';
-    if (ch === 't') return '\t';
-    if (ch === 'r') return '\r';
-    if (ch === '\\') return '\\';
-    return ch;
-  });
-}
+import { unescapeText } from '../dsl';
+export { unescapeText };
 
 // server から届いた要素配列を既存シーン要素とマージする純粋関数。
 // App コンポーネントから切り出すことで単体テスト可能にしている（React/DOM への依存なし）。
@@ -50,8 +41,9 @@ export function applyElementModifications(el: any, mod: any): any {
   }
 
   if (mod.rotate) {
-    const numAngle = mod.rotate.angle || 0;
-    const radAngle = Math.abs(numAngle) > Math.PI * 2 ? (numAngle * Math.PI) / 180 : numAngle;
+    // ここに渡ってくる angle は既にラジアン（dsl.ts の ROTATE/ROTATE_BY が度数法から変換済み、
+    // または create_view 由来なら Excalidraw ネイティブ単位）なので、そのまま使用する
+    const radAngle = mod.rotate.angle || 0;
     if (mod.rotate.isRelative) {
       updated.angle = (updated.angle || 0) + radAngle;
     } else {

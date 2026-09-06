@@ -3,6 +3,8 @@ import {
   resolveColor,
   parseStyleProps,
   evaluateSimpleMath,
+  evaluateExpression,
+  unescapeText,
   interpolateTemplate,
   parseDSLToElements,
   preprocessDSL,
@@ -82,6 +84,48 @@ describe('dsl.ts extended coverage', () => {
       expect(evaluateSimpleMath('1 /')).toBeNaN();
       expect(evaluateSimpleMath('(((')).toBeNaN();
       expect(evaluateSimpleMath('abc')).toBeNaN();
+      expect(evaluateSimpleMath('')).toBeNaN();
+    });
+
+    it('evaluateExpression の四則演算、三項演算、比較、論理演算、文字列を網羅テストする', () => {
+      expect(evaluateExpression('10 + 20')).toBe(30);
+      expect(evaluateExpression('10 - 4')).toBe(6);
+      expect(evaluateExpression('3 * 7')).toBe(21);
+      expect(evaluateExpression('20 / 4')).toBe(5);
+      expect(evaluateExpression('10 % 3')).toBe(1);
+      expect(evaluateExpression('-5 + 10')).toBe(5);
+      expect(evaluateExpression('+5 + 10')).toBe(15);
+      expect(evaluateExpression('!(5 > 10)')).toBe(true);
+      expect(evaluateExpression('(2 + 3) * 4')).toBe(20);
+      expect(evaluateExpression('10 <= 20')).toBe(true);
+      expect(evaluateExpression('20 >= 20')).toBe(true);
+      expect(evaluateExpression('10 < 20')).toBe(true);
+      expect(evaluateExpression('20 > 10')).toBe(true);
+      expect(evaluateExpression('10 === 10')).toBe(true);
+      expect(evaluateExpression('10 !== 20')).toBe(true);
+      expect(evaluateExpression('10 == 10')).toBe(true);
+      expect(evaluateExpression('10 != 20')).toBe(true);
+      expect(evaluateExpression('true && false')).toBe(false);
+      expect(evaluateExpression('true || false')).toBe(true);
+      expect(evaluateExpression("true ? 'YES' : 'NO'")).toBe('YES');
+      expect(evaluateExpression("false ? 'YES' : 'NO'")).toBe('NO');
+      expect(evaluateExpression("'Hello ' + 'World'")).toBe('Hello World');
+      expect(evaluateExpression('"tab\\tnewline\\nreturn\\rslash\\\\"')).toBe('tab\tnewline\nreturn\rslash\\');
+      expect(evaluateExpression('null')).toBeNaN();
+      expect(evaluateExpression('10 + 20 extra')).toBeNaN();
+      expect(evaluateExpression('(10 + 20')).toBeNaN();
+      expect(evaluateExpression("'unterminated")).toBeNaN();
+      expect(evaluateExpression('true ? 10')).toBeNaN();
+      expect(evaluateExpression('invalid_id')).toBeNaN();
+    });
+
+    it('unescapeText で改行、タブ、復帰、バックスラッシュを変換する', () => {
+      expect(unescapeText('line1\\nline2')).toBe('line1\nline2');
+      expect(unescapeText('col1\\tcol2')).toBe('col1\tcol2');
+      expect(unescapeText('line1\\rline2')).toBe('line1\rline2');
+      expect(unescapeText('path\\\\to')).toBe('path\\to');
+      expect(unescapeText('')).toBe('');
+      expect(unescapeText(undefined as any)).toBe('');
     });
 
     it('interpolateTemplate で変数なしの純粋計算式', () => {
@@ -92,6 +136,13 @@ describe('dsl.ts extended coverage', () => {
     it('interpolateTemplate で未定義変数はプレースホルダーのまま維持', () => {
       const result = interpolateTemplate('{foo_bar}', {});
       expect(result).toBe('{foo_bar}');
+    });
+
+    it('interpolateTemplate で文字列変数と三項演算子の展開', () => {
+      expect(interpolateTemplate("{i == 0 ? 'A' : 'B'}", { i: 0 })).toBe('A');
+      expect(interpolateTemplate("{i == 0 ? 'A' : 'B'}", { i: 1 })).toBe('B');
+      expect(interpolateTemplate("item_{name}", { name: 'box' })).toBe('item_box');
+      expect(interpolateTemplate("{val + * 10}", { val: 5 })).toBe('5 + * 10');
     });
   });
 
@@ -344,6 +395,23 @@ describe('dsl.ts extended coverage', () => {
     it('resolveAnchor の空文字・デフォルト解決', () => {
       const map = new Map<string, any>();
       expect(resolveAnchor('', map, 50, 60)).toEqual([50, 60]);
+    });
+
+    it('resolveAnchor は座標 0 をデフォルト値に化けさせず正しく解決する', () => {
+      const map = new Map<string, any>();
+      // isTarget=true でも座標 0 はデフォルト値ではなくそのまま採用される
+      expect(resolveAnchor('0,50', map, 100, 0, true)).toEqual([0, 50]);
+      expect(resolveAnchor('50,0', map, 100, 0, true)).toEqual([50, 0]);
+      // パース不能（NaN）な場合のみデフォルト値にフォールバックする
+      expect(resolveAnchor('abc,50', map, 100, 0, true)).toEqual([100, 50]);
+    });
+
+    it('ARROW の終点座標 x=0 が長さ0の矢印に化けない', () => {
+      const [arrow] = parseDSLToElements(['ARROW|arr1|100,50|0,50']);
+      expect(arrow.x).toBe(100);
+      expect(arrow.y).toBe(50);
+      expect(arrow.points).toEqual([[0, 0], [-100, 0]]);
+      expect(arrow.width).toBe(100);
     });
   });
 });

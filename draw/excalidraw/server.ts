@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { promises as dnsPromises } from 'dns';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI } from '@google/genai';
@@ -162,45 +163,162 @@ export async function* mockGeminiStream(): AsyncGenerator<any> {
 const SYSTEM_INSTRUCTION_PATH = path.join(__dirname, 'SYSTEM_INSTRUCTION.md');
 export const SYSTEM_INSTRUCTION = fs.readFileSync(SYSTEM_INSTRUCTION_PATH, 'utf-8');
 
-// 画像URLを検出して Gemini API 用の inlineData に変換するヘルパー関数
-export async function fetchImageAsInlineData(url: string, timeoutMs = 8000): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const resp = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
+// SSRF (Server-Side Request Forgery) 対策: プライベートIPやローカルホストへのアクセスを遮断
+// IPv4/IPv6 の生アドレス文字列がプライベート/予約範囲かどうかを判定する。
+// ホスト名がIPリテラルの場合の直接チェックと、DNS解決後のアドレス検証の両方から利用する。
+function isPrivateOrReservedIp(rawIp: string): boolean {
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const match = rawIp.match(ipv4Regex);
+  if (match) {
+    const o1 = Number(match[1]);
+    const o2 = Number(match[2]);
+    if (o1 === 127) return true; // 127.0.0.0/8 (ループバック)
+    if (o1 === 10) return true; // 10.0.0.0/8 (プライベート)
+    if (o1 === 172 && o2 >= 16 && o2 <= 31) return true; // 172.16.0.0/12 (プライベート)
+    if (o1 === 192 && o2 === 168) return true; // 192.168.0.0/16 (プライベート)
+    if (o1 === 169 && o2 === 254) return true; // 169.254.0.0/16 (リンクローカル / クラウドメタデータ)
+    if (o1 === 0) return true; // 0.0.0.0/8
+    return false;
+  }
 
-    if (!resp.ok) {
-      console.warn(`Failed to fetch image from ${url}: ${resp.status} ${resp.statusText}`);
+  // IPv6 チェック ([::1], fc00::, fe80:: 等)。IPv4写像アドレス (::ffff:127.0.0.1) は再帰的に検証
+  const cleanHost = (rawIp.startsWith('[') && rawIp.endsWith(']') ? rawIp.slice(1, -1) : rawIp).toLowerCase();
+  if (cleanHost === '::1' || cleanHost === '::' || cleanHost.startsWith('fc') || cleanHost.startsWith('fd') || cleanHost.startsWith('fe80')) {
+    return true;
+  }
+  // IPv4写像IPv6は URL.hostname 経由では常に16進グループ表記 (例: ::ffff:127.0.0.1 -> ::ffff:7f00:1)
+  // に正規化されるため、その形式のみ判定すればよい
+  const hexMapped = cleanHost.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hexMapped) {
+    const hi = parseInt(hexMapped[1], 16);
+    const lo = parseInt(hexMapped[2], 16);
+    const ipv4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+    return isPrivateOrReservedIp(ipv4);
+  }
+
+  return false;
+}
+
+// ホスト名が（ドメイン名ではなく）IPv4/IPv6 のリテラル表記かどうかを判定する
+function isIpLiteralHostname(hostname: string): boolean {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) return true; // URL上のIPv6は必ず [] で囲まれる
+  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
+export function isSafeExternalUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    // ホスト名直接チェック
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+      return false;
+    }
+    // IPリテラル指定の場合のみプライベート/予約範囲チェックを行う
+    // (ドメイン名がたまたま "fc"/"fd"/"fe80" 等で始まっていても誤検知しないようにする)
+    if (isIpLiteralHostname(hostname) && isPrivateOrReservedIp(hostname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// hostname を解決するDNSルックアップ関数の型。単体テストで実際のDNS解決を発生させずに
+// 「外部ドメインが内部/プライベートIPを指す」ケースを差し替え可能にするための DI。
+type DnsLookupFn = (hostname: string) => Promise<{ address: string; family: number }[]>;
+const defaultDnsLookup: DnsLookupFn = (hostname) => dnsPromises.lookup(hostname, { all: true });
+
+// DNSリバインディング対策: isSafeExternalUrl はURL文字列上のホスト名しか見ないため、
+// 内部IP（例: クラウドメタデータの 169.254.169.254）を指すよう仕込まれた外部ドメイン名を
+// 通過させてしまう抜け道がある。実際に名前解決される先のIPアドレスも検証することで塞ぐ。
+export async function isHostnameResolutionSafe(urlStr: string, lookupFn: DnsLookupFn = defaultDnsLookup): Promise<boolean> {
+  try {
+    const { hostname } = new URL(urlStr);
+    if (isIpLiteralHostname(hostname)) {
+      // IPリテラルは isSafeExternalUrl 側で既に検証済み
+      return true;
+    }
+    const addresses = await lookupFn(hostname);
+    if (!addresses || addresses.length === 0) return false;
+    return addresses.every((a) => !isPrivateOrReservedIp(a.address));
+  } catch {
+    return false;
+  }
+}
+
+const MAX_IMAGE_FETCH_REDIRECTS = 5;
+
+// 画像URLを検出して Gemini API 用の inlineData に変換するヘルパー関数
+export async function fetchImageAsInlineData(
+  url: string,
+  timeoutMs = 8000,
+  lookupFn: DnsLookupFn = defaultDnsLookup
+): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
+  let currentUrl = url;
+
+  for (let redirectCount = 0; redirectCount <= MAX_IMAGE_FETCH_REDIRECTS; redirectCount++) {
+    if (!isSafeExternalUrl(currentUrl) || !(await isHostnameResolutionSafe(currentUrl, lookupFn))) {
+      console.warn(`SSRF Blocked: Unsafe external URL requested: ${currentUrl}`);
       return null;
     }
 
-    const contentType = resp.headers.get('content-type') || '';
-    // 画像形式判定
-    let mimeType = contentType.split(';')[0].trim().toLowerCase();
-    if (!mimeType.startsWith('image/')) {
-      if (url.endsWith('.webp')) mimeType = 'image/webp';
-      else if (url.endsWith('.png')) mimeType = 'image/png';
-      else if (url.endsWith('.jpg') || url.endsWith('.jpeg')) mimeType = 'image/jpeg';
-      else if (url.endsWith('.svg')) mimeType = 'image/svg+xml';
-      else {
-        console.warn(`URL does not appear to be an image: ${url} (${contentType})`);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      // リダイレクトを自動追従させず、遷移先URLを毎回SSRF検証してから手動で辿る
+      // (追従先が未検証のプライベートIP/内部サービスへのリダイレクトである可能性を防ぐ)
+      const resp = await fetch(currentUrl, { signal: controller.signal, redirect: 'manual' });
+      clearTimeout(timer);
+
+      if (resp.status >= 300 && resp.status < 400) {
+        const location = resp.headers.get('location');
+        if (!location) {
+          console.warn(`Redirect response without Location header from ${currentUrl}`);
+          return null;
+        }
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+
+      if (!resp.ok) {
+        console.warn(`Failed to fetch image from ${currentUrl}: ${resp.status} ${resp.statusText}`);
         return null;
       }
-    }
 
-    const arrayBuffer = await resp.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    return {
-      inlineData: {
-        mimeType,
-        data: base64
+      const contentType = resp.headers.get('content-type') || '';
+      // 画像形式判定
+      let mimeType = contentType.split(';')[0].trim().toLowerCase();
+      if (!mimeType.startsWith('image/')) {
+        if (currentUrl.endsWith('.webp')) mimeType = 'image/webp';
+        else if (currentUrl.endsWith('.png')) mimeType = 'image/png';
+        else if (currentUrl.endsWith('.jpg') || currentUrl.endsWith('.jpeg')) mimeType = 'image/jpeg';
+        else if (currentUrl.endsWith('.svg')) mimeType = 'image/svg+xml';
+        else {
+          console.warn(`URL does not appear to be an image: ${currentUrl} (${contentType})`);
+          return null;
+        }
       }
-    };
-  } catch (err: any) {
-    console.warn(`Error fetching image from ${url}:`, err.message);
-    return null;
+
+      const arrayBuffer = await resp.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      return {
+        inlineData: {
+          mimeType,
+          data: base64
+        }
+      };
+    } catch (err: any) {
+      console.warn(`Error fetching image from ${currentUrl}:`, err.message);
+      return null;
+    }
   }
+
+  console.warn(`Too many redirects while fetching image from ${url}`);
+  return null;
 }
 
 // /api/chat のハンドラ本体。streamFn を差し替えられるようにして、
