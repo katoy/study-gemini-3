@@ -86,4 +86,44 @@ test('元に戻す(Undo)・やり直す(Redo)ボタンが正しく動作する',
   await expect(undoBtn).toBeEnabled();
 });
 
+test('描画中はマウスカーソルが wait になる', async ({ page }) => {
+  let finishResponse: () => void = () => {};
+  await page.route('/api/chat', async (route) => {
+    await new Promise<void>((resolve) => {
+      finishResponse = resolve;
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        reply: '図を作成しました。',
+        toolCalls: [],
+      }),
+    });
+  });
+
+  await page.goto('/');
+
+  const body = page.locator('body');
+  await expect(body).not.toHaveClass(/is-drawing/);
+
+  const textarea = page.locator('textarea');
+  await textarea.fill('システム構成図を描いて');
+  await page.getByRole('button', { name: '送信' }).click();
+
+  // 送信中・描画中は body に is-drawing が付き cursor: wait になる
+  await expect(body).toHaveClass(/is-drawing/);
+  const cursorStyle = await body.evaluate((el) => window.getComputedStyle(el).cursor);
+  expect(cursorStyle).toBe('wait');
+
+  // レスポンス完了
+  finishResponse();
+
+  // 完了後は is-drawing が解除される
+  await expect(body).not.toHaveClass(/is-drawing/);
+  const afterCursor = await body.evaluate((el) => window.getComputedStyle(el).cursor);
+  expect(afterCursor).not.toBe('wait');
+});
+
+
 

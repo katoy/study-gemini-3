@@ -20,6 +20,21 @@ export default function App() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // 描画中（APIリクエスト中またはキャンバスへの順次アニメーション描画中）はマウスカーソルを wait にする
+  const isDrawing = loading || isAnimating;
+
+  useEffect(() => {
+    if (isDrawing) {
+      document.body.classList.add('is-drawing');
+    } else {
+      document.body.classList.remove('is-drawing');
+    }
+    return () => {
+      document.body.classList.remove('is-drawing');
+    };
+  }, [isDrawing]);
   const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
@@ -363,6 +378,7 @@ export default function App() {
     const api = excalidrawAPIRef.current;
     if (isAnimatingRef.current || !api) return;
     isAnimatingRef.current = true;
+    setIsAnimating(true);
 
     try {
       while (animationQueueRef.current.length > 0) {
@@ -380,22 +396,22 @@ export default function App() {
           await new Promise((resolve) => setTimeout(resolve, delay));
         } else {
           // キュー内の全要素描画完了後、画面内に収める
-          setTimeout(() => {
-            const final = api.getSceneElements();
-            if (final && final.length > 0) {
-              console.log(`✨ Fitting viewport at ${Date.now()}`);
-              api.scrollToContent(final, {
-                fitToViewport: true,
-                animate: true,
-              });
-            }
-          }, 300);
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const final = api.getSceneElements();
+          if (final && final.length > 0) {
+            console.log(`✨ Fitting viewport at ${Date.now()}`);
+            api.scrollToContent(final, {
+              fitToViewport: true,
+              animate: true,
+            });
+          }
         }
       }
     } catch (err) {
       console.error('Error in animation queue:', err);
     } finally {
       isAnimatingRef.current = false;
+      setIsAnimating(false);
     }
   };
 
