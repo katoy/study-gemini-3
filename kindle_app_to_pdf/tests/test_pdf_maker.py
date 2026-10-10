@@ -39,3 +39,27 @@ def test_make_pdf_exception_raised(tmp_path: Path) -> None:
     with patch("img2pdf.convert", side_effect=RuntimeError("convert failure")):
         with pytest.raises(RuntimeError, match="convert failure"):
             make_pdf([dummy_img], str(output_path))
+
+
+def test_l5_make_pdf_uses_outputstream(tmp_path: Path) -> None:
+    """L-5 再現テスト: メモリ逼迫を防ぐため img2pdf.convert に outputstream が渡されること。"""
+    dummy_img = tmp_path / "dummy.png"
+    dummy_img.touch()
+    output_path = tmp_path / "output.pdf"
+
+    with patch("img2pdf.convert") as mock_convert:
+        make_pdf([dummy_img], str(output_path))
+        assert "outputstream" in mock_convert.call_args[1]
+
+
+def test_l5_make_pdf_cleans_up_file_on_error(tmp_path: Path) -> None:
+    """L-5 再現テスト: 変換失敗時に 0 バイトファイルが残らず削除されること。"""
+    dummy_img = tmp_path / "dummy.png"
+    dummy_img.touch()
+    output_path = tmp_path / "output.pdf"
+
+    with patch("img2pdf.convert", side_effect=RuntimeError("convert failure")):
+        with pytest.raises(RuntimeError):
+            make_pdf([dummy_img], str(output_path))
+
+    assert not output_path.exists(), "エラー発生時に 0 バイトの出力ファイルが残ってしまっています"

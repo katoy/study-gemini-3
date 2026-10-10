@@ -35,9 +35,11 @@ def make_pdf(
 
     try:
         with open(output_path, "wb") as f:
-            f.write(img2pdf.convert(screenshot_paths))
+            img2pdf.convert(screenshot_paths, outputstream=f)
     except Exception as e:
         logger.error(f"PDF 結合中にエラーが発生しました: {e}")
+        if output_file.exists():
+            output_file.unlink(missing_ok=True)
         raise
 
     if output_file.exists():

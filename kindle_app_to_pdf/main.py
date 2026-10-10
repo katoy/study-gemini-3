@@ -53,6 +53,12 @@ def parse_args() -> argparse.Namespace:
         default="right",
         help="ページめくりの方向: right=右矢印(デフォルト), left=左矢印, space=スペースキー",
     )
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=2000,
+        help="キャプチャする最大ページ数 (デフォルト: 2000)",
+    )
     return parser.parse_args()
 
 
@@ -64,10 +70,8 @@ def run(args: argparse.Namespace) -> None:
     # 既存の画像ディレクトリから生成する場合はループさせず、1回のみ実行して終了する
     if args.images_dir:
         try:
-            book_title, screenshots, shot_dir = _prepare_screenshots(args, output_dir)
-            _generate_pdf(output_dir, book_title, screenshots)
-            # 既存画像指定時は screenshots の削除を行わない（args.screenshots にかかわらず保持）
-            pdf_path = output_dir / (sanitize_filename(book_title) + ".pdf")
+            book_title, screenshots, _ = _prepare_screenshots(args, output_dir)
+            pdf_path = _generate_pdf(output_dir, book_title, screenshots)
             _print_summary(pdf_path)
         except Exception as e:
             logger.error(f"PDF 再生成中にエラーが発生しました: {e}")
@@ -134,6 +138,7 @@ def _prepare_screenshots(
         output_dir=str(output_dir),
         page_delay=args.page_delay,
         direction=args.direction,
+        max_pages=args.max_pages,
     )
 
     if not screenshots:

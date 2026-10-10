@@ -1,9 +1,8 @@
-import os
 from pathlib import Path
 import pytest
 from PIL import Image
 
-from kindle_capture import MacKindleCapturer, capture_kindle_pages
+from kindle_capture import MacKindleCapturer
 from pdf_maker import make_pdf
 
 
@@ -75,6 +74,7 @@ class TestKindleRealE2E:
             orig_capture(proc, path_str)
 
         orig_is_dialog = capturer._is_dialog_active
+
         def stop_after_2_pages(proc: str, book_title: str) -> bool:
             if shot_count >= 2:
                 return True

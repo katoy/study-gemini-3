@@ -12,7 +12,8 @@ venv/
 # 出力ファイル
 output/*
 !output/pdf-chapter-splitter/
-!output/pdf-chapter-splitter/**
+!output/pdf-chapter-splitter/*.py
+output/**/__pycache__/
 
 # エディタ
 .idea/

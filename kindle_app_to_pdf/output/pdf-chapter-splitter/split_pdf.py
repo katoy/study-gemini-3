@@ -3,19 +3,15 @@
 
 import io
 import math
-import shutil
 from pathlib import Path
+from typing import Any
 
-try:
-    from pypdf import PdfReader, PdfWriter
-except ImportError:
-    from PyPDF2 import PdfReader, PdfWriter  # type: ignore
-
+from pypdf import PdfReader, PdfWriter
 
 MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024
 
 
-def _build_pdf_writer(reader, start_page: int, end_page: int):
+def _build_pdf_writer(reader: PdfReader, start_page: int, end_page: int) -> PdfWriter:
     """指定ページ範囲の PDF Writer を作る。"""
     writer = PdfWriter()
 
@@ -26,7 +22,7 @@ def _build_pdf_writer(reader, start_page: int, end_page: int):
     return writer
 
 
-def _measure_pdf_size(reader, start_page: int, end_page: int) -> int:
+def _measure_pdf_size(reader: PdfReader, start_page: int, end_page: int) -> int:
     """指定ページ範囲を PDF 化したときのサイズをバイトで返す。"""
     writer = _build_pdf_writer(reader, start_page, end_page)
 
@@ -35,7 +31,7 @@ def _measure_pdf_size(reader, start_page: int, end_page: int) -> int:
         return len(buffer.getvalue())
 
 
-def _write_pdf_range(reader, start_page: int, end_page: int, output_file: Path) -> None:
+def _write_pdf_range(reader: PdfReader, start_page: int, end_page: int, output_file: Path) -> None:
     """指定ページ範囲をファイルへ書き出す。"""
     writer = _build_pdf_writer(reader, start_page, end_page)
 
@@ -68,7 +64,7 @@ def _split_page_range_evenly(
 
 
 def _plan_pdf_ranges(
-    reader,
+    reader: PdfReader,
     start_page: int,
     end_page: int,
     max_size_bytes: int = MAX_PDF_SIZE_BYTES,
@@ -109,7 +105,7 @@ def _plan_pdf_ranges(
 def split_pdf(
     input_path: str,
     output_dir: str,
-    chapters_list: list[list],
+    chapters_list: list[list[Any]],
     max_size_bytes: int = MAX_PDF_SIZE_BYTES,
 ) -> None:
     """PDF をページ範囲ごとに分割する。
@@ -123,20 +119,18 @@ def split_pdf(
     reader = PdfReader(input_path)
     output_path = Path(output_dir)
 
-    # 出力ディレクトリをクリアする
-    if output_path.exists():
-        shutil.rmtree(output_path)
+    # 出力ディレクトリを作成（M-8: rmtree での全削除を廃止し、既存ファイルを保全）
     output_path.mkdir(parents=True, exist_ok=True)
 
     for chapter_info in chapters_list:
         chapter_name, start_page, end_page = chapter_info
         page_ranges = _plan_pdf_ranges(
-            reader, start_page, end_page, max_size_bytes=max_size_bytes
+            reader, int(start_page), int(end_page), max_size_bytes=max_size_bytes
         )
 
         if len(page_ranges) == 1:
             output_file = output_path / f"{chapter_name}.pdf"
-            _write_pdf_range(reader, start_page, end_page, output_file)
+            _write_pdf_range(reader, int(start_page), int(end_page), output_file)
             print(f"✓ {output_file.name} を作成しました（ページ {start_page}-{end_page}）")
             continue
 
@@ -144,15 +138,13 @@ def split_pdf(
         for index, (range_start, range_end) in enumerate(page_ranges, start=1):
             output_file = output_path / f"{chapter_name}_part{index:0{part_width}d}.pdf"
             _write_pdf_range(reader, range_start, range_end, output_file)
-            print(
-                f"✓ {output_file.name} を作成しました（ページ {range_start}-{range_end}）"
-            )
+            print(f"✓ {output_file.name} を作成しました（ページ {range_start}-{range_end}）")
 
 
 if __name__ == "__main__":
     # 章構成の定義: [章名, 開始ページ, 終了ページ]
     chapters = [
-    	["00", 1, 12],
+        ["00", 1, 12],
         ["01", 13, 22],
         ["02", 23, 38],
         ["03", 39, 54],
@@ -162,7 +154,7 @@ if __name__ == "__main__":
         ["07", 86, 94],
         ["08", 95, 102],
         ["09", 103, 108],
-        ["10", 109, 117]
+        ["10", 109, 117],
     ]
 
     input_pdf = "./Kindle_16.pdf"
@@ -170,4 +162,3 @@ if __name__ == "__main__":
 
     split_pdf(input_pdf, output_directory, chapters)
     print(f"\n完了。すべての PDF は {output_directory}/ に保存されました。")
-1
