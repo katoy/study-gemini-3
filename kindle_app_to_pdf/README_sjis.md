@@ -120,7 +120,7 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
    ```
    オプションを指定する場合も同様です：
    ```cmd
-   uv run python main.py --direction space
+   uv run python main.py --page-delay 2.0
    ```
 
 **pip を使う場合**
@@ -169,21 +169,21 @@ Kindle アプリで本を開き、**最初のページ（またはキャプチャを開始したいページ）** 
   ```
 ※ コマンドライン引数（オプション）を渡したい場合は、以下のように実行できます。
   ```cmd
-  run.bat --direction space
+  run.bat --page-delay 2.0
   ```
 
 ### コマンドラインでの実行
 
 ```bash
-# 標準的な実行（デフォルトで右矢印キーによる送り）
+# 標準的な実行（デフォルトでスペースキーによる送り。縦書き・横書きを問わず動作します）
 python main.py
 
 # または uv で実行
 uv run python main.py
 
-# 矢印キーを使いたい場合
-python main.py --direction right
-python main.py --direction left
+# 矢印キーで明示的に送りたい場合
+python main.py --direction right  # 横書き（左開き）書籍
+python main.py --direction left   # 縦書き（右開き）書籍
 
 # ページ送りが遅い書籍の場合
 python main.py --page-delay 2.0
@@ -197,7 +197,7 @@ python main.py --screenshots keep
 
 ### オプション
 
-- `--direction {right,left,space}`: ページめくりの方向（デフォルト: `right`）
+- `--direction {right,left,space}`: ページめくりの方向（デフォルト: `space`。縦書き・横書きを意識せずに済みます）
 - `--page-delay SECONDS`: ページ送り後の待機秒数（デフォルト: `1.5`）
 - `--output-dir DIR`: PDF の保存先ディレクトリ（デフォルト: `output`）
 - `--images-dir DIR`: 既存の PNG 画像ディレクトリを入力として使用し、キャプチャをスキップします。
@@ -221,13 +221,22 @@ python main.py --screenshots keep
 **1. ページ送りがされない / 1ページのみで終了する**
 - Kindle アプリのアクティブ化のために一時的にタイトルバーをクリックする関係上、フォーカスが一時的に外れることがあります（自動で Esc キーを送信して復帰を試みます）。
 - 改善しない場合は、実行直後の開始猶予時間（Enter キーを押した直後）の間に、**手動で Kindle アプリの書籍本文エリアを一度クリック** してフォーカスを与えてください。
-- 使用する書籍や Kindle アプリのバージョンによってページめくりキーが異なるため、改善しない場合は `--direction space` と `--direction right`（デフォルト）の双方をお試しください。
+- 使用する書籍や Kindle アプリのバージョンによってキー入力への反応が異なる場合があるため、改善しない場合は書籍の開き方向に応じて `--direction right`（横書き）や `--direction left`（縦書き）もお試しください。
 - コマンドプロンプトや PowerShell を「管理者として実行」している場合、セキュリティ制限（UAC）により一般ユーザーとして実行されている Kindle アプリにキー入力を送信できないことがあります。ターミナルと Kindle アプリを同じ権限レベルで実行してください。
+
+**2. 画面のクリック位置がずれて、フォーカスが当たらない（高 DPI 環境）**
+- Windows のディスプレイ設定で画面のスケーリングが 100% 以外（例: 125% や 150%）に設定されている場合、PyAutoGUI のクリック座標系がズレる問題が発生することがあります。
+- 本ツールでは自動的に DPI スケールを補正する処理（`_focus_window` 内）を導入していますが、それでもクリックがずれる場合は、一時的に Windows のディスプレイ設定にて画面スケールを「100%」に変更してからお試しください。
 
 ### macOS
 
 **1. ページ送りがされない / 権限エラー**
 - ターミナル、VSCode、iTerm 等に **「アクセシビリティ」の権限** が付与されているか確認してください。
+- 権限が不足している場合、以下のようなエラーが発生します：
+  ```
+  RuntimeError: AppleScript エラー: 33:78: execution error: System Events でエラーが発生しました: アシスタティブ・デバイスの制御は許可されていません。 (-1719)
+  ```
+- システム設定の「プライバシーとセキュリティ」＞「アクセシビリティ」から、実行中のターミナルアプリ（Terminal, VSCode 等）を明示的にオンにしてください。
 
 **2. PDF の最後に評価画面やシークバーが入る**
 - macOS 版では、ウィンドウタイトルの変化や UI 要素の「評価」「完了」などのキーワードを検知して自動停止を試みます。

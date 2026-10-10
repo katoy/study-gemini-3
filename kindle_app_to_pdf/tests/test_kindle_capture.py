@@ -158,7 +158,11 @@ class TestMacKindleCapturer:
             capturer._send_next_page("Kindle", direction="space")
             assert "key code 49" in mock_as.call_args[0][0]
 
-            # right (default)
+            # default (space)
+            capturer._send_next_page("Kindle")
+            assert "key code 49" in mock_as.call_args[0][0]
+
+            # right
             capturer._send_next_page("Kindle", direction="right")
             assert "key code 124" in mock_as.call_args[0][0]
 

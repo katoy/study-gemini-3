@@ -24,7 +24,7 @@ class KindleCapturer(Protocol):
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = "right",
+        direction: str = "space",
         max_pages: int = 2000,
     ) -> tuple[str, list[str]]:
         """Kindle デスクトップアプリの全ページをキャプチャします。"""
@@ -185,7 +185,7 @@ class MacKindleCapturer:
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = "right",
+        direction: str = "space",
         max_pages: int = 2000,
     ) -> tuple[str, list[str]]:
         """Mac 用の Kindle ページキャプチャ処理。"""
@@ -324,15 +324,15 @@ end tell
             raise RuntimeError("Kindle ウィンドウが見つかりません。")
         subprocess.run(["screencapture", "-x", "-R", f"{x},{y},{w},{h}", output_path], check=True)
 
-    def _send_next_page(self, process_name: str, direction: str = "right") -> None:
+    def _send_next_page(self, process_name: str, direction: str = "space") -> None:
         """次ページへ進むキーを Kindle アプリに送信します。"""
         # 123: 左矢印, 124: 右矢印, 49: スペース
         if direction == "left":
             key_code = 123
-        elif direction == "space":
-            key_code = 49
-        else:
+        elif direction == "right":
             key_code = 124
+        else:
+            key_code = 49
 
         safe_proc = _escape_applescript_string(process_name)
         script = f'''
@@ -429,7 +429,7 @@ class WindowsKindleCapturer:  # pragma: no cover
         self,
         output_dir: str,
         page_delay: float = 1.5,
-        direction: str = "right",
+        direction: str = "space",
         max_pages: int = 2000,
     ) -> tuple[str, list[str]]:
         """Windows 用の Kindle ページキャプチャ処理。"""
@@ -601,21 +601,21 @@ class WindowsKindleCapturer:  # pragma: no cover
         screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
         screenshot.convert("RGB").save(output_path, "PNG")
 
-    def _send_next_page(self, window: Any, direction: str = "right") -> None:
+    def _send_next_page(self, window: Any, direction: str = "space") -> None:
         """Windows で Kindle ウィンドウにページめくりキーを送信します。"""
         import pyautogui as py  # type: ignore
 
         if not window.isActive:
             self._focus_window(window)
 
-        key = "left" if direction == "left" else "space" if direction == "space" else "right"
+        key = "left" if direction == "left" else "right" if direction == "right" else "space"
         py.press(key)
 
 
 def capture_kindle_pages(
     output_dir: str,
     page_delay: float = 1.5,
-    direction: str = "right",
+    direction: str = "space",
     max_pages: int = 2000,
 ) -> tuple[str, list[str]]:
     """

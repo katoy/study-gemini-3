@@ -16,7 +16,7 @@ def test_parse_args_defaults() -> None:
         assert args.images_dir is None
         assert args.screenshots == "delete"
         assert args.page_delay == 1.5
-        assert args.direction == "right"
+        assert args.direction == "space"
         assert args.max_pages == 2000
 
 
@@ -216,6 +216,14 @@ def test_prepare_screenshots_capture_single_page_warning(tmp_path: Path) -> None
     )
     with patch("main.capture_kindle_pages", return_value=("Title", [str(img)])):
         title, shots, s_dir = main._prepare_screenshots(args_right, tmp_path)
+        assert len(shots) == 1
+
+    # direction == "space"
+    args_space = argparse.Namespace(
+        images_dir=None, page_delay=1.5, direction="space", max_pages=2000
+    )
+    with patch("main.capture_kindle_pages", return_value=("Title", [str(img)])):
+        title, shots, s_dir = main._prepare_screenshots(args_space, tmp_path)
         assert len(shots) == 1
 
     # direction == "left"
