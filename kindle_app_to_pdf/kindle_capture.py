@@ -31,7 +31,7 @@ class KindleCapturer(Protocol):
 
 
 # Windows 用のインポート
-if sys.platform == "win32":
+if sys.platform == "win32":  # pragma: no cover
     try:
         import pygetwindow as gw  # type: ignore
         from PIL import ImageGrab  # type: ignore
@@ -377,7 +377,7 @@ end tell
             return False
 
 
-class WindowsKindleCapturer:
+class WindowsKindleCapturer:  # pragma: no cover
     """Windows 用の Kindle キャプチャ実装。"""
 
     def capture_pages(
@@ -628,7 +628,7 @@ def capture_kindle_pages(
     system = platform.system()
     capturer: KindleCapturer
 
-    if system == "Windows":
+    if system == "Windows":  # pragma: no cover
         capturer = WindowsKindleCapturer()
     else:
         capturer = MacKindleCapturer()
