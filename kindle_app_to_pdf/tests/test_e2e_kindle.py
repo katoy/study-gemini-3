@@ -1,6 +1,8 @@
 from pathlib import Path
-import pytest
+import shutil
 from PIL import Image
+from pypdf import PdfReader
+import pytest
 
 from kindle_capture import MacKindleCapturer
 from pdf_maker import make_pdf
@@ -86,7 +88,7 @@ class TestKindleRealE2E:
         title, screenshots = capturer.capture_pages(
             output_dir=str(tmp_path),
             page_delay=0.3,
-            direction="right",
+            direction="space",
         )
 
         assert isinstance(title, str)
@@ -98,3 +100,72 @@ class TestKindleRealE2E:
         make_pdf(screenshots, str(pdf_path))
         assert pdf_path.exists()
         assert pdf_path.stat().st_size > 0
+        reader = PdfReader(str(pdf_path))
+        assert len(reader.pages) == len(screenshots)
+
+        # 目視確認用に ./output ディレクトリにもコピー保存
+        out_dir = Path("./output")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        saved_pdf = out_dir / f"{title}.pdf"
+        shutil.copy2(pdf_path, saved_pdf)
+        print(f"\n[E2E] 生成された PDF: {saved_pdf.resolve()}")
+
+    def test_e2e_capture_vertical_book_merosu(self, tmp_path: Path) -> None:
+        """実機テスト: 縦書き本 '走れメロス' 用のキャプチャと PDF 変換結果を検証（2ページ取得）。"""
+        capturer = MacKindleCapturer()
+        _, proc_name = capturer._find_and_activate_kindle()
+
+        # max_pages=2 で安全に2ページ分キャプチャしてページめくりを検証
+        title, screenshots = capturer.capture_pages(
+            output_dir=str(tmp_path),
+            page_delay=1.0,
+            direction="space",
+            max_pages=2,
+        )
+
+        assert len(screenshots) >= 1, "少なくとも1ページ以上キャプチャされること"
+
+        book_name = "走れメロス"
+        pdf_path = tmp_path / f"{book_name}.pdf"
+        make_pdf(screenshots, str(pdf_path))
+        assert pdf_path.exists()
+
+        reader = PdfReader(str(pdf_path))
+        assert len(reader.pages) == len(screenshots)
+
+        # 目視確認用に ./output ディレクトリにも保存
+        out_dir = Path("./output")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        saved_pdf = out_dir / f"{book_name}.pdf"
+        shutil.copy2(pdf_path, saved_pdf)
+        print(f"\n[E2E: 縦書き] 生成された PDF: {saved_pdf.resolve()} ({len(reader.pages)} ページ)")
+
+    def test_e2e_capture_horizontal_book_alice(self, tmp_path: Path) -> None:
+        """実機テスト: 横書き本 'Alice's Adventures in Wonderland' 用のキャプチャと PDF 変換結果を検証（2ページ取得）。"""
+        capturer = MacKindleCapturer()
+        _, proc_name = capturer._find_and_activate_kindle()
+
+        # max_pages=2 で安全に2ページ分キャプチャしてページめくりを検証
+        title, screenshots = capturer.capture_pages(
+            output_dir=str(tmp_path),
+            page_delay=1.0,
+            direction="space",
+            max_pages=2,
+        )
+
+        assert len(screenshots) >= 1, "少なくとも1ページ以上キャプチャされること"
+
+        book_name = "Alice's Adventures in Wonderland"
+        pdf_path = tmp_path / f"{book_name}.pdf"
+        make_pdf(screenshots, str(pdf_path))
+        assert pdf_path.exists()
+
+        reader = PdfReader(str(pdf_path))
+        assert len(reader.pages) == len(screenshots)
+
+        # 目視確認用に ./output ディレクトリにも保存
+        out_dir = Path("./output")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        saved_pdf = out_dir / f"{book_name}.pdf"
+        shutil.copy2(pdf_path, saved_pdf)
+        print(f"\n[E2E: 横書き] 生成された PDF: {saved_pdf.resolve()} ({len(reader.pages)} ページ)")

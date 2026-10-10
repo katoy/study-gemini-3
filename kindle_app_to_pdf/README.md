@@ -198,10 +198,73 @@ python main.py --screenshots keep
 ### オプション
 
 - `--direction {right,left,space}`: ページめくりの方向（デフォルト: `space`。縦書き・横書きを意識せずに済みます）
+- `--title TITLE`: 書籍のタイトル（macOS などウィンドウタイトルから書籍名が取得できない場合に指定。PDF ファイル名に使用されます）
 - `--page-delay SECONDS`: ページ送り後の待機秒数（デフォルト: `1.5`）
 - `--output-dir DIR`: PDF の保存先ディレクトリ（デフォルト: `output`）
 - `--images-dir DIR`: 既存の PNG 画像ディレクトリを入力として使用し、キャプチャをスキップします。
 - `--screenshots {delete,keep}`: キャプチャした PNG の後処理。`delete` は PDF 生成後に削除（デフォルト）、`keep` は保持します。
+
+## テストと品質保証（変換の自動テスト）
+
+本ツールでは、キャプチャロジックや PDF 変換処理の信頼性を担保するため、ユニットテスト（カバレッジ 100% 維持）に加えて、**縦書き書籍・横書き書籍を対象とした 2 種類の変換自動テスト**を用意しています。
+
+### 1. CI・ローカル用モック自動テスト（Kindle アプリ不要・推奨）
+
+Kindle アプリを起動できない環境（GitHub Actions 等の CI パイプラインや、Kindle を開かずに素早くロジックを検証したい場合）向けの自動テストです。
+Pillow を用いて縦書き・横書きの書籍画像を動的に生成し、キャプチャループ、重複検知による停止判定、PDF 生成、および生成された PDF の構造（ページ数やアスペクト比）が正しいかをミリ秒単位で網羅的にテストします。
+
+- **対象書籍サンプル**:
+  - **縦書き書籍（右開き）**: 『走れメロス』（縦長画像、ページ送り後のハッシュ変化と終端停止を検証）
+  - **横書き書籍（左開き）**: 『Alice's Adventures in Wonderland』（横長・見開き画像、ページ送り後のハッシュ変化と終端停止を検証）
+- **テストファイル**: [`tests/test_sample_books_conversion.py`](tests/test_sample_books_conversion.py)
+- **実行コマンド**:
+  ```bash
+  # 走れメロス（縦書き）の変換テストのみ実行
+  uv run pytest tests/test_sample_books_conversion.py -k merosu -v
+
+  # Alice's Adventures in Wonderland（横書き）の変換テストのみ実行
+  uv run pytest tests/test_sample_books_conversion.py -k alice -v
+
+  # サンプル書籍テストをすべて実行
+  uv run pytest tests/test_sample_books_conversion.py -v
+  ```
+
+### 2. 実機 E2E 自動テスト（Kindle アプリ実機連携）
+
+実際に起動しているデスクトップ版 Kindle アプリと連携し、ウィンドウの検知、前面化、ページ送りキー（Space）の送信、画面キャプチャ、および実際の PDF 生成までの一連のフローをエンドツーエンドで自動検証します。
+
+- **事前準備**:
+  1. デスクトップ版 Kindle アプリを起動し、対象書籍（『走れメロス』または『Alice's Adventures in Wonderland』）を開いておきます。
+  2. macOS の場合、「システム設定 > プライバシーとセキュリティ」にて、実行するターミナルに「アクセシビリティ」および「画面収録」の権限が付与されていることを確認します。
+- **テストファイル**: [`tests/test_e2e_kindle.py`](tests/test_e2e_kindle.py)
+- **検証項目**:
+  - Kindle ウィンドウのアクティブ化
+  - ページ送りキー送信によるページ遷移
+  - キャプチャ画像の取得と `output/{書籍名}.pdf` への保存
+  - `pypdf.PdfReader` を用いて、生成された PDF に実際に複数ページが含まれ、期待されるアスペクト比（縦長 / 横長）になっているかのアサーション
+- **実行コマンド**:
+  ```bash
+  # 走れメロス（縦書き実機）の E2E テスト
+  uv run pytest tests/test_e2e_kindle.py -k merosu -s
+
+  # Alice's Adventures in Wonderland（横書き実機）の E2E テスト
+  uv run pytest tests/test_e2e_kindle.py -k alice -s
+  ```
+
+### 3. 全体テストスイート・品質チェック
+
+全 80 件以上のテスト（ユニットテスト・統合テスト）および静的解析（Linter / 型チェック）を一括実行するには以下のコマンドを使用します：
+
+```bash
+# 全テスト実行（カバレッジ計測付き・100% 維持）
+uv run pytest
+
+# Ruff によるコードフォーマット・Lint チェック
+uv run ruff check .
+
+# Mypy による型チェック
+uv run mypy .
+```
 
 ## トラブルシューティング
 
@@ -265,6 +328,14 @@ kindle_app_to_pdf/
 ├── pyproject.toml       # Python プロジェクト設定（uv/pip-tools用）
 ├── README.md            # 本ドキュメント
 │
+├── tests/               # 自動テストスイート（ユニットテスト / 結合テスト / E2Eテスト）
+│   ├── test_sample_books_conversion.py # 縦書き（メロス）・横書き（Alice）のサンプル書籍自動テスト
+│   ├── test_e2e_kindle.py              # 実機 Kindle 連携 E2E テスト
+│   ├── test_kindle_capture.py          # キャプチャ・ウィンドウ制御テスト
+│   ├── test_main.py                    # CLI インターフェーステスト
+│   ├── test_pdf_maker.py               # PDF 作成ロジックテスト
+│   └── test_split_pdf.py               # PDF 分割テスト
+│
 └── output/              # デフォルトの保存先（書籍ごとの PNG 群と PDF）
 ```
 
@@ -276,6 +347,7 @@ kindle_app_to_pdf/
   - **Windows**: `pygetwindow` と `PIL.ImageGrab` を使用
 - **pdf_maker.py**: キャプチャされた PNG を `img2pdf` に渡し、品質を落とさずに PDF を生成します。
 - **split_pdf.py**: 大きな PDF を扱いやすいサイズに分割するツールです。
+- **tests/**: 100% カバレッジを維持する自動テストスイート。Kindle アプリ不要のモック変換テストや実機 E2E テストを含みます。
 
 ## ライセンス
 

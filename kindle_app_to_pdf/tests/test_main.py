@@ -18,6 +18,7 @@ def test_parse_args_defaults() -> None:
         assert args.page_delay == 1.5
         assert args.direction == "space"
         assert args.max_pages == 2000
+        assert args.title is None
 
 
 def test_parse_args_custom() -> None:
@@ -36,6 +37,8 @@ def test_parse_args_custom() -> None:
         "left",
         "--max-pages",
         "500",
+        "--title",
+        "Custom Book",
     ]
     with patch.object(sys, "argv", test_argv):
         args = main.parse_args()
@@ -45,6 +48,7 @@ def test_parse_args_custom() -> None:
         assert args.page_delay == 2.0
         assert args.direction == "left"
         assert args.max_pages == 500
+        assert args.title == "Custom Book"
 
 
 def test_run_images_dir_success(tmp_path: Path) -> None:
@@ -226,13 +230,14 @@ def test_prepare_screenshots_capture_single_page_warning(tmp_path: Path) -> None
         title, shots, s_dir = main._prepare_screenshots(args_space, tmp_path)
         assert len(shots) == 1
 
-    # direction == "left"
+    # direction == "left" with title
     args_left = argparse.Namespace(
-        images_dir=None, page_delay=1.5, direction="left", max_pages=2000
+        images_dir=None, page_delay=1.5, direction="left", max_pages=2000, title="Specified Title"
     )
     with patch("main.capture_kindle_pages", return_value=("Title", [str(img)])):
         title, shots, s_dir = main._prepare_screenshots(args_left, tmp_path)
         assert len(shots) == 1
+        assert title == "Specified Title"
 
 
 def test_generate_pdf_duplicate_numbers(tmp_path: Path) -> None:

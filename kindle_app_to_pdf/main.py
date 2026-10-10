@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
         default=2000,
         help="キャプチャする最大ページ数 (デフォルト: 2000)",
     )
+    parser.add_argument(
+        "--title",
+        type=str,
+        default=None,
+        help="書籍タイトル（省略時は自動取得。macOS等で自動取得できない場合に指定可能）",
+    )
     return parser.parse_args()
 
 
@@ -156,6 +162,9 @@ def _prepare_screenshots(
             )
         else:
             logger.warning("改善しない場合は --direction space をお試しください。")
+
+    if getattr(args, "title", None):
+        book_title = args.title
 
     logger.info(f"      完了: {book_title} ({len(screenshots)} ページ)")
     shot_dir = Path(screenshots[0]).parent
