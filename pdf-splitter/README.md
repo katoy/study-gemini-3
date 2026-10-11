@@ -9,10 +9,12 @@
 1. [概要](#概要)
 2. [プロジェクト構成](#プロジェクト構成)
 3. [依存関係とセットアップ](#依存関係とセットアップ)
-4. [グローバルな設定・更新方法](#グローバルな設定・更新方法)
+4. [OCR について](#ocr-について)
+5. [実行方法とオプション](#実行方法とオプション)
+6. [グローバルな設定・更新方法](#グローバルな設定・更新方法)
    - [初期設定（シンボリックリンクの作成）](#初期設定シンボリックリンクの作成)
    - [更新方法（Gitによる一元管理）](#更新方法gitによる一元管理)
-5. [クライアント別の利用方法](#クライアント別の利用方法)
+7. [クライアント別の利用方法](#クライアント別の利用方法)
    - [Antigravity CLI (agy) & Desktop App](#1-antigravity-cli-agy--desktop-app)
    - [Codex (Antigravity IDE)](#2-codex-antigravity-ide)
    - [Claude Code](#3-claude-code)
@@ -46,7 +48,12 @@ pdf-splitter/
 │       └── SKILL.md                      # スキル説明ドキュメント
 ├── scripts/
 │   ├── pdf_chapter_pipeline.py           # OCR & 目次解析・章分割スクリプト (Python)
+│   ├── pdf_utils.py                      # OCR 実行 (NDLOCR-Lite / ocrmypdf) などの共通処理
 │   └── split_pdf.py                      # 均等分割スクリプト (Python)
+├── tests/                                # pytest による単体テスト
+├── bench/                                # OCR エンジン比較ベンチ (engines/ 各エンジンのラッパー、compare.py 集計)
+├── docs/
+│   └── myocr_evaluation.md               # OCR エンジンの評価レポート
 └── README.md                             # 本ファイル
 ```
 
@@ -67,6 +74,7 @@ pdf-splitter/
    git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite ~/tools/ndlocr-lite
    export NDLOCR_LITE_DIR=~/tools/ndlocr-lite
    ```
+   - 毎回設定しなくて済むよう、`export NDLOCR_LITE_DIR="$HOME/tools/ndlocr-lite"` を `~/.zshrc` に追記しておくことを推奨します。
    - 実行時に `uv` が NDLOCR-Lite 固定版の依存（`requirements.txt`）を一時環境に入れて起動します。
    - v1.3.1 は `uv tool install` だと `pdf_output_utils` が欠けて起動できないため、clone して使います。
    - ライセンス: CC BY 4.0（同梱モデルには DINOv3 License も適用）。出典「国立国会図書館 NDLOCR-Lite」。再配布時は LICENCE と LICENCE_DEPENDENCEIES を同梱してください。
@@ -80,6 +88,57 @@ pdf-splitter/
 > [!IMPORTANT]
 > `uv`・NDLOCR-Lite・`ocrmypdf` はスクリプトやエージェントによって**自動インストールされません**。
 > インストールされていない場合はエラー終了するため、事前に上記のコマンドで手動インストールを完了させておいてください。
+
+---
+
+## OCR について
+
+### エンジンの選択
+
+| エンジン | 指定方法 | 向いている用途 |
+|---|---|---|
+| **NDLOCR-Lite**（既定） | `--ocr-engine ndlocr` | 日本語の本全般（縦書き・横書きの両方） |
+| Tesseract (ocrmypdf) | `--ocr-engine tesseract --lang jpn+eng` | NDLOCR-Lite を用意できない環境、英語中心の PDF |
+
+Kindle 本のページ画像で比較した結果（文字誤り率 CER、詳細は [docs/myocr_evaluation.md](docs/myocr_evaluation.md)）:
+
+| | NDLOCR-Lite | Tesseract |
+|---|---:|---:|
+| 横書き CER | 2.4% | 9.1% |
+| 縦書き CER | 4.8% | 21.5%（`jpn_vert`） |
+| 和文の文字間に入る余計な空白 | ほぼなし | 多数（目次・章検出を壊す） |
+
+- NDLOCR-Lite は縦書きの読み順（右→左）とルビの除外を自動で処理し、句読点もほぼ保持します。
+- 他に RapidOCR・YomiToku・MyOCR も検証しました。縦書きで句読点が消える（RapidOCR）、遅く非商用ライセンス（YomiToku）などの理由で不採用です。
+
+### 処理の流れ（NDLOCR-Lite）
+
+1. `pdf_utils.run_ocr` が `uv run` で NDLOCR-Lite の `ocr.py` を `--sourcepdf <入力> --pdf-output <出力>` 付きで起動します。
+2. NDLOCR-Lite が各ページを 150dpi で画像化して OCR し、元のページ画像に透明な文字層を重ねた PDF を書き出します。ページ画像の解像度は変わらず、ファイルサイズもほぼ同じです。
+3. 出力 PDF は `<入力PDFのフォルダ>/output/<名前>/<名前>_ocr.pdf` に保存され、2 回目以降は再利用されます（やり直す場合は `--force-ocr`）。
+
+### 処理時間の目安
+
+- 約 3 秒/ページ（CPU、Apple M1 で計測）。164 ページの本で約 8 分です。
+- タイムアウトは 30 分です。約 600 ページを超える本では打ち切られる可能性があります。
+- 初回はモデルと依存ライブラリの準備に余分な時間がかかります。
+
+### OCR 結果からの章検出
+
+目次ページに印字されたページ番号があれば、それを使って章の開始ページを決めます。Kindle 本の目次はリンクのみでページ番号を持たないことが多いため、その場合は各ページ先頭の見出し（「第1章」「CHAPTER 1」「はじめに」など）を探すキーワード検出に切り替わります。
+
+キーワード検出では、OCR 結果の揺れを次のように吸収します。
+
+- テキストを NFKC 正規化してから照合します（全角の「第１章」も検出）。
+- 「第1章Obsidian」のように「章」の直後に空白がない見出しも検出します。
+- 「第5章では、…」のように、後ろに助詞や句読点が続くものは本文中の言及とみなして無視します。
+- 「CHAPTER 1」と「第1章」は同じ章として扱い、ページ上端の柱（章タイトル）が続くページでは新しい章を始めません。
+
+### 注意点
+
+- NDLOCR-Lite は既存の文字層があるページも OCR し直します（ocrmypdf の `--skip-text` に相当する機能はありません）。
+- 縦中横（縦書き中の横向き数字）の検出は無効のままです。
+- 「……」（三点リーダー）は取りこぼしやすい傾向があります。
 
 ---
 
