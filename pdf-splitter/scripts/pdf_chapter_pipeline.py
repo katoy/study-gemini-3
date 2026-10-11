@@ -10,7 +10,7 @@
 """
 OCR → 目次解析 → 章分割パイプライン。
 
-スキャンPDF (Kindle等) を ocrmypdf で検索可能化し、
+スキャンPDF (Kindle等) を NDLOCR-Lite (または ocrmypdf) で検索可能化し、
 OCR後の目次テキストを解析して章の開始ページを推定して分割、
 20MB超ファイルをさらに分割する。
 """
@@ -103,7 +103,8 @@ def parse_toc_entries(reader: PdfReader, toc_page_indices: list[int]) -> list[To
 
     entries = []
     for idx in toc_page_indices:
-        text = reader.pages[idx].extract_text() or ""
+        # 全角数字（第１章など）を半角にそろえてから照合する
+        text = unicodedata.normalize("NFKC", reader.pages[idx].extract_text() or "")
         for raw_line in text.splitlines():
             line = raw_line.strip()
             if not line:
@@ -390,6 +391,12 @@ def detect_chapters_by_toc_titles(reader: PdfReader, toc_entries: list[TocEntry]
     )
 
 
+def chapter_key(title: str) -> str:
+    """「第1章」と「CHAPTER 1」を同じ章とみなすための比較キーを返す。"""
+    m = re.match(r'^(?:第\s*(\S+?)\s*章|chapter\s+(\d+))$', title, re.IGNORECASE)
+    return (m.group(1) or m.group(2)) if m else title.lower()
+
+
 def detect_chapters_by_keywords(reader: PdfReader) -> list[TocEntry]:
     """
     PDF全体をスキャンして、トップレベルの章開始キーワード・章番号を検出。
@@ -398,7 +405,9 @@ def detect_chapters_by_keywords(reader: PdfReader) -> list[TocEntry]:
     細かいセクション番号（X.Y形式）は検出しない。
     """
     top_level_patterns = [
-        re.compile(r'^(第\s*[0-9〇一二三四五六七八九十百]+\s*章)(?:\s+|$)', re.MULTILINE),
+        # 「第1章Obsidian」のように章の直後に空白がない見出しもあるため、後続の空白は要求しない。
+        # ただし「第5章では、」のように助詞や句読点が続くものは本文とみなす
+        re.compile(r'^(第\s*[0-9〇一二三四五六七八九十百]+\s*章)(?![ぁ-ゖ、。,.])', re.MULTILINE),
         re.compile(r'^(Chapter\s+\d+|CHAPTER\s+\d+)(?:\s+|$)', re.IGNORECASE | re.MULTILINE),
         re.compile(r'^(Part\s+\d+|PART\s+\d+)(?:\s+|$)', re.IGNORECASE | re.MULTILINE),
         re.compile(r'^(はじめに|まえがき|序章|プロローグ|Preface|Introduction|Prologue)(?:\s+|$)', re.IGNORECASE | re.MULTILINE),
@@ -410,7 +419,7 @@ def detect_chapters_by_keywords(reader: PdfReader) -> list[TocEntry]:
 
     for page_idx in range(len(reader.pages)):
         try:
-            page_text = reader.pages[page_idx].extract_text() or ""
+            page_text = unicodedata.normalize("NFKC", reader.pages[page_idx].extract_text() or "")
             if not page_text.strip():
                 continue
 
@@ -424,8 +433,10 @@ def detect_chapters_by_keywords(reader: PdfReader) -> list[TocEntry]:
                     match = pattern.search(line)
                     if match:
                         physical_page = page_idx + 1
-                        if physical_page not in seen_pages:
-                            title = match.group(1)
+                        title = match.group(1)
+                        # ページ上端の柱（章タイトル）が続くページでは、同じ章を重ねて検出しない
+                        is_same_chapter = bool(detected) and chapter_key(detected[-1].title) == chapter_key(title)
+                        if physical_page not in seen_pages and not is_same_chapter:
                             detected.append(TocEntry(
                                 title=title[:60],
                                 printed_page=physical_page,
@@ -483,7 +494,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_pdf", help="対象PDFファイルのパス")
     parser.add_argument("--max-size-mb", type=float, default=20, help="最大ファイルサイズ (MB)")
-    parser.add_argument("--lang", default="jpn+eng", help="ocrmypdf の言語指定")
+    parser.add_argument("--ocr-engine", choices=pdf_utils.OCR_ENGINES, default=pdf_utils.DEFAULT_OCR_ENGINE,
+                        help="OCR エンジン (ndlocr: NDLOCR-Lite, tesseract: ocrmypdf)")
+    parser.add_argument("--lang", default="jpn+eng", help="ocrmypdf の言語指定 (--ocr-engine tesseract のときのみ)")
     parser.add_argument("--force-ocr", action="store_true", help="既存のOCR済みファイルを無視して再実行")
     parser.add_argument("--chapters-json", help="章のタイトルと開始物理ページを指定するJSONファイルのパス")
     args = parser.parse_args()
@@ -494,8 +507,12 @@ def main():
         sys.exit(1)
 
 
-    if not pdf_utils.ensure_ocrmypdf_installed():
-        print("Error: ocrmypdf command not found. Run: brew install ocrmypdf", file=sys.stderr)
+    if not pdf_utils.ensure_ocr_engine_available(args.ocr_engine):
+        if args.ocr_engine == "tesseract":
+            print("Error: ocrmypdf command not found. Run: brew install ocrmypdf", file=sys.stderr)
+        else:
+            print(f"Error: NDLOCR-Lite not found. Clone ndl-lab/ndlocr-lite and set {pdf_utils.NDLOCR_DIR_ENV}"
+                  " (uv is also required)", file=sys.stderr)
         sys.exit(1)
 
     stem = input_pdf.stem
@@ -503,7 +520,7 @@ def main():
     ocr_pdf = output_base / f"{stem}_ocr.pdf"
     chapters_dir = output_base / "chapters"
 
-    if not pdf_utils.run_ocr(input_pdf, ocr_pdf, args.lang, args.force_ocr, step_label="[1/3]"):
+    if not pdf_utils.run_ocr(input_pdf, ocr_pdf, args.lang, args.force_ocr, step_label="[1/3]", engine=args.ocr_engine):
         sys.exit(1)
 
     print("[2/3] 目次解析・分割中...", file=sys.stderr)

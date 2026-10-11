@@ -29,7 +29,7 @@ Your primary tool is the python script located at:
 
 When the user asks you to split PDFs in a folder:
 1. Locate the directory specified by the user. If none is specified, check the current workspace.
-2. Run the split script using the uv run command (the script will run OCR on the PDF files using ocrmypdf before splitting them):
+2. Run the split script using the uv run command (the script will run OCR on the PDF files using NDLOCR-Lite before splitting them; it requires the `NDLOCR_LITE_DIR` environment variable pointing to a clone of ndl-lab/ndlocr-lite. Add `--ocr-engine tesseract` to use ocrmypdf instead):
    `uv run scripts/split_pdf.py <folder_path>`
 3. Check the output of the command.
 4. Report the result back to the user or parent agent. Specify the folder processed, the number of files processed, the output files generated in the `split_output` directory, and any errors that occurred.

@@ -260,6 +260,60 @@ def test_detect_chapters_by_keywords():
     assert "おわりに" in detected[2].title
     assert detected[2].physical_page == 9
 
+def test_detect_chapters_by_keywords_fullwidth_and_no_space():
+    mock_reader = MagicMock()
+    mock_pages = [MagicMock() for _ in range(3)]
+    mock_pages[0].extract_text.return_value = "第１章　全角数字の見出し\n本文..."
+    mock_pages[1].extract_text.return_value = "第2章Obsidian の使い方\n本文..."
+    mock_pages[2].extract_text.return_value = "第三者の視点で\n本文..."
+    mock_reader.pages = mock_pages
+
+    detected = pdf_chapter_pipeline.detect_chapters_by_keywords(mock_reader)
+
+    assert [e.title for e in detected] == ["第1章", "第2章"]
+    assert [e.physical_page for e in detected] == [1, 2]
+
+
+def test_chapter_key():
+    assert pdf_chapter_pipeline.chapter_key("第1章") == "1"
+    assert pdf_chapter_pipeline.chapter_key("CHAPTER 1") == "1"
+    assert pdf_chapter_pipeline.chapter_key("第三章") == "三"
+    assert pdf_chapter_pipeline.chapter_key("Epilogue") == "epilogue"
+
+
+def test_detect_chapters_by_keywords_skips_running_headers_and_body():
+    mock_reader = MagicMock()
+    texts = [
+        "CHAPTER 1\n第1章",                      # 章扉
+        "第1章 タイトル\n本文...",                # 柱（同じ章）
+        "第1章 タイトル\n本文...",                # 柱（同じ章）
+        "第2章では、次の話をします。\n本文...",    # 本文中の言及
+        "CHAPTER 2\n第2章",                      # 次の章扉
+    ]
+    mock_pages = [MagicMock() for _ in texts]
+    for page, text in zip(mock_pages, texts):
+        page.extract_text.return_value = text
+    mock_reader.pages = mock_pages
+
+    detected = pdf_chapter_pipeline.detect_chapters_by_keywords(mock_reader)
+
+    assert [(e.title, e.physical_page) for e in detected] == [("CHAPTER 1", 1), ("CHAPTER 2", 5)]
+
+
+def test_parse_toc_entries_fullwidth():
+    mock_reader = MagicMock()
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "第１章　はじまり……１２\n"
+    mock_reader.pages = [mock_page]
+
+    entries = pdf_chapter_pipeline.parse_toc_entries(mock_reader, [0])
+
+    assert len(entries) == 1
+    assert entries[0].title == "第1章 はじまり"
+    assert entries[0].printed_page == 12
+    assert entries[0].is_chapter is True
+
+
 def test_uniform_fallback_split(tmp_path):
     mock_reader = MagicMock()
     mock_reader.pages = [MagicMock() for _ in range(35)]

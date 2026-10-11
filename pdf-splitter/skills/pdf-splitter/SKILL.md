@@ -16,7 +16,7 @@ description: フォルダ内のすべての PDF を 20MB 以下に分割しま�
 ## 処理フロー
 
 1. **フォルダスキャン** — 指定されたフォルダ内のすべての PDF を検出
-2. **OCR処理の実行** — 各 PDF に対して `ocrmypdf` を用いた OCR 処理を適用し、テキスト検索可能な一時ファイルを作成
+2. **OCR処理の実行** — 各 PDF に対して NDLOCR-Lite（環境変数 `NDLOCR_LITE_DIR` で clone 先を指定。`--ocr-engine tesseract` なら `ocrmypdf`）を用いた OCR 処理を適用し、テキスト検索可能な一時ファイルを作成
 3. **ファイルサイズチェック** — 各 OCR 済み PDF のサイズを確認
 4. **出力フォルダ作成** — `split_output` フォルダを作成
 5. **処理実行**

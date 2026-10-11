@@ -23,7 +23,7 @@
 
 このプラグインは、以下の2つの主要な処理機能を提供します。
 
-- **`pdf-ocr-chapter-splitter`**: 電子書籍などのスキャンPDFをOCR処理（`ocrmypdf`）し、出力されたテキストから目次情報を解析して章ごとにPDFを分割します。また、分割後のファイルが20MBを超える場合は、自動的にさらに細かく分割します。
+- **`pdf-ocr-chapter-splitter`**: 電子書籍などのスキャンPDFをOCR処理（既定は NDLOCR-Lite、`--ocr-engine tesseract` で `ocrmypdf`）し、出力されたテキストから目次情報を解析して章ごとにPDFを分割します。また、分割後のファイルが20MBを超える場合は、自動的にさらに細かく分割します。
 - **`pdf-splitter`**: 指定フォルダ内のすべてのPDFファイルをスキャンし、単純に20MB以下の均等なページ数になるように自動分割します。
 
 ---
@@ -61,14 +61,24 @@ pdf-splitter/
    # uv がインストールされていない場合はインストールしてください
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-2. **ocrmypdf** (PDF OCRツール)
+2. **NDLOCR-Lite** (既定の OCR エンジン。縦書き・横書きの日本語に対応し、句読点も保持する)
+   ```bash
+   # 任意の場所に clone し、その場所を環境変数 NDLOCR_LITE_DIR で指定する（モデル約 150MB を含む）
+   git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite ~/tools/ndlocr-lite
+   export NDLOCR_LITE_DIR=~/tools/ndlocr-lite
+   ```
+   - 実行時に `uv` が NDLOCR-Lite 固定版の依存（`requirements.txt`）を一時環境に入れて起動します。
+   - v1.3.1 は `uv tool install` だと `pdf_output_utils` が欠けて起動できないため、clone して使います。
+   - ライセンス: CC BY 4.0（同梱モデルには DINOv3 License も適用）。出典「国立国会図書館 NDLOCR-Lite」。再配布時は LICENCE と LICENCE_DEPENDENCEIES を同梱してください。
+   - ocrmypdf の `--skip-text` と違い、既存の文字層があるページも OCR し直します（画像のみの Kindle 由来 PDF では問題ありません）。
+3. **ocrmypdf** (`--ocr-engine tesseract` を指定する場合のみ)
    ```bash
    # macOS の場合 (Tesseract OCR 等の依存パッケージも自動でインストールされます)
    brew install ocrmypdf
    ```
 
 > [!IMPORTANT]
-> `uv` や `ocrmypdf` はスクリプトやエージェントによって**自動インストールされません**。
+> `uv`・NDLOCR-Lite・`ocrmypdf` はスクリプトやエージェントによって**自動インストールされません**。
 > インストールされていない場合はエラー終了するため、事前に上記のコマンドで手動インストールを完了させておいてください。
 
 ---
@@ -88,8 +98,10 @@ uv run scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>"
 システムの Python 環境によっては、`uv` が特定の古いバージョンを探索してエラー終了することがあります。その場合は `--python 3.12`（または3.12以上のバージョン）を明示して実行してください。
 
 ```bash
-uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --max-size-mb 20 --lang jpn+eng
+uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --max-size-mb 20
 ```
+
+Tesseract (ocrmypdf) で OCR する場合は `--ocr-engine tesseract --lang jpn+eng`（縦書きは `--lang jpn_vert`）を指定します。`scripts/split_pdf.py` も同じ `--ocr-engine` を受け付けます。
 
 #### 2. 目次解析の失敗（フォールバック）と手動による章指定 (`--chapters-json`)
 OCRのテキスト化精度やPDFのレイアウトによっては、自動的な目次ページの判定・解析に失敗し、キーワード検出や均等分割にフォールバックすることがあります。

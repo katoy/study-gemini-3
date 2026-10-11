@@ -7,9 +7,10 @@
 # ///
 """
 PDF 分割スクリプト
-フォルダ内のすべての PDF を ocrmypdf で OCR 処理し、20MB 以下に分割します。
+フォルダ内のすべての PDF を NDLOCR-Lite (または ocrmypdf) で OCR 処理し、20MB 以下に分割します。
 """
 
+import argparse
 import os
 import sys
 import shutil
@@ -88,9 +89,10 @@ def split_pdf(pdf_path: str, output_dir: str, base_filename: str) -> List[str]:
         return []
 
 
-def process_folder(folder_path: str) -> None:
+def process_folder(folder_path: str, ocr_engine: str = pdf_utils.DEFAULT_OCR_ENGINE) -> None:
     """
     フォルダ内のすべての PDF を処理します。
+    ocr_engine は "ndlocr" (NDLOCR-Lite) または "tesseract" (ocrmypdf) です。
     """
     folder_path = Path(folder_path).resolve()
 
@@ -102,8 +104,11 @@ def process_folder(folder_path: str) -> None:
         print(f"❌ エラー: これはフォルダではありません: {folder_path}")
         sys.exit(1)
 
-    if not pdf_utils.ensure_ocrmypdf_installed():
-        print("❌ エラー: ocrmypdf がインストールされていません。'brew install ocrmypdf' 等を実行してください。", file=sys.stderr)
+    if not pdf_utils.ensure_ocr_engine_available(ocr_engine):
+        if ocr_engine == "tesseract":
+            print("❌ エラー: ocrmypdf がインストールされていません。'brew install ocrmypdf' 等を実行してください。", file=sys.stderr)
+        else:
+            print(f"❌ エラー: NDLOCR-Lite が見つかりません。ndl-lab/ndlocr-lite を clone して {pdf_utils.NDLOCR_DIR_ENV} を設定してください（uv も必要です）。", file=sys.stderr)
         sys.exit(1)
 
 
@@ -130,9 +135,9 @@ def process_folder(folder_path: str) -> None:
         base_filename = pdf_file.name
         print(f"\n--- 処理開始: {base_filename} ---")
         
-        # 1. まず ocrmypdf で OCR 処理を行う
+        # 1. まず OCR 処理を行う
         ocr_temp_pdf = output_dir / f"{pdf_file.stem}_ocr_temp.pdf"
-        ocr_success = pdf_utils.run_ocr(pdf_file, ocr_temp_pdf)
+        ocr_success = pdf_utils.run_ocr(pdf_file, ocr_temp_pdf, engine=ocr_engine)
         
         if ocr_success:
             # 2. OCR済みPDFを分割対象として処理する
@@ -158,9 +163,9 @@ def process_folder(folder_path: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("使用法: uv run split_pdf.py <フォルダパス>")
-        sys.exit(1)
-
-    folder_path = sys.argv[1]
-    process_folder(folder_path)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("folder_path", help="PDF を含むフォルダのパス")
+    parser.add_argument("--ocr-engine", choices=pdf_utils.OCR_ENGINES, default=pdf_utils.DEFAULT_OCR_ENGINE,
+                        help="OCR エンジン (ndlocr: NDLOCR-Lite, tesseract: ocrmypdf)")
+    args = parser.parse_args()
+    process_folder(args.folder_path, args.ocr_engine)

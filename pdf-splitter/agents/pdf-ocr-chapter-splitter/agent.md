@@ -40,7 +40,8 @@ if ! command -v uv &> /dev/null; then
 fi
 ```
 
-- `ocrmypdf` コマンドが存在しない場合のみ、スクリプトがエラー終了します。その場合は `brew install ocrmypdf` が必要である旨をユーザーに伝えてください（自動インストールはしません）。
+- 既定の OCR エンジンは NDLOCR-Lite です。環境変数 `NDLOCR_LITE_DIR` が未設定、またはその場所に `src/ocr.py` がない場合、スクリプトがエラー終了します。その場合は `git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite <DIR>` と `NDLOCR_LITE_DIR` の設定が必要である旨をユーザーに伝えてください（自動インストールはしません）。
+- `--ocr-engine tesseract` を指定した場合は `ocrmypdf` が必要です（`brew install ocrmypdf`）。
 
 ### 2. パイプラインスクリプトの実行
 
@@ -48,7 +49,7 @@ fi
 
 ```bash
 uv run scripts/pdf_chapter_pipeline.py \
-  "<対象PDFの絶対パス>" --max-size-mb 20 --lang jpn+eng
+  "<対象PDFの絶対パス>" --max-size-mb 20
 ```
 
 **注意点:**
@@ -69,7 +70,7 @@ PDF of 親ディレクトリ配下の `output/<stem>/report.json` を読み（�
 
 ### 4. エラー時の振る舞い
 
-スクリプトが失敗した場合は標準エラー出力の要点を要約し、考えられる原因（ocrmypdf未インストール、パス誤り、権限エラー、OCRタイムアウトなど）と次の一手を提示して終了してください。
+スクリプトが失敗した場合は標準エラー出力の要点を要約し、考えられる原因（NDLOCR_LITE_DIR 未設定・ocrmypdf未インストール、パス誤り、権限エラー、OCRタイムアウトなど）と次の一手を提示して終了してください。
 その場しのぎの代替処理はしないでください。
 
 Always converse and respond in Japanese. (ユーザーとの対話および応答には、常に日本語を使用してください。)

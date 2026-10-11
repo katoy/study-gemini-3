@@ -30,3 +30,8 @@ output/
 split_output/
 data/
 *.pdf
+
+# OCR ベンチの出力（書籍本文を含むため処理時間だけを追跡する）
+bench/results*/*/*.xml
+bench/results*/*/*.json
+!bench/results*/*/timings.json
