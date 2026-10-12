@@ -259,19 +259,20 @@ export NDLOCR_LITE_DIR=~/tools/ndlocr-lite
 `uv` を利用して実行します。NDLOCR-Lite 側の必要な依存関係が一時環境に自動解決されます。
 
 ```bash
-# NDLOCR-Lite のディレクトリに移動して実行する場合
-cd ~/tools/ndlocr-lite
-uv run ocr.py \
+# NDLOCR-Lite の CLI コマンド（ndlocr-lite）で実行する場合
+uv run --project "$NDLOCR_LITE_DIR" ndlocr-lite \
   --sourcepdf "/path/to/output/MyBook.pdf" \
-  --pdf-output "/path/to/output/MyBook_ocr.pdf"
+  --pdf-output "/path/to/output/MyBook_ocr.pdf" \
+  --output "/path/to/output"
 ```
 
-または、任意のカレントディレクトリから以下のように直接実行することも可能です：
+または、スクリプトパスを直接指定して実行する場合：
 
 ```bash
-uv run --project "$NDLOCR_LITE_DIR" python "$NDLOCR_LITE_DIR/ocr.py" \
+uv run --project "$NDLOCR_LITE_DIR" python "$NDLOCR_LITE_DIR/src/ocr.py" \
   --sourcepdf "/path/to/output/MyBook.pdf" \
-  --pdf-output "/path/to/output/MyBook_ocr.pdf"
+  --pdf-output "/path/to/output/MyBook_ocr.pdf" \
+  --output "/path/to/output"
 ```
 
 #### 特徴と処理時間の目安
