@@ -20,6 +20,7 @@ Kindle デスクトップアプリの書籍を、高品質な PNG 画像とし�
 - **高度な終端検知**: 画像の重複を検知し、本の終わりに達すると自動停止します。
 - **インタラクティブな連続処理**: 1 冊の処理が終わると、そのまま次の本を処理するか確認するため、複数の書籍を効率的に PDF 化できます。
 - **柔軟なページ送り**: デフォルトで右矢印キーによるページ送りに対応しているほか、スペースキーや左矢印キーも利用可能です。
+- **検索可能 PDF への拡張**: 生成された高画質 PDF に OCR 処理（NDLOCR-Lite や ocrmypdf）を適用することで、文字選択や全文検索が可能な PDF へ変換できます（詳細は [OCR による検索可能 PDF の作成方法](#ocr-による検索可能-pdf-の作成方法) を参照）。
 
 ## 動作環境
 
@@ -204,6 +205,165 @@ python main.py --screenshots keep
 - `--images-dir DIR`: 既存の PNG 画像ディレクトリを入力として使用し、キャプチャをスキップします。
 - `--screenshots {delete,keep}`: キャプチャした PNG の後処理。`delete` は PDF 生成後に削除（デフォルト）、`keep` は保持します。
 
+## OCR による検索可能 PDF の作成方法
+
+本ツールで出力される PDF は、キャプチャした高品質な PNG 画像を再エンコードなしで束ねた「画像ベースの PDF」です。
+見た目は非常に鮮明ですが、そのままではテキストの選択やコピー、全文検索（Ctrl+F / Cmd+F）ができません。
+
+生成された PDF に OCR（光学文字認識）処理を施し、画像の上に不可視の文字層（透明テキスト）を重ねることで、**オリジナルの高画質な見た目を保ったまま、全文検索やテキストコピーができる検索可能 PDF（Searchable PDF）** を作成できます。
+
+以下に、実用的な作成手順を推奨順に詳しく解説します。
+
+---
+
+### OCR 手法の比較と選び方
+
+日本語の書籍（特に Kindle 本）は、縦書き・横書き、ルビ、見開きなど特有のレイアウトを持ちます。用途や書籍の形式に合わせて適切なエンジンを選択してください。
+
+| 方法 / ツール | 縦書き | 横書き | 特徴・向いている用途 | おすすめ度 |
+|---|:---:|:---:|---|:---:|
+| **1. NDLOCR-Lite** | **◎** | **◎** | 国立国会図書館開発の日本語特化 OCR。縦書き（右→左の読み順）やルビの除外に対応し、句読点も高精度に維持。画像劣化なしで透明テキスト層付き PDF を直接生成可能。 | **【一番推奨】** |
+| **2. pdf-splitter パイプライン** | **◎** | **◎** | 姉妹ツールの自動化パイプライン。NDLOCR-Lite による OCR に加え、目次解析、章ごとの自動分割、20MB 超の均等分割まで一括処理。 | **【自動化・NotebookLM 連携向け】** |
+| **3. ocrmypdf (Tesseract)** | **△** | **◯** | オープンソースの定番 CLI ツール。英語書籍や、Homebrew 等でサクッと手軽に処理したい場合に便利（和文縦書きは誤認識や空白混入が増える傾向あり）。 | 手軽さ重視 |
+| **4. OS / PDF リーダー機能** | **◯** | **◯** | macOS の「テキスト認識表示（Live Text）」や Adobe Acrobat Pro の OCR 機能。 | GUI 操作 |
+
+---
+
+### 方法 1: 【推奨】NDLOCR-Lite で直接 OCR PDF を生成する
+
+国立国会図書館が開発・公開している軽量版 OCR ツール「**[NDLOCR-Lite](https://github.com/ndl-lab/ndlocr-lite)**」（v1.3.1）を使用する方法です。
+
+日本語の書籍（小説・新書などの縦書き、技術書・ビジネス書などの横書き）に対して非常に高い認識精度を持ち、元の PDF 画像の画質を維持したまま文字層を埋め込んだ `<名前>_ocr.pdf` を直接出力できます。
+
+#### 1. セットアップ（初回のみ）
+
+リポジトリをクローンし、環境変数を設定します（モデルデータ約 150MB を含みます）。
+
+```bash
+# 任意の場所に clone (例: ~/tools/ndlocr-lite)
+git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite ~/tools/ndlocr-lite
+
+# 環境変数にパスを設定
+export NDLOCR_LITE_DIR=~/tools/ndlocr-lite
+```
+
+> [!TIP]
+> ターミナルを再起動しても使えるよう、お使いのシェルの設定ファイル（macOS の場合は `~/.zshrc`、Linux の場合は `~/.bashrc`）に `export NDLOCR_LITE_DIR="$HOME/tools/ndlocr-lite"` を追記しておくことを推奨します。
+
+#### 2. OCR の実行
+
+`uv` を利用して実行します。NDLOCR-Lite 側の必要な依存関係が一時環境に自動解決されます。
+
+```bash
+# NDLOCR-Lite のディレクトリに移動して実行する場合
+cd ~/tools/ndlocr-lite
+uv run ocr.py \
+  --sourcepdf "/path/to/output/MyBook.pdf" \
+  --pdf-output "/path/to/output/MyBook_ocr.pdf"
+```
+
+または、任意のカレントディレクトリから以下のように直接実行することも可能です：
+
+```bash
+uv run --project "$NDLOCR_LITE_DIR" python "$NDLOCR_LITE_DIR/ocr.py" \
+  --sourcepdf "/path/to/output/MyBook.pdf" \
+  --pdf-output "/path/to/output/MyBook_ocr.pdf"
+```
+
+#### 特徴と処理時間の目安
+- **処理速度**: Apple Silicon (M1/M2/M3) CPU 環境で **約 1〜3 秒 / ページ**。200 ページ前後の書籍でおよそ 8〜10 分程度で完了します。
+- **画質と容量**: 元の画像解像度（PNG ロスレス）はそのまま保持され、不可視のテキスト情報のみが追加されるため、ファイルサイズはほぼ変わりません。
+- **ルビと読み順**: 本文とルビを適切に分離し、縦書き書籍でも右列から左列へと正しい順番でテキスト化されます。
+
+---
+
+### 方法 2: 【全自動】pdf-splitter パイプラインで OCR ＆ 章分割を一括実行する
+
+本リポジトリの姉妹ツールである `../pdf-splitter`（PDF Splitter & OCR Chapter Pipeline）と連携する方法です。
+
+単に OCR 処理を行うだけでなく、OCR 結果から目次や見出しキーワード（「第1章」「はじめに」など）を自動解析して**章ごとに PDF を分割**し、さらに NotebookLM 等のインポート上限（20MB）を超える章は自動で均等分割してくれます。
+
+#### 1. 実行手順
+
+`pdf-splitter` ディレクトリへ移動し、本ツールで生成した PDF パスを渡して実行します。
+
+```bash
+# 1. pdf-splitter ディレクトリに移動
+cd ../pdf-splitter
+
+# 2. パイプラインを実行（NDLOCR_LITE_DIR が設定されている必要があります）
+uv run scripts/pdf_chapter_pipeline.py "../kindle_app_to_pdf/output/MyBook.pdf"
+```
+
+※ Tesseract (`ocrmypdf`) を使いたい場合は、`--ocr-engine tesseract --lang jpn+eng` を付与します。
+
+#### 2. 生成されるファイル
+
+処理が完了すると、`<入力元ディレクトリ>/output/<書籍名>/` 配下に以下のファイルが自動生成されます：
+
+- `MyBook_ocr.pdf` : 書籍全体の OCR 済み検索可能 PDF
+- `MyBook_ch01_はじめに.pdf` : 章ごとに分割された PDF（各 20MB 以下に調整済み）
+- `MyBook_ch02_第1章_xxx.pdf` : 〃
+
+#### 3. AI エージェント連携（Antigravity / Claude Code）
+AI コーディングアシスタント上で `pdf-ocr-chapter-splitter` サブエージェントが有効になっている環境では、チャット上で以下のように指示するだけで一連の OCR・章分割処理が全自動で実行されます：
+
+> 「output/MyBook.pdf を OCR して章ごとに分割して」
+
+---
+
+### 方法 3: ocrmypdf を使う（手軽・英語書籍向け）
+
+オープンソースの標準的 OCR ツール「`ocrmypdf`（Tesseract OCR ベース）」を使用する方法です。
+Mac の Homebrew で手軽にインストールでき、英語主体の書籍や、手早く OCR を試したい場合に適しています。
+
+#### 1. インストール
+
+- **macOS (Homebrew)**:
+  ```bash
+  brew install ocrmypdf tesseract-lang
+  ```
+- **Windows**:
+  - [Chocolatey](https://chocolatey.org/) や Docker、WSL (Windows Subsystem for Linux) を利用してインストールします。
+
+#### 2. 実行コマンド
+
+- **横書き書籍（日本語 + 英語）**:
+  ```bash
+  ocrmypdf -l jpn+eng --skip-text "output/MyBook.pdf" "output/MyBook_ocr.pdf"
+  ```
+
+- **縦書き書籍（日本語縦書き）**:
+  ```bash
+  ocrmypdf -l jpn_vert+jpn --skip-text "output/MyBook.pdf" "output/MyBook_ocr.pdf"
+  ```
+
+> [!NOTE]
+> `--skip-text` オプションを付けることで、すでにテキスト層が存在するページがある場合でも二重処理を防ぎ安全に変換できます。
+> なお、Tesseract は和文文字の間に余計な空白が挿入されやすい傾向があるため、日本語の小説や縦書き書籍を本格的にテキスト化する場合は「方法 1 (NDLOCR-Lite)」を強く推奨します。
+
+---
+
+### 方法 4: PDF ビューア・OS 標準機能の活用
+
+コマンドラインを使わずに確認・利用したい場合、以下の方法もあります。
+
+- **macOS「プレビュー」アプリのテキスト認識表示（Live Text）**:
+  macOS 12 (Monterey) 以降では、本ツールで生成した画像 PDF を「プレビュー」で開くだけで、OS 組み込みの機械学習により画面上の文字を直接ドラッグ選択・コピー・検索（Cmd+F）できます（ファイル自体を OCR 変換する必要すらありません）。
+- **Adobe Acrobat Pro**:
+  ツール >「スキャンと OCR」>「テキストを認識」を実行することで、高精度な透明テキスト層付き PDF に変換・保存できます。
+
+---
+
+### OCR 実行時の注意点と Tips
+
+1. **キャプチャ画像の静止を確保する**:
+   Kindle アプリのページ送りアニメーション中にキャプチャされると、文字がブレて OCR の認識精度が大幅に低下します。キャプチャ実行時は `--page-delay 1.5`（ページ送りが重い本は `2.0`）を指定し、完全に表示が落ち着いた状態でキャプチャしてください。
+2. **処理時間とタイムアウト**:
+   数十ページ〜数百ページの本を OCR する場合、PC の CPU スペックに応じて 5〜20 分程度の時間がかかります。ターミナルを閉じずにバックグラウンドで処理を待機してください。
+3. **著作権法への配慮**:
+   OCR によって生成されたテキストや検索可能 PDF についても、著作権法の認める私的使用の範囲内（個人での閲覧、学習、検索等）で適切にご利用ください。
+
 ## テストと品質保証（変換の自動テスト）
 
 本ツールでは、キャプチャロジックや PDF 変換処理の信頼性を担保するため、ユニットテスト（カバレッジ 100% 維持）に加えて、**縦書き書籍・横書き書籍を対象とした 2 種類の変換自動テスト**を用意しています。
@@ -251,12 +411,33 @@ Pillow を用いて縦書き・横書きの書籍画像を動的に生成し、�
   uv run pytest tests/test_e2e_kindle.py -k alice -s
   ```
 
-### 3. 全体テストスイート・品質チェック
+### 3. OCR・章分割連携自動テスト（縦書き・横書き日本語）
 
-全 80 件以上のテスト（ユニットテスト・統合テスト）および静的解析（Linter / 型チェック）を一括実行するには以下のコマンドを使用します：
+NDLOCR-Lite (`ocr.py`)、`ocrmypdf` (Tesseract)、および `pdf_chapter_pipeline.py` の OCR 認識と章分割処理を、Pillow で生成した**縦書き日本語（右開き小説調）**および**横書き日本語（技術書調）**の書籍サンプルを用いてエンドツーエンドで自動検証します。
+
+- **テストファイル**: [`tests/test_ocr_and_pipeline.py`](tests/test_ocr_and_pipeline.py)
+- **検証項目**:
+  - `TestNDLOCR`:
+    - `test_ndlocr_horizontal_japanese`: 横書き日本語サンプルの OCR（文字層埋め込みとキーワード「第1章」「はじめに」等の認識）
+    - `test_ndlocr_vertical_japanese`: 縦書き日本語サンプルの OCR（右列→左列、上→下の読み順認識と「第1章」「メロス」等の認識）
+  - `TestOCRMyPDF`:
+    - `test_ocrmypdf_horizontal_japanese`: 横書き日本語サンプルの ocrmypdf 実行とテキスト層付与
+    - `test_ocrmypdf_vertical_japanese`: 縦書き日本語サンプルの ocrmypdf 実行とテキスト層付与
+  - `TestPdfChapterPipeline`:
+    - `test_pipeline_horizontal_japanese_chapters`: 横書き日本語書籍の OCR 実行、章キーワード検出、および章ごとの PDF 分割
+    - `test_pipeline_vertical_japanese_chapters`: 縦書き日本語書籍の OCR 実行、縦書き章見出し検出、および章ごとの PDF 分割
+- **実行コマンド**:
+  ```bash
+  # OCR・パイプライン連携テストのみ実行
+  uv run pytest tests/test_ocr_and_pipeline.py -v -s
+  ```
+
+### 4. 全体テストスイート・品質チェック
+
+全 86 件のテスト（ユニットテスト・統合テスト・OCR連携テスト）および静的解析（Linter / 型チェック）を一括実行するには以下のコマンドを使用します：
 
 ```bash
-# 全テスト実行（カバレッジ計測付き・100% 維持）
+# 全テスト実行（全 86 件・全件パス）
 uv run pytest
 
 # Ruff によるコードフォーマット・Lint チェック
@@ -329,6 +510,7 @@ kindle_app_to_pdf/
 ├── README.md            # 本ドキュメント
 │
 ├── tests/               # 自動テストスイート（ユニットテスト / 結合テスト / E2Eテスト）
+│   ├── test_ocr_and_pipeline.py        # OCR（NDLOCR/ocrmypdf）と章分割パイプラインの縦書き・横書きテスト
 │   ├── test_sample_books_conversion.py # 縦書き（メロス）・横書き（Alice）のサンプル書籍自動テスト
 │   ├── test_e2e_kindle.py              # 実機 Kindle 連携 E2E テスト
 │   ├── test_kindle_capture.py          # キャプチャ・ウィンドウ制御テスト

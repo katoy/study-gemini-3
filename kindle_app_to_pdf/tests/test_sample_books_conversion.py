@@ -135,7 +135,9 @@ class TestSampleBooksConversion:
             out_dir.mkdir(parents=True, exist_ok=True)
 
             w, h = (800, 1200) if is_vertical else (1200, 800)
-            pages = [_create_sample_page(w, h, (250, 250, 250), book_title, i + 1) for i in range(3)]
+            pages = [
+                _create_sample_page(w, h, (250, 250, 250), book_title, i + 1) for i in range(3)
+            ]
 
             call_count = 0
 
