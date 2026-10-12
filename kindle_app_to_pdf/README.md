@@ -26,13 +26,13 @@ Kindle デスクトップアプリの書籍を、高品質な PNG 画像とし�
 
 ### macOS
 - **OS**: macOS 12 (Monterey) 以降推奨 (Intel / Apple Silicon 両対応)
-- **Python**: 3.11 以上
+- **Python**: 3.13 推奨 (3.11 以上対応、`.python-version` により uv で自動管理)
 - **必須アプリ**: Kindle デスクトップアプリ (App Store 版または Amazon 公式サイト版)
 - **依存コマンド**: `osascript`, `screencapture` (macOS 標準搭載)
 
 ### Windows
 - **OS**: Windows 10 / 11
-- **Python**: 3.11 以上
+- **Python**: 3.13 推奨 (3.11 以上対応)
 - **必須アプリ**: Kindle for PC（Microsoft Store または Amazon 公式サイト版）
 - **表示設定**: 推奨スケール 100%（高 DPI 環境では調整が必要な場合があります）
 
@@ -50,11 +50,15 @@ Kindle デスクトップアプリの書籍を、高品質な PNG 画像とし�
 bash setup.sh
 ```
 
-**uv を使う場合 (高速です)**
+**uv を使う場合 (推奨・高速)**
 ```bash
 # uv がインストールされていない場合は先にインストール
 # brew install uv
 
+# 自動セットアップ (推奨): .python-version (Python 3.13) と uv.lock に基づいて仮想環境と依存関係を同期
+uv sync --all-extras --dev
+
+# または従来方式の手動セットアップ
 uv venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
@@ -432,13 +436,17 @@ NDLOCR-Lite (`ocr.py`)、`ocrmypdf` (Tesseract)、および `pdf_chapter_pipelin
   uv run pytest tests/test_ocr_and_pipeline.py -v -s
   ```
 
-### 4. 全体テストスイート・品質チェック
+### 4. 全体テストスイート・品質チェック・カバレッジ 100% 保証
 
-全 86 件のテスト（ユニットテスト・統合テスト・OCR連携テスト）および静的解析（Linter / 型チェック）を一括実行するには以下のコマンドを使用します：
+全 86 件のテスト（ユニットテスト・統合テスト・OCR連携テスト）および静的解析（Linter / 型チェック）、テストカバレッジ 100% の検証を一括実行できます。
+本プロジェクトでは `pyproject.toml` の `[tool.coverage.report]` に `fail_under = 100` を設定しており、**全ステートメントのカバレッジ 100%（Missing: 0）** を厳格に保証しています。
 
 ```bash
 # 全テスト実行（全 86 件・全件パス）
 uv run pytest
+
+# カバレッジ測定（カバレッジ 100% を検証・未カバー行なし）
+uv run pytest --cov --cov-report=term-missing
 
 # Ruff によるコードフォーマット・Lint チェック
 uv run ruff check .
@@ -505,8 +513,11 @@ kindle_app_to_pdf/
 ├── run.bat              # (Windows) uv で実行するスクリプト
 │
 ├── # 設定ファイル
+├── .python-version      # uv / pyenv 向け Python バージョン指定 (3.13)
+├── .tool-versions       # asdf / mise 向け Python バージョン指定 (3.13.5)
 ├── requirements.txt     # 依存 Python ライブラリの一覧（pip/uv用）
-├── pyproject.toml       # Python プロジェクト設定（uv/pip-tools用）
+├── pyproject.toml       # Python プロジェクト設定（uv/ruff/mypy/coverage用）
+├── uv.lock              # パッケージバージョン固定用ロックファイル (Pillow 12.x, pypdf 6.x 等)
 ├── README.md            # 本ドキュメント
 │
 ├── tests/               # 自動テストスイート（ユニットテスト / 結合テスト / E2Eテスト）
