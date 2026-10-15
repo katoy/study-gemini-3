@@ -1,0 +1,2655 @@
+<!-- /* node:coverage disable */ -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>潮風の諸島</title>
+<style>
+  :root {
+    --bg-deep: #06101e;
+    --bg-mid: #0b1c31;
+    --bg-panel: #0f243c;
+    --bg-panel-light: #15314f;
+    --teal-dark: #163e4b;
+    --teal-mid: #216070;
+    --teal-bright: #3ca3b5;
+    --teal-glow: #64cbd9;
+    --blue-main: #2979d9;
+    --blue-light: #5ea6ff;
+    --blue-dark: #174278;
+    --red-main: #cf404a;
+    --red-light: #f2747d;
+    --red-dark: #751f26;
+    --text-main: #e6f1f8;
+    --text-sub: #9ab8cc;
+    --text-muted: #628299;
+    --gold-accent: #e0b354;
+    --border-line: #214563;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: linear-gradient(165deg, var(--bg-deep) 0%, var(--bg-mid) 55%, var(--teal-dark) 100%);
+    color: var(--text-main);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    overflow-x: hidden;
+  }
+
+  button {
+    font-family: inherit;
+    color: var(--text-main);
+    background: var(--bg-panel-light);
+    border: 1px solid var(--teal-bright);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--teal-mid);
+    border-color: var(--teal-glow);
+  }
+
+  button:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--border-line);
+    background: #0b1828;
+    color: var(--text-muted);
+  }
+
+  .screen {
+    display: none;
+    width: 100%;
+    min-height: 100vh;
+  }
+
+  .screen.active {
+    display: flex;
+  }
+
+  /* ===== タイトル画面 ===== */
+  #title-screen {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    position: relative;
+  }
+
+  .title-backdrop {
+    max-width: 820px;
+    width: 100%;
+    background: rgba(11, 28, 49, 0.9);
+    border: 1px solid var(--teal-mid);
+    border-radius: 4px;
+    padding: 32px 28px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  }
+
+  .title-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border-line);
+  }
+
+  .title-sub {
+    color: var(--teal-glow);
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+
+  .title-main {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--text-main);
+    text-shadow: 0 2px 14px rgba(60, 163, 181, 0.45);
+  }
+
+  .title-desc {
+    margin-top: 10px;
+    color: var(--text-sub);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .rule-box {
+    background: rgba(6, 16, 30, 0.72);
+    border: 1px solid var(--border-line);
+    border-left: 3px solid var(--teal-bright);
+    border-radius: 3px;
+    padding: 12px 14px;
+  }
+
+  .rule-box h3 {
+    font-size: 0.95rem;
+    color: var(--teal-glow);
+    margin-bottom: 6px;
+  }
+
+  .rule-box p, .rule-box li {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    line-height: 1.55;
+  }
+
+  .rule-box ul {
+    padding-left: 16px;
+  }
+
+  .difficulty-section {
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  .difficulty-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 12px;
+  }
+
+  .difficulty-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
+  .diff-btn {
+    padding: 14px 12px;
+    text-align: left;
+    background: rgba(15, 36, 60, 0.85);
+    border: 1px solid var(--border-line);
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .diff-btn.selected {
+    background: rgba(33, 96, 112, 0.55);
+    border: 2px solid var(--teal-glow);
+    box-shadow: 0 0 16px rgba(100, 203, 217, 0.25);
+  }
+
+  .diff-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .diff-detail {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    line-height: 1.45;
+  }
+
+  .start-btn {
+    width: 100%;
+    max-width: 320px;
+    padding: 14px 24px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    background: linear-gradient(180deg, var(--teal-mid) 0%, var(--teal-dark) 100%);
+    border: 1px solid var(--teal-glow);
+    border-radius: 3px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  }
+
+  .start-btn:hover {
+    background: linear-gradient(180deg, var(--teal-bright) 0%, var(--teal-mid) 100%);
+  }
+
+  /* ===== プレイ画面 ===== */
+  #game-screen {
+    flex-direction: column;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .top-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .faction-card {
+    background: rgba(15, 36, 60, 0.9);
+    border: 1px solid var(--border-line);
+    border-radius: 3px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .faction-card.player-card {
+    border-top: 3px solid var(--blue-light);
+  }
+
+  .faction-card.cpu-card {
+    border-top: 3px solid var(--red-light);
+  }
+
+  .faction-card.active-turn.player-card {
+    box-shadow: 0 0 18px rgba(94, 166, 255, 0.3);
+    border-color: var(--blue-light);
+  }
+
+  .faction-card.active-turn.cpu-card {
+    box-shadow: 0 0 18px rgba(242, 116, 125, 0.3);
+    border-color: var(--red-light);
+  }
+
+  .faction-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .faction-name {
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .faction-badge {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  .badge-blue {
+    background: var(--blue-light);
+    box-shadow: 0 0 6px var(--blue-light);
+  }
+
+  .badge-red {
+    background: var(--red-light);
+    box-shadow: 0 0 6px var(--red-light);
+  }
+
+  .score-box {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .score-val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--gold-accent);
+  }
+
+  .domination-val {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+  }
+
+  .domination-bar-wrap {
+    width: 100%;
+    height: 5px;
+    background: rgba(6, 16, 30, 0.8);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .domination-bar-fill {
+    height: 100%;
+    transition: width 0.25s ease;
+  }
+
+  .player-card .domination-bar-fill {
+    background: var(--blue-light);
+  }
+
+  .cpu-card .domination-bar-fill {
+    background: var(--red-light);
+  }
+
+  .res-list {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .res-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(6, 16, 30, 0.65);
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid rgba(98, 130, 153, 0.25);
+    font-size: 0.88rem;
+  }
+
+  .res-label {
+    color: var(--text-sub);
+  }
+
+  .res-num {
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .res-income {
+    font-size: 0.76rem;
+    color: var(--teal-glow);
+  }
+
+  .center-status {
+    background: rgba(11, 28, 49, 0.95);
+    border: 1px solid var(--teal-mid);
+    border-radius: 3px;
+    padding: 10px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 210px;
+    gap: 4px;
+  }
+
+  .turn-counter {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .turn-remaining {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+  }
+
+  .turn-owner-banner {
+    margin-top: 2px;
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .banner-player {
+    background: rgba(41, 121, 217, 0.28);
+    border: 1px solid var(--blue-light);
+    color: #9eccff;
+  }
+
+  .banner-cpu {
+    background: rgba(207, 64, 74, 0.28);
+    border: 1px solid var(--red-light);
+    color: #ffb3b8;
+  }
+
+  /* ===== メインレイアウト ===== */
+  .main-area {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .board-container {
+    background: rgba(6, 16, 30, 0.82);
+    border: 1px solid var(--border-line);
+    border-radius: 3px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    min-height: 480px;
+    overflow: hidden;
+  }
+
+  .board-top-controls {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    right: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .legend-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: rgba(6, 16, 30, 0.82);
+    border: 1px solid var(--border-line);
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    pointer-events: auto;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .util-btns {
+    display: flex;
+    gap: 6px;
+    pointer-events: auto;
+  }
+
+  .small-btn {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    background: rgba(15, 36, 60, 0.9);
+  }
+
+  #hex-canvas {
+    display: block;
+    max-width: 100%;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  /* マウスホバーツールチップ */
+  #hover-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(6, 15, 28, 0.95);
+    border: 1px solid var(--teal-bright);
+    border-radius: 3px;
+    padding: 8px 11px;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text-main);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+    z-index: 10;
+    display: none;
+    min-width: 165px;
+  }
+
+  .tt-title {
+    font-weight: 700;
+    color: var(--teal-glow);
+    margin-bottom: 3px;
+    border-bottom: 1px solid rgba(98, 130, 153, 0.3);
+    padding-bottom: 2px;
+  }
+
+  .tt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text-sub);
+  }
+
+  .tt-val {
+    color: var(--text-main);
+    font-weight: 600;
+  }
+
+  /* ===== 右サイドパネル ===== */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .panel-card {
+    background: rgba(15, 36, 60, 0.9);
+    border: 1px solid var(--border-line);
+    border-radius: 3px;
+    padding: 12px 14px;
+  }
+
+  .panel-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--teal-glow);
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .ap-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.84rem;
+    color: var(--text-main);
+  }
+
+  .ap-pip {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid var(--teal-glow);
+    background: transparent;
+    display: inline-block;
+  }
+
+  .ap-pip.filled {
+    background: var(--teal-glow);
+    box-shadow: 0 0 6px var(--teal-glow);
+  }
+
+  .tile-inspector {
+    font-size: 0.85rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: rgba(6, 16, 30, 0.65);
+    border: 1px solid rgba(98, 130, 153, 0.25);
+    border-radius: 3px;
+  }
+
+  .insp-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .insp-label {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+  }
+
+  .insp-value {
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .action-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 98px;
+    justify-content: center;
+  }
+
+  .action-empty-msg {
+    font-size: 0.83rem;
+    color: var(--text-sub);
+    text-align: center;
+    padding: 12px 8px;
+    line-height: 1.5;
+    background: rgba(6, 16, 30, 0.45);
+    border-radius: 3px;
+    border: 1px dashed var(--border-line);
+  }
+
+  .action-btn {
+    width: 100%;
+    padding: 10px 12px;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(90deg, rgba(22, 62, 75, 0.9) 0%, rgba(15, 36, 60, 0.9) 100%);
+  }
+
+  .action-btn-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .action-btn-title {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: var(--text-main);
+  }
+
+  .action-btn-sub {
+    font-size: 0.76rem;
+    color: var(--text-sub);
+  }
+
+  .action-cost-tag {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 2px;
+    background: rgba(6, 16, 30, 0.8);
+    border: 1px solid rgba(100, 203, 217, 0.35);
+    white-space: nowrap;
+  }
+
+  .action-btn:disabled .action-cost-tag {
+    border-color: rgba(207, 64, 74, 0.5);
+    color: var(--red-light);
+  }
+
+  .end-turn-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px 16px;
+    font-size: 0.96rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: linear-gradient(180deg, #1d5263 0%, #113340 100%);
+    border: 1px solid var(--teal-glow);
+  }
+
+  .log-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 170px;
+    max-height: 260px;
+  }
+
+  .log-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-right: 4px;
+    font-size: 0.8rem;
+  }
+
+  .log-entry {
+    padding: 5px 8px;
+    background: rgba(6, 16, 30, 0.65);
+    border-left: 3px solid var(--teal-mid);
+    border-radius: 2px;
+    color: var(--text-sub);
+    line-height: 1.4;
+  }
+
+  .log-entry.log-player {
+    border-left-color: var(--blue-light);
+    color: var(--text-main);
+  }
+
+  .log-entry.log-cpu {
+    border-left-color: var(--red-light);
+    color: var(--text-main);
+  }
+
+  .log-entry.log-system {
+    border-left-color: var(--gold-accent);
+    color: #f3dc99;
+  }
+
+  /* ===== 勝敗モーダル画面 ===== */
+  #result-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 11, 20, 0.85);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  #result-overlay.active {
+    display: flex;
+  }
+
+  .result-card {
+    max-width: 520px;
+    width: 100%;
+    background: var(--bg-panel);
+    border: 2px solid var(--teal-bright);
+    border-radius: 4px;
+    padding: 28px 24px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  }
+
+  .result-badge {
+    font-size: 0.88rem;
+    color: var(--teal-glow);
+    letter-spacing: 0.15em;
+    margin-bottom: 6px;
+  }
+
+  .result-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .result-reason {
+    font-size: 0.95rem;
+    color: var(--text-sub);
+    margin-bottom: 20px;
+  }
+
+  .result-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 22px;
+    font-size: 0.88rem;
+  }
+
+  .result-table th, .result-table td {
+    padding: 8px 10px;
+    border: 1px solid var(--border-line);
+    text-align: center;
+  }
+
+  .result-table th {
+    background: rgba(6, 16, 30, 0.75);
+    color: var(--text-sub);
+    font-weight: 600;
+  }
+
+  .result-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .result-btn {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 0.96rem;
+    font-weight: 700;
+  }
+
+  .result-btn.primary {
+    background: linear-gradient(180deg, var(--teal-mid) 0%, var(--teal-dark) 100%);
+    border-color: var(--teal-glow);
+  }
+
+  @media (max-width: 920px) {
+    .main-area {
+      grid-template-columns: 1fr;
+    }
+    .top-bar {
+      grid-template-columns: 1fr;
+    }
+    .center-status {
+      order: -1;
+    }
+    .board-container {
+      min-height: 390px;
+    }
+    .rules-grid {
+      grid-template-columns: 1fr;
+    }
+    .difficulty-buttons {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== タイトル画面 ===== -->
+<section id="title-screen" class="screen active">
+  <div class="title-backdrop">
+    <div class="title-header">
+      <div class="title-sub">ターン制群島開拓ストラテジー</div>
+      <h1 class="title-main">潮風の諸島</h1>
+      <p class="title-desc">
+        夜明け前の霧に包まれた群島を舞台に、青の船団（プレイヤー）と赤の船団（CPU）が島々を開拓し、勢力を競います。
+      </p>
+    </div>
+
+    <div class="rules-grid">
+      <div class="rule-box">
+        <h3>盤面と資源</h3>
+        <ul>
+          <li>7×7の六角形群島マップ（毎回ランダム生成）</li>
+          <li>左上は青の船団の「港」、右下は赤の船団の「港」から開始</li>
+          <li>ターンの最初に所有マスから資源を獲得（森→木材1、漁場→食料1、岩山→石1、平原→資源なし、海→進入不可）</li>
+        </ul>
+      </div>
+      <div class="rule-box">
+        <h3>1ターンに2回まで選べる4つの行動</h3>
+        <ul>
+          <li><strong>開拓</strong>：隣接する空きマスを取得（木材2）</li>
+          <li><strong>攻略</strong>：隣接する相手マスを奪う（食料2＋石1／砦ありは食料4＋石2 ※港は攻略不可）</li>
+          <li><strong>砦を建てる</strong>：自分のマスを防衛強化（石2）</li>
+          <li><strong>市場を建てる</strong>：自分の資源マスの産出量を2倍にする（木材1＋石1）</li>
+        </ul>
+      </div>
+      <div class="rule-box">
+        <h3>得点と勝利条件</h3>
+        <ul>
+          <li><strong>得点計算</strong>：所有マス 1点 ／ 市場 2点 ／ 砦 1点</li>
+          <li><strong>通常勝利</strong>：全20ターン（両者10回ずつ）終了時に得点が多い方の勝利</li>
+          <li><strong>即勝利</strong>：途中で陸地マスの60%以上を支配したら即勝利</li>
+        </ul>
+      </div>
+      <div class="rule-box">
+        <h3>操作方法</h3>
+        <ul>
+          <li>盤面のマスをクリック（またはタップ）すると、そのマスで実行できる行動ボタンが表示されます</li>
+          <li>マスにマウスを乗せると、種類・所有者・建物・得られる資源を確認できます</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="difficulty-section">
+      <div class="difficulty-title">CPUの難易度を選択</div>
+      <div class="difficulty-buttons" id="difficulty-group">
+        <button type="button" class="diff-btn" data-diff="easy">
+          <span class="diff-name">やさしい</span>
+          <span class="diff-detail">実行可能な行動の中からランダムに選んで行動します。</span>
+        </button>
+        <button type="button" class="diff-btn selected" data-diff="normal">
+          <span class="diff-name">ふつう</span>
+          <span class="diff-detail">得点と将来の資源がどれだけ増えるかを計算し、最善の行動を選びます。</span>
+        </button>
+        <button type="button" class="diff-btn" data-diff="hard">
+          <span class="diff-name">つよい</span>
+          <span class="diff-detail">最善手計算に加え、プレイヤーの次ターンの攻略を読んで要所に砦を建てます。</span>
+        </button>
+      </div>
+      <button type="button" class="start-btn" id="start-game-btn">出航する（ゲーム開始）</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== プレイ画面 ===== -->
+<section id="game-screen" class="screen">
+  <header class="top-bar">
+    <!-- プレイヤー情報 -->
+    <div class="faction-card player-card active-turn" id="player-status-card">
+      <div class="faction-head">
+        <div class="faction-name">
+          <span class="faction-badge badge-blue"></span>
+          <span>青の船団（あなた）</span>
+        </div>
+        <div class="score-box">
+          <span class="score-val" id="player-score">1点</span>
+          <span class="domination-val" id="player-domination">支配率 3% (1/40)</span>
+        </div>
+      </div>
+      <div class="domination-bar-wrap">
+        <div class="domination-bar-fill" id="player-dom-bar" style="width: 3%;"></div>
+      </div>
+      <div class="res-list">
+        <div class="res-item">
+          <span class="res-label">木材</span>
+          <span class="res-num" id="p-wood">4</span>
+          <span class="res-income" id="p-wood-inc">(+0)</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">食料</span>
+          <span class="res-num" id="p-food">2</span>
+          <span class="res-income" id="p-food-inc">(+0)</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">石</span>
+          <span class="res-num" id="p-stone">2</span>
+          <span class="res-income" id="p-stone-inc">(+0)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ターン表示 -->
+    <div class="center-status">
+      <div class="turn-counter" id="turn-counter-text">第 1 / 20 ターン</div>
+      <div class="turn-remaining" id="turn-remaining-text">残り 20 ターン（両者10回ずつ）</div>
+      <div class="turn-owner-banner banner-player" id="turn-owner-banner">青の船団のターン</div>
+    </div>
+
+    <!-- CPU情報 -->
+    <div class="faction-card cpu-card" id="cpu-status-card">
+      <div class="faction-head">
+        <div class="faction-name">
+          <span class="faction-badge badge-red"></span>
+          <span id="cpu-title-label">赤の船団（CPU・ふつう）</span>
+        </div>
+        <div class="score-box">
+          <span class="score-val" id="cpu-score">1点</span>
+          <span class="domination-val" id="cpu-domination">支配率 3% (1/40)</span>
+        </div>
+      </div>
+      <div class="domination-bar-wrap">
+        <div class="domination-bar-fill" id="cpu-dom-bar" style="width: 3%;"></div>
+      </div>
+      <div class="res-list">
+        <div class="res-item">
+          <span class="res-label">木材</span>
+          <span class="res-num" id="c-wood">4</span>
+          <span class="res-income" id="c-wood-inc">(+0)</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">食料</span>
+          <span class="res-num" id="c-food">2</span>
+          <span class="res-income" id="c-food-inc">(+0)</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">石</span>
+          <span class="res-num" id="c-stone">2</span>
+          <span class="res-income" id="c-stone-inc">(+0)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-area">
+    <!-- 盤面エリア -->
+    <div class="board-container" id="board-container">
+      <div class="board-top-controls">
+        <div class="legend-bar">
+          <span class="legend-item"><span class="legend-swatch" style="background:#265c42;"></span>森(木材)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#1c5f78;"></span>漁場(食料)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#536170;"></span>岩山(石)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#4b6953;"></span>平原(なし)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#08192b;"></span>海(不可)</span>
+        </div>
+        <div class="util-btns">
+          <button type="button" class="small-btn" id="sound-toggle-btn">効果音: ON</button>
+          <button type="button" class="small-btn" id="back-title-btn">タイトルへ</button>
+        </div>
+      </div>
+
+      <canvas id="hex-canvas" width="720" height="580"></canvas>
+
+      <!-- マウスオーバー詳細表示 -->
+      <div id="hover-tooltip">
+        <div class="tt-title" id="tt-coord">マス情報</div>
+        <div class="tt-row"><span>種類:</span><span class="tt-val" id="tt-type">-</span></div>
+        <div class="tt-row"><span>所有者:</span><span class="tt-val" id="tt-owner">-</span></div>
+        <div class="tt-row"><span>建物:</span><span class="tt-val" id="tt-building">-</span></div>
+        <div class="tt-row"><span>得られる資源:</span><span class="tt-val" id="tt-resource">-</span></div>
+      </div>
+    </div>
+
+    <!-- 右パネル：選択マス情報・行動ボタン・ログ -->
+    <aside class="side-panel">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>選択中のマスと行動</span>
+          <div class="ap-indicator">
+            <span>残り行動:</span>
+            <span class="ap-pip filled" id="ap-pip-1"></span>
+            <span class="ap-pip filled" id="ap-pip-2"></span>
+            <span id="ap-text">2 / 2</span>
+          </div>
+        </div>
+
+        <div class="tile-inspector">
+          <div class="insp-item">
+            <span class="insp-label">種類</span>
+            <span class="insp-value" id="sel-type">未選択</span>
+          </div>
+          <div class="insp-item">
+            <span class="insp-label">所有者</span>
+            <span class="insp-value" id="sel-owner">-</span>
+          </div>
+          <div class="insp-item">
+            <span class="insp-label">建物</span>
+            <span class="insp-value" id="sel-building">-</span>
+          </div>
+          <div class="insp-item">
+            <span class="insp-label">得られる資源</span>
+            <span class="insp-value" id="sel-resource">-</span>
+          </div>
+        </div>
+
+        <div class="action-list" id="action-buttons-container">
+          <div class="action-empty-msg">
+            盤面のマスをクリックすると、そのマスで選べる行動がここに表示されます。
+          </div>
+        </div>
+
+        <button type="button" class="end-turn-btn" id="end-turn-btn">ターン終了</button>
+      </div>
+
+      <div class="panel-card log-card">
+        <div class="panel-title">
+          <span>航海・行動ログ</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">60%支配で即勝利</span>
+        </div>
+        <div class="log-list" id="action-log-list"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===== 勝敗画面 ===== -->
+<div id="result-overlay">
+  <div class="result-card">
+    <div class="result-badge" id="result-sub-badge">決着</div>
+    <h2 class="result-title" id="result-title-text">青の船団の勝利！</h2>
+    <p class="result-reason" id="result-reason-text">全20ターン終了時の総得点で上回りました。</p>
+
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th style="color:var(--blue-light);">青の船団（あなた）</th>
+          <th style="color:var(--red-light);">赤の船団（CPU）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>所有マス（1点）</td>
+          <td id="res-p-tiles">0</td>
+          <td id="res-c-tiles">0</td>
+        </tr>
+        <tr>
+          <td>市場の数（2点）</td>
+          <td id="res-p-markets">0</td>
+          <td id="res-c-markets">0</td>
+        </tr>
+        <tr>
+          <td>砦の数（1点）</td>
+          <td id="res-p-forts">0</td>
+          <td id="res-c-forts">0</td>
+        </tr>
+        <tr>
+          <td>陸地支配率</td>
+          <td id="res-p-dom">0%</td>
+          <td id="res-c-dom">0%</td>
+        </tr>
+        <tr style="font-weight:700; font-size:1rem; background:rgba(6,16,30,0.6);">
+          <td>最終得点</td>
+          <td id="res-p-total" style="color:var(--gold-accent);">0点</td>
+          <td id="res-c-total" style="color:var(--gold-accent);">0点</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="result-actions">
+      <button type="button" class="result-btn primary" id="retry-btn">同じ難易度でリトライ</button>
+      <button type="button" class="result-btn" id="result-to-title-btn">タイトル画面へ戻る</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* node:coverage enable */
+(() => {
+  "use strict";
+
+  // ===== 定数・定義 =====
+  const GRID_ROWS = 7;
+  const GRID_COLS = 7;
+  const MAX_TURNS = 20; // 両者10回ずつ
+  const MAX_ACTIONS_PER_TURN = 2;
+  const DOMINATION_THRESHOLD = 0.60; // 陸地の60%以上で即勝利
+
+  const TILE_TYPES = {
+    port:     { name: "港",   resource: null,    resLabel: "なし（本拠地・攻略不可）", baseYield: 0 },
+    forest:   { name: "森",   resource: "wood",  resLabel: "木材 1",                   baseYield: 1 },
+    fishery:  { name: "漁場", resource: "food",  resLabel: "食料 1",                   baseYield: 1 },
+    mountain: { name: "岩山", resource: "stone", resLabel: "石 1",                     baseYield: 1 },
+    plain:    { name: "平原", resource: null,    resLabel: "なし",                     baseYield: 0 },
+    sea:      { name: "海",   resource: null,    resLabel: "なし（進入不可）",         baseYield: 0 }
+  };
+
+  const DIFFICULTY_LABELS = {
+    easy: "やさしい",
+    normal: "ふつう",
+    hard: "つよい"
+  };
+
+  // ===== ゲーム状態変数（ブラウザ保存機能は一切不使用） =====
+  const state = {
+    sessionId: 0,
+    difficulty: "normal",
+    soundEnabled: true,
+    autoLoop: true,
+    stepDelayMs: 550,
+    turn: 1, // 1..20 (奇数: player, 偶数: cpu)
+    currentActor: "player", // 'player' | 'cpu'
+    actionsLeft: MAX_ACTIONS_PER_TURN,
+    isGameOver: false,
+    isCpuAnimating: false,
+    grid: [], // 7x7
+    totalLandTiles: 40,
+    selectedTile: null, // { r, c }
+    hoveredTile: null,  // { r, c }
+    resources: {
+      player: { wood: 4, food: 2, stone: 2 },
+      cpu:    { wood: 4, food: 2, stone: 2 }
+    },
+    effects: [], // 盤面アニメーションエフェクト
+    wavePhase: 0
+  };
+
+  // ===== Web Audio API 効果音シンセサイザー =====
+  let audioCtx = null;
+
+  function ensureAudio() {
+    if (!state.soundEnabled) return null;
+    if (!audioCtx) {
+      audioCtx = new window.AudioContext();
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playSound(type) {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    if (type === "select") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(660, now + 0.06);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } else if (type === "pioneer") {
+      [392, 493.88, 587.33].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.045);
+        gain.gain.setValueAtTime(0.11, now + idx * 0.045);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.045 + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.045);
+        osc.stop(now + idx * 0.045 + 0.23);
+      });
+    } else if (type === "conquer") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(190, now);
+      osc.frequency.exponentialRampToValueAtTime(75, now + 0.25);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.27);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "square";
+      osc2.frequency.setValueAtTime(620, now + 0.05);
+      osc2.frequency.exponentialRampToValueAtTime(310, now + 0.18);
+      gain2.gain.setValueAtTime(0.08, now + 0.05);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.05);
+      osc2.stop(now + 0.20);
+    } else if (type === "fort") {
+      [220, 293.66].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+        gain.gain.setValueAtTime(0.1, now + idx * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.16);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.17);
+      });
+    } else if (type === "market") {
+      [587.33, 880].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+        gain.gain.setValueAtTime(0.12, now + idx * 0.07);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.24);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.07);
+        osc.stop(now + idx * 0.07 + 0.25);
+      });
+    } else if (type === "turn") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(330, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.12);
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } else if (type === "win") {
+      [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+        gain.gain.setValueAtTime(0.14, now + idx * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.36);
+      });
+    } else {
+      [392, 349.23, 311.13, 261.63].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.11);
+        gain.gain.setValueAtTime(0.1, now + idx * 0.11);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.11 + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.11);
+        osc.stop(now + idx * 0.11 + 0.31);
+      });
+    }
+  }
+
+  // ===== 六角形グリッド隣接計算 (odd-r pointy-top) =====
+  function getNeighbors(r, c) {
+    const isOdd = (r % 2 === 1);
+    const dirs = isOdd
+      ? [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]]
+      : [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]];
+    const res = [];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
+        res.push({ r: nr, c: nc });
+      }
+    }
+    return res;
+  }
+
+  function isAdjacentToOwner(r, c, owner) {
+    const neighbors = getNeighbors(r, c);
+    return neighbors.some(nb => state.grid[nb.r][nb.c].owner === owner);
+  }
+
+  // ===== 群島マップ生成（連結性および初期バランス保証） =====
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function isLandConnected(trialSea, totalLand) {
+    const visited = new Set(["0,0"]);
+    const queue = [{ r: 0, c: 0 }];
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      for (const nb of getNeighbors(cur.r, cur.c)) {
+        const key = `${nb.r},${nb.c}`;
+        if (!trialSea.has(key) && !visited.has(key)) {
+          visited.add(key);
+          queue.push(nb);
+        }
+      }
+    }
+    return visited.size === totalLand;
+  }
+
+  function generateArchipelago() {
+    const seaCount = 9; // 49マス中9マスが海、40マスが陸地（60%支配 = 24マス）
+    const totalLand = GRID_ROWS * GRID_COLS - seaCount;
+    const pNeighbors = getNeighbors(0, 0); // (0,1), (1,0)
+    const cNeighbors = getNeighbors(GRID_ROWS - 1, GRID_COLS - 1); // (6,5), (5,5), (5,6)
+
+    const protectedSet = new Set(["0,0", `${GRID_ROWS - 1},${GRID_COLS - 1}`]);
+    pNeighbors.forEach(n => protectedSet.add(`${n.r},${n.c}`));
+    cNeighbors.forEach(n => protectedSet.add(`${n.r},${n.c}`));
+
+    const baseCandidates = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (!protectedSet.has(`${r},${c}`)) {
+          baseCandidates.push(`${r},${c}`);
+        }
+      }
+    }
+
+    let seaSet;
+    do {
+      const candidates = shuffle([...baseCandidates]);
+      seaSet = new Set(candidates.slice(0, seaCount));
+    } while (!isLandConnected(seaSet, totalLand));
+
+    // スタート地点隣接マスに必ず森と漁場を配置して序盤の手詰まりを防ぐ
+    const fixedTypes = new Map();
+    fixedTypes.set("0,0", "port");
+    fixedTypes.set(`${GRID_ROWS - 1},${GRID_COLS - 1}`, "port");
+
+    const pNbShuffled = shuffle([...pNeighbors]);
+    fixedTypes.set(`${pNbShuffled[0].r},${pNbShuffled[0].c}`, "forest");
+    fixedTypes.set(`${pNbShuffled[1].r},${pNbShuffled[1].c}`, "fishery");
+
+    const cNbShuffled = shuffle([...cNeighbors]);
+    fixedTypes.set(`${cNbShuffled[0].r},${cNbShuffled[0].c}`, "forest");
+    fixedTypes.set(`${cNbShuffled[1].r},${cNbShuffled[1].c}`, "fishery");
+    fixedTypes.set(`${cNbShuffled[2].r},${cNbShuffled[2].c}`, "forest");
+
+    // 残りの陸地マスの種類プール（残り33陸地：森9, 漁場9, 岩山10, 平原5）
+    const remainingPool = [];
+    const pushMany = (type, count) => {
+      for (let i = 0; i < count; i++) remainingPool.push(type);
+    };
+    pushMany("forest", 9);
+    pushMany("fishery", 9);
+    pushMany("mountain", 10);
+    pushMany("plain", 5);
+    shuffle(remainingPool);
+
+    let poolIdx = 0;
+    const newGrid = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < GRID_COLS; c++) {
+        const key = `${r},${c}`;
+        let type;
+        let owner = null;
+        if (seaSet.has(key)) {
+          type = "sea";
+        } else if (fixedTypes.has(key)) {
+          type = fixedTypes.get(key);
+          if (r === 0 && c === 0) owner = "player";
+          if (r === GRID_ROWS - 1 && c === GRID_COLS - 1) owner = "cpu";
+        } else {
+          type = remainingPool[poolIdx++];
+        }
+        row.push({
+          r,
+          c,
+          type,
+          owner,
+          building: null // null | 'fort' | 'market'
+        });
+      }
+      newGrid.push(row);
+    }
+
+    state.grid = newGrid;
+    state.totalLandTiles = totalLand;
+  }
+
+  // ===== 資源・得点・支配率計算 =====
+  function getTileResourceYield(tile) {
+    const info = TILE_TYPES[tile.type];
+    if (!info.resource) return null;
+    const amount = info.baseYield * (tile.building === "market" ? 2 : 1);
+    return { resource: info.resource, amount };
+  }
+
+  function getTileResourceText(tile) {
+    if (tile.type === "port") return "なし（本拠地・攻略不可）";
+    if (tile.type === "sea") return "なし（進入不可）";
+    if (tile.type === "plain") return "なし";
+    const y = getTileResourceYield(tile);
+    const labelMap = { wood: "木材", food: "食料", stone: "石" };
+    return `${labelMap[y.resource]} ${y.amount}${tile.building === "market" ? " (市場2倍)" : ""}`;
+  }
+
+  function calculateIncome(owner) {
+    const income = { wood: 0, food: 0, stone: 0 };
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const tile = state.grid[r][c];
+        if (tile.owner === owner) {
+          const y = getTileResourceYield(tile);
+          if (y) income[y.resource] += y.amount;
+        }
+      }
+    }
+    return income;
+  }
+
+  function collectTurnResources(owner) {
+    const inc = calculateIncome(owner);
+    state.resources[owner].wood += inc.wood;
+    state.resources[owner].food += inc.food;
+    state.resources[owner].stone += inc.stone;
+    return inc;
+  }
+
+  function calculateStats(owner) {
+    let tiles = 0;
+    let markets = 0;
+    let forts = 0;
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const t = state.grid[r][c];
+        if (t.owner === owner) {
+          tiles++;
+          if (t.building === "market") markets++;
+          if (t.building === "fort") forts++;
+        }
+      }
+    }
+    const score = tiles * 1 + markets * 2 + forts * 1;
+    const domination = tiles / state.totalLandTiles;
+    return { tiles, markets, forts, score, domination };
+  }
+
+  // ===== 選択可能な行動の判定 =====
+  function getAvailableActionsForTile(r, c, actor) {
+    const tile = state.grid[r][c];
+    const res = state.resources[actor];
+    const enemy = actor === "player" ? "cpu" : "player";
+    const actions = [];
+
+    if (tile.type === "sea") return actions;
+
+    // 1. 開拓：自分のマスに隣接する空きマスを取得（木材2）
+    if (tile.owner === null && isAdjacentToOwner(r, c, actor)) {
+      const canAfford = res.wood >= 2;
+      actions.push({
+        kind: "pioneer",
+        r,
+        c,
+        title: "開拓する",
+        desc: "隣接する空きマスを自軍の領土にする（+1点）",
+        costText: "木材 2",
+        cost: { wood: 2, food: 0, stone: 0 },
+        canAfford
+      });
+    }
+
+    // 2. 攻略：自分のマスに隣接する相手のマスを奪う（食料2＋石1、砦ありは食料4＋石2、港は不可）
+    if (tile.owner === enemy && tile.type !== "port" && isAdjacentToOwner(r, c, actor)) {
+      const hasFort = tile.building === "fort";
+      const needFood = hasFort ? 4 : 2;
+      const needStone = hasFort ? 2 : 1;
+      const canAfford = res.food >= needFood && res.stone >= needStone;
+      actions.push({
+        kind: "conquer",
+        r,
+        c,
+        title: hasFort ? "砦マスを攻略する" : "攻略する",
+        desc: hasFort
+          ? "相手の砦を打ち破りマスを奪う（砦は破壊）"
+          : "隣接する相手のマスを奪い取る",
+        costText: `食料 ${needFood} ＋ 石 ${needStone}`,
+        cost: { wood: 0, food: needFood, stone: needStone },
+        canAfford
+      });
+    }
+
+    // 3. 砦を建てる：自分のマスに建てる（石2）※港・既存建物マスを除く
+    if (tile.owner === actor && tile.type !== "port" && tile.building === null) {
+      const canAfford = res.stone >= 2;
+      actions.push({
+        kind: "fort",
+        r,
+        c,
+        title: "砦を建てる",
+        desc: "攻略されにくくなり、得点+1点",
+        costText: "石 2",
+        cost: { wood: 0, food: 0, stone: 2 },
+        canAfford
+      });
+    }
+
+    // 4. 市場を建てる：自分の資源マスに建てる（木材1＋石1）
+    const isResourceTile = tile.type === "forest" || tile.type === "fishery" || tile.type === "mountain";
+    if (tile.owner === actor && isResourceTile && tile.building === null) {
+      const canAfford = res.wood >= 1 && res.stone >= 1;
+      actions.push({
+        kind: "market",
+        r,
+        c,
+        title: "市場を建てる",
+        desc: "このマスの資源獲得量が2倍になり、得点+2点",
+        costText: "木材 1 ＋ 石 1",
+        cost: { wood: 1, food: 0, stone: 1 },
+        canAfford
+      });
+    }
+
+    return actions;
+  }
+
+  function getAllExecutableActions(actor) {
+    const list = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const acts = getAvailableActionsForTile(r, c, actor);
+        for (const a of acts) {
+          if (a.canAfford) list.push(a);
+        }
+      }
+    }
+    return list;
+  }
+
+  // ===== 行動の実行 =====
+  function coordLabel(r, c) {
+    return `(${r + 1}行,${c + 1}列)`;
+  }
+
+  function executeAction(action, actor) {
+    if (state.isGameOver || state.actionsLeft <= 0) return false;
+    const res = state.resources[actor];
+    if (
+      res.wood < action.cost.wood ||
+      res.food < action.cost.food ||
+      res.stone < action.cost.stone
+    ) {
+      return false;
+    }
+
+    // コスト消費
+    res.wood -= action.cost.wood;
+    res.food -= action.cost.food;
+    res.stone -= action.cost.stone;
+
+    const tile = state.grid[action.r][action.c];
+    const tileName = TILE_TYPES[tile.type].name;
+    const actorName = actor === "player" ? "青の船団" : "赤の船団(CPU)";
+    const ringColor = actor === "player" ? "#5ea6ff" : "#f2747d";
+
+    if (action.kind === "pioneer") {
+      tile.owner = actor;
+      playSound("pioneer");
+      addBoardEffect(action.r, action.c, "開拓", ringColor);
+      addLog(`${actorName}が ${coordLabel(action.r, action.c)} の「${tileName}」を開拓しました。`, actor);
+    } else if (action.kind === "conquer") {
+      const hadFort = tile.building === "fort";
+      tile.owner = actor;
+      if (hadFort) {
+        tile.building = null; // 砦は攻略時に破壊
+      }
+      playSound("conquer");
+      addBoardEffect(action.r, action.c, "攻略", ringColor);
+      addLog(
+        `${actorName}が ${coordLabel(action.r, action.c)} の「${tileName}」${hadFort ? "（砦）" : ""}を攻略しました！`,
+        actor
+      );
+    } else if (action.kind === "fort") {
+      tile.building = "fort";
+      playSound("fort");
+      addBoardEffect(action.r, action.c, "砦建設", "#e0b354");
+      addLog(`${actorName}が ${coordLabel(action.r, action.c)} の「${tileName}」に砦を建設しました。`, actor);
+    } else {
+      tile.building = "market";
+      playSound("market");
+      addBoardEffect(action.r, action.c, "市場建設", "#e0b354");
+      addLog(`${actorName}が ${coordLabel(action.r, action.c)} の「${tileName}」に市場を建設しました。`, actor);
+    }
+
+    state.actionsLeft--;
+    state.selectedTile = { r: action.r, c: action.c };
+
+    updateAllUI();
+
+    // 60%支配の即勝利チェック
+    checkImmediateDominationVictory();
+    return true;
+  }
+
+  // ===== 勝利判定 =====
+  function checkImmediateDominationVictory() {
+    const pStats = calculateStats("player");
+    const cStats = calculateStats("cpu");
+
+    if (pStats.domination >= DOMINATION_THRESHOLD) {
+      finishGame("player", `陸地マスの${Math.round(pStats.domination * 100)}%（60%以上）を支配し、即勝利を達成しました！`);
+      return true;
+    }
+    if (cStats.domination >= DOMINATION_THRESHOLD) {
+      finishGame("cpu", `赤の船団に陸地マスの${Math.round(cStats.domination * 100)}%（60%以上）を支配されました。`);
+      return true;
+    }
+    return false;
+  }
+
+  function finishGameByTurnLimit() {
+    const pStats = calculateStats("player");
+    const cStats = calculateStats("cpu");
+
+    if (pStats.score > cStats.score) {
+      finishGame("player", `全20ターン終了！ ${pStats.score}対${cStats.score} で青の船団の勝利です！`);
+    } else if (cStats.score > pStats.score) {
+      finishGame("cpu", `全20ターン終了。 ${pStats.score}対${cStats.score} で赤の船団の勝利です。`);
+    } else {
+      finishGame("draw", `全20ターン終了！ ${pStats.score}対${cStats.score} の同点で引き分けとなりました。`);
+    }
+  }
+
+  function finishGame(winner, reasonText) {
+    state.isGameOver = true;
+    state.isCpuAnimating = false;
+
+    const pStats = calculateStats("player");
+    const cStats = calculateStats("cpu");
+
+    const titleEl = document.getElementById("result-title-text");
+    const badgeEl = document.getElementById("result-sub-badge");
+    const reasonEl = document.getElementById("result-reason-text");
+
+    if (winner === "player") {
+      badgeEl.textContent = "VICTORY";
+      titleEl.textContent = "青の船団の勝利！";
+      titleEl.style.color = "var(--blue-light)";
+      playSound("win");
+    } else if (winner === "cpu") {
+      badgeEl.textContent = "DEFEAT";
+      titleEl.textContent = "赤の船団の勝利";
+      titleEl.style.color = "var(--red-light)";
+      playSound("lose");
+    } else {
+      badgeEl.textContent = "DRAW";
+      titleEl.textContent = "引き分け";
+      titleEl.style.color = "var(--gold-accent)";
+      playSound("turn");
+    }
+
+    reasonEl.textContent = reasonText;
+
+    document.getElementById("res-p-tiles").textContent = `${pStats.tiles} マス (${pStats.tiles}点)`;
+    document.getElementById("res-c-tiles").textContent = `${cStats.tiles} マス (${cStats.tiles}点)`;
+    document.getElementById("res-p-markets").textContent = `${pStats.markets} 箇所 (${pStats.markets * 2}点)`;
+    document.getElementById("res-c-markets").textContent = `${cStats.markets} 箇所 (${cStats.markets * 2}点)`;
+    document.getElementById("res-p-forts").textContent = `${pStats.forts} 箇所 (${pStats.forts}点)`;
+    document.getElementById("res-c-forts").textContent = `${cStats.forts} 箇所 (${cStats.forts}点)`;
+    document.getElementById("res-p-dom").textContent = `${Math.round(pStats.domination * 100)}% (${pStats.tiles}/${state.totalLandTiles})`;
+    document.getElementById("res-c-dom").textContent = `${Math.round(cStats.domination * 100)}% (${cStats.tiles}/${state.totalLandTiles})`;
+    document.getElementById("res-p-total").textContent = `${pStats.score}点`;
+    document.getElementById("res-c-total").textContent = `${cStats.score}点`;
+
+    addLog(reasonText, "system");
+    document.getElementById("result-overlay").classList.add("active");
+  }
+
+  // ===== CPU思考ルーチン（やさしい・ふつう・つよい） =====
+  function chooseCpuAction() {
+    const legalActions = getAllExecutableActions("cpu");
+    if (legalActions.length === 0) return null;
+
+    // 1. やさしい：可能な行動からランダムに選ぶ
+    if (state.difficulty === "easy") {
+      const idx = Math.floor(Math.random() * legalActions.length);
+      return legalActions[idx];
+    }
+
+    // 残りCPUターン数（資源価値の重み付け用）
+    const remainingCpuTurns = Math.max(0, Math.floor((MAX_TURNS - state.turn) / 2));
+    const cpuInc = calculateIncome("cpu");
+    const cpuRes = state.resources.cpu;
+
+    // 各資源の希少度ウェイト（不足している資源ほど高く評価）
+    const resourceWeight = {
+      wood:  1.2 + (cpuInc.wood === 0 ? 1.5 : 1.0 / (cpuInc.wood + 1)) + (cpuRes.wood < 2 ? 0.6 : 0),
+      food:  1.1 + (cpuInc.food === 0 ? 1.4 : 0.9 / (cpuInc.food + 1)) + (cpuRes.food < 2 ? 0.5 : 0),
+      stone: 1.2 + (cpuInc.stone === 0 ? 1.5 : 1.0 / (cpuInc.stone + 1)) + (cpuRes.stone < 2 ? 0.6 : 0)
+    };
+
+    // プレイヤーが次のターン開始時に保有する資源を予測（つよい用）
+    const playerInc = calculateIncome("player");
+    const nextPlayerFood = state.resources.player.food + playerInc.food;
+    const nextPlayerStone = state.resources.player.stone + playerInc.stone;
+    const playerCanConquerNormal = nextPlayerFood >= 2 && nextPlayerStone >= 1;
+
+    let bestAction = legalActions[0];
+    let bestScore = -Infinity;
+
+    for (const act of legalActions) {
+      const tile = state.grid[act.r][act.c];
+      const tInfo = TILE_TYPES[tile.type];
+      let scoreGain = 0;
+      let resourceGainValue = 0;
+      let tacticalBonus = 0;
+
+      if (act.kind === "pioneer") {
+        // 開拓：自分のマスが1つ増える（+1点）＋そのマスの資源産出
+        scoreGain = 1.0;
+        if (tInfo.resource) {
+          resourceGainValue = tInfo.baseYield * resourceWeight[tInfo.resource] * Math.min(remainingCpuTurns, 5) * 0.45;
+        }
+        // さらなる開拓・攻略に繋がる隣接空き/敵マス数ボーナス
+        const nbs = getNeighbors(act.r, act.c);
+        const expandPotential = nbs.filter(n => state.grid[n.r][n.c].type !== "sea" && state.grid[n.r][n.c].owner !== "cpu").length;
+        tacticalBonus += expandPotential * 0.15;
+
+        // 60%即勝利に届く場合は最優先
+        const cStats = calculateStats("cpu");
+        if ((cStats.tiles + 1) / state.totalLandTiles >= DOMINATION_THRESHOLD) {
+          tacticalBonus += 100;
+        }
+      } else if (act.kind === "conquer") {
+        // 攻略：CPU+1点、プレイヤー-1点（実質2点差）＋市場奪取または砦破壊
+        const hadMarket = tile.building === "market";
+        const hadFort = tile.building === "fort";
+        scoreGain = 2.0 + (hadMarket ? 4.0 : 0) + (hadFort ? 1.0 : 0);
+
+        if (tInfo.resource) {
+          const mult = hadMarket ? 2 : 1;
+          resourceGainValue = tInfo.baseYield * mult * resourceWeight[tInfo.resource] * Math.min(remainingCpuTurns, 5) * 0.65;
+        }
+
+        const cStats = calculateStats("cpu");
+        if ((cStats.tiles + 1) / state.totalLandTiles >= DOMINATION_THRESHOLD) {
+          tacticalBonus += 100;
+        }
+      } else if (act.kind === "market") {
+        // 市場建設：+2点＋資源産出が+1増える
+        scoreGain = 2.0;
+        resourceGainValue = tInfo.baseYield * resourceWeight[tInfo.resource] * Math.min(remainingCpuTurns, 5) * 0.5;
+        if (isAdjacentToOwner(act.r, act.c, "player")) {
+          tacticalBonus -= 0.6;
+        }
+      } else {
+        // 砦建設：+1点
+        scoreGain = 1.0;
+
+        // 「つよい」：プレイヤーの次のターンの攻略を読んで砦を建てる
+        if (state.difficulty === "hard") {
+          const threatenedByPlayer = isAdjacentToOwner(act.r, act.c, "player");
+          if (threatenedByPlayer && playerCanConquerNormal) {
+            let defenseUrgency = 3.2;
+            if (tInfo.resource) {
+              defenseUrgency += 1.4 * resourceWeight[tInfo.resource];
+            }
+            const nbs = getNeighbors(act.r, act.c);
+            const cpuAdjCount = nbs.filter(n => state.grid[n.r][n.c].owner === "cpu").length;
+            defenseUrgency += cpuAdjCount * 0.25;
+            tacticalBonus += defenseUrgency;
+          } else {
+            tacticalBonus -= 0.5;
+          }
+        } else {
+          if (isAdjacentToOwner(act.r, act.c, "player")) {
+            tacticalBonus += 0.35;
+          } else {
+            tacticalBonus -= 0.4;
+          }
+        }
+      }
+
+      const totalEval = scoreGain + resourceGainValue + tacticalBonus + (Math.random() * 0.08);
+      if (totalEval > bestScore) {
+        bestScore = totalEval;
+        bestAction = act;
+      }
+    }
+
+    return bestAction;
+  }
+
+  // ===== ターン進行制御 =====
+  function startTurn(actor) {
+    if (state.isGameOver) return;
+    state.currentActor = actor;
+    state.actionsLeft = MAX_ACTIONS_PER_TURN;
+
+    const inc = collectTurnResources(actor);
+    const actorName = actor === "player" ? "青の船団（あなた）" : "赤の船団（CPU）";
+    playSound("turn");
+
+    addLog(
+      `【第${state.turn}ターン：${actorName}】資源獲得（木材+${inc.wood} / 食料+${inc.food} / 石+${inc.stone}）`,
+      actor
+    );
+
+    updateAllUI();
+
+    if (actor === "cpu") {
+      runCpuTurnSequence();
+    }
+  }
+
+  function endCurrentTurn() {
+    if (state.isGameOver) return;
+
+    if (state.turn >= MAX_TURNS) {
+      finishGameByTurnLimit();
+      return;
+    }
+
+    state.turn++;
+    const nextActor = (state.turn % 2 === 1) ? "player" : "cpu";
+    startTurn(nextActor);
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function runCpuTurnSequence() {
+    const mySession = state.sessionId;
+    state.isCpuAnimating = true;
+    updateAllUI();
+
+    await sleep(state.stepDelayMs);
+    if (state.isGameOver || mySession !== state.sessionId) return;
+
+    for (let step = 0; step < MAX_ACTIONS_PER_TURN; step++) {
+      const action = chooseCpuAction();
+      if (!action) {
+        addLog("赤の船団(CPU)は実行可能な行動がないため、行動を終了しました。", "cpu");
+        break;
+      }
+
+      state.selectedTile = { r: action.r, c: action.c };
+      updateAllUI();
+      await sleep(state.stepDelayMs);
+      if (state.isGameOver || mySession !== state.sessionId) return;
+
+      executeAction(action, "cpu");
+      if (state.isGameOver || mySession !== state.sessionId) return;
+
+      await sleep(state.stepDelayMs);
+      if (state.isGameOver || mySession !== state.sessionId) return;
+    }
+
+    state.isCpuAnimating = false;
+    endCurrentTurn();
+  }
+
+  // ===== UI更新 =====
+  function addLog(message, type) {
+    const list = document.getElementById("action-log-list");
+    const item = document.createElement("div");
+    item.className = `log-entry log-${type}`;
+    item.textContent = message;
+    list.prepend(item);
+  }
+
+  function updateAllUI() {
+    const pStats = calculateStats("player");
+    const cStats = calculateStats("cpu");
+    const pInc = calculateIncome("player");
+    const cInc = calculateIncome("cpu");
+
+    document.getElementById("player-score").textContent = `${pStats.score}点`;
+    const pDomPct = Math.round(pStats.domination * 100);
+    document.getElementById("player-domination").textContent = `支配率 ${pDomPct}% (${pStats.tiles}/${state.totalLandTiles})`;
+    document.getElementById("player-dom-bar").style.width = `${Math.min(100, Math.round((pStats.domination / DOMINATION_THRESHOLD) * 100))}%`;
+
+    document.getElementById("p-wood").textContent = state.resources.player.wood;
+    document.getElementById("p-food").textContent = state.resources.player.food;
+    document.getElementById("p-stone").textContent = state.resources.player.stone;
+    document.getElementById("p-wood-inc").textContent = `(+${pInc.wood})`;
+    document.getElementById("p-food-inc").textContent = `(+${pInc.food})`;
+    document.getElementById("p-stone-inc").textContent = `(+${pInc.stone})`;
+
+    document.getElementById("cpu-title-label").textContent = `赤の船団（CPU・${DIFFICULTY_LABELS[state.difficulty]}）`;
+    document.getElementById("cpu-score").textContent = `${cStats.score}点`;
+    const cDomPct = Math.round(cStats.domination * 100);
+    document.getElementById("cpu-domination").textContent = `支配率 ${cDomPct}% (${cStats.tiles}/${state.totalLandTiles})`;
+    document.getElementById("cpu-dom-bar").style.width = `${Math.min(100, Math.round((cStats.domination / DOMINATION_THRESHOLD) * 100))}%`;
+
+    document.getElementById("c-wood").textContent = state.resources.cpu.wood;
+    document.getElementById("c-food").textContent = state.resources.cpu.food;
+    document.getElementById("c-stone").textContent = state.resources.cpu.stone;
+    document.getElementById("c-wood-inc").textContent = `(+${cInc.wood})`;
+    document.getElementById("c-food-inc").textContent = `(+${cInc.food})`;
+    document.getElementById("c-stone-inc").textContent = `(+${cInc.stone})`;
+
+    const remainingTurns = MAX_TURNS - state.turn + 1;
+    document.getElementById("turn-counter-text").textContent = `第 ${state.turn} / ${MAX_TURNS} ターン`;
+    document.getElementById("turn-remaining-text").textContent = `残り ${remainingTurns} ターン`;
+
+    const banner = document.getElementById("turn-owner-banner");
+    const pCard = document.getElementById("player-status-card");
+    const cCard = document.getElementById("cpu-status-card");
+    if (state.currentActor === "player") {
+      banner.textContent = "青の船団（あなた）の番";
+      banner.className = "turn-owner-banner banner-player";
+      pCard.classList.add("active-turn");
+      cCard.classList.remove("active-turn");
+    } else {
+      banner.textContent = "赤の船団（CPU）思考中...";
+      banner.className = "turn-owner-banner banner-cpu";
+      cCard.classList.add("active-turn");
+      pCard.classList.remove("active-turn");
+    }
+
+    document.getElementById("ap-pip-1").classList.toggle("filled", state.actionsLeft >= 1);
+    document.getElementById("ap-pip-2").classList.toggle("filled", state.actionsLeft >= 2);
+    document.getElementById("ap-text").textContent = `${state.actionsLeft} / ${MAX_ACTIONS_PER_TURN}`;
+
+    const endBtn = document.getElementById("end-turn-btn");
+    endBtn.disabled = state.currentActor !== "player" || state.isCpuAnimating || state.isGameOver;
+
+    updateSelectedTilePanel();
+  }
+
+  function formatOwnerLabel(owner) {
+    if (owner === "player") return "青の船団（あなた）";
+    if (owner === "cpu") return "赤の船団（CPU）";
+    return "なし（空きマス）";
+  }
+
+  function formatBuildingLabel(building) {
+    if (building === "fort") return "砦（防衛強化・+1点）";
+    if (building === "market") return "市場（資源2倍・+2点）";
+    return "なし";
+  }
+
+  function updateSelectedTilePanel() {
+    const selTypeEl = document.getElementById("sel-type");
+    const selOwnerEl = document.getElementById("sel-owner");
+    const selBuildEl = document.getElementById("sel-building");
+    const selResEl = document.getElementById("sel-resource");
+    const btnContainer = document.getElementById("action-buttons-container");
+
+    btnContainer.innerHTML = "";
+
+    if (!state.selectedTile) {
+      selTypeEl.textContent = "未選択";
+      selOwnerEl.textContent = "-";
+      selBuildEl.textContent = "-";
+      selResEl.textContent = "-";
+      const msg = document.createElement("div");
+      msg.className = "action-empty-msg";
+      msg.textContent = "盤面のマスをクリックすると、そのマスで選べる行動がここに表示されます。";
+      btnContainer.appendChild(msg);
+      return;
+    }
+
+    const { r, c } = state.selectedTile;
+    const tile = state.grid[r][c];
+    selTypeEl.textContent = `${TILE_TYPES[tile.type].name} ${coordLabel(r, c)}`;
+    selOwnerEl.textContent = tile.type === "sea" ? "進入不可" : formatOwnerLabel(tile.owner);
+    selBuildEl.textContent = formatBuildingLabel(tile.building);
+    selResEl.textContent = getTileResourceText(tile);
+
+    if (state.currentActor !== "player" || state.isCpuAnimating) {
+      const msg = document.createElement("div");
+      msg.className = "action-empty-msg";
+      msg.textContent = "赤の船団（CPU）が行動しています...";
+      btnContainer.appendChild(msg);
+      return;
+    }
+
+    if (state.actionsLeft <= 0) {
+      const msg = document.createElement("div");
+      msg.className = "action-empty-msg";
+      msg.textContent = "このターンの行動回数（2回）を使い切りました。「ターン終了」を押してください。";
+      btnContainer.appendChild(msg);
+      return;
+    }
+
+    const actions = getAvailableActionsForTile(r, c, "player");
+    if (actions.length === 0) {
+      const msg = document.createElement("div");
+      msg.className = "action-empty-msg";
+      if (tile.type === "sea") {
+        msg.textContent = "海マスには進入・行動できません。";
+      } else if (tile.type === "port") {
+        msg.textContent = "港マスは本拠地のため、建物の建設や攻略はできません。";
+      } else if (tile.owner === "player" && tile.building !== null) {
+        msg.textContent = "このマスには既に建物が建っています。";
+      } else {
+        msg.textContent = "自分のマスに隣接していないため、このマスでは行動できません。";
+      }
+      btnContainer.appendChild(msg);
+      return;
+    }
+
+    for (const act of actions) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "action-btn";
+      btn.disabled = !act.canAfford;
+
+      const left = document.createElement("div");
+      left.className = "action-btn-main";
+
+      const title = document.createElement("span");
+      title.className = "action-btn-title";
+      title.textContent = act.title;
+
+      const sub = document.createElement("span");
+      sub.className = "action-btn-sub";
+      sub.textContent = act.canAfford ? act.desc : `${act.desc}（資源不足）`;
+
+      left.appendChild(title);
+      left.appendChild(sub);
+
+      const costTag = document.createElement("span");
+      costTag.className = "action-cost-tag";
+      costTag.textContent = act.costText;
+
+      btn.appendChild(left);
+      btn.appendChild(costTag);
+
+      btn.addEventListener("click", () => {
+        executeAction(act, "player");
+      });
+
+      btnContainer.appendChild(btn);
+    }
+  }
+
+  // ===== Canvas 盤面描画 =====
+  const canvas = document.getElementById("hex-canvas");
+  const ctx = canvas.getContext("2d");
+  let hexRadius = 38;
+  let hexOriginX = 85;
+  let hexOriginY = 85;
+
+  function updateCanvasLayout() {
+    const container = document.getElementById("board-container");
+    const rect = container.getBoundingClientRect();
+    const availW = Math.max(320, rect.width - 16);
+    const availH = Math.max(360, rect.height - 16);
+
+    const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.min(760, availW);
+    const targetH = Math.min(600, Math.max(410, availH));
+
+    canvas.style.width = `${targetW}px`;
+    canvas.style.height = `${targetH}px`;
+    canvas.width = Math.round(targetW * dpr);
+    canvas.height = Math.round(targetH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const maxRByW = (targetW - 36) / (Math.sqrt(3) * (GRID_COLS + 0.5));
+    const maxRByH = (targetH - 64) / (1.5 * (GRID_ROWS - 1) + 2);
+    hexRadius = Math.max(22, Math.min(41, Math.floor(Math.min(maxRByW, maxRByH))));
+
+    const totalGridW = Math.sqrt(3) * hexRadius * (GRID_COLS + 0.5);
+    const totalGridH = 1.5 * hexRadius * (GRID_ROWS - 1) + 2 * hexRadius;
+
+    hexOriginX = (targetW - totalGridW) / 2 + (Math.sqrt(3) / 2) * hexRadius;
+    hexOriginY = (targetH - totalGridH) / 2 + hexRadius + 16;
+  }
+
+  function getHexCenter(r, c) {
+    const dx = Math.sqrt(3) * hexRadius;
+    const dy = 1.5 * hexRadius;
+    const x = hexOriginX + c * dx + (r % 2 === 1 ? dx / 2 : 0);
+    const y = hexOriginY + r * dy;
+    return { x, y };
+  }
+
+  function traceHexPath(cx, cy, radius) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 180) * (60 * i - 30);
+      const vx = cx + radius * Math.cos(angle);
+      const vy = cy + radius * Math.sin(angle);
+      if (i === 0) ctx.moveTo(vx, vy);
+      else ctx.lineTo(vx, vy);
+    }
+    ctx.closePath();
+  }
+
+  function pixelToHex(px, py) {
+    let closest = null;
+    let minDist = Infinity;
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const { x, y } = getHexCenter(r, c);
+        const dist = Math.hypot(px - x, py - y);
+        if (dist < hexRadius * 0.92 && dist < minDist) {
+          minDist = dist;
+          closest = { r, c };
+        }
+      }
+    }
+    return closest;
+  }
+
+  function addBoardEffect(r, c, label, color) {
+    const { x, y } = getHexCenter(r, c);
+    state.effects.push({
+      x,
+      y,
+      label,
+      color,
+      age: 0,
+      maxAge: 48
+    });
+  }
+
+  function drawTerrainIcon(cx, cy, type, rSize) {
+    ctx.save();
+    if (type === "port") {
+      ctx.fillStyle = "#d9ecff";
+      ctx.strokeStyle = "#08192b";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - rSize * 0.36, cy + rSize * 0.08);
+      ctx.lineTo(cx + rSize * 0.36, cy + rSize * 0.08);
+      ctx.lineTo(cx + rSize * 0.22, cy + rSize * 0.26);
+      ctx.lineTo(cx - rSize * 0.22, cy + rSize * 0.26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - rSize * 0.34);
+      ctx.lineTo(cx + rSize * 0.28, cy + rSize * 0.04);
+      ctx.lineTo(cx, cy + rSize * 0.04);
+      ctx.closePath();
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, cy - rSize * 0.28);
+      ctx.lineTo(cx - rSize * 0.22, cy + rSize * 0.04);
+      ctx.lineTo(cx - 2, cy + rSize * 0.04);
+      ctx.closePath();
+      ctx.fillStyle = "#b8dcff";
+      ctx.fill();
+    } else if (type === "forest") {
+      const drawTree = (tx, ty, scale) => {
+        ctx.fillStyle = "#5c3d28";
+        ctx.fillRect(tx - 2 * scale, ty + 4 * scale, 4 * scale, 6 * scale);
+        ctx.fillStyle = "#48a874";
+        ctx.strokeStyle = "#143825";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty - 11 * scale);
+        ctx.lineTo(tx - 8 * scale, ty + 1 * scale);
+        ctx.lineTo(tx + 8 * scale, ty + 1 * scale);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(tx, ty - 5 * scale);
+        ctx.lineTo(tx - 10 * scale, ty + 6 * scale);
+        ctx.lineTo(tx + 10 * scale, ty + 6 * scale);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      };
+      drawTree(cx - rSize * 0.16, cy - rSize * 0.06, rSize / 38);
+      drawTree(cx + rSize * 0.16, cy - rSize * 0.01, (rSize / 38) * 0.9);
+    } else if (type === "fishery") {
+      const s = rSize / 38;
+      ctx.fillStyle = "#7ce0f2";
+      ctx.strokeStyle = "#0e3545";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(cx - 2 * s, cy - 2 * s, 9 * s, 5 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + 6 * s, cy - 2 * s);
+      ctx.lineTo(cx + 12 * s, cy - 7 * s);
+      ctx.lineTo(cx + 12 * s, cy + 3 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#a3eefc";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 10 * s, cy + 7 * s);
+      ctx.quadraticCurveTo(cx - 5 * s, cy + 4 * s, cx, cy + 7 * s);
+      ctx.quadraticCurveTo(cx + 5 * s, cy + 10 * s, cx + 10 * s, cy + 7 * s);
+      ctx.stroke();
+    } else if (type === "mountain") {
+      const s = rSize / 38;
+      ctx.fillStyle = "#8d9ead";
+      ctx.strokeStyle = "#26313b";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 4 * s, cy - 11 * s);
+      ctx.lineTo(cx - 14 * s, cy + 7 * s);
+      ctx.lineTo(cx + 6 * s, cy + 7 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#aebdca";
+      ctx.beginPath();
+      ctx.moveTo(cx + 6 * s, cy - 8 * s);
+      ctx.lineTo(cx - 3 * s, cy + 7 * s);
+      ctx.lineTo(cx + 14 * s, cy + 7 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (type === "plain") {
+      const s = rSize / 38;
+      ctx.strokeStyle = "#8bc295";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8 * s, cy + 3 * s);
+      ctx.lineTo(cx + 8 * s, cy + 3 * s);
+      ctx.moveTo(cx - 4 * s, cy + 3 * s);
+      ctx.lineTo(cx - 7 * s, cy - 3 * s);
+      ctx.moveTo(cx, cy + 3 * s);
+      ctx.lineTo(cx, cy - 4 * s);
+      ctx.moveTo(cx + 4 * s, cy + 3 * s);
+      ctx.lineTo(cx + 7 * s, cy - 3 * s);
+      ctx.stroke();
+    } else {
+      const s = rSize / 38;
+      const offset = Math.sin(state.wavePhase + cx * 0.05) * 2;
+      ctx.strokeStyle = "rgba(96, 165, 190, 0.28)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9 * s + offset, cy);
+      ctx.quadraticCurveTo(cx - 4 * s + offset, cy - 3 * s, cx + offset, cy);
+      ctx.quadraticCurveTo(cx + 4 * s + offset, cy + 3 * s, cx + 9 * s + offset, cy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawBuildingBadge(cx, cy, building, rSize) {
+    if (!building) return;
+    ctx.save();
+    const bx = cx + rSize * 0.36;
+    const by = cy - rSize * 0.34;
+    const s = rSize / 38;
+
+    if (building === "fort") {
+      ctx.fillStyle = "#1c2b3a";
+      ctx.strokeStyle = "#e0b354";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.rect(bx - 9 * s, by - 8 * s, 18 * s, 16 * s);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#e0b354";
+      ctx.fillRect(bx - 6 * s, by - 5 * s, 3 * s, 3 * s);
+      ctx.fillRect(bx - 1.5 * s, by - 5 * s, 3 * s, 3 * s);
+      ctx.fillRect(bx + 3 * s, by - 5 * s, 3 * s, 3 * s);
+      ctx.fillRect(bx - 6 * s, by - 2 * s, 12 * s, 8 * s);
+    } else {
+      ctx.fillStyle = "#292012";
+      ctx.strokeStyle = "#f2c968";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.rect(bx - 9 * s, by - 8 * s, 18 * s, 16 * s);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f2c968";
+      ctx.beginPath();
+      ctx.moveTo(bx, by - 6 * s);
+      ctx.lineTo(bx - 7 * s, by + 1 * s);
+      ctx.lineTo(bx + 7 * s, by + 1 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(bx - 5 * s, by + 1 * s, 10 * s, 5 * s);
+    }
+    ctx.restore();
+  }
+
+  function renderBoard() {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    ctx.clearRect(0, 0, width, height);
+
+    state.wavePhase += 0.035;
+
+    const bgGrad = ctx.createRadialGradient(
+      width * 0.5, height * 0.45, 30,
+      width * 0.5, height * 0.5, Math.max(width, height) * 0.75
+    );
+    bgGrad.addColorStop(0, "#102a42");
+    bgGrad.addColorStop(0.6, "#09192b");
+    bgGrad.addColorStop(1, "#050e1a");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    const tileFillMap = {
+      port:     "#1f4e69",
+      forest:   "#1b4a37",
+      fishery:  "#174c63",
+      mountain: "#3c4b59",
+      plain:    "#364f41",
+      sea:      "#071525"
+    };
+
+    const typeShortLabel = {
+      port: "港",
+      forest: "森",
+      fishery: "漁場",
+      mountain: "岩山",
+      plain: "平原",
+      sea: ""
+    };
+
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const tile = state.grid[r][c];
+        const { x, y } = getHexCenter(r, c);
+
+        traceHexPath(x, y, hexRadius - 1.5);
+        ctx.fillStyle = tileFillMap[tile.type];
+        ctx.fill();
+
+        if (tile.owner === "player") {
+          traceHexPath(x, y, hexRadius - 2);
+          ctx.fillStyle = "rgba(41, 121, 217, 0.36)";
+          ctx.fill();
+          ctx.strokeStyle = "#5ea6ff";
+          ctx.lineWidth = 2.6;
+          ctx.stroke();
+        } else if (tile.owner === "cpu") {
+          traceHexPath(x, y, hexRadius - 2);
+          ctx.fillStyle = "rgba(207, 64, 74, 0.36)";
+          ctx.fill();
+          ctx.strokeStyle = "#f2747d";
+          ctx.lineWidth = 2.6;
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = tile.type === "sea" ? "rgba(33, 69, 99, 0.4)" : "rgba(78, 145, 168, 0.55)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+
+        if (
+          state.currentActor === "player" &&
+          !state.isCpuAnimating &&
+          state.actionsLeft > 0 &&
+          tile.type !== "sea"
+        ) {
+          const acts = getAvailableActionsForTile(r, c, "player");
+          if (acts.some(a => a.canAfford) && tile.owner !== "player") {
+            traceHexPath(x, y, hexRadius - 5);
+            ctx.strokeStyle = "rgba(100, 203, 217, 0.45)";
+            ctx.lineWidth = 1.3;
+            ctx.stroke();
+          }
+        }
+
+        drawTerrainIcon(x, y - 3, tile.type, hexRadius);
+
+        if (tile.type !== "sea") {
+          ctx.fillStyle = "#e6f1f8";
+          ctx.font = `bold ${Math.max(10, Math.round(hexRadius * 0.28))}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          let label = typeShortLabel[tile.type];
+          if (tile.building === "market") label += "×2";
+          if (tile.building === "fort") label += "[砦]";
+          ctx.fillText(label, x, y + hexRadius * 0.52);
+        }
+
+        drawBuildingBadge(x, y, tile.building, hexRadius);
+
+        if (state.hoveredTile && state.hoveredTile.r === r && state.hoveredTile.c === c) {
+          traceHexPath(x, y, hexRadius - 2);
+          ctx.strokeStyle = "#9be8f5";
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
+        }
+
+        if (state.selectedTile && state.selectedTile.r === r && state.selectedTile.c === c) {
+          traceHexPath(x, y, hexRadius - 1.5);
+          ctx.strokeStyle = "#e0b354";
+          ctx.lineWidth = 3.2;
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (let i = state.effects.length - 1; i >= 0; i--) {
+      const ef = state.effects[i];
+      ef.age++;
+      const progress = ef.age / ef.maxAge;
+      const alpha = Math.max(0, 1 - progress);
+
+      ctx.save();
+      traceHexPath(ef.x, ef.y, hexRadius * (0.7 + progress * 0.55));
+      ctx.strokeStyle = ef.color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(ef.label, ef.x, ef.y - progress * 24);
+      ctx.restore();
+
+      if (ef.age >= ef.maxAge) {
+        state.effects.splice(i, 1);
+      }
+    }
+
+    if (state.autoLoop) {
+      requestAnimationFrame(renderBoard);
+    }
+  }
+
+  // ===== マウスホバー＆クリックイベント処理 =====
+  const tooltipEl = document.getElementById("hover-tooltip");
+
+  function updateHoverTooltip(hex, clientX, clientY) {
+    if (!hex) {
+      tooltipEl.style.display = "none";
+      return;
+    }
+    const tile = state.grid[hex.r][hex.c];
+    document.getElementById("tt-coord").textContent = `${TILE_TYPES[tile.type].name} ${coordLabel(hex.r, hex.c)}`;
+    document.getElementById("tt-type").textContent = TILE_TYPES[tile.type].name;
+    document.getElementById("tt-owner").textContent = tile.type === "sea" ? "進入不可" : formatOwnerLabel(tile.owner);
+    document.getElementById("tt-building").textContent = formatBuildingLabel(tile.building);
+    document.getElementById("tt-resource").textContent = getTileResourceText(tile);
+
+    const containerRect = document.getElementById("board-container").getBoundingClientRect();
+    let left = clientX - containerRect.left + 16;
+    let top = clientY - containerRect.top + 16;
+    if (left + 190 > containerRect.width) left = clientX - containerRect.left - 190;
+    if (top + 120 > containerRect.height) top = clientY - containerRect.top - 120;
+
+    tooltipEl.style.left = `${Math.max(8, left)}px`;
+    tooltipEl.style.top = `${Math.max(8, top)}px`;
+    tooltipEl.style.display = "block";
+  }
+
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const hex = pixelToHex(px, py);
+    state.hoveredTile = hex;
+    updateHoverTooltip(hex, e.clientX, e.clientY);
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    state.hoveredTile = null;
+    tooltipEl.style.display = "none";
+  });
+
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const hex = pixelToHex(px, py);
+    if (!hex) return;
+
+    state.selectedTile = hex;
+    playSound("select");
+    updateSelectedTilePanel();
+  });
+
+  // ===== ゲーム初期化・画面遷移 =====
+  function initNewGame() {
+    state.sessionId++;
+    state.turn = 1;
+    state.currentActor = "player";
+    state.actionsLeft = MAX_ACTIONS_PER_TURN;
+    state.isGameOver = false;
+    state.isCpuAnimating = false;
+    state.selectedTile = { r: 0, c: 0 };
+    state.hoveredTile = null;
+    state.effects = [];
+    state.resources = {
+      player: { wood: 4, food: 2, stone: 2 },
+      cpu:    { wood: 4, food: 2, stone: 2 }
+    };
+
+    document.getElementById("action-log-list").innerHTML = "";
+    document.getElementById("result-overlay").classList.remove("active");
+
+    generateArchipelago();
+    updateCanvasLayout();
+
+    addLog("夜明け前の群島にて出航！ 左上の港（青の船団）から開拓を開始します。", "system");
+    startTurn("player");
+  }
+
+  // 難易度選択ボタン
+  document.querySelectorAll(".diff-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".diff-btn").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      state.difficulty = btn.getAttribute("data-diff");
+      playSound("select");
+    });
+  });
+
+  // ゲーム開始ボタン
+  document.getElementById("start-game-btn").addEventListener("click", () => {
+    document.getElementById("title-screen").classList.remove("active");
+    document.getElementById("game-screen").classList.add("active");
+    initNewGame();
+  });
+
+  // ターン終了ボタン
+  document.getElementById("end-turn-btn").addEventListener("click", () => {
+    if (state.currentActor === "player" && !state.isCpuAnimating && !state.isGameOver) {
+      addLog("青の船団がターンを終了しました。", "player");
+      endCurrentTurn();
+    }
+  });
+
+  // 効果音ON/OFF切り替え
+  document.getElementById("sound-toggle-btn").addEventListener("click", (e) => {
+    state.soundEnabled = !state.soundEnabled;
+    e.currentTarget.textContent = `効果音: ${state.soundEnabled ? "ON" : "OFF"}`;
+  });
+
+  // タイトルへ戻るボタン
+  function backToTitle() {
+    state.sessionId++;
+    state.isGameOver = true;
+    state.isCpuAnimating = false;
+    document.getElementById("result-overlay").classList.remove("active");
+    document.getElementById("game-screen").classList.remove("active");
+    document.getElementById("title-screen").classList.add("active");
+  }
+
+  document.getElementById("back-title-btn").addEventListener("click", backToTitle);
+  document.getElementById("result-to-title-btn").addEventListener("click", backToTitle);
+
+  // リトライボタン
+  document.getElementById("retry-btn").addEventListener("click", () => {
+    initNewGame();
+  });
+
+  window.addEventListener("resize", () => {
+    if (document.getElementById("game-screen").classList.contains("active")) {
+      updateCanvasLayout();
+    }
+  });
+
+  // 初回レイアウト＆描画ループ開始
+  generateArchipelago();
+  updateCanvasLayout();
+  renderBoard();
+
+  // 自動テスト用エクスポートフック
+  globalThis.__SHIOKAZE__ = {
+    GRID_ROWS,
+    GRID_COLS,
+    MAX_TURNS,
+    MAX_ACTIONS_PER_TURN,
+    DOMINATION_THRESHOLD,
+    TILE_TYPES,
+    state,
+    ensureAudio,
+    playSound,
+    getNeighbors,
+    isAdjacentToOwner,
+    isLandConnected,
+    generateArchipelago,
+    getTileResourceYield,
+    getTileResourceText,
+    calculateIncome,
+    collectTurnResources,
+    calculateStats,
+    getAvailableActionsForTile,
+    getAllExecutableActions,
+    coordLabel,
+    executeAction,
+    checkImmediateDominationVictory,
+    finishGameByTurnLimit,
+    finishGame,
+    chooseCpuAction,
+    startTurn,
+    endCurrentTurn,
+    runCpuTurnSequence,
+    addLog,
+    updateAllUI,
+    formatOwnerLabel,
+    formatBuildingLabel,
+    updateSelectedTilePanel,
+    updateCanvasLayout,
+    getHexCenter,
+    traceHexPath,
+    pixelToHex,
+    addBoardEffect,
+    drawTerrainIcon,
+    drawBuildingBadge,
+    renderBoard,
+    updateHoverTooltip,
+    initNewGame,
+    backToTitle,
+    resetAudioCtx: () => { audioCtx = null; }
+  };
+})();
+/* node:coverage disable */
+</script>
+</body>
+</html>
