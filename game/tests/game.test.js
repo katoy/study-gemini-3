@@ -1,6 +1,6 @@
 "use strict";
 
-const test = require("node:test");
+const { test, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -199,6 +199,15 @@ const htmlPath = path.resolve(__dirname, "../index.html");
 require(htmlPath);
 const game = globalThis.__SHIOKAZE__;
 
+// ===== 共通テスト初期化フック (beforeEach) =====
+beforeEach(() => {
+  game.state.difficulty = "normal";
+  game.state.soundEnabled = true;
+  game.state.stepDelayMs = 1;
+  game.initNewGame();
+  game.state.autoLoop = false;
+});
+
 // ===== テストスイート =====
 
 test("1. マップ生成・六角形グリッド隣接計算・連結性チェック", () => {
@@ -252,9 +261,6 @@ test("2. Web Audio API 効果音生成およびサスペンド復帰・ミュー
 });
 
 test("3. 資源産出・統計計算・テキストフォーマット", () => {
-  game.initNewGame();
-  game.state.autoLoop = false;
-
   // 各タイル種別と市場有無による産出表示の検証
   const portTile = { type: "port", owner: "player", building: null };
   const seaTile = { type: "sea", owner: null, building: null };
@@ -281,9 +287,6 @@ test("3. 資源産出・統計計算・テキストフォーマット", () => {
 });
 
 test("4. 4つの行動（開拓・攻略・砦・市場）と資源不足・行動制限", () => {
-  game.initNewGame();
-  game.state.autoLoop = false;
-
   // 盤面をテスト用に明示セットアップ
   game.state.grid[0][1] = { r: 0, c: 1, type: "forest", owner: null, building: null };
   game.state.grid[1][0] = { r: 1, c: 0, type: "mountain", owner: "cpu", building: null };
@@ -349,9 +352,6 @@ test("4. 4つの行動（開拓・攻略・砦・市場）と資源不足・行�
 });
 
 test("5. 選択パネルの各種メッセージ分岐とCanvas描画・ホバーツールチップ", () => {
-  game.initNewGame();
-  game.state.autoLoop = false;
-
   // 未選択状態
   game.state.selectedTile = null;
   game.updateSelectedTilePanel();
@@ -423,10 +423,7 @@ test("5. 選択パネルの各種メッセージ分岐とCanvas描画・ホバ�
   globalThis.window.devicePixelRatio = 2;
 });
 
-test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全分岐検証", () => {
-  game.initNewGame();
-  game.state.autoLoop = false;
-
+test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全分岐および決定論的選択検証", () => {
   // 行動不能時（資源0）は null を返す
   game.state.resources.cpu = { wood: 0, food: 0, stone: 0 };
   assert.equal(game.chooseCpuAction(), null);
@@ -437,9 +434,8 @@ test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全�
   const easyAct = game.chooseCpuAction();
   assert.ok(easyAct !== null);
 
-  // 2) ふつう（開拓・攻略・市場・砦、前線/後方の評価、60%即勝利リーチボーナス）
+  // 2) ふつう（市場付き資源マスの攻略が最優先されることを決定論的に検証）
   game.state.difficulty = "normal";
-  // CPUの所有マスに市場・砦・隣接プレイヤーマス（市場あり・砦あり資源マス）を配置して全種類のアクションを同時に候補に出す
   game.state.grid[6][5] = { r: 6, c: 5, type: "forest", owner: "cpu", building: null };
   game.state.grid[5][6] = { r: 5, c: 6, type: "mountain", owner: "cpu", building: null };
   game.state.grid[5][5] = { r: 5, c: 5, type: "fishery", owner: "player", building: "market" };
@@ -447,9 +443,11 @@ test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全�
   game.state.grid[6][4] = { r: 6, c: 4, type: "plain", owner: null, building: null };
   game.state.resources.cpu = { wood: 6, food: 6, stone: 6 };
   const normalAct = game.chooseCpuAction();
-  assert.ok(normalAct !== null);
+  assert.equal(normalAct.kind, "conquer");
+  assert.equal(normalAct.r, 5);
+  assert.equal(normalAct.c, 5);
 
-  // 60%支配リーチ時のボーナス分岐（あと1マスで24/40に達する状況で開拓・攻略の両方を評価）
+  // 60%支配リーチ時のボーナス分岐（あと1マスで24/40に達する状況で開拓・攻略の勝利手が選ばれることを確認）
   let assigned = 0;
   for (let r = 0; r < 7; r++) {
     for (let c = 0; c < 7; c++) {
@@ -470,29 +468,27 @@ test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全�
     }
   }
   const reachAct = game.chooseCpuAction();
-  assert.ok(reachAct !== null);
+  assert.ok(reachAct.kind === "conquer" || reachAct.kind === "pioneer");
 
-  // 3) つよい（プレイヤーの次ターン攻略予測による砦建設と非脅威マスの比較）
+  // 3) つよい（プレイヤーの次ターン攻略予測により、脅威下の資源マス(6,5)への砦建設が決定論的に選ばれることを検証）
   game.initNewGame();
   game.state.autoLoop = false;
   game.state.difficulty = "hard";
   game.state.resources.player = { wood: 1, food: 3, stone: 2 }; // 攻略可能資源
-  game.state.resources.cpu = { wood: 1, food: 1, stone: 4 };    // 資源が1以下＋石が2以上
-  // (6,5)はプレイヤーと隣接する資源マス、(5,6)はプレイヤーと隣接しない平原マス
+  game.state.resources.cpu = { wood: 0, food: 0, stone: 4 };    // 砦建設のみ可能
+  // (6,5)はプレイヤーと隣接する資源マス、(5,6)はプレイヤーと隣接する平原マス、(0,6)はプレイヤーと隣接しない非脅威マス
   game.state.grid[6][5] = { r: 6, c: 5, type: "forest", owner: "cpu", building: null };
   game.state.grid[5][5] = { r: 5, c: 5, type: "plain", owner: "player", building: null };
   game.state.grid[5][6] = { r: 5, c: 6, type: "plain", owner: "cpu", building: null };
+  game.state.grid[0][6] = { r: 0, c: 6, type: "plain", owner: "cpu", building: null };
   const hardAct = game.chooseCpuAction();
-  assert.ok(hardAct !== null);
+  assert.equal(hardAct.kind, "fort");
+  assert.equal(hardAct.r, 6);
+  assert.equal(hardAct.c, 5);
 });
 
 test("7. 勝利条件（60%支配即勝利・20ターン終了時の勝敗・引き分け）とCPU非同期ターン進行", async () => {
-  game.state.stepDelayMs = 1;
-  game.state.autoLoop = false;
-
   // 1) プレイヤー60%即勝利
-  game.initNewGame();
-  game.state.autoLoop = false;
   let count = 0;
   for (let r = 0; r < 7; r++) {
     for (let c = 0; c < 7; c++) {
@@ -504,7 +500,6 @@ test("7. 勝利条件（60%支配即勝利・20ターン終了時の勝敗・引
   }
   assert.equal(game.checkImmediateDominationVictory(), true);
   assert.equal(game.state.isGameOver, true);
-  // ゲーム終了後の startTurn / endCurrentTurn ガード確認
   game.startTurn("player");
   game.endCurrentTurn();
 
@@ -526,30 +521,30 @@ test("7. 勝利条件（60%支配即勝利・20ターン終了時の勝敗・引
   game.initNewGame();
   game.state.autoLoop = false;
   game.state.grid[0][1].owner = "player";
-  game.finishGameByTurnLimit(); // プレイヤー2マス vs CPU1マス
+  game.finishGameByTurnLimit();
 
   game.initNewGame();
   game.state.autoLoop = false;
   game.state.grid[6][5].owner = "cpu";
-  game.finishGameByTurnLimit(); // プレイヤー1マス vs CPU2マス
+  game.finishGameByTurnLimit();
 
   game.initNewGame();
   game.state.autoLoop = false;
   game.state.turn = 20;
-  game.endCurrentTurn(); // 1対1の同点引き分け
+  game.endCurrentTurn();
 
   // 4) CPUの非同期ターン（行動2回実行完了、行動不能時の即終了、途中のセッション中断）
   game.initNewGame();
   game.state.autoLoop = false;
   game.state.stepDelayMs = 1;
-  document.getElementById("end-turn-btn").dispatchEvent("click"); // CPUターン開始
+  document.getElementById("end-turn-btn").dispatchEvent("click");
   await new Promise(r => setTimeout(r, 30));
   assert.equal(game.state.currentActor, "player");
   assert.equal(game.state.turn, 3);
 
   // CPUが行動できない状態でターン開始した場合でも止まらずプレイヤーにターンが戻る
   game.state.resources.cpu = { wood: 0, food: 0, stone: 0 };
-  game.endCurrentTurn(); // turn 4 (CPU)
+  game.endCurrentTurn();
   await new Promise(r => setTimeout(r, 20));
   assert.equal(game.state.currentActor, "player");
   assert.equal(game.state.turn, 5);
@@ -571,7 +566,7 @@ test("7. 勝利条件（60%支配即勝利・20ターン終了時の勝敗・引
       }
     }
   }
-  game.endCurrentTurn(); // CPUが1マス開拓して24/40(60%)に到達し即勝利
+  game.endCurrentTurn();
   await new Promise(r => setTimeout(r, 20));
   assert.equal(game.state.isGameOver, true);
 
@@ -593,4 +588,15 @@ test("7. 勝利条件（60%支配即勝利・20ターン終了時の勝敗・引
   document.getElementById("sound-toggle-btn").dispatchEvent("click");
   document.getElementById("retry-btn").dispatchEvent("click");
   document.getElementById("result-to-title-btn").dispatchEvent("click");
+});
+
+test("8. 静的Lint・仕様制約（禁止デザイン・ストレージ不使用・構文）チェック", () => {
+  const html = fs.readFileSync(htmlPath, "utf8");
+  assert.equal(html.includes("localStorage"), false);
+  assert.equal(html.includes("sessionStorage"), false);
+  assert.equal(html.includes("indexedDB"), false);
+  assert.equal(html.toLowerCase().includes("monospace"), false);
+  assert.equal(html.toLowerCase().includes("italic"), false);
+  assert.equal(html.includes("999px"), false);
+  assert.equal(html.includes("砦は破壊・市場はそのまま奪取"), true);
 });
