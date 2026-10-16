@@ -447,7 +447,9 @@ test("6. CPU思考ルーチン（やさしい・ふつう・つよい）の全�
   assert.equal(normalAct.r, 5);
   assert.equal(normalAct.c, 5);
 
-  // 60%支配リーチ時のボーナス分岐（あと1マスで24/40に達する状況で開拓・攻略の勝利手が選ばれることを確認）
+  // 60%支配リーチ時のボーナス分岐（あと1マスで24/40に達する状況で開拓・攻略の両方の勝利ボーナスを評価）
+  // 資源不足時の希少度ウェイト分岐（stone: 1 なので stone < 2）も決定論的に網羅
+  game.state.resources.cpu = { wood: 2, food: 2, stone: 1 };
   let assigned = 0;
   for (let r = 0; r < 7; r++) {
     for (let c = 0; c < 7; c++) {
