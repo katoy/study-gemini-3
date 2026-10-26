@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -376,13 +377,10 @@ class BackendCoverageCompletionTest(unittest.TestCase):
     def test_fetch_program_list_async_partial_failure_warning(self):
         import asyncio
 
-        async def fake_fetch():
-            core._LAST_FETCH_HAD_FAILURE = True
-            return [Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")]
-
+        p = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
         with (
             patch("nhk_radio.core.load_program_cache", return_value=None),
-            patch("nhk_radio.core._fetch_all_async", side_effect=fake_fetch),
+            patch("nhk_radio.core._fetch_all_with_status_async", new_callable=AsyncMock, return_value=([p], True)),
             patch("nhk_radio.core.save_program_cache") as save_mock,
             patch("nhk_radio.core.logger.warning") as warn_mock,
         ):
@@ -576,6 +574,62 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         # 99999999_extra で strptime が ValueError になるケース
         formatted = text._format_episode_date("99999999_abc")
         self.assertEqual(formatted, "99999999_abc")
+
+    # --- downloads/cleanup.py ---
+    def test_cleanup_partial_episode_files_restores_bak_when_orig_missing(self):
+        from nhk_radio.downloads import cleanup
+        from nhk_radio.types import Episode
+        program = Program(title="テスト番組", display_title="テスト番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="ep1", title="回1", display_title="回1", date="2024-04-15", display_date="2024-04-15", broadcast_time="", duration_str="", url="")
+        with tempfile.TemporaryDirectory() as td:
+            tmp_path = Path(td)
+            p_dir = tmp_path / "S_C"
+            p_dir.mkdir()
+            bak_file = p_dir / "2024-04-15_回1.m4a.bak"
+            orig_file = p_dir / "2024-04-15_回1.m4a"
+            bak_file.write_text("backup-content", encoding="utf-8")
+
+            cleanup.cleanup_partial_episode_files(tmp_path, program, episode)
+
+            self.assertFalse(bak_file.exists())
+            self.assertTrue(orig_file.exists())
+            self.assertEqual(orig_file.read_text(encoding="utf-8"), "backup-content")
+
+    def test_cleanup_partial_episode_files_removes_bak_when_orig_exists(self):
+        from nhk_radio.downloads import cleanup
+        from nhk_radio.types import Episode
+        program = Program(title="テスト番組", display_title="テスト番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="ep1", title="回1", display_title="回1", date="2024-04-15", display_date="2024-04-15", broadcast_time="", duration_str="", url="")
+        with tempfile.TemporaryDirectory() as td:
+            tmp_path = Path(td)
+            p_dir = tmp_path / "S_C"
+            p_dir.mkdir()
+            orig_file = p_dir / "2024-04-15_回1.m4a"
+            bak_file = p_dir / "2024-04-15_回1.m4a.bak"
+            orig_file.write_text("orig-content", encoding="utf-8")
+            bak_file.write_text("backup-content", encoding="utf-8")
+
+            cleanup.cleanup_partial_episode_files(tmp_path, program, episode)
+
+            self.assertTrue(orig_file.exists())
+            self.assertFalse(bak_file.exists())
+
+    # --- downloads/runner.py ---
+    def test_build_yt_dlp_options_includes_progress_with_after_move(self):
+        from nhk_radio.downloads import runner
+        cmd = runner._yt_dlp_command("https://example.com", "/out/%(title)s.%(ext)s", audio_only=True, no_playlist=True, print_filepath=True)
+        self.assertIn("--progress", cmd)
+        self.assertIn("--print", cmd)
+        self.assertIn("after_move:filepath", cmd)
+
+    # --- downloads/filesystem.py ---
+    def test_filesystem_matches_excludes_bak(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        ep = Episode(id="ep1", title="回1", display_title="回1", date="2024-04-15", display_date="2024-04-15", broadcast_time="", duration_str="", url="")
+        bak_path = Path("/dummy/2024-04-15_回1.m4a.bak")
+        self.assertFalse(filesystem._episode_output_matches(bak_path, program, ep, audio_only=True))
 
 
 if __name__ == "__main__":

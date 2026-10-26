@@ -142,7 +142,7 @@ def mark_episode_downloaded(
 
 
 def get_downloaded_episode_keys(
-    output_dir: Path, program: Program, episodes: list[Episode], *, audio_only: bool = False
+    output_dir: Path, program: Program, episodes: list[Episode], *, audio_only: bool = True
 ) -> set[str]:
     """複数エピソードの保存状態を効率的に判定する（バッチ処理）。
 
@@ -179,7 +179,7 @@ def get_downloaded_episode_keys(
 
 
 def find_episode_downloaded_path(
-    output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False
+    output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = True
 ) -> Path | None:
     """保存済みエピソードのパスを検索して返す (副作用なし)。"""
     from . import filesystem
@@ -206,7 +206,7 @@ def find_episode_downloaded_path(
     return None
 
 
-def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False) -> bool:
+def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = True) -> bool:
     return find_episode_downloaded_path(output_dir, program, episode, audio_only=audio_only) is not None
 
 
@@ -227,9 +227,11 @@ def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Ep
         return saved
 
 
-def sync_episode_download_history(output_dir: Path, program: Program, episode: Episode) -> Path | None:
+def sync_episode_download_history(
+    output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = True
+) -> Path | None:
     """ディスク上の実ファイルを確認し、必要に応じてマニフェストを更新する (明示的な副作用)。"""
-    path = find_episode_downloaded_path(output_dir, program, episode)
+    path = find_episode_downloaded_path(output_dir, program, episode, audio_only=audio_only)
     if path:  # pragma: no cover
         # 見つかった場合はマニフェストに反映しておく (副作用の明示化)
         mark_episode_downloaded(output_dir, program, episode, path)

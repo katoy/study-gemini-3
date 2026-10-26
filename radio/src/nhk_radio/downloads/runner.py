@@ -34,7 +34,7 @@ def _yt_dlp_command(
     if force_overwrites:
         cmd.append("--force-overwrites")
     if print_filepath:
-        cmd += ["--print", "after_move:filepath"]
+        cmd += ["--print", "after_move:filepath", "--progress"]
     # HLS フラグメントの並列ダウンロードとソケットタイムアウトを設定
     cmd += ["--concurrent-fragments", str(YTDLP_CONCURRENT_FRAGMENTS)]
     cmd += ["--socket-timeout", str(YTDLP_SOCKET_TIMEOUT)]

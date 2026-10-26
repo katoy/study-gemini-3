@@ -25,6 +25,18 @@ def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: E
             continue
         patterns = filesystem._episode_output_patterns(program, episode)
         for path in files:
+            if path.name.endswith(".bak"):
+                # 前回のクラッシュ等で残ったバックアップを復元または掃除 (G4)
+                orig = path.with_name(path.stem)
+                try:
+                    if not orig.exists():
+                        path.replace(orig)
+                    else:
+                        path.unlink()
+                except OSError as e:
+                    logger.debug(f"バックアップファイルの整理に失敗: {path} ({e})")
+                continue
+
             is_temp = (".part" in path.name) or path.name.endswith(".ytdl")
             if is_temp and any(fnmatch.fnmatch(path.name, pattern) for pattern in patterns):
                 try:

@@ -78,52 +78,59 @@ def run_demo(manual: bool = False):
     ]
 
     ffmpeg_proc = subprocess.Popen(ffmpeg_cmd)
-    time.sleep(1)
-
-    # 2. アプリのセットアップ
-    os.environ["NHK_RADIO_DEMO_MODE"] = "1"
-    programs = fetch_program_list()
-    browser = EpisodeGuiBrowserClass(programs, PROJECT_ROOT / "downloads")
-
-    # 位置を (100, 100) 付近に配置 (フルスクリーンでも見やすい位置)
-    browser.root.geometry("1360x840+100+100")
-
-    if not manual:
-        threading.Thread(target=run_auto_commands, args=(browser,), daemon=True).start()
-
-    print("アプリ起動中...")
-    browser.run()
-
-    # 3. 録画停止
-    print("録画を停止中...")
-    ffmpeg_proc.send_signal(signal.SIGINT)
     try:
-        ffmpeg_proc.wait(timeout=5)
-    except Exception:
-        ffmpeg_proc.kill()
+        time.sleep(1)
 
-    # 4. GIF 変換
-    if VIDEO_TEMP.exists() and VIDEO_TEMP.stat().st_size > 0:
-        print("GIF に変換中 (画面全体)...")
-        palette_path = PROJECT_ROOT / "palette.png"
+        # 2. アプリのセットアップ
+        os.environ["NHK_RADIO_DEMO_MODE"] = "1"
+        programs = fetch_program_list()
+        browser = EpisodeGuiBrowserClass(programs, PROJECT_ROOT / "downloads")
+
+        # 位置を (100, 100) 付近に配置 (フルスクリーンでも見やすい位置)
+        browser.root.geometry("1360x840+100+100")
+
+        if not manual:
+            threading.Thread(target=run_auto_commands, args=(browser,), daemon=True).start()
+
+        print("アプリ起動中...")
+        browser.run()
+
+        # 3. 録画停止
+        print("録画を停止中...")
+        ffmpeg_proc.send_signal(signal.SIGINT)
         try:
-            # 画面全体は解像度が高いため、1280px幅にリサイズしてGIFを作成
-            subprocess.run([
-                "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP),
-                "-vf", "palettegen", "-sws_flags", "lanczos",
-                "-frames:v", "1", "-update", "1", str(palette_path)
-            ], check=True)
-            subprocess.run([
-                "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP), "-i", str(palette_path),
-                "-filter_complex", "fps=10,scale=1280:-1:flags=lanczos[x];[x][1:v]paletteuse",
-                str(DEMO_PATH)
-            ], check=True)
-            print(f"完了しました! {DEMO_PATH}")
-        finally:
-            if palette_path.exists():
-                palette_path.unlink()
-            if VIDEO_TEMP.exists():
-                VIDEO_TEMP.unlink()
+            ffmpeg_proc.wait(timeout=5)
+        except Exception:
+            ffmpeg_proc.kill()
+            ffmpeg_proc.wait(timeout=5)
+
+        # 4. GIF 変換
+        if VIDEO_TEMP.exists() and VIDEO_TEMP.stat().st_size > 0:
+            print("GIF に変換中 (画面全体)...")
+            palette_path = PROJECT_ROOT / "palette.png"
+            try:
+                # 画面全体は解像度が高いため、1280px幅にリサイズしてGIFを作成
+                subprocess.run([
+                    "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP),
+                    "-vf", "palettegen", "-sws_flags", "lanczos",
+                    "-frames:v", "1", "-update", "1", str(palette_path)
+                ], check=True)
+                subprocess.run([
+                    "ffmpeg", "-loglevel", "error", "-y", "-i", str(VIDEO_TEMP), "-i", str(palette_path),
+                    "-filter_complex", "fps=10,scale=1280:-1:flags=lanczos[x];[x][1:v]paletteuse",
+                    str(DEMO_PATH)
+                ], check=True)
+                print(f"完了しました! {DEMO_PATH}")
+            finally:
+                if palette_path.exists():
+                    palette_path.unlink()
+                if VIDEO_TEMP.exists():
+                    VIDEO_TEMP.unlink()
+    finally:
+        # プロセスがまだ動いていれば確実に終了させる (L9)
+        if ffmpeg_proc.poll() is None:
+            ffmpeg_proc.kill()
+            ffmpeg_proc.wait(timeout=5)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

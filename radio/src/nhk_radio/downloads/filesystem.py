@@ -121,10 +121,10 @@ def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
     return patterns
 
 
-def _episode_output_matches(path: Path, program: Program, episode: Episode, *, audio_only: bool = False) -> bool:
+def _episode_output_matches(path: Path, program: Program, episode: Episode, *, audio_only: bool = True) -> bool:
     name = path.name
-    # 一時ファイルや不完全ファイルを除外 (M4)
-    if not path.is_file() or name == ".downloaded.json" or ".part" in name or name.endswith(".ytdl"):
+    # 一時ファイル、不完全ファイル、バックアップファイルを除外 (M4, G4)
+    if not path.is_file() or name == ".downloaded.json" or ".part" in name or name.endswith(".ytdl") or name.endswith(".bak"):
         return False
 
     # audio_only の場合、音声ファイル以外（例: 変換失敗で残った .mp4）は保存済みとみなさない (M4)
@@ -206,7 +206,7 @@ def _clear_file_scan_cache(directory: Path | None = None):
 
 
 def _episode_output_candidates(
-    program_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False
+    program_dir: Path, program: Program, episode: Episode, *, audio_only: bool = True
 ) -> list[Path]:
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
 

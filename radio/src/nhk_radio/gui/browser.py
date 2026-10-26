@@ -222,7 +222,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.font_size_display_var = tk.StringVar()
         self.settings_save_button_var = tk.StringVar()
         self.theme_var = tk.StringVar(value=self.current_theme)
-        self.font_size_var = tk.IntVar(value=int(self.current_font_size))
+        self.font_size_var = tk.IntVar(value=self.current_font_size)
         self.program_search_var.trace_add("write", self._on_program_search_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
@@ -231,7 +231,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """UI設定を永続化する。ThemeManager を通じて保存。"""
         self.theme_manager.save_settings(
             theme=self.current_theme,
-            font_size=int(self.current_font_size),
+            font_size=self.current_font_size,
             search_history=self.program_search_history,
         )
 

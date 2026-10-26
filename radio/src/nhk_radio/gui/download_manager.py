@@ -111,10 +111,13 @@ class DownloadManager:
 
             # 上書き時にダウンロード失敗やキャンセルで元ファイルを失わないよう、事前退避 (G4)
             from ..downloads import find_episode_downloaded_path
-            existing_path = find_episode_downloaded_path(self.output_dir, program, episode)
+            existing_path = find_episode_downloaded_path(self.output_dir, program, episode, audio_only=self.audio_only)
             if existing_path and existing_path.exists():
                 try:
                     backup_path = existing_path.with_name(existing_path.name + ".bak")
+                    if backup_path.exists():
+                        with suppress(OSError):
+                            backup_path.unlink()
                     existing_path.replace(backup_path)
                 except OSError as e:
                     logger.warning(f"既存ファイルの退避に失敗: {e}")

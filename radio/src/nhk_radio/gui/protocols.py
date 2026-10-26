@@ -77,7 +77,7 @@ class GuiBrowserProtocol(Protocol):
     # ========================
     output_dir: Path
     current_theme: str
-    current_font_size: str
+    current_font_size: int
     loading: bool
 
     # ========================

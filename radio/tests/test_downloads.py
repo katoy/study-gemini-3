@@ -709,10 +709,10 @@ class DownloadHelpersTest(unittest.TestCase):
             output_dir = Path(tmp)
             program_dir = output_dir / "SITE_01"
             program_dir.mkdir(parents=True)
-            (program_dir / "test.mp4").touch()
+            (program_dir / "test.m4a").touch()
 
             # マニフェストに相対パスを記録 (key は episode.id)
-            manifest_data = {"paths": {"ep-1": "test.mp4"}}
+            manifest_data = {"paths": {"ep-1": "test.m4a"}}
             manifest_path = downloads._download_manifest_path(program, output_dir)
             manifest_path.parent.mkdir(parents=True, exist_ok=True)
             manifest_path.write_text(json.dumps(manifest_data))
@@ -729,7 +729,7 @@ class DownloadHelpersTest(unittest.TestCase):
             program_dir = output_dir / "SITE_01"
             program_dir.mkdir(parents=True)
             # ファイルを作成（マニフェストには記録しない）
-            (program_dir / "20240415_番組A_第1回.mp4").touch()
+            (program_dir / "20240415_番組A_第1回.m4a").touch()
 
             # マニフェストは空
             manifest_path = downloads._download_manifest_path(program, output_dir)

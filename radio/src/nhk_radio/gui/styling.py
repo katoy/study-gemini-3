@@ -24,7 +24,7 @@ class GuiStylingMixin:
 
         # Manager がロードした最新の状態を Mixin 側へ同期
         self.current_theme = self.theme_manager.current_theme
-        self.current_font_size = str(self.theme_manager.current_font_size)
+        self.current_font_size = self.theme_manager.current_font_size
 
         self._apply_current_theme()
 
@@ -34,7 +34,7 @@ class GuiStylingMixin:
 
     def _apply_current_theme(self):
         """Updates the style using current theme and font size."""
-        self.theme_manager.apply_theme(self.current_theme, int(self.current_font_size))
+        self.theme_manager.apply_theme(self.current_theme, self.current_font_size)
         self._load_font_profile()
         self._refresh_treeview_theme()
         self._update_settings_ui()
@@ -63,7 +63,7 @@ class GuiStylingMixin:
         """Saves current settings via ThemeManager."""
         self.theme_manager.save_settings(
             self.current_theme,
-            int(self.current_font_size),
+            self.current_font_size,
             self.program_search_history
         )
         self.settings_dirty = False
@@ -78,27 +78,25 @@ class GuiStylingMixin:
             label = "ダーク" if theme_name == "dark" else "ライト"
             self.status_var.set(f"{label}テーマに切り替えました。")
 
-    def _apply_font_size(self, size_name: str, announce: bool = True):
-        self.current_font_size = size_name
+    def _apply_font_size(self, size_pt: int | str, announce: bool = True):
+        size_int = int(size_pt)
+        self.current_font_size = size_int
         self._apply_current_theme()
         self._mark_settings_dirty()
         if announce:
-            self.status_var.set(f"文字サイズを {size_name}pt に変更しました。")
+            self.status_var.set(f"文字サイズを {size_int}pt に変更しました。")
 
     def _set_font_size_value(self, size_pt: int, announce: bool = False):
         normalized = min(max(size_pt, 9), 18)
-        normalized_text = str(normalized)
-        if normalized_text == self.current_font_size:
+        if normalized == self.current_font_size:
             return
-        self._apply_font_size(normalized_text, announce=announce)
+        self._apply_font_size(normalized, announce=announce)
 
     def _decrease_font_size(self):
-        current = int(self.current_font_size)
-        self._set_font_size_value(current - 1, announce=True)
+        self._set_font_size_value(self.current_font_size - 1, announce=True)
 
     def _increase_font_size(self):
-        current = int(self.current_font_size)
-        self._set_font_size_value(current + 1, announce=True)
+        self._set_font_size_value(self.current_font_size + 1, announce=True)
 
     def _apply_font_size_preset(self, size_pt: int):
         self._set_font_size_value(size_pt, announce=True)
@@ -122,7 +120,7 @@ class GuiStylingMixin:
         s = self.theme_manager.settings
         self.settings_dirty = (
             self.current_theme != s.get("theme") or
-            int(self.current_font_size) != s.get("font_size_pt")
+            self.current_font_size != s.get("font_size_pt")
         )
         self._update_settings_ui()
 
@@ -136,7 +134,7 @@ class GuiStylingMixin:
         self.settings_button_var.set("番組一覧" if self.current_screen == "settings" else "表示設定")
         self.settings_save_button_var.set("保存済み" if not self.settings_dirty else "保存")
         self.theme_var.set(self.current_theme)
-        self.font_size_var.set(int(self.current_font_size))
+        self.font_size_var.set(self.current_font_size)
 
         if hasattr(self, "settings_save_button"):
             if self.settings_dirty:

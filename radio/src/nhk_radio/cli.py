@@ -198,7 +198,7 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
     downloaded_count = 0
     for episode in episodes:
         title = episode.display_title or episode.title
-        if is_episode_downloaded(output_dir, program, episode):
+        if is_episode_downloaded(output_dir, program, episode, audio_only=audio_only):
             logger.info(f"スキップ: {title} (保存済み)")
             continue
         try:
@@ -210,7 +210,7 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
         if not success:
             logger.error(f"失敗: {title}")
             continue
-        downloaded_path = sync_episode_download_history(output_dir, program, episode)
+        downloaded_path = sync_episode_download_history(output_dir, program, episode, audio_only=audio_only)
         if downloaded_path is None:
             logger.warning(f"ダウンロード履歴の記録に失敗: {title}")
         downloaded_count += 1
