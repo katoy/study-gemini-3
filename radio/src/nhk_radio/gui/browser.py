@@ -67,7 +67,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
         # UI 状態 (ThemeManager 初期化前にプレースホルダを設定)
         self.current_theme = DEFAULT_UI_THEME
-        self.current_font_size = str(DEFAULT_UI_FONT_SIZE_PT)
+        self.current_font_size = int(DEFAULT_UI_FONT_SIZE_PT)
         self.current_screen = "browser"
         self.settings_dirty = False
         self.program_search_history: list[str] = []
@@ -231,9 +231,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         """UI設定を永続化する。ThemeManager を通じて保存。"""
         self.theme_manager.save_settings(
             theme=self.current_theme,
-            font_size=self.current_font_size,
+            font_size=int(self.current_font_size),
             search_history=self.program_search_history,
         )
+
+    def _persist_search_history(self):
+        """検索履歴のみを永続化する (G8)。"""
+        self.theme_manager.save_search_history(self.program_search_history)
 
     def _set_progress(self, current: int, total: int, text: str = ""):
         """進捗状況を更新する。"""
@@ -298,13 +302,19 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
                 return
             self._discard_unsaved_settings()
         has_running_download = any(row["state"] == "running" for row in self.active_download_rows.values())
-        if self.loading or has_running_download:
+        if has_running_download:
             if messagebox is not None:
                 messagebox.showwarning(
-                    "処理中です",
-                    "一覧取得またはダウンロード処理が実行中です。完了または中断してから閉じてください。",
+                    "ダウンロード処理中です",
+                    "ダウンロード処理が実行中です。完了または中断してから閉じてください。",
                     parent=self.root,
                 )
+            return
+        if self.loading and messagebox is not None and not messagebox.askyesno(
+            "一覧取得中",
+            "一覧を取得中ですが、終了しますか？",
+            parent=self.root,
+        ):
             return
         self.result = (None, None)
         self.root.destroy()
@@ -415,6 +425,22 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
     def _handle_browser_shortcut(self, event):
         if self.current_screen != "browser" or self.loading or self._is_text_input_focus():
+            return None
+        # ヘルプダイアログや別ポップアップなどの別ウィンドウが開いている時はショートカットを無効化 (G10)
+        if getattr(self, "help_popup", None) and self.help_popup.winfo_exists():
+            return None
+        if getattr(self, "saved_episode_popup", None) and self.saved_episode_popup.winfo_exists():
+            return None
+        widget = getattr(event, "widget", None)
+        if widget and hasattr(widget, "winfo_toplevel"):
+            try:
+                if widget.winfo_toplevel() != self.root:
+                    return None
+            except Exception:
+                pass
+        # 修飾キー (Control, Alt/Option, Command など) が押されている場合は無視 (G10)
+        # 0x4: Control, 0x8: Mod1/Alt, 0x100000: Command (macOS)
+        if getattr(event, "state", 0) & (0x4 | 0x8 | 0x100000):
             return None
         key = (event.keysym or "").lower()
         if key == "f":

@@ -39,6 +39,11 @@ class ThemeManager:
             "program_search_history": search_history,
         }
 
+    def save_search_history(self, search_history: list[str]):
+        """Persists search history without overwriting current theme settings (G8)."""
+        config._save_ui_settings(self.current_theme, self.current_font_size, search_history)
+        self.settings["program_search_history"] = list(search_history)
+
     def apply_theme(self, theme_name: str | None = None, font_size: int | None = None):
         """Applies current palette and fonts to the ttk.Style and root window."""
         if theme_name:

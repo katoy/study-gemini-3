@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -101,13 +102,13 @@ class BackendCoverageCompletionTest(unittest.TestCase):
 
     # --- cli.py ---
     def test_download_episode_keyboard_interrupt(self):
-        # cli.py: KeyboardInterrupt handling
+        # cli.py: KeyboardInterrupt handling (M6: 再送出されること)
         with (
             patch.object(cli, "download_episode_command", return_value=["ls"]),
-            patch("nhk_radio.cli.run_yt_dlp_subprocess", side_effect=KeyboardInterrupt)
+            patch("nhk_radio.cli.run_yt_dlp_subprocess", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
         ):
-            res = cli.download_episode("url", Path("/tmp"), "tmpl")
-            self.assertFalse(res)
+            cli.download_episode("url", Path("/tmp"), "tmpl")
 
     def test_download_episode_general_exception(self):
         # downloads.py: run_yt_dlp_subprocess exception handling
@@ -284,6 +285,243 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         program = _make_entry(s, genre=None)
         self.assertIsNone(program.genre)
         self.assertEqual(program.genres, ())
+
+    # --- cache.py: M3 ---
+    def test_load_program_cache_type_error(self):
+        # 必須キーが欠けた dict がある場合 TypeError で None を返すこと (M3)
+        with patch("nhk_radio.cache._load_json_ttl_cache", return_value=[{}]):
+            self.assertIsNone(cache.load_program_cache("genre"))
+
+    def test_load_episode_cache_type_error(self):
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        with patch("nhk_radio.cache._load_json_ttl_cache", return_value=[{}]):
+            self.assertIsNone(cache.load_episode_cache(program))
+
+    # --- cli.py: H2, M7 ---
+    def test_select_program_eof_error(self):
+        with patch("builtins.input", side_effect=EOFError):
+            self.assertIsNone(cli.select_program([]))
+
+    def test_select_episodes_eof_error(self):
+        from nhk_radio.types import Episode
+        ep = Episode(id="1", title="T", display_title="T", date="20240101", display_date="D", broadcast_time="", duration_str="", url="U")
+        with patch("builtins.input", side_effect=EOFError):
+            self.assertIsNone(cli.select_episodes([ep]))
+
+    def test_download_url_direct_timeout(self):
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        with (
+            patch.object(cli, "resolve_program_from_url", return_value=program),
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired("cmd", 3600)),
+            patch.object(sys, "exit") as exit_mock,
+        ):
+            cli.download_url_direct("url", Path("/tmp"), None, True)
+            exit_mock.assert_called_once_with(1)
+
+    def test_download_url_direct_file_not_found(self):
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        with (
+            patch.object(cli, "resolve_program_from_url", return_value=program),
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch.object(sys, "exit") as exit_mock,
+        ):
+            cli.download_url_direct("url", Path("/tmp"), None, True)
+            exit_mock.assert_called_once_with(1)
+
+    # --- core.py: M1, M8, M9 ---
+    def test_http_get_json_async_retry_after_http_date(self):
+        import asyncio
+        client = MagicMock(spec=httpx.AsyncClient)
+        resp_429 = MagicMock(spec=httpx.Response)
+        resp_429.status_code = 429
+        resp_429.request = MagicMock()
+        # HTTP-date format
+        resp_429.headers = {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+        resp_429.raise_for_status.side_effect = httpx.HTTPStatusError("429", request=resp_429.request, response=resp_429)
+
+        resp_200 = MagicMock(spec=httpx.Response)
+        resp_200.status_code = 200
+        resp_200.json.return_value = {"ok": True}
+        resp_200.raise_for_status.return_value = None
+
+        client.get = AsyncMock(side_effect=[resp_429, resp_200])
+        with (
+            patch("asyncio.sleep", new_callable=AsyncMock) as sleep_mock,
+            patch("time.time", return_value=1792567670.0),
+        ):
+            res = asyncio.run(core.http_get_json_async(client, "http://test"))
+            self.assertEqual(res, {"ok": True})
+            sleep_mock.assert_called_once()
+
+    def test_http_get_json_async_retry_after_invalid_date(self):
+        import asyncio
+        client = MagicMock(spec=httpx.AsyncClient)
+        resp_429 = MagicMock(spec=httpx.Response)
+        resp_429.status_code = 429
+        resp_429.request = MagicMock()
+        resp_429.headers = {"Retry-After": "invalid-date-string"}
+        resp_429.raise_for_status.side_effect = httpx.HTTPStatusError("429", request=resp_429.request, response=resp_429)
+
+        resp_200 = MagicMock(spec=httpx.Response)
+        resp_200.status_code = 200
+        resp_200.json.return_value = {"ok": True}
+        resp_200.raise_for_status.return_value = None
+
+        client.get = AsyncMock(side_effect=[resp_429, resp_200])
+        with patch("asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
+            res = asyncio.run(core.http_get_json_async(client, "http://test"))
+            self.assertEqual(res, {"ok": True})
+            sleep_mock.assert_called_once()
+
+    def test_fetch_program_list_async_partial_failure_warning(self):
+        import asyncio
+
+        async def fake_fetch():
+            core._LAST_FETCH_HAD_FAILURE = True
+            return [Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")]
+
+        with (
+            patch("nhk_radio.core.load_program_cache", return_value=None),
+            patch("nhk_radio.core._fetch_all_async", side_effect=fake_fetch),
+            patch("nhk_radio.core.save_program_cache") as save_mock,
+            patch("nhk_radio.core.logger.warning") as warn_mock,
+        ):
+            programs = asyncio.run(core.fetch_program_list_async())
+            self.assertEqual(len(programs), 1)
+            save_mock.assert_not_called()
+            warn_mock.assert_called_once()
+
+    def test_info_dict_to_episode_timestamp_fallback(self):
+        info = {
+            "id": "ep1",
+            "title": "Ep 1",
+            "timestamp": 1700000000,
+        }
+        with patch("zoneinfo.ZoneInfo", side_effect=Exception("zoneinfo error")):
+            ep = core._parse_episode_info(info)
+            self.assertEqual(ep.date, "1700000000")
+
+    # --- downloads/filesystem.py ---
+    def test_filesystem_audio_only_matches_false_for_video(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="第1回", display_title="第1回", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        path = Path("/tmp/20240401_番組_第1回.mp4")
+        with patch.object(Path, "is_file", return_value=True):
+            self.assertFalse(filesystem._episode_output_matches(path, program, episode, audio_only=True))
+
+    def test_filesystem_empty_episode_title_matches(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="", display_title="", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        path = Path("/tmp/20240401_番組.mp3")
+        with patch.object(Path, "is_file", return_value=True):
+            self.assertTrue(filesystem._episode_output_matches(path, program, episode, audio_only=True))
+
+    def test_filesystem_title_variants_with_empty_tv(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="///", display_title="///", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        path = Path("/tmp/20240401_番組_nomatch.mp3")
+        with patch.object(Path, "is_file", return_value=True):
+            self.assertFalse(filesystem._episode_output_matches(path, program, episode, audio_only=True))
+
+    def test_episode_output_patterns_yt_dlp_sanitize(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="Q&A: 何？/なぜ?", display_title="Q&A: 何？/なぜ?", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        patterns = filesystem._episode_output_patterns(program, episode)
+        self.assertTrue(any("何" in p for p in patterns))
+
+    def test_filesystem_module_import_invalid_env(self):
+        import importlib
+
+        from nhk_radio.downloads import filesystem
+        with patch.dict("os.environ", {"NHK_RADIO_FILE_SCAN_CACHE_SIZE": "invalid"}):
+            importlib.reload(filesystem)
+            self.assertEqual(filesystem._FILE_SCAN_CACHE_MAX_SIZE, 100)
+        importlib.reload(filesystem)
+
+    def test_episode_output_patterns_yt_dlp_sanitize_exception(self):
+        from nhk_radio.downloads import filesystem
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="Title", display_title="Title", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        with patch("yt_dlp.utils.sanitize_filename", side_effect=Exception("sanitize fail")):
+            patterns = filesystem._episode_output_patterns(program, episode)
+            self.assertTrue(len(patterns) > 0)
+
+            path = Path("/tmp/20240401_番組_Title.mp3")
+            with patch.object(Path, "is_file", return_value=True):
+                self.assertTrue(filesystem._episode_output_matches(path, program, episode, audio_only=True))
+
+    # --- downloads/manifest.py: M2 ---
+    def test_manifest_load_non_dict_payload(self):
+        import tempfile
+
+        from nhk_radio.downloads import manifest
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            p_dir = out / "S_C"
+            p_dir.mkdir()
+            (p_dir / ".downloaded.json").write_text("[]", encoding="utf-8")
+            res = manifest._load_download_manifest(program, out)
+            self.assertEqual(res, {})
+
+    # --- downloads/runner.py: M10, G5 ---
+    def test_run_yt_dlp_subprocess_cancel_watcher(self):
+        import threading
+        import time
+
+        from nhk_radio.downloads import runner
+        cancel_event = threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.poll.side_effect = [None, None, 0]
+        mock_proc.wait.return_value = 0
+        mock_proc.stdout = []
+        with patch("subprocess.Popen", return_value=mock_proc):
+            cancel_event.set()
+            res = runner.run_yt_dlp_subprocess(["test"], cancel_event=cancel_event)
+            time.sleep(0.15)
+            self.assertFalse(res)
+
+    def test_run_yt_dlp_subprocess_on_output_path(self):
+        from nhk_radio.downloads import runner
+        captured = []
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.stdout = ["/path/to/downloaded.mp3\n"]
+        with patch("subprocess.Popen", return_value=mock_proc):
+            runner.run_yt_dlp_subprocess(["test"], on_output_path=captured.append)
+            self.assertEqual(len(captured), 1)
+            self.assertEqual(captured[0], Path("/path/to/downloaded.mp3"))
+
+    def test_run_yt_dlp_subprocess_error_logging(self):
+        from nhk_radio.downloads import runner
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = 1
+        mock_proc.wait.return_value = 1
+        mock_proc.stdout = ["error message line 1\n"]
+        with (
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("nhk_radio.downloads.runner.logger.error") as log_error,
+        ):
+            res = runner.run_yt_dlp_subprocess(["test"])
+            self.assertFalse(res)
+            log_error.assert_called_once()
+            self.assertIn("error message line 1", log_error.call_args[0][0])
+
+    # --- text.py ---
+    def test_format_episode_date_invalid_prefix(self):
+        # 99999999_extra で strptime が ValueError になるケース
+        formatted = text._format_episode_date("99999999_abc")
+        self.assertEqual(formatted, "99999999_abc")
 
 
 if __name__ == "__main__":

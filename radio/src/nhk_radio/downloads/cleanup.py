@@ -23,11 +23,10 @@ def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: E
         except OSError as e:
             logger.debug(f"ディレクトリ走査に失敗: {program_dir} ({e})")
             continue
+        patterns = filesystem._episode_output_patterns(program, episode)
         for path in files:
-            if path.suffix in {".part", ".ytdl"} and any(
-                fnmatch.fnmatch(path.name, pattern)
-                for pattern in filesystem._episode_output_patterns(program, episode)
-            ):
+            is_temp = (".part" in path.name) or path.name.endswith(".ytdl")
+            if is_temp and any(fnmatch.fnmatch(path.name, pattern) for pattern in patterns):
                 try:
                     path.unlink()
                 except OSError as e:

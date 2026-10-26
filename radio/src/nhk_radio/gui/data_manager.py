@@ -35,13 +35,15 @@ class DataManager:
         self._fetching_programs = True
 
         def _worker():
+            progs = []
+            err = None
             try:
                 progs = fetch_program_list(genre)
-                self.on_program_result(progs, None)
             except Exception as e:
-                self.on_program_result([], str(e))
+                err = str(e)
             finally:
                 self._fetching_programs = False
+            self.on_program_result(progs, err)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -54,14 +56,17 @@ class DataManager:
         self._fetching_episodes.add(key)
 
         def _worker():
+            episodes = []
+            source = ""
+            err = None
             try:
                 episodes, source = refresh_episode_list(program)
                 self._update_episode_cache(program, episodes)
-                self.on_episode_result(program, episodes, source, None)
             except Exception as e:
-                self.on_episode_result(program, [], "", str(e))
+                err = str(e)
             finally:
                 self._fetching_episodes.discard(key)
+            self.on_episode_result(program, episodes, source, err)
 
         threading.Thread(target=_worker, daemon=True).start()
 

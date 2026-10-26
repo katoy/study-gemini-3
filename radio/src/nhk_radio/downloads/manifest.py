@@ -75,6 +75,10 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
             logger.debug(f"マニフェストの読み込みに失敗: {manifest_path} ({e})")
             continue
 
+        if not isinstance(payload, dict):
+            logger.debug(f"マニフェストの形式が辞書ではありません: {manifest_path}")
+            continue
+
         paths = payload.get("paths")
         if isinstance(paths, dict):  # pragma: no cover
             for key, value in paths.items():

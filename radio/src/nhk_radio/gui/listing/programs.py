@@ -173,7 +173,7 @@ class GuiProgramsMixin:
 
         self.program_search_history = new_history[:SEARCH_HISTORY_LIMIT]
         self._update_program_search_history_values()
-        self._persist_ui_settings()
+        self._persist_search_history()
 
     def _program_key(self, program: Program | None) -> str | None:
         if program is None:

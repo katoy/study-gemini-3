@@ -73,6 +73,12 @@ class GuiDownloadsMixin:
         """UI event handler for Download button."""
         import tkinter.messagebox as mb
 
+        # ダブルクリックが ☑ 列 (saved: #1) で発生した場合はダウンロード処理を行わず終了 (G9)
+        if _event is not None and hasattr(self, "episode_tree") and hasattr(self, "_tree_cell_from_event"):
+            cell = self._tree_cell_from_event(self.episode_tree, _event)
+            if cell and cell[1] == "#1":
+                return "break"
+
         from ..downloads import find_episode_downloaded_path
 
         if self.displayed_program is None:
@@ -105,17 +111,8 @@ class GuiDownloadsMixin:
                 parent=self.root,
             ):
                 return "break"
-
-            # 既存ファイルを削除
-            from ..downloads import remove_episode_from_manifest
-
-            for episode, path in existing_episodes:
-                try:
-                    path.unlink()
-                    remove_episode_from_manifest(self.output_dir, program, episode)
-                except OSError as e:
-                    self.status_var.set(f"既存ファイルの削除に失敗しました: {e}")
-                    return "break"
+            # 注意: 事前の unlink は行わない。yt-dlp の --force-overwrites により安全に上書きされるため、
+            # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
 
         new_jobs_count = 0
         for episode in selected:
@@ -182,7 +179,7 @@ class GuiDownloadsMixin:
                 self._finish_download_row(episode_key, "中断")
                 self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
 
-        if self.download_manager.is_active():
+        if self.download_manager.is_active() or not self.download_result_queue.empty():
             # アクティブなダウンロード数に基づいて動的にポーリング間隔を調整
             # 3 個以上なら 50ms、1-2 個なら 100ms（複数ジョブでの応答性 vs CPU 使用率）
             active_count = len(self.download_manager.processes)

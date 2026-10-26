@@ -17,6 +17,7 @@ from .core import (
 )
 from .downloads import (
     _yt_dlp_command,
+    cleanup_partial_episode_files,
     download_episode_command,
     is_episode_downloaded,
     program_filename_template,
@@ -60,7 +61,9 @@ def select_program(programs: list[Program]) -> Program | None:
             if 1 <= n <= len(programs):
                 return programs[n - 1]
             print(f"  1〜{len(programs)} または 0 / u を入力してください。")
-        except (ValueError, EOFError):
+        except EOFError:
+            return None
+        except ValueError:
             print("  数字を入力してください。")
 
 
@@ -106,7 +109,9 @@ def select_episodes(episodes: list[Episode]) -> list[Episode] | None:
                     break
             if valid and selected:
                 return selected
-        except (ValueError, EOFError):
+        except EOFError:
+            return None
+        except ValueError:
             print("  数字を入力してください。")
 
 
@@ -140,7 +145,7 @@ def download_episode(
         return success
     except KeyboardInterrupt:
         print("\n  中断されました。")
-        return False
+        raise
 
 
 def download_url_direct(
@@ -171,12 +176,20 @@ def download_url_direct(
 
     logger.info(f"番組: {program.display_title}")
     logger.info(f"保存先: {target_dir}")
-    result = subprocess.run(cmd, timeout=3600)
-    if result.returncode == 0:
-        logger.info("ダウンロード完了!")
-    else:
-        logger.error(f"エラー (終了コード: {result.returncode})")
-        sys.exit(result.returncode)
+    timeout = 3600 if not max_items else max_items * 3600
+    try:
+        result = subprocess.run(cmd, timeout=timeout)
+        if result.returncode == 0:
+            logger.info("ダウンロード完了!")
+        else:
+            logger.error(f"エラー (終了コード: {result.returncode})")
+            sys.exit(result.returncode)
+    except subprocess.TimeoutExpired:
+        logger.error(f"ダウンロードがタイムアウトしました ({timeout}秒)。")
+        sys.exit(1)
+    except FileNotFoundError:
+        logger.error("yt-dlp コマンドが見つかりません。yt-dlp がインストールされているか確認してください。")
+        sys.exit(1)
 
 
 def _download_selected_episodes(program: Program, episodes: list[Episode], output_dir: Path, *, audio_only: bool) -> int:
@@ -188,7 +201,12 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
         if is_episode_downloaded(output_dir, program, episode):
             logger.info(f"スキップ: {title} (保存済み)")
             continue
-        success = download_episode(episode.url, target_dir, filename_template, audio_only=audio_only)
+        try:
+            success = download_episode(episode.url, target_dir, filename_template, audio_only=audio_only)
+        except KeyboardInterrupt:
+            cleanup_partial_episode_files(output_dir, program, episode)
+            logger.info("ダウンロードが中断されました。")
+            raise
         if not success:
             logger.error(f"失敗: {title}")
             continue

@@ -1,5 +1,6 @@
 """yt-dlp サブプロセス実行と進捗解析。"""
 
+import collections
 import logging
 import re
 import subprocess
@@ -28,6 +29,7 @@ def _yt_dlp_command(
         cmd.append("--newline")
     # AES-128 暗号化 HLS ストリームで ffmpeg が aac_adtstoasc フィルタに失敗するのを防ぐ
     cmd.append("--hls-use-mpegts")
+    cmd.append("--force-overwrites")
     # HLS フラグメントの並列ダウンロードとソケットタイムアウトを設定
     cmd += ["--concurrent-fragments", str(YTDLP_CONCURRENT_FRAGMENTS)]
     cmd += ["--socket-timeout", str(YTDLP_SOCKET_TIMEOUT)]
@@ -89,6 +91,8 @@ def run_yt_dlp_subprocess(
     cmd: list[str],
     on_progress: Callable[[float | None, str | None, str | None], None] | None = None,
     cancel_event: threading.Event | None = None,
+    on_process: Callable[[subprocess.Popen], None] | None = None,
+    on_output_path: Callable[[Path], None] | None = None,
 ) -> bool:
     """yt-dlp サブプロセスを実行し、進捗をコールバックで報告する。
 
@@ -96,26 +100,54 @@ def run_yt_dlp_subprocess(
         cmd: yt-dlp コマンド (リスト形式)
         on_progress: 進捗コールバック (percent, eta, status)
         cancel_event: キャンセルイベント（設定されたら terminate）
+        on_process: Popen 生成時のコールバック (G5)
+        on_output_path: 移動先パス検出時のコールバック (H1)
 
     Returns:
         成功時 True、キャンセル時 False、失敗時 False
     """
     process = None
+    output_lines: collections.deque[str] = collections.deque(maxlen=20)
+    stop_monitor = threading.Event()
+
     try:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
         )
 
+        if on_process:
+            on_process(process)
+
+        # 出力のない区間でも即座にキャンセルできるよう監視スレッドを起動 (M10)
+        if cancel_event:
+            def _cancel_watcher():
+                while not stop_monitor.is_set() and process.poll() is None:
+                    if cancel_event.wait(timeout=0.1):
+                        with suppress(Exception):
+                            process.terminate()
+                        break
+
+            threading.Thread(target=_cancel_watcher, daemon=True).start()
+
         if process.stdout:
             for line in process.stdout:
+                output_lines.append(line)
                 # キャンセルイベントがセットされたら terminate
                 if cancel_event and cancel_event.is_set():
                     process.terminate()
                     break
+
+                stripped = line.strip()
+                if on_output_path and (stripped.endswith(".mp3") or stripped.endswith(".m4a") or stripped.endswith(".mp4")):
+                    candidate_p = Path(stripped)
+                    if candidate_p.is_absolute() or candidate_p.parent.name:
+                        on_output_path(candidate_p)
 
                 # 進捗コールバックを実行
                 if on_progress:  # pragma: no cover - 環境依存: モック stdout でのコールバック検証
@@ -125,7 +157,10 @@ def run_yt_dlp_subprocess(
 
         # タイムアウト 120 秒で wait
         try:
-            return process.wait(timeout=120) == 0
+            return_code = process.wait(timeout=120)
+            if return_code != 0 and not (cancel_event and cancel_event.is_set()):
+                logger.error(f"yt-dlp 実行失敗 (終了コード {return_code}):\n" + "".join(output_lines))
+            return return_code == 0 and not (cancel_event and cancel_event.is_set())
         except subprocess.TimeoutExpired:
             logger.warning("yt-dlp プロセスが応答しません。強制終了します。")
             process.kill()
@@ -138,3 +173,5 @@ def run_yt_dlp_subprocess(
                 process.terminate()
                 process.wait()
         return False
+    finally:
+        stop_monitor.set()

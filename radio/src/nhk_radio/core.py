@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Any, cast
 
 import httpx
@@ -90,11 +91,26 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
             if status == 429:
+                if attempt >= HTTP_RETRY_COUNT - 1:
+                    logger.error(f"HTTPエラー 429 Too Many Requests (リトライ上限到達): {url}")
+                    raise
                 # Retry-After ヘッダーを優先、なければバックオフ計算
                 retry_after = e.response.headers.get("Retry-After")
-                delay = float(retry_after) if retry_after else min(
-                    HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY
-                )
+                delay = None
+                if retry_after:
+                    try:
+                        delay = float(retry_after)
+                    except ValueError:
+                        from email.utils import parsedate_to_datetime
+                        try:
+                            dt = parsedate_to_datetime(retry_after)
+                            delay = max(0.0, dt.timestamp() - time.time())
+                        except Exception:
+                            pass
+                if delay is None:
+                    delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                else:
+                    delay = min(delay, HTTP_RETRY_MAX_DELAY)
                 logger.warning(f"429 Too Many Requests: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
                 await asyncio.sleep(delay)
                 last_exc = e
@@ -116,8 +132,8 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
                 continue
             logger.error(f"ネットワークエラー: {e} ({url})")
             raise
-    assert last_exc is not None
-    raise last_exc
+    assert last_exc is not None  # pragma: no cover - defensive: loop always raises or returns
+    raise last_exc  # pragma: no cover
 
 
 
@@ -129,18 +145,27 @@ def fetch_program_list(genre: str | None = None) -> list[Program]:
     return asyncio.run(fetch_program_list_async(genre))
 
 
+_LAST_FETCH_HAD_FAILURE = False
+
+
 async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
     """
     NHK ラジオ聞き逃し番組一覧を非同期に取得する。
     """
+    global _LAST_FETCH_HAD_FAILURE
     cached = load_program_cache(genre)
     if cached is not None:
         return cached
 
+    _LAST_FETCH_HAD_FAILURE = False
     programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
 
     if programs:
-        save_program_cache(genre, programs)
+        # ジャンル取得に一部失敗があった場合は不完全な一覧を長期間キャッシュしない (M8)
+        if not _LAST_FETCH_HAD_FAILURE:
+            save_program_cache(genre, programs)
+        else:
+            logger.warning("一部ジャンルの取得に失敗したため、不完全な番組一覧キャッシュの保存をスキップしました。")
         return programs
 
     stale = load_program_cache(genre, ttl_seconds=CACHE_TTL_INFINITE)
@@ -251,8 +276,10 @@ async def _fetch_all_async() -> list[Program]:
         tasks = [fetch_genre(g) for g in NHK_GENRES]
         results = await asyncio.gather(*tasks)
 
+        global _LAST_FETCH_HAD_FAILURE
         for g, genre_data in results:
             if not isinstance(genre_data, dict):
+                _LAST_FETCH_HAD_FAILURE = True
                 continue
             data = cast(dict[str, Any], genre_data)
             for s_raw in data.get("series", []):
@@ -315,7 +342,16 @@ def _parse_episode_info(info: dict) -> Episode:
     upload_date = info.get("upload_date") or ""
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
-    date = upload_date or (str(int(timestamp)) if timestamp else "")
+    if upload_date:
+        date = str(upload_date)
+    elif timestamp:
+        try:
+            from zoneinfo import ZoneInfo
+            date = datetime.fromtimestamp(float(timestamp), ZoneInfo("Asia/Tokyo")).strftime("%Y%m%d")
+        except Exception:
+            date = str(int(timestamp))
+    else:
+        date = ""
     if ep_id:
         ep_url = f"https://www.nhk.or.jp/radio/player/ondemand.html?p={ep_id}"
     else:

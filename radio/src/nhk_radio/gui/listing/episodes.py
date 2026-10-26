@@ -1,5 +1,6 @@
 """GUI episodes Mixin — エピソードツリーの表示・検索・フィルタ。"""
 
+import contextlib
 import logging
 import tkinter as tk
 from tkinter import ttk
@@ -82,9 +83,15 @@ class GuiEpisodeMixin:
                     self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
             self.download_button.state(["!disabled"])
 
-            # 判定処理を開始
+            # 判定処理を開始 (世代番号を付与して古い結果の誤適用を防止: G3)
+            self._download_check_generation = getattr(self, "_download_check_generation", 0) + 1
+            current_gen = self._download_check_generation
             import threading
-            threading.Thread(target=self._async_download_check_worker, args=(program, to_check), daemon=True).start()
+            threading.Thread(
+                target=self._async_download_check_worker,
+                args=(program, to_check, current_gen),
+                daemon=True,
+            ).start()
         else:
             self.episode_tree.selection_remove(self.episode_tree.selection())
             self.episode_tree.focus("")
@@ -94,23 +101,29 @@ class GuiEpisodeMixin:
         self._update_episode_selection_summary()
         self._schedule_saved_button_refresh()
 
-    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]]):
+    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]], generation: int):
         """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
-        if self.displayed_program != program:
+        if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
             return
 
         # エピソードをバッチで一括判定（N+1 問題を解決）
         episodes = [ep for _iid, ep in to_check]
         downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
 
-        results = [(iid, True) for iid, ep in to_check if _episode_key(ep) in downloaded_keys]
+        # True / False の双方を反映 (G3)
+        results = [(iid, _episode_key(ep) in downloaded_keys) for iid, ep in to_check]
 
-        if results and self.displayed_program == program:
-            self.root.after(0, lambda: self._apply_download_check_results(program, results))
+        if self.displayed_program == program and getattr(self, "_download_check_generation", 0) == generation:
+            def _safe_apply():
+                with contextlib.suppress(Exception):
+                    self._apply_download_check_results(program, results, generation)
 
-    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]]):
+            with contextlib.suppress(Exception):
+                self.root.after(0, _safe_apply)
+
+    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]], generation: int):
         """判定結果を UI に反映する。"""
-        if self.displayed_program != program:
+        if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
             return
 
         for iid, is_dl in results:
