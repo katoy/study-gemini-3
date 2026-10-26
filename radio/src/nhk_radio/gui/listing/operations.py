@@ -236,14 +236,14 @@ class GuiOperationsMixin:
         program = self.displayed_program
         path = find_episode_downloaded_path(self.output_dir, program, episode)
 
+        # 注意: 事前の unlink は行わない。ダウンロードワーカー側で安全に退避・復元されるため、
+        # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
         if path is not None and not mb.askyesno(
             "ファイルの上書き",
             f"ファイルが既に存在します。上書きしてダウンロードしますか？\n\n{path.name}",
             parent=self.root,
         ):
             return
-            # 注意: 事前の unlink は行わない。yt-dlp の --force-overwrites により安全に上書きされるため、
-            # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
 
         from ...downloads import _episode_key
 

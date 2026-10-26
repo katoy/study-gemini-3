@@ -103,15 +103,32 @@ class DownloadManager:
 
         success = False
         captured_output_path: list[Path] = []
+        backup_path: Path | None = None
+        existing_path: Path | None = None
         try:
             target_dir = program_output_dir(self.output_dir, program)
             target_dir.mkdir(parents=True, exist_ok=True)
+
+            # 上書き時にダウンロード失敗やキャンセルで元ファイルを失わないよう、事前退避 (G4)
+            from ..downloads import find_episode_downloaded_path
+            existing_path = find_episode_downloaded_path(self.output_dir, program, episode)
+            if existing_path and existing_path.exists():
+                try:
+                    backup_path = existing_path.with_name(existing_path.name + ".bak")
+                    existing_path.replace(backup_path)
+                except OSError as e:
+                    logger.warning(f"既存ファイルの退避に失敗: {e}")
+                    backup_path = None
 
             from ..downloads import program_filename_template
             filename_template = program_filename_template(program)
 
             cmd = download_episode_command(
-                episode.url, target_dir, filename_template, audio_only=self.audio_only
+                episode.url,
+                target_dir,
+                filename_template,
+                audio_only=self.audio_only,
+                force_overwrites=True,
             )
 
             def on_progress(percent: float | None, eta: str | None, status: str | None) -> None:
@@ -140,6 +157,16 @@ class DownloadManager:
             success = False
 
         finally:
+            # 退避ファイルのクリーンアップまたは復元 (G4)
+            if backup_path:
+                if success:
+                    with suppress(OSError):
+                        backup_path.unlink()
+                else:
+                    with suppress(OSError):
+                        if backup_path.exists() and existing_path:
+                            backup_path.replace(existing_path)
+
             terminal_event_data: Any = None
             if success:
                 if captured_output_path and captured_output_path[-1].exists():

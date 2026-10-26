@@ -205,11 +205,13 @@ def _clear_file_scan_cache(directory: Path | None = None):
             _FILE_SCAN_CACHE.clear()
 
 
-def _episode_output_candidates(program_dir: Path, program: Program, episode: Episode) -> list[Path]:
+def _episode_output_candidates(
+    program_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False
+) -> list[Path]:
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
 
     files = _get_cached_glob_files(program_dir)
-    candidates = [path for path in files if _episode_output_matches(path, program, episode)]
+    candidates = [path for path in files if _episode_output_matches(path, program, episode, audio_only=audio_only)]
 
     suffix_priority = {
         ".mp3": 0,

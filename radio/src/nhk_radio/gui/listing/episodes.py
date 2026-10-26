@@ -108,7 +108,9 @@ class GuiEpisodeMixin:
 
         # エピソードをバッチで一括判定（N+1 問題を解決）
         episodes = [ep for _iid, ep in to_check]
-        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+        downloaded_keys = get_downloaded_episode_keys(
+            self.output_dir, program, episodes, audio_only=getattr(self, "audio_only", True)
+        )
 
         # True / False の双方を反映 (G3)
         results = [(iid, _episode_key(ep) in downloaded_keys) for iid, ep in to_check]

@@ -23,13 +23,18 @@ def _yt_dlp_command(
     no_playlist: bool,
     newline: bool = False,
     max_items: int | None = None,
+    force_overwrites: bool = False,
+    print_filepath: bool = False,
 ) -> list[str]:
     cmd = ["yt-dlp"]
     if newline:
         cmd.append("--newline")
     # AES-128 暗号化 HLS ストリームで ffmpeg が aac_adtstoasc フィルタに失敗するのを防ぐ
     cmd.append("--hls-use-mpegts")
-    cmd.append("--force-overwrites")
+    if force_overwrites:
+        cmd.append("--force-overwrites")
+    if print_filepath:
+        cmd += ["--print", "after_move:filepath"]
     # HLS フラグメントの並列ダウンロードとソケットタイムアウトを設定
     cmd += ["--concurrent-fragments", str(YTDLP_CONCURRENT_FRAGMENTS)]
     cmd += ["--socket-timeout", str(YTDLP_SOCKET_TIMEOUT)]
@@ -44,13 +49,22 @@ def _yt_dlp_command(
     return cmd
 
 
-def download_episode_command(url: str, output_dir: Path, filename_template: str, audio_only: bool = True) -> list[str]:
+def download_episode_command(
+    url: str,
+    output_dir: Path,
+    filename_template: str,
+    audio_only: bool = True,
+    *,
+    force_overwrites: bool = False,
+) -> list[str]:
     return _yt_dlp_command(
         url,
         str(output_dir / filename_template),
         audio_only=audio_only,
         no_playlist=True,
         newline=True,
+        force_overwrites=force_overwrites,
+        print_filepath=True,
     )
 
 
@@ -144,7 +158,11 @@ def run_yt_dlp_subprocess(
                     break
 
                 stripped = line.strip()
-                if on_output_path and (stripped.endswith(".mp3") or stripped.endswith(".m4a") or stripped.endswith(".mp4")):
+                if (
+                    on_output_path
+                    and not stripped.startswith("[")
+                    and (stripped.endswith(".mp3") or stripped.endswith(".m4a") or stripped.endswith(".mp4"))
+                ):
                     candidate_p = Path(stripped)
                     if candidate_p.is_absolute() or candidate_p.parent.name:
                         on_output_path(candidate_p)

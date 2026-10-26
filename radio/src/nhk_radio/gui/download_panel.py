@@ -73,8 +73,10 @@ class GuiDownloadsMixin:
         """UI event handler for Download button."""
         import tkinter.messagebox as mb
 
-        # ダブルクリックが ☑ 列 (saved: #1) で発生した場合はダウンロード処理を行わず終了 (G9)
-        if _event is not None and hasattr(self, "episode_tree") and hasattr(self, "_tree_cell_from_event"):
+        # マウスのダブルクリックが ☑ 列 (saved: #1) で発生した場合はダウンロード処理を行わず終了 (G9)
+        # キー操作 (<Return> 等) の場合はマウス座標に影響されないようスキップする
+        is_mouse_click = _event is not None and (getattr(_event, "num", None) == 1 or not getattr(_event, "keysym", None))
+        if is_mouse_click and hasattr(self, "episode_tree") and hasattr(self, "_tree_cell_from_event"):
             cell = self._tree_cell_from_event(self.episode_tree, _event)
             if cell and cell[1] == "#1":
                 return "break"

@@ -41,7 +41,10 @@ class ThemeManager:
 
     def save_search_history(self, search_history: list[str]):
         """Persists search history without overwriting current theme settings (G8)."""
-        config._save_ui_settings(self.current_theme, self.current_font_size, search_history)
+        theme = str(self.settings.get("theme", self.current_theme))
+        raw_font_size = self.settings.get("font_size_pt", self.current_font_size)
+        font_size = int(raw_font_size) if isinstance(raw_font_size, (int, str)) else self.current_font_size
+        config._save_ui_settings(theme, font_size, search_history)
         self.settings["program_search_history"] = list(search_history)
 
     def apply_theme(self, theme_name: str | None = None, font_size: int | None = None):

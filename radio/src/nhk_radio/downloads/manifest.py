@@ -141,7 +141,9 @@ def mark_episode_downloaded(
         return saved
 
 
-def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: list[Episode]) -> set[str]:
+def get_downloaded_episode_keys(
+    output_dir: Path, program: Program, episodes: list[Episode], *, audio_only: bool = False
+) -> set[str]:
     """複数エピソードの保存状態を効率的に判定する（バッチ処理）。
 
     マニフェスト 1 回読み込みとディレクトリスキャン共有で N+1 問題を解決。
@@ -160,7 +162,8 @@ def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: li
             if not resolved.is_absolute():  # pragma: no cover
                 resolved = filesystem.program_output_dir(output_dir, program) / resolved
             if resolved.exists():  # pragma: no cover
-                downloaded_keys.add(episode_key)
+                if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
+                    downloaded_keys.add(episode_key)
 
     # ステップ 2: ディレクトリスキャン (マニフェスト未記録のエピソードのみ)
     program_dirs = filesystem._program_search_dirs(output_dir, program)
@@ -169,13 +172,15 @@ def get_downloaded_episode_keys(output_dir: Path, program: Program, episodes: li
         for episode in episodes:
             if filesystem._episode_key(episode) in downloaded_keys:
                 continue
-            if any(filesystem._episode_output_matches(f, program, episode) for f in files):  # pragma: no cover
+            if any(filesystem._episode_output_matches(f, program, episode, audio_only=audio_only) for f in files):  # pragma: no cover
                 downloaded_keys.add(filesystem._episode_key(episode))
 
     return downloaded_keys
 
 
-def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Episode) -> Path | None:
+def find_episode_downloaded_path(
+    output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False
+) -> Path | None:
     """保存済みエピソードのパスを検索して返す (副作用なし)。"""
     from . import filesystem
 
@@ -189,19 +194,20 @@ def find_episode_downloaded_path(output_dir: Path, program: Program, episode: Ep
         if not resolved.is_absolute():  # pragma: no cover
             resolved = filesystem.program_output_dir(output_dir, program) / resolved
         if resolved.exists():  # pragma: no cover
-            return resolved
+            if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
+                return resolved
 
     # 2) ディレクトリをスキャンして候補を探す
     for program_dir in filesystem._program_search_dirs(output_dir, program):
-        candidates = filesystem._episode_output_candidates(program_dir, program, episode)
+        candidates = filesystem._episode_output_candidates(program_dir, program, episode, audio_only=audio_only)
         if candidates:
             return candidates[0]
 
     return None
 
 
-def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode) -> bool:
-    return find_episode_downloaded_path(output_dir, program, episode) is not None
+def is_episode_downloaded(output_dir: Path, program: Program, episode: Episode, *, audio_only: bool = False) -> bool:
+    return find_episode_downloaded_path(output_dir, program, episode, audio_only=audio_only) is not None
 
 
 def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Episode) -> bool:

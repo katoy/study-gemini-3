@@ -411,6 +411,60 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         with patch.object(Path, "is_file", return_value=True):
             self.assertFalse(filesystem._episode_output_matches(path, program, episode, audio_only=True))
 
+    def test_is_episode_downloaded_audio_only_ignores_mp4(self):
+        import tempfile
+
+        from nhk_radio.downloads import filesystem, manifest
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="第2回", display_title="第2回", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            p_dir = filesystem.program_output_dir(out, program)
+            p_dir.mkdir(parents=True, exist_ok=True)
+            (p_dir / "20240401_番組_第2回.mp4").write_text("dummy")
+            self.assertFalse(manifest.is_episode_downloaded(out, program, episode, audio_only=True))
+            self.assertTrue(manifest.is_episode_downloaded(out, program, episode, audio_only=False))
+
+    def test_save_search_history_preserves_persisted_theme(self):
+        from nhk_radio.gui.theme_manager import ThemeManager
+        with patch("nhk_radio.gui.theme_manager.config._load_ui_settings", return_value={"theme": "dark", "font_size_pt": 12, "program_search_history": []}):
+            tm = ThemeManager(MagicMock())
+            # プレビュー適用で current_theme が変わる
+            tm.current_theme = "light"
+            tm.current_font_size = 14
+            with patch("nhk_radio.gui.theme_manager.config._save_ui_settings") as save_mock:
+                tm.save_search_history(["検索語"])
+                # 保存されるのはプレビュー中の light/14 ではなく、元の dark/12 であること (G8)
+                save_mock.assert_called_once_with("dark", 12, ["検索語"])
+
+    def test_download_worker_backup_and_restore_on_failure(self):
+        import tempfile
+        import threading
+
+        from nhk_radio.gui.download_manager import DownloadManager
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="第1回", display_title="第1回", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            p_dir = out / "S_C"
+            p_dir.mkdir(parents=True)
+            original_file = p_dir / "20240401_番組_第1回.mp3"
+            original_file.write_text("original content")
+
+            dm = DownloadManager(out, True, MagicMock())
+            cancel_ev = threading.Event()
+
+            # DL が失敗するようにモック
+            with patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", return_value=False):
+                dm._download_worker(program, episode, "ep_key", cancel_ev)
+
+            # 元ファイルが復元されていること (G4)
+            self.assertTrue(original_file.exists())
+            self.assertEqual(original_file.read_text(), "original content")
+            self.assertFalse((p_dir / "20240401_番組_第1回.mp3.bak").exists())
+
     def test_filesystem_empty_episode_title_matches(self):
         from nhk_radio.downloads import filesystem
         from nhk_radio.types import Episode

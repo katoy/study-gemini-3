@@ -105,7 +105,7 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
                         try:
                             dt = parsedate_to_datetime(retry_after)
                             delay = max(0.0, dt.timestamp() - time.time())
-                        except Exception:
+                        except (TypeError, ValueError):
                             pass
                 if delay is None:
                     delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
