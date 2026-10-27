@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+import queue
 import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
@@ -86,12 +87,21 @@ class GuiEpisodeMixin:
             # 判定処理を開始 (世代番号を付与して古い結果の誤適用を防止: G3)
             self._download_check_generation = getattr(self, "_download_check_generation", 0) + 1
             current_gen = self._download_check_generation
+            if not hasattr(self, "_download_check_queue"):
+                self._download_check_queue: queue.Queue[tuple[Program, list[tuple[str, bool]], int] | None] = (
+                    queue.Queue()
+                )
             import threading
             threading.Thread(
                 target=self._async_download_check_worker,
                 args=(program, to_check, current_gen),
                 daemon=True,
             ).start()
+            if getattr(self, "_download_check_poll_id", None):
+                with contextlib.suppress(tk.TclError, ValueError):
+                    self.root.after_cancel(self._download_check_poll_id)
+            with contextlib.suppress(Exception):
+                self._download_check_poll_id = self.root.after(50, self._poll_download_check)
         else:
             self.episode_tree.selection_remove(self.episode_tree.selection())
             self.episode_tree.focus("")
@@ -102,26 +112,52 @@ class GuiEpisodeMixin:
         self._schedule_saved_button_refresh()
 
     def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]], generation: int):
-        """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
-        if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
+        """バックグラウンドで保存済み判定を行い、結果をキューに格納する (G3)。"""
+        try:
+            if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
+                return
+
+            # エピソードをバッチで一括判定（N+1 問題を解決）
+            episodes = [ep for _iid, ep in to_check]
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, program, episodes, audio_only=self.audio_only
+            )
+
+            # True / False の双方を反映 (G3)
+            results = [(iid, _episode_key(ep) in downloaded_keys) for iid, ep in to_check]
+
+            if self.displayed_program == program and getattr(self, "_download_check_generation", 0) == generation:
+                if not hasattr(self, "_download_check_queue"):
+                    self._download_check_queue = queue.Queue()
+                self._download_check_queue.put((program, results, generation))
+        finally:
+            if hasattr(self, "_download_check_queue"):
+                self._download_check_queue.put(None)
+
+    def _poll_download_check(self):
+        """保存済み判定ワーカースレッドからの結果をポーリングして UI に反映する (G3)。"""
+        if not hasattr(self, "_download_check_queue"):
             return
 
-        # エピソードをバッチで一括判定（N+1 問題を解決）
-        episodes = [ep for _iid, ep in to_check]
-        downloaded_keys = get_downloaded_episode_keys(
-            self.output_dir, program, episodes, audio_only=getattr(self, "audio_only", True)
-        )
+        finished = False
+        while True:
+            try:
+                item = self._download_check_queue.get_nowait()
+                if item is None:
+                    finished = True
+                else:
+                    prog, results, gen = item
+                    if self.displayed_program == prog and getattr(self, "_download_check_generation", 0) == gen:
+                        self._apply_download_check_results(prog, results, gen)
+            except queue.Empty:
+                break
 
-        # True / False の双方を反映 (G3)
-        results = [(iid, _episode_key(ep) in downloaded_keys) for iid, ep in to_check]
-
-        if self.displayed_program == program and getattr(self, "_download_check_generation", 0) == generation:
-            def _safe_apply():
-                with contextlib.suppress(Exception):
-                    self._apply_download_check_results(program, results, generation)
-
+        if not finished and getattr(self, "_download_check_generation", 0) > 0:
+            if getattr(self, "_download_check_poll_id", None):
+                with contextlib.suppress(tk.TclError, ValueError):
+                    self.root.after_cancel(self._download_check_poll_id)
             with contextlib.suppress(Exception):
-                self.root.after(0, _safe_apply)
+                self._download_check_poll_id = self.root.after(50, self._poll_download_check)
 
     def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]], generation: int):
         """判定結果を UI に反映する。"""
@@ -153,7 +189,9 @@ class GuiEpisodeMixin:
 
         # バッチ判定で全エピソードの保存状態を効率的に取得
         episodes = list(self.displayed_episode_map.values())
-        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+        downloaded_keys = get_downloaded_episode_keys(
+            self.output_dir, program, episodes, audio_only=self.audio_only
+        )
 
         for iid, episode in self.displayed_episode_map.items():
             values = list(self.episode_tree.item(iid, "values"))
@@ -189,7 +227,7 @@ class GuiEpisodeMixin:
         has_saved = False
         if self.displayed_program and self.displayed_episodes:
             downloaded_keys = get_downloaded_episode_keys(
-                self.output_dir, self.displayed_program, self.displayed_episodes
+                self.output_dir, self.displayed_program, self.displayed_episodes, audio_only=self.audio_only
             )
             has_saved = bool(downloaded_keys)
 
@@ -201,11 +239,23 @@ class GuiEpisodeMixin:
                 self.episode_saved_only_var.set(False)
 
     def _on_episode_filter_change(self, *_args):
+        if getattr(self, "_episode_search_timer", None):
+            with contextlib.suppress(tk.TclError, ValueError):
+                self.root.after_cancel(self._episode_search_timer)
+        self._episode_search_timer = self.root.after(150, self._apply_episode_filter)
+
+    def _apply_episode_filter(self):
         if self.displayed_program:
             self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
 
     def _clear_episode_search(self, _event=None):
         self.episode_search_var.set("")
+        # set("") の trace でスケジュールされたタイマーを確実にキャンセルして二重描画を防止 (2-3)
+        if getattr(self, "_episode_search_timer", None):
+            with contextlib.suppress(tk.TclError, ValueError):
+                self.root.after_cancel(self._episode_search_timer)
+            self._episode_search_timer = None
+        self._apply_episode_filter()
         if hasattr(self, "episode_search_entry"):
             self.episode_search_entry.focus_set()
         return "break"
@@ -221,7 +271,9 @@ class GuiEpisodeMixin:
         # バッチ判定: フィルタリングとソートの両方で使用
         downloaded_keys: set[str] = set()
         if self.displayed_program and (saved_only or self.episode_sort_state[0] == "saved"):
-            downloaded_keys = get_downloaded_episode_keys(self.output_dir, self.displayed_program, episodes)
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, self.displayed_program, episodes, audio_only=self.audio_only
+            )
 
         filtered = episodes
         if needle:

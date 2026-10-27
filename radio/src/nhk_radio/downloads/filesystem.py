@@ -123,8 +123,15 @@ def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
 
 def _episode_output_matches(path: Path, program: Program, episode: Episode, *, audio_only: bool = True) -> bool:
     name = path.name
-    # 一時ファイル、不完全ファイル、バックアップファイルを除外 (M4, G4)
-    if not path.is_file() or name == ".downloaded.json" or ".part" in name or name.endswith(".ytdl") or name.endswith(".bak"):
+    # 一時ファイル、不完全ファイル、バックアップファイルを除外 (M4, G4, 2-1)
+    if (
+        not path.is_file()
+        or name == ".downloaded.json"
+        or ".part" in name
+        or name.endswith(".ytdl")
+        or name.endswith(".bak")
+        or name.endswith(".nhkradio-bak")
+    ):
         return False
 
     # audio_only の場合、音声ファイル以外（例: 変換失敗で残った .mp4）は保存済みとみなさない (M4)
@@ -146,9 +153,7 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode, *, a
     if not raw_ep_title:
         return True
 
-    title_variants = {episode_title, _safe_name(raw_ep_title)}
-    if raw_ep_title:
-        title_variants.add(raw_ep_title)
+    title_variants = {episode_title, _safe_name(raw_ep_title), raw_ep_title}
     try:
         import yt_dlp.utils
         yt_sanitized = yt_dlp.utils.sanitize_filename(raw_ep_title)
@@ -159,9 +164,7 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode, *, a
 
     stem = path.stem
     for tv in title_variants:
-        if not tv:
-            continue
-        if stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name:
+        if tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name):
             return True
 
     return False

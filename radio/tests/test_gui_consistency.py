@@ -193,5 +193,124 @@ class GuiConsistencyTest(unittest.TestCase):
         if errors:
             self.fail("Method arity mismatch found:\n" + "\n".join(errors))
 
+    def test_keep_video_gui_consistency(self):
+        """--keep-video (audio_only=False) で起動した際、保存済み判定が一貫して audio_only=False で動くことを検証 (2-1)。"""
+        import tempfile
+
+        from nhk_radio.types import Episode, Program
+
+        program = Program(title="動画番組", display_title="動画番組", display_date="2024-04-15", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="ep1", title="第1回", display_title="第1回", date="2024-04-15", display_date="2024-04-15", broadcast_time="", duration_str="10:00", url="")
+
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td)
+            p_dir = output_dir / "S_C"
+            p_dir.mkdir()
+            # .mp4 ファイルを配置
+            mp4_file = p_dir / "2024-04-15_動画番組_第1回.mp4"
+            mp4_file.write_text("mp4-data", encoding="utf-8")
+
+            # audio_only=False で起動
+            browser = EpisodeGuiBrowser([program], output_dir, audio_only=False, root=self.root)
+            browser.displayed_program = program
+            browser.displayed_episodes = [episode]
+            browser._render_episode_rows(program, [episode])
+            self.assertEqual(len(browser.displayed_episode_map), 1)
+            iid = list(browser.displayed_episode_map.keys())[0]
+
+            # 1) _refresh_downloaded_column を呼び出し
+            browser._refresh_downloaded_column(program)
+            # episode_tree.item の値に ☑ が含まれること
+            values = browser.episode_tree.item(iid, "values")
+            self.assertTrue(values and "☑" in values[0])
+
+            # 2) _refresh_saved_only_button_state で saved_only_check が有効になること
+            browser.episode_saved_only_check = MagicMock()
+            browser._refresh_saved_only_button_state()
+            browser.episode_saved_only_check.state.assert_called_with(["!disabled"])
+
+            # 3) _sorted_episodes で saved_only=True の時に .mp4 ファイルを持つエピソードが残ること
+            browser.episode_saved_only_var.set(True)
+            res = browser._sorted_episodes([episode])
+            self.assertEqual(len(res), 1)
+
+            # 4) _update_program_overview で (保存済み 1) と表示されること
+            browser._update_program_overview(program, [episode])
+            self.assertIn("保存済み 1", browser.selected_program_stats_var.get())
+
+            # 5) operations: find_episode_downloaded_path が .mp4 を取得して再生できること
+            with patch("subprocess.Popen"):
+                browser._play_episode_file(iid)
+                self.assertIn("再生中: 2024-04-15_動画番組_第1回.mp4", browser.status_var.get())
+
+            # 6) operations: パスコピー
+            browser.root.clipboard_clear = MagicMock()
+            browser.root.clipboard_append = MagicMock()
+            browser._copy_episode_path(iid)
+            browser.root.clipboard_append.assert_called_with(str(mp4_file))
+
+            # 7) operations: ファイル名コピー
+            browser._copy_episode_filename(iid)
+            browser.root.clipboard_append.assert_called_with(mp4_file.name)
+
+            # 8) download_panel: 上書き確認で既存 .mp4 が検知されること
+            browser.episode_tree.selection = MagicMock(return_value=[iid])
+            with patch("tkinter.messagebox.askyesno", return_value=False) as mock_ask:
+                res = browser._start_download_selected()
+                self.assertEqual(res, "break")
+                mock_ask.assert_called_once()
+                self.assertIn("既に保存済みです", mock_ask.call_args[0][1])
+
+    def test_clear_episode_search_cancels_timer(self):
+        """検索欄クリア時に trace でスケジュールされたタイマーをキャンセルし、二重描画を防ぐこと (2-3)"""
+        from nhk_radio.types import Program
+
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        browser = EpisodeGuiBrowser([program], Path("/dummy"), audio_only=True, root=self.root)
+        browser.displayed_program = program
+        browser.displayed_episodes = []
+        browser.episode_search_var.set("keyword")
+
+        filter_calls = 0
+
+        def fake_apply():
+            nonlocal filter_calls
+            filter_calls += 1
+
+        browser._apply_episode_filter = fake_apply  # type: ignore[method-assign]
+        browser._clear_episode_search()
+
+        # 即座に 1 回呼ばれること
+        self.assertEqual(filter_calls, 1)
+        # タイマーは None になっていること
+        self.assertIsNone(getattr(browser, "_episode_search_timer", None))
+
+    def test_async_download_check_queue_and_poll(self):
+        """保存済み判定ワーカースレッドがキュー経由で通信し、UI スレッドがポーリングで安全に反映すること (G3)"""
+        from nhk_radio.types import Episode, Program
+
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        ep = Episode(id="1", title="E1", display_title="E1", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        browser = EpisodeGuiBrowser([program], Path("/dummy"), audio_only=True, root=self.root)
+        browser.displayed_program = program
+        browser.displayed_episodes = [ep]
+        browser._render_episode_rows(program, [ep])
+
+        applied = False
+
+        def fake_apply_results(prog, results, gen):
+            nonlocal applied
+            applied = True
+
+        browser._apply_download_check_results = fake_apply_results  # type: ignore[method-assign]
+
+        with patch("nhk_radio.gui.listing.episodes.get_downloaded_episode_keys", return_value={"20240401_E1"}):
+            browser._async_download_check_worker(program, [("episode-0", ep)], generation=browser._download_check_generation)
+
+        # キューからポーリングで反映
+        browser._poll_download_check()
+        self.assertTrue(applied)
+
+
 if __name__ == "__main__":
     unittest.main()

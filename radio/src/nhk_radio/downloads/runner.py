@@ -4,10 +4,12 @@ import collections
 import logging
 import re
 import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from ..constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
 from . import filesystem
@@ -101,6 +103,21 @@ def _format_download_eta(eta: str | None) -> str:
     return f"残り {eta}" if eta else "残り --:--"
 
 
+def _terminate_process(process: subprocess.Popen) -> None:
+    """プロセス（POSIX ではプロセスグループ）を確実に終了させる (G5)。"""
+    if sys.platform != "win32":
+        import os
+        import signal
+
+        try:
+            pgid = os.getpgid(process.pid)
+            os.killpg(pgid, signal.SIGTERM)
+        except (AttributeError, OSError, TypeError):
+            pass
+    with suppress(Exception):
+        process.terminate()
+
+
 def run_yt_dlp_subprocess(
     cmd: list[str],
     on_progress: Callable[[float | None, str | None, str | None], None] | None = None,
@@ -124,6 +141,10 @@ def run_yt_dlp_subprocess(
     output_lines: collections.deque[str] = collections.deque(maxlen=20)
     stop_monitor = threading.Event()
 
+    popen_kwargs: dict[str, Any] = {}
+    if sys.platform != "win32":
+        popen_kwargs["start_new_session"] = True
+
     try:
         process = subprocess.Popen(
             cmd,
@@ -133,18 +154,18 @@ def run_yt_dlp_subprocess(
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            **popen_kwargs,
         )
 
         if on_process:
             on_process(process)
 
-        # 出力のない区間でも即座にキャンセルできるよう監視スレッドを起動 (M10)
+        # 出力のない区間でも即座にキャンセルできるよう監視スレッドを起動 (M10, G5)
         if cancel_event:
             def _cancel_watcher():
                 while not stop_monitor.is_set() and process.poll() is None:
                     if cancel_event.wait(timeout=0.1):
-                        with suppress(Exception):
-                            process.terminate()
+                        _terminate_process(process)
                         break
 
             threading.Thread(target=_cancel_watcher, daemon=True).start()
@@ -152,9 +173,9 @@ def run_yt_dlp_subprocess(
         if process.stdout:
             for line in process.stdout:
                 output_lines.append(line)
-                # キャンセルイベントがセットされたら terminate
+                # キャンセルイベントがセットされたら terminate (G5)
                 if cancel_event and cancel_event.is_set():
-                    process.terminate()
+                    _terminate_process(process)
                     break
 
                 stripped = line.strip()
@@ -187,9 +208,16 @@ def run_yt_dlp_subprocess(
     except Exception as e:
         logger.error(f"yt-dlp 実行エラー: {e}")
         if process is not None:
+            _terminate_process(process)
             with suppress(Exception):
-                process.terminate()
-                process.wait()
+                process.wait(timeout=10)
         return False
+    except BaseException:
+        # start_new_session により SIGINT が子へ届かないため、明示的に停止してから再送出する (2-2)
+        if process is not None:
+            _terminate_process(process)
+            with suppress(Exception):
+                process.wait(timeout=10)
+        raise
     finally:
         stop_monitor.set()

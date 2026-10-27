@@ -217,7 +217,9 @@ class GuiProgramsMixin:
         if episodes is not None:
             # バッチ判定で全エピソードの保存状態を効率的に取得
             from ...downloads import get_downloaded_episode_keys
-            downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, program, episodes, audio_only=self.audio_only
+            )
             saved_count = len(downloaded_keys)
             stats = f"{len(episodes)} エピソード (保存済み {saved_count})"
             if message:

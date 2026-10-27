@@ -1,7 +1,9 @@
 """Tkinter GUI browser for NHK radio programs."""
 
 import contextlib
+import logging
 import queue
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,6 +28,8 @@ from .toolkit import messagebox, tk, ttk
 if TYPE_CHECKING:
     # Protocol を実装していることをコンパイラに確認させる
     _: GuiBrowserProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
@@ -90,6 +94,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             audio_only=self.audio_only,
             on_result=self._on_download_manager_result,
         )
+
+        # 起動時に前回のクラッシュ等で残ったバックアップファイルを非同期に復元・整理 (G4, 2-2, 2-3)
+        self._start_residual_backup_cleanup()
 
         self.download_polling = False
         self.active_download_rows: dict[str, dict] = {}
@@ -252,6 +259,24 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.episodes_cache.clear()
         self._populate_programs()
         self.status_var.set("キャッシュをクリアしました")
+
+    def _start_residual_backup_cleanup(self) -> None:
+        """起動時にバックグラウンドスレッドで残存バックアップファイルを復元・整理する (2-2, 2-3)。"""
+
+        def _worker() -> None:
+            try:
+                from ..downloads.cleanup import BACKUP_MIN_AGE_SECONDS, cleanup_residual_backup_files
+
+                active_dirs = self.download_manager.get_active_program_dirs()
+                cleanup_residual_backup_files(
+                    self.output_dir,
+                    active_program_dirs=active_dirs,
+                    min_age_seconds=BACKUP_MIN_AGE_SECONDS,
+                )
+            except Exception as e:
+                logger.debug(f"残存バックアップの非同期整理で例外: {e}")
+
+        threading.Thread(target=_worker, daemon=True, name="ResidualBackupCleanup").start()
 
     def _start_fetch_programs(self, genre: str | None = None):
         """Initial background fetch of all programs."""

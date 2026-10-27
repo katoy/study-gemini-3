@@ -100,7 +100,9 @@ class GuiDownloadsMixin:
         # 既に保存済みのエピソードをチェック
         existing_episodes = []
         for episode in selected:
-            path = find_episode_downloaded_path(self.output_dir, program, episode)
+            path = find_episode_downloaded_path(
+                self.output_dir, program, episode, audio_only=self.audio_only
+            )
             if path is not None:
                 existing_episodes.append((episode, path))
 

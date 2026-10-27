@@ -1,5 +1,6 @@
 """GUI Mixin が要求するプロトコル型（Protocol）の定義。"""
 
+import queue
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -65,6 +66,7 @@ class GuiBrowserProtocol(Protocol):
     displayed_episodes: list[Episode]
     displayed_episode_map: dict[str, Episode]
     selected_episode_keys: tuple[str, ...]
+    _download_check_queue: queue.Queue[Any]
 
     # ========================
     # ソート・フィルタ状態
@@ -76,6 +78,7 @@ class GuiBrowserProtocol(Protocol):
     # 設定・パス
     # ========================
     output_dir: Path
+    audio_only: bool
     current_theme: str
     current_font_size: int
     loading: bool

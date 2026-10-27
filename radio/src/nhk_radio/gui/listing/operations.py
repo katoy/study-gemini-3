@@ -122,7 +122,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -171,7 +173,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -188,7 +192,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -205,7 +211,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -234,7 +242,9 @@ class GuiOperationsMixin:
             return
 
         program = self.displayed_program
-        path = find_episode_downloaded_path(self.output_dir, program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, program, episode, audio_only=self.audio_only
+        )
 
         # 注意: 事前の unlink は行わない。ダウンロードワーカー側で安全に退避・復元されるため、
         # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
