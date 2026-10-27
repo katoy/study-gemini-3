@@ -126,21 +126,10 @@ class GuiStylingMixin:
 
     def _update_settings_ui(self):
         """Updates StringVar values for settings UI based on current theme/font."""
-        if not hasattr(self, "settings_summary_var"):
+        if not hasattr(self, "settings_view"):
             return
-        theme_label = "ダーク" if self.current_theme == "dark" else "ライト"
-        self.settings_summary_var.set(f"{theme_label} / 文字 {self.current_font_size}pt")
-        self.font_size_display_var.set(f"{self.current_font_size} pt")
         self.settings_button_var.set("番組一覧" if self.current_screen == "settings" else "表示設定")
-        self.settings_save_button_var.set("保存済み" if not self.settings_dirty else "保存")
-        self.theme_var.set(self.current_theme)
-        self.font_size_var.set(self.current_font_size)
-
-        if hasattr(self, "settings_save_button"):
-            if self.settings_dirty:
-                self.settings_save_button.state(["!disabled"])
-            else:
-                self.settings_save_button.state(["disabled"])
+        self.settings_view.update(self.current_theme, self.current_font_size, self.settings_dirty)
 
     def _make_canvas_mousewheel_handler(self, canvas):
         """Canvas 用マウスホイールハンドラを生成して返す。"""

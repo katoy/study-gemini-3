@@ -413,13 +413,10 @@ class GuiDownloadsMixin:
         }
 
     def _show_error_banner(self, message: str) -> None:
-        """Display error banner with the given message."""
-        self.error_banner_label.config(text=message)
-        self.error_banner_frame.grid()
+        self.episode_view.show_error(message)
 
     def _hide_error_banner(self) -> None:
-        """Hide error banner."""
-        self.error_banner_frame.grid_remove()
+        self.episode_view.hide_error()
 
 
 __all__ = ["GuiDownloadsMixin"]

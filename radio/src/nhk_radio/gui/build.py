@@ -6,8 +6,10 @@ if TYPE_CHECKING:
     from .protocols import GuiBrowserProtocol
 
 from .activity_view import ActivityView
+from .episode_view import EpisodeActions, EpisodeDetailView
 from .logo import create_brand_logo
 from .program_view import ProgramListActions, ProgramListView
+from .settings_view import SettingsActions, SettingsView
 from .toolkit import tk, ttk
 
 
@@ -130,138 +132,30 @@ class GuiBuildMixin:
         self._update_program_tree_headings()
 
     def _build_detail_panel(self, right_panes: "ttk.Panedwindow") -> None:
-        detail = ttk.Frame(right_panes, style="Card.TFrame", padding=18, width=860, height=300)
-        detail.columnconfigure(0, weight=1)
-        detail.rowconfigure(3, weight=1)  # episode_tree (row=3) が expand する
-        self._build_hero_section(detail)
-        self._build_episode_tree(detail)
-        right_panes.add(detail, weight=1)
-
-    def _build_hero_section(self, detail: "ttk.Frame") -> None:
-        hero = ttk.Frame(detail, style="Hero.TFrame", padding=16)
-        hero.grid(row=0, column=0, sticky="ew")
-        hero.columnconfigure(0, weight=1)
-        ttk.Label(hero, textvariable=self.selected_program_title_var, style="HeroTitle.TLabel").grid(
-            row=0, column=0, sticky="w"
+        self.episode_view = EpisodeDetailView(
+            right_panes,
+            cast(EpisodeActions, self),
+            title_var=self.selected_program_title_var,
+            meta_var=self.selected_program_meta_var,
+            stats_var=self.selected_program_stats_var,
+            fetch_var=self.fetch_button_var,
+            message_var=self.episode_message_var,
+            search_var=self.episode_search_var,
+            saved_only_var=self.episode_saved_only_var,
+            filter_summary_var=self.episode_filter_summary_var,
+            selection_summary_var=self.episode_selection_summary_var,
         )
-        ttk.Label(hero, textvariable=self.selected_program_meta_var, style="HeroMeta.TLabel").grid(
-            row=1, column=0, sticky="w", pady=(8, 0)
-        )
-        ttk.Label(hero, textvariable=self.selected_program_stats_var, style="HeroStats.TLabel").grid(
-            row=2, column=0, sticky="w", pady=(10, 0)
-        )
-        hero_actions = ttk.Frame(hero, style="HeroInner.TFrame")
-        hero_actions.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(18, 0))
-        self.fetch_button = ttk.Button(
-            hero_actions,
-            textvariable=self.fetch_button_var,
-            command=self._start_fetch_selected,
-            style="Quiet.TButton",
-        )
-        self.fetch_button.grid(row=0, column=0, sticky="e")
-        self.download_button = ttk.Button(
-            hero_actions,
-            text="選択エピソードをダウンロード",
-            command=self._start_download_selected,
-            style="Accent.TButton",
-        )
-        self.download_button.grid(row=1, column=0, sticky="e", pady=(8, 0))
-
-    def _build_episode_tree(self, detail: "ttk.Frame") -> None:
-        self.episode_title_var = tk.StringVar(value="エピソード一覧")
-        section = ttk.Frame(detail, style="CardInner.TFrame")
-        section.grid(row=1, column=0, sticky="ew", pady=(16, 10))
-        section.columnconfigure(0, weight=1)
-        ttk.Label(section, textvariable=self.episode_title_var, style="CardTitle.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(section, textvariable=self.episode_message_var, style="CardMeta.TLabel").grid(
-            row=0, column=1, sticky="e"
-        )
-        tools = ttk.Frame(section, style="CardInner.TFrame")
-        tools.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        tools.columnconfigure(1, weight=1)
-        ttk.Label(tools, text="絞り込み", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        self.episode_search_entry = ttk.Entry(tools, textvariable=self.episode_search_var)
-        self.episode_search_entry.grid(row=0, column=1, sticky="ew")
-        self.episode_search_entry.bind("<Escape>", self._clear_episode_search)
-        ttk.Button(tools, text="クリア", command=self._clear_episode_search, style="Quiet.TButton").grid(
-            row=0, column=2, padx=(8, 0)
-        )
-        self.episode_saved_only_check = ttk.Checkbutton(
-            tools,
-            text="保存済みのみ",
-            variable=self.episode_saved_only_var,
-            style="Filter.TCheckbutton",
-        )
-        self.episode_saved_only_check.grid(row=0, column=3, padx=(12, 0))
-        filter_summary = ttk.Frame(section, style="CardInner.TFrame")
-        filter_summary.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        filter_summary.columnconfigure(0, weight=1)
-        ttk.Label(filter_summary, textvariable=self.episode_filter_summary_var, style="CardMeta.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(filter_summary, textvariable=self.episode_selection_summary_var, style="CardMeta.TLabel").grid(
-            row=0, column=1, sticky="e"
-        )
-        # エラーバナーフレーム（通常は非表示）
-        self.error_banner_frame = ttk.Frame(detail, style="ErrorBanner.TFrame")
-        self.error_banner_frame.grid(row=2, column=0, sticky="ew", pady=(16, 8))
-        self.error_banner_frame.columnconfigure(0, weight=1)
-        self.error_banner_label = ttk.Label(
-            self.error_banner_frame, text="", style="ErrorBanner.TLabel"
-        )
-        self.error_banner_label.grid(row=0, column=0, sticky="w", padx=(10, 8), pady=6)
-        self.error_retry_button = ttk.Button(
-            self.error_banner_frame,
-            text="↺ 再試行",
-            style="Quiet.TButton",
-            command=self._start_fetch_selected,
-        )
-        self.error_retry_button.grid(row=0, column=1, padx=(0, 4), pady=4)
-        ttk.Button(
-            self.error_banner_frame,
-            text="✕",
-            style="Quiet.TButton",
-            command=self._hide_error_banner,
-        ).grid(row=0, column=2, padx=(0, 8), pady=4)
-        self.error_banner_frame.grid_remove()
-        self.episode_tree = ttk.Treeview(
-            detail,
-            columns=("saved", "date", "duration", "title"),
-            show="headings",
-            selectmode="extended",
-        )
-        _set_tree_heading(
-            self.episode_tree, "saved", text="DL", anchor="center", command=lambda: self._toggle_episode_sort("saved")
-        )
-        _set_tree_heading(
-            self.episode_tree, "date", text="放送日時", anchor="w", command=lambda: self._toggle_episode_sort("date")
-        )
-        _set_tree_heading(
-            self.episode_tree,
-            "duration",
-            text="長さ",
-            anchor="e",
-            command=lambda: self._toggle_episode_sort("duration"),
-        )
-        _set_tree_heading(
-            self.episode_tree,
-            "title",
-            text="タイトル",
-            anchor="w",
-            command=lambda: self._toggle_episode_sort("title"),
-        )
-        self.episode_tree.column("saved", width=60, anchor="center", stretch=False)
-
-        self.episode_tree.column("date", width=190, anchor="w", stretch=False)
-        self.episode_tree.column("duration", width=100, anchor="e", stretch=False)
-        self.episode_tree.column("title", width=560, anchor="w")
+        self.fetch_button = self.episode_view.fetch_button
+        self.download_button = self.episode_view.download_button
+        self.episode_title_var = self.episode_view.episode_title_var
+        self.episode_search_entry = self.episode_view.search_entry
+        self.episode_saved_only_check = self.episode_view.saved_only_check
+        self.error_banner_frame = self.episode_view.error_banner_frame
+        self.error_banner_label = self.episode_view.error_banner_label
+        self.error_retry_button = self.episode_view.error_retry_button
+        self.episode_tree = self.episode_view.tree
+        self.episode_scroll = self.episode_view.scrollbar
         self._update_episode_tree_headings()
-        self.episode_scroll = ttk.Scrollbar(detail, orient="vertical", command=self._on_episode_tree_scroll)
-        self.episode_tree.configure(yscrollcommand=self._on_episode_tree_yscroll)
-        self.episode_tree.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
-        self.episode_scroll.grid(row=3, column=1, sticky="ns", pady=(8, 0))
 
     def _build_activity_panel(self, right_panes: "ttk.Panedwindow") -> None:
         self.activity_view = ActivityView(
@@ -277,165 +171,23 @@ class GuiBuildMixin:
         self.download_jobs_empty = self.activity_view.empty_label
 
     def _build_settings_screen(self) -> None:
-        self._build_settings_canvas_frame()
-        self._build_settings_header()
-        settings_body = ttk.Frame(self.settings_inner, style="CardInner.TFrame")
-        settings_body.grid(row=2, column=0, sticky="nsew")
-        settings_body.columnconfigure(0, weight=1)
-        settings_body.columnconfigure(1, weight=1)
-        self._build_theme_group(settings_body)
-        self._build_font_group(settings_body)
-        self._build_settings_preview_section()
-
-    def _build_settings_canvas_frame(self) -> None:
-        self.settings_screen = ttk.Frame(self.screen_container, style="Card.TFrame")
-        self.settings_screen.grid(row=0, column=0, sticky="nsew")
-        self.settings_screen.columnconfigure(0, weight=1)
-        self.settings_screen.rowconfigure(0, weight=1)
-        self.settings_canvas, self.settings_scrollbar, self.settings_inner, self.settings_window = self._build_scrollable_frame(
-            self.settings_screen, "Card.TFrame", padding=24
+        self.settings_view = SettingsView(
+            self.screen_container,
+            cast(SettingsActions, self),
+            self._build_scrollable_frame,
+            theme_var=self.theme_var,
+            font_size_var=self.font_size_var,
+            font_size_display_var=self.font_size_display_var,
+            settings_save_button_var=self.settings_save_button_var,
+            settings_summary_var=self.settings_summary_var,
         )
-
-    def _build_settings_header(self) -> None:
-        settings_header = ttk.Frame(self.settings_inner, style="CardInner.TFrame")
-        settings_header.grid(row=0, column=0, sticky="ew")
-        settings_header.columnconfigure(0, weight=1)
-        ttk.Label(settings_header, text="表示設定", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
-        settings_actions = ttk.Frame(settings_header, style="CardInner.TFrame")
-        settings_actions.grid(row=0, column=1, sticky="e")
-        ttk.Button(
-            settings_actions, text="規定値にリセット", command=self._reset_ui_settings, style="Quiet.TButton"
-        ).grid(row=0, column=0, padx=(0, 8))
-        self.settings_save_button = ttk.Button(
-            settings_actions,
-            textvariable=self.settings_save_button_var,
-            command=self._save_ui_settings_from_screen,
-            style="Accent.TButton",
-        )
-        self.settings_save_button.grid(row=0, column=1)
-        ttk.Label(
-            self.settings_inner,
-            text="テーマと文字サイズはこの画面でまとめて変更できます。選択内容はその場で反映され、保存すると次回起動時にも引き継がれます。",
-            style="AppSub.TLabel",
-            wraplength=880,
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(8, 18))
-
-    def _build_theme_group(self, settings_body: "ttk.Frame") -> None:
-        theme_group = ttk.LabelFrame(settings_body, text="テーマ", padding=16)
-        theme_group.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        theme_group.columnconfigure(0, weight=1)
-        ttk.Label(theme_group, text="画面全体の配色を切り替えます。", style="CardMeta.TLabel").grid(
-            row=0, column=0, sticky="w", pady=(0, 12)
-        )
-        ttk.Radiobutton(
-            theme_group,
-            text="ライト",
-            value="light",
-            variable=self.theme_var,
-            command=lambda: self._apply_theme(self.theme_var.get()),
-            style="Settings.TRadiobutton",
-        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
-        ttk.Radiobutton(
-            theme_group,
-            text="ダーク",
-            value="dark",
-            variable=self.theme_var,
-            command=lambda: self._apply_theme(self.theme_var.get()),
-            style="Settings.TRadiobutton",
-        ).grid(row=2, column=0, sticky="w")
-
-    def _build_font_group(self, settings_body: "ttk.Frame") -> None:
-        font_group = ttk.LabelFrame(settings_body, text="文字サイズ", padding=16)
-        font_group.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-        font_group.columnconfigure(0, weight=1)
-        ttk.Label(font_group, text="一覧、カード、設定ラベルの文字サイズを変更します。", style="CardMeta.TLabel").grid(
-            row=0, column=0, sticky="w", pady=(0, 12)
-        )
-        self._build_font_quick_actions(font_group)
-        self._build_font_preset_row(font_group)
-        self._build_font_size_scale(font_group)
-        ttk.Label(
-            font_group,
-            text="細かい調整はスライダー、すばやい変更はボタンで行えます。左右キーでも 1pt ずつ調整できます。",
-            style="CardMeta.TLabel",
-            wraplength=380,
-            justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        font_preview = ttk.Frame(font_group, style="FontPreview.TFrame", padding=14)
-        font_preview.grid(row=5, column=0, sticky="ew", pady=(14, 0))
-        font_preview.columnconfigure(0, weight=1)
-        ttk.Label(font_preview, text="プレビュー", style="FontPreviewTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            font_preview,
-            text="番組一覧、詳細カード、設定ラベルにこのサイズがそのまま反映されます。",
-            style="FontPreviewBody.TLabel",
-            wraplength=380,
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
-
-    def _build_font_quick_actions(self, font_group: "ttk.LabelFrame") -> None:
-        font_quick_actions = ttk.Frame(font_group, style="CardInner.TFrame")
-        font_quick_actions.grid(row=1, column=0, sticky="ew")
-        font_quick_actions.columnconfigure(1, weight=1)
-        ttk.Button(font_quick_actions, text="小さく", command=self._decrease_font_size, style="FontStep.TButton").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(font_quick_actions, textvariable=self.font_size_display_var, style="SettingsValue.TLabel").grid(
-            row=0, column=1
-        )
-        ttk.Button(font_quick_actions, text="大きく", command=self._increase_font_size, style="FontStep.TButton").grid(
-            row=0, column=2, sticky="e"
-        )
-
-    def _build_font_preset_row(self, font_group: "ttk.LabelFrame") -> None:
-        preset_row = ttk.Frame(font_group, style="CardInner.TFrame")
-        preset_row.grid(row=2, column=0, sticky="ew", pady=(12, 0))
-        ttk.Label(preset_row, text="よく使うサイズ", style="CardMeta.TLabel").grid(
-            row=0, column=0, sticky="w", padx=(0, 10)
-        )
-        for index, preset in enumerate((9, 11, 13, 15), start=1):
-            ttk.Button(
-                preset_row,
-                text=f"{preset} pt",
-                command=lambda value=preset: self._apply_font_size_preset(value),
-                style=f"FontPreset{preset}.TButton",
-                width=5,
-            ).grid(row=0, column=index, padx=(0, 8))
-
-    def _build_font_size_scale(self, font_group: "ttk.LabelFrame") -> None:
-        font_control = ttk.Frame(font_group, style="CardInner.TFrame")
-        font_control.grid(row=3, column=0, sticky="ew", pady=(12, 0))
-        font_control.columnconfigure(1, weight=1)
-        ttk.Label(font_control, text="小", style="CardMeta.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 12))
-        self.font_size_scale = ttk.Scale(
-            font_control,
-            from_=9,
-            to=18,
-            variable=self.font_size_var,
-            command=self._on_font_size_scale,
-            style="Settings.Horizontal.TScale",
-            takefocus=True,
-        )
-        self.font_size_scale.grid(row=0, column=1, sticky="ew")
-        self.font_size_scale.bind("<Left>", self._on_font_size_scale_left)
-        self.font_size_scale.bind("<Right>", self._on_font_size_scale_right)
-        self.font_size_scale.bind("<Home>", self._on_font_size_scale_home)
-        self.font_size_scale.bind("<End>", self._on_font_size_scale_end)
-        ttk.Label(font_control, text="大", style="CardMeta.TLabel").grid(row=0, column=2, sticky="e", padx=(12, 0))
-
-    def _build_settings_preview_section(self) -> None:
-        preview_group = ttk.LabelFrame(self.settings_inner, text="プレビュー", padding=16)
-        preview_group.grid(row=3, column=0, sticky="ew", pady=(18, 0))
-        preview_group.columnconfigure(0, weight=1)
-        ttk.Label(preview_group, textvariable=self.settings_summary_var, style="SettingsValue.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(
-            preview_group,
-            text="ラジオ英会話 / 4月13日(月) 06:45 / エピソード 12 件 / 保存済み 3 件",
-            style="SettingsPreview.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self.settings_screen = self.settings_view.settings_screen
+        self.settings_canvas = self.settings_view.settings_canvas
+        self.settings_scrollbar = self.settings_view.settings_scrollbar
+        self.settings_inner = self.settings_view.settings_inner
+        self.settings_window = self.settings_view.settings_window
+        self.settings_save_button = self.settings_view.settings_save_button
+        self.font_size_scale = self.settings_view.font_size_scale
 
     def _build_status_bar(self, main: "ttk.Frame") -> None:
         status_area = ttk.Frame(main)
@@ -471,16 +223,6 @@ class GuiBuildMixin:
         self.copy_cell_button.state(["disabled"])
 
     def _bind_all_events(self) -> None:
-        self.episode_tree.bind("<ButtonRelease-1>", self._on_episode_tree_click)
-        self.episode_tree.bind("<Motion>", self._on_episode_tree_motion)
-        self.episode_tree.bind("<Leave>", self._on_episode_tree_leave)
-        self.episode_tree.bind("<Double-1>", self._start_download_selected)
-        self.episode_tree.bind("<Return>", self._start_download_selected)
-        self.episode_tree.bind("<<TreeviewSelect>>", self._on_episode_selection_change)
-        self.episode_tree.bind("<Control-c>", self._copy_selected_cell_to_clipboard)
-        self.episode_tree.bind("<Command-c>", self._copy_selected_cell_to_clipboard)
-        self.episode_tree.bind("<Button-2>", self._on_episode_tree_right_click)
-        self.episode_tree.bind("<Button-3>", self._on_episode_tree_right_click)
         self.root.bind_all("<Control-f>", self._focus_program_search, add="+")
         self.root.bind_all("<Command-f>", self._focus_program_search, add="+")
         self.root.bind_all("<Control-l>", self._focus_episode_search, add="+")
