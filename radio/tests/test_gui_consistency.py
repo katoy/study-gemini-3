@@ -69,7 +69,33 @@ class GuiConsistencyTest(unittest.TestCase):
         self.assertIs(browser.episode_view.tree, browser.episode_tree)
         self.assertIs(browser.episode_view.episodes_by_item, browser.displayed_episode_map)
         self.assertIs(browser.activity_view.rows, browser.active_download_rows)
-        self.assertIs(browser.settings_view.settings_screen, browser.settings_screen)
+        self.assertIs(browser.settings_view.settings_screen, browser.shell.settings_view.settings_screen)
+
+    def test_shell_layout_and_screen_switching(self):
+        if isinstance(self.root, MagicMock):
+            self.skipTest("Tk display is unavailable")
+        if self.browser is None:
+            self.fail(f"Browser failed to initialize in setUp: {self._setup_error}")
+        browser = self.browser
+        self.root.deiconify()
+        for size in ("1360x840", "1040x680"):
+            with self.subTest(size=size):
+                self.root.geometry(size)
+                self.root.update_idletasks()
+                self.assertGreater(browser.program_view.frame.winfo_width(), 0)
+                self.assertGreater(browser.episode_view.frame.winfo_width(), 0)
+                self.assertGreater(browser.activity_view.frame.winfo_height(), 0)
+        browser._show_screen("settings")
+        self.assertTrue(browser.settings_view.settings_screen.grid_info())
+        self.assertFalse(browser.shell.browser_screen.grid_info())
+        browser._show_screen("browser")
+        self.assertTrue(browser.shell.browser_screen.grid_info())
+        self.assertFalse(browser.settings_view.settings_screen.grid_info())
+        browser.current_theme = "dark"
+        browser.current_font_size = 18
+        browser._apply_current_theme()
+        self.assertEqual(browser.settings_view.theme_var.get(), "dark")
+        self.assertEqual(browser.settings_view.font_size_var.get(), 18)
 
     def test_required_methods_execution_smoke(self):
         """過去にエラーが発生した主要なメソッドをモック環境で実行する。"""

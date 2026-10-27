@@ -237,12 +237,16 @@ radio/
 │       ├── text.py      # 表示整形ユーティリティ
 │       ├── types.py     # Program / Episode の dataclass 定義
 │       ├── help.md      # GUI ヘルプ本文
-│       └── gui/         # Tkinter GUI (mixin 構成)
-│           ├── browser.py          # メインウィンドウ・画面制御・ショートカット
-│           ├── build.py            # ウィジェット構築・レイアウト
+│       └── gui/         # Tkinter GUI (部品クラスと画面制御)
+│           ├── browser.py          # データ取得・保存と画面部品の調停
+│           ├── build.py            # AppShell・画面全体の配置と切り替え
+│           ├── program_view.py     # 番組一覧の描画・操作
+│           ├── episode_view.py     # エピソード詳細の描画・操作
+│           ├── activity_view.py    # ダウンロード進捗の表示状態
+│           ├── settings_view.py    # 表示設定画面
 │           ├── data_manager.py     # データ取得・キャッシュ管理
 │           ├── download_manager.py # 並行ダウンロードワーカー管理
-│           ├── download_panel.py   # ダウンロード進捗パネル UI
+│           ├── download_panel.py   # 取得・保存イベントの調停
 │           ├── theme_manager.py    # テーマ・フォント設定
 │           └── listing/            # 番組・エピソード一覧ツリー・操作
 ├── scripts/         # デモ動画生成スクリプト等
@@ -280,15 +284,15 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `downloads/runner.py` | 111 | 99% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/activity_view.py` | 94 | 84% |
-| `gui/build.py` | 109 | 91% |
-| `gui/episode_view.py` | 128 | 94% |
+| `gui/build.py` | 109 | 93% |
+| `gui/episode_view.py` | 132 | 94% |
 | `gui/help_markdown.py` | 132 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
 | `gui/program_view.py` | 93 | 95% |
 | `gui/settings_view.py` | 102 | 100% |
 | `text.py` | 139 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **2002** | **98%** |
+| **合計** | **2006** | **98%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

@@ -15,8 +15,6 @@ class EpisodeActions(Protocol):
     def _hide_error_banner(self): ...
     def _toggle_episode_sort(self, column: str): ...
     def _update_episode_tree_headings(self): ...
-    def _on_episode_tree_scroll(self, *args): ...
-    def _on_episode_tree_yscroll(self, *args): ...
     def _on_episode_tree_click(self, event): ...
     def _on_episode_tree_motion(self, event): ...
     def _on_episode_tree_leave(self, event): ...
@@ -131,8 +129,8 @@ class EpisodeDetailView:
         self.tree.column("date", width=190, anchor="w", stretch=False)
         self.tree.column("duration", width=100, anchor="e", stretch=False)
         self.tree.column("title", width=560, anchor="w")
-        self.scrollbar = ttk.Scrollbar(detail, orient="vertical", command=actions._on_episode_tree_scroll)
-        self.tree.configure(yscrollcommand=actions._on_episode_tree_yscroll)
+        self.scrollbar = ttk.Scrollbar(detail, orient="vertical", command=self._on_scroll)
+        self.tree.configure(yscrollcommand=self._on_yscroll)
         self.tree.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
         self.scrollbar.grid(row=3, column=1, sticky="ns", pady=(8, 0))
         parent.add(detail, weight=1)
@@ -159,6 +157,12 @@ class EpisodeDetailView:
 
     def hide_error(self) -> None:
         self.error_banner_frame.grid_remove()
+
+    def _on_scroll(self, *args) -> None:
+        self.tree.yview(*args)
+
+    def _on_yscroll(self, *args) -> None:
+        self.scrollbar.set(*args)
 
     def render_rows(
         self,

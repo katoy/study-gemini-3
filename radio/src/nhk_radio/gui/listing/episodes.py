@@ -316,9 +316,6 @@ class GuiEpisodeMixin:
         self.episode_tree.config(cursor="")
         self._hide_tooltip()
 
-    def _on_episode_tree_scroll(self, *args):
-        self.episode_tree.yview(*args)
-
     def _bind_tooltip(self, widget, text: str):
         widget.bind("<Enter>", lambda event: self._show_tooltip(event, text), add="+")
         widget.bind("<Motion>", self._move_tooltip, add="+")

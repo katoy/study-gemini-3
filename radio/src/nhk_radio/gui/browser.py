@@ -101,13 +101,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.episode_view = shell.episode_view
         self.activity_view = shell.activity_view
         self.settings_view = shell.settings_view
-        self.browser_screen = shell.browser_screen
-        self.settings_screen = shell.settings_view.settings_screen
         self.program_tree = shell.program_view.tree
         self.program_tree_programs = shell.program_view.programs_by_item
         self.program_genre_filter_combo = shell.program_view.genre_combo
         self.program_search_entry = shell.program_view.search_entry
-        self.ondemand_link_button = shell.program_view.ondemand_link_button
         self.episode_tree = shell.episode_view.tree
         self.displayed_episode_map = shell.episode_view.episodes_by_item
         self.episode_scroll = shell.episode_view.scrollbar
@@ -116,19 +113,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.episode_saved_only_check = shell.episode_view.saved_only_check
         self.fetch_button = shell.episode_view.fetch_button
         self.download_button = shell.episode_view.download_button
-        self.error_banner_frame = shell.episode_view.error_banner_frame
-        self.error_banner_label = shell.episode_view.error_banner_label
-        self.error_retry_button = shell.episode_view.error_retry_button
         self.active_download_rows = shell.activity_view.rows
-        self.download_jobs_canvas = shell.activity_view.canvas
-        self.download_jobs_inner = shell.activity_view.inner
-        self.settings_save_button = shell.settings_view.settings_save_button
-        self.font_size_scale = shell.settings_view.font_size_scale
         self.selected_cell_entry = shell.selected_cell_entry
         self.copy_cell_button = shell.copy_cell_button
-        self.clear_button = shell.clear_button
-        self.settings_button = shell.settings_button
-        self.logo_canvas = shell.logo_canvas
 
         self._update_program_tree_headings()
         self._update_episode_tree_headings()

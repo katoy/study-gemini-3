@@ -131,29 +131,4 @@ class GuiStylingMixin:
         self.settings_button_var.set("番組一覧" if self.current_screen == "settings" else "表示設定")
         self.settings_view.update(self.current_theme, self.current_font_size, self.settings_dirty)
 
-    def _make_canvas_mousewheel_handler(self, canvas):
-        """Canvas 用マウスホイールハンドラを生成して返す。"""
-        def handler(event):
-            if event.num == 4 or event.delta > 0:
-                canvas.yview_scroll(-1, "units")
-            elif event.num == 5 or event.delta < 0:
-                canvas.yview_scroll(1, "units")
-        return handler
-
-    def _make_canvas_inner_configure_handler(self, canvas):
-        """Canvas 内部フレーム Configure ハンドラを生成して返す。"""
-        def handler(_event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        return handler
-
-    def _make_canvas_configure_handler(self, canvas, window_id):
-        """Canvas 自体の Configure ハンドラを生成して返す。"""
-        def handler(event):
-            canvas.itemconfig(window_id, width=event.width)
-        return handler
-
-    def _on_episode_tree_yscroll(self, *args):
-        self.episode_scroll.set(*args)
-
-
 __all__ = ["GuiStylingMixin"]
