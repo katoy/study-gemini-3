@@ -1,4 +1,3 @@
-import re
 import tkinter as tk
 import unittest
 from contextlib import suppress
@@ -61,55 +60,16 @@ class GuiConsistencyTest(unittest.TestCase):
         with suppress(Exception):
             self.root.destroy()
 
-    def test_all_self_references_exist(self):
-        """
-        src/nhk_radio/gui/ 配下の全ファイルを走査し、
-        self.xxx() や self.xxx で参照されている属性が
-        EpisodeGuiBrowser インスタンスに実在するかを検証する。
-        """
+    def test_component_references_match_browser_state(self):
         if self.browser is None:
             self.fail(f"Browser failed to initialize in setUp: {self._setup_error}")
-
-        gui_dir = Path(__file__).parent.parent / "src" / "nhk_radio" / "gui"
-        files = ["browser.py", "build.py", "listing.py", "styling.py", "downloads.py"]
-
-        # 除外リスト (外部/標準/動的属性)
-        ignored = {
-            "root", "master", "data_manager", "theme_manager", "download_manager",
-            "programs", "output_dir", "audio_only", "genre", "loading",
-            "after", "bind", "unbind", "focus_get", "destroy", "winfo_exists",
-            "update_idletasks", "protocol", "mainloop", "geometry", "minsize",
-            "nametowidget", "tk", "children", "selection", "item", "delete", "insert",
-            "set", "get", "tag_configure", "column", "heading", "yview", "xview",
-            "trace_add", "trace_remove", "focus_set", "grab_set", "wait_window",
-            "winfo_toplevel", "winfo_children", "winfo_parent", "winfo_class",
-            "current_theme", "current_font_size", "winfo_width", "winfo_height",
-            "winfo_id", "winfo_name", "winfo_pathname", "winfo_vrootwidth", "winfo_vrootheight",
-            "focus_lastfor", "focus_displayof", "keysym", "state", "event_generate"
-        }
-
-        errors = []
-        pattern = re.compile(r"self\.([_a-zA-Z0-9]+)")
-
-        for filename in files:
-            file_path = gui_dir / filename
-            if not file_path.exists():
-                continue
-
-            content = file_path.read_text(encoding="utf-8")
-            lines = [line for line in content.splitlines() if not line.strip().startswith("#")]
-
-            for line_no, line in enumerate(lines, 1):
-                for match in pattern.finditer(line):
-                    attr_name = match.group(1)
-                    if attr_name in ignored:
-                        continue
-
-                    if not hasattr(self.browser, attr_name):
-                        errors.append(f"{filename}:{line_no} - 'self.{attr_name}' is missing")
-
-        if errors:
-            self.fail("Consistency check failed (Potential AttributeErrors):\n" + "\n".join(errors))
+        browser = self.browser
+        self.assertIs(browser.program_view.tree, browser.program_tree)
+        self.assertIs(browser.program_view.programs_by_item, browser.program_tree_programs)
+        self.assertIs(browser.episode_view.tree, browser.episode_tree)
+        self.assertIs(browser.episode_view.episodes_by_item, browser.displayed_episode_map)
+        self.assertIs(browser.activity_view.rows, browser.active_download_rows)
+        self.assertIs(browser.settings_view.settings_screen, browser.settings_screen)
 
     def test_required_methods_execution_smoke(self):
         """過去にエラーが発生した主要なメソッドをモック環境で実行する。"""

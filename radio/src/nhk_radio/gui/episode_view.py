@@ -2,6 +2,9 @@
 
 from typing import Protocol
 
+from ..downloads import _episode_key
+from ..text import _program_genre_text
+from ..types import Episode, Program
 from .toolkit import tk, ttk
 
 
@@ -38,6 +41,8 @@ class EpisodeDetailView:
         filter_summary_var: tk.StringVar,
         selection_summary_var: tk.StringVar,
     ) -> None:
+        self.filter_summary_var = filter_summary_var
+        self.selection_summary_var = selection_summary_var
         detail = ttk.Frame(parent, style="Card.TFrame", padding=18, width=860, height=300)
         detail.columnconfigure(0, weight=1)
         detail.rowconfigure(3, weight=1)
@@ -132,6 +137,7 @@ class EpisodeDetailView:
         self.scrollbar.grid(row=3, column=1, sticky="ns", pady=(8, 0))
         parent.add(detail, weight=1)
         self.frame = detail
+        self.episodes_by_item: dict[str, Episode] = {}
 
         for sequence, callback in (
             ("<ButtonRelease-1>", actions._on_episode_tree_click),
@@ -153,3 +159,85 @@ class EpisodeDetailView:
 
     def hide_error(self) -> None:
         self.error_banner_frame.grid_remove()
+
+    def render_rows(
+        self,
+        program: Program,
+        episodes: list[Episode],
+        *,
+        total_count: int,
+        clear_selection: bool,
+        preserved_keys: tuple[str, ...],
+    ) -> tuple[list[tuple[str, Episode]], tuple[str, ...]]:
+        self.episodes_by_item.clear()
+        for item_id in self.tree.get_children():
+            self.tree.delete(item_id)
+
+        to_check: list[tuple[str, Episode]] = []
+        genre_text = _program_genre_text(program)
+        for index, episode in enumerate(episodes):
+            item_id = f"episode-{index}"
+            self.episodes_by_item[item_id] = episode
+            date_time = episode.display_date or "----"
+            if episode.broadcast_time:
+                date_time = f"{date_time} {episode.broadcast_time}"
+            self.tree.insert(
+                "",
+                "end",
+                iid=item_id,
+                values=(
+                    "",
+                    date_time,
+                    episode.duration_str or "----",
+                    f"{episode.display_title or episode.title} ({genre_text})",
+                ),
+            )
+            to_check.append((item_id, episode))
+
+        selected_keys: tuple[str, ...] = ()
+        if episodes:
+            if clear_selection:
+                self.tree.selection_remove(self.tree.selection())
+                self.tree.focus("")
+            else:
+                selected_ids = [
+                    item_id for item_id, episode in self.episodes_by_item.items()
+                    if _episode_key(episode) in preserved_keys
+                ]
+                if not selected_ids:
+                    selected_ids = ["episode-0"]
+                self.tree.selection_set(selected_ids)
+                self.tree.focus(selected_ids[0])
+                self.tree.see(selected_ids[0])
+                selected_keys = tuple(_episode_key(self.episodes_by_item[item_id]) for item_id in selected_ids)
+            self.download_button.state(["!disabled"])
+        else:
+            self.tree.selection_remove(self.tree.selection())
+            self.tree.focus("")
+            self.download_button.state(["disabled"])
+        self.update_filter_summary(len(episodes), total_count)
+        self.update_selection_summary()
+        return to_check, selected_keys
+
+    def set_saved(self, item_id: str, saved: bool) -> None:
+        if not self.tree.exists(item_id):
+            return
+        values = self.tree.item(item_id, "values")
+        if not values:
+            return
+        updated = list(values)
+        updated[0] = "  ☑" if saved else ""
+        self.tree.item(item_id, values=tuple(updated))
+
+    def update_headings(self, sort_state: tuple[str, bool]) -> None:
+        for column, base in (("saved", "DL"), ("date", "放送日時"), ("duration", "長さ"), ("title", "タイトル")):
+            label = base
+            if sort_state[0] == column:
+                label += " ▲" if sort_state[1] else " ▼"
+            self.tree.heading(column, text=label)
+
+    def update_filter_summary(self, count: int, total: int) -> None:
+        self.filter_summary_var.set(f"表示 {count} / 全 {total} 件")
+
+    def update_selection_summary(self) -> None:
+        self.selection_summary_var.set(f"選択 {len(self.tree.selection())} 件")

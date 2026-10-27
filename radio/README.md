@@ -279,16 +279,16 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `downloads/manifest.py` | 105 | 100% |
 | `downloads/runner.py` | 111 | 99% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/activity_view.py` | 94 | 28% |
-| `gui/build.py` | 142 | 99% |
-| `gui/episode_view.py` | 70 | 96% |
+| `gui/activity_view.py` | 94 | 84% |
+| `gui/build.py` | 109 | 91% |
+| `gui/episode_view.py` | 128 | 94% |
 | `gui/help_markdown.py` | 132 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
-| `gui/program_view.py` | 41 | 100% |
+| `gui/program_view.py` | 93 | 95% |
 | `gui/settings_view.py` | 102 | 100% |
 | `text.py` | 139 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **1925** | **96%** |
+| **合計** | **2002** | **98%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+from nhk_radio.gui.activity_view import ActivityView
 from nhk_radio.gui.download_manager import DownloadManager
 from nhk_radio.gui.download_panel import GuiDownloadsMixin
 from nhk_radio.types import Episode, Program
@@ -14,7 +15,6 @@ from tests import _support  # noqa: F401
 class MockGui(GuiDownloadsMixin):
     def __init__(self):
         self.root = MagicMock()
-        self.active_download_rows = {}
         self.download_result_queue = queue.Queue()
         self.download_polling = False
         self.loading = False
@@ -40,6 +40,21 @@ class MockGui(GuiDownloadsMixin):
         self.download_jobs_canvas = MagicMock()
         self.download_jobs_inner = MagicMock()
         self.episode_tree = MagicMock()
+        self.activity_view = ActivityView.__new__(ActivityView)
+        self.activity_view.root = self.root
+        self.activity_view.rows = {}
+        self.activity_view.progress_text_var = self.progress_text_var
+        self.activity_view.canvas = self.download_jobs_canvas
+        self.activity_view.inner = self.download_jobs_inner
+        self.activity_view.on_cancel_one = self._on_cancel_one
+
+    @property
+    def active_download_rows(self):
+        return self.activity_view.rows
+
+    @active_download_rows.setter
+    def active_download_rows(self, rows):
+        self.activity_view.rows = rows
 
     def _selected_program(self):
         return self.displayed_program
@@ -84,7 +99,7 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_add_download_row(self):
         program = Program(site_id="S1", corner_id="01", title="Prog", display_title="Prog", display_date="----", url="U")
         episode = Episode(id="E1", title="Ep", display_title="Ep", date="2024", display_date="2024", broadcast_time="", duration_str="", url="http://")
-        with patch.object(self.gui, "_create_download_job_widgets") as create_mock:
+        with patch.object(self.gui.activity_view, "_create_job_widgets") as create_mock:
             create_mock.return_value = {
                 "frame": MagicMock(), "progress": MagicMock(), "percent_var": MagicMock(),
                 "progress_meta_var": MagicMock(), "status_var": MagicMock(),
@@ -159,8 +174,8 @@ class GuiDownloadsTest(unittest.TestCase):
         """Test that _add_download_row calls _reflow_download_rows with auto_scroll=True."""
         program = Program(title="P", display_title="P", display_date="2024-01-01(月)", site_id="S", corner_id="C", url="", genre="language")
         episode = Episode(id="E1", title="E", display_title="E", date="2024-01-01", display_date="2024-01-01(月)", broadcast_time="10:00", duration_str="30:00", url="")
-        with patch.object(self.gui, "_create_download_job_widgets", return_value={"frame": MagicMock()}), \
-             patch.object(self.gui, "_reflow_download_rows") as mock_reflow:
+        with patch.object(self.gui.activity_view, "_create_job_widgets", return_value={"frame": MagicMock()}), \
+             patch.object(self.gui.activity_view, "_reflow") as mock_reflow:
             self.gui._add_download_row(program, episode)
             mock_reflow.assert_called_once_with(auto_scroll=True)
 
@@ -174,13 +189,13 @@ class GuiDownloadsTest(unittest.TestCase):
     def test_create_download_job_widgets(self):
         episode = Episode(id="E1", title="E", display_title="E", date="2024", display_date="2024", broadcast_time="", duration_str="", url="")
         with (
-            patch("nhk_radio.gui.download_panel.ttk.Frame"),
-            patch("nhk_radio.gui.download_panel.ttk.Label"),
-            patch("nhk_radio.gui.download_panel.tk.StringVar"),
-            patch("nhk_radio.gui.download_panel.ttk.Button"),
-            patch("nhk_radio.gui.download_panel.ttk.Progressbar")
+            patch("nhk_radio.gui.activity_view.ttk.Frame"),
+            patch("nhk_radio.gui.activity_view.ttk.Label"),
+            patch("nhk_radio.gui.activity_view.tk.StringVar"),
+            patch("nhk_radio.gui.activity_view.ttk.Button"),
+            patch("nhk_radio.gui.activity_view.ttk.Progressbar")
         ):
-            widgets = self.gui._create_download_job_widgets(0, episode, "k1")
+            widgets = self.gui.activity_view._create_job_widgets(episode, "k1")
             self.assertIn("frame", widgets)
 
     def test_clear_cache(self):

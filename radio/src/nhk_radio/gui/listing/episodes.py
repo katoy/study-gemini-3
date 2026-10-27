@@ -25,72 +25,22 @@ class GuiEpisodeMixin:
         self: GuiBrowserProtocol
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
-        preserved_episode_keys: tuple[str, ...] = ()
+        preserved_keys = ()
         if not clear_selection:
-            preserved_episode_keys = self._selected_episode_keys() or self.selected_episode_keys
-
-        self.displayed_episode_map.clear()
-        for item_id in self.episode_tree.get_children():
-            self.episode_tree.delete(item_id)
-
+            preserved_keys = self._selected_episode_keys() or self.selected_episode_keys
         rendered = self._sorted_episodes(episodes)
-        to_check = []
-        from ...text import _program_genre_text
-        genre_text = _program_genre_text(program)
-        for index, episode in enumerate(rendered):
-            iid = f"episode-{index}"
-            self.displayed_episode_map[iid] = episode
-
-            # 初期状態は「未ダウンロード」として高速描画
-            saved = self._downloaded_cell_text(False)
-            date_time = episode.display_date or "----"
-            btime = episode.broadcast_time
-            if btime:
-                date_time = f"{date_time} {btime}"
-            dur = episode.duration_str or "----"
-            title = f"{episode.display_title or episode.title} ({genre_text})"
-
-            # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
-            self.episode_tree.insert(
-                "",
-                "end",
-                iid=iid,
-                values=(saved, date_time, dur, title),
-            )
-            to_check.append((iid, episode))
-
+        to_check, self.selected_episode_keys = self.episode_view.render_rows(
+            program,
+            rendered,
+            total_count=len(episodes),
+            clear_selection=clear_selection,
+            preserved_keys=preserved_keys,
+        )
         if rendered:
-            if clear_selection:
-                self.episode_tree.selection_remove(self.episode_tree.selection())
-                self.episode_tree.focus("")
-                self.selected_episode_keys = ()
-            else:
-                selected_ids = [
-                    iid for iid, episode in self.displayed_episode_map.items()
-                    if _episode_key(episode) in preserved_episode_keys
-                ]
-                if selected_ids:
-                    self.episode_tree.selection_set(selected_ids)
-                    self.episode_tree.focus(selected_ids[0])
-                    self.episode_tree.see(selected_ids[0])
-                    self.selected_episode_keys = tuple(
-                        _episode_key(self.displayed_episode_map[iid]) for iid in selected_ids
-                    )
-                else:
-                    first = next(iter(self.displayed_episode_map))
-                    self.episode_tree.selection_set(first)
-                    self.episode_tree.focus(first)
-                    self.episode_tree.see(first)
-                    self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
-            self.download_button.state(["!disabled"])
-
-            # 判定処理を開始 (世代番号を付与して古い結果の誤適用を防止: G3)
             self._download_check_generation = getattr(self, "_download_check_generation", 0) + 1
             current_gen = self._download_check_generation
             if not hasattr(self, "_download_check_queue"):
-                self._download_check_queue: queue.Queue[tuple[Program, list[tuple[str, bool]], int] | None] = (
-                    queue.Queue()
-                )
+                self._download_check_queue: queue.Queue[tuple[Program, list[tuple[str, bool]], int] | None] = queue.Queue()
             import threading
             threading.Thread(
                 target=self._async_download_check_worker,
@@ -102,13 +52,6 @@ class GuiEpisodeMixin:
                     self.root.after_cancel(self._download_check_poll_id)
             with contextlib.suppress(Exception):
                 self._download_check_poll_id = self.root.after(50, self._poll_download_check)
-        else:
-            self.episode_tree.selection_remove(self.episode_tree.selection())
-            self.episode_tree.focus("")
-            self.download_button.state(["disabled"])
-
-        self._update_episode_filter_summary(len(rendered), len(episodes))
-        self._update_episode_selection_summary()
         self._schedule_saved_button_refresh()
 
     def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]], generation: int):
@@ -165,18 +108,7 @@ class GuiEpisodeMixin:
             return
 
         for iid, is_dl in results:
-            if not self.episode_tree.exists(iid):
-                continue
-
-            saved = self._downloaded_cell_text(is_dl)
-            current_values = self.episode_tree.item(iid, "values")
-            if not current_values:
-                continue
-
-            new_values = list(current_values)
-            new_values[0] = saved
-            # 背景色の変更（タグの付与）は行わず、値のみを更新する
-            self.episode_tree.item(iid, values=tuple(new_values))
+            self.episode_view.set_saved(iid, is_dl)
 
     def _rerender_displayed_episodes(self):
         if self.displayed_program is None:
@@ -194,12 +126,8 @@ class GuiEpisodeMixin:
         )
 
         for iid, episode in self.displayed_episode_map.items():
-            values = list(self.episode_tree.item(iid, "values"))
-            if len(values) < 3:
-                continue
             is_downloaded = _episode_key(episode) in downloaded_keys
-            values[0] = self._downloaded_cell_text(is_downloaded)
-            self.episode_tree.item(iid, values=tuple(values))
+            self.episode_view.set_saved(iid, is_downloaded)
         self._schedule_saved_button_refresh()
         self._update_program_overview(self.displayed_program, self.displayed_episodes, "保存状態を更新")
 
@@ -312,19 +240,13 @@ class GuiEpisodeMixin:
             self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
 
     def _update_episode_tree_headings(self):
-        headers = {"saved": "DL", "date": "放送日時", "duration": "長さ", "title": "タイトル"}
-        for c, base_label in headers.items():
-            label = base_label
-            if self.episode_sort_state[0] == c:
-                label += " ▲" if self.episode_sort_state[1] else " ▼"
-            self.episode_tree.heading(c, text=label)
+        self.episode_view.update_headings(self.episode_sort_state)
 
     def _update_episode_filter_summary(self, count: int, total: int):
-        self.episode_filter_summary_var.set(f"表示 {count} / 全 {total} 件")
+        self.episode_view.update_filter_summary(count, total)
 
     def _update_episode_selection_summary(self):
-        count = len(self.episode_tree.selection())
-        self.episode_selection_summary_var.set(f"選択 {count} 件")
+        self.episode_view.update_selection_summary()
 
     def _on_episode_selection_change(self, _event=None):
         self.selected_episode_keys = self._selected_episode_keys()

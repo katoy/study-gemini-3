@@ -5,7 +5,7 @@ import logging
 import queue
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..config import (  # noqa: F401
     DEFAULT_UI_FONT_SIZE_PT,
@@ -15,7 +15,7 @@ from ..config import (  # noqa: F401
     _save_help_seen_version,
 )
 from ..types import Episode, Program
-from .build import GuiBuildMixin
+from .build import AppShell, ShellActions, UiVars
 from .data_manager import DataManager
 from .download_manager import DownloadManager
 from .download_panel import GuiDownloadsMixin
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
+class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def __init__(self, programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None, root: tk.Tk | None = None):
         if tk is None or ttk is None:
             raise RuntimeError("tkinter が利用できません")
@@ -63,6 +63,79 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         if programs is None:
             # 起動後に非同期取得を開始
             self.root.after(100, lambda: self._start_fetch_programs(genre))
+
+    def _build_widgets(self) -> None:
+        self.shell = AppShell(
+            self.root,
+            cast(ShellActions, self),
+            self._palette,
+            UiVars(
+                status=self.status_var,
+                selected_cell_meta=self.selected_cell_meta_var,
+                selected_cell_value=self.selected_cell_value_var,
+                settings_button=self.settings_button_var,
+                program_search=self.program_search_var,
+                program_genre=self.program_genre_filter_var,
+                program_summary=self.program_list_summary_var,
+                program_title=self.selected_program_title_var,
+                program_meta=self.selected_program_meta_var,
+                program_stats=self.selected_program_stats_var,
+                fetch_button=self.fetch_button_var,
+                episode_message=self.episode_message_var,
+                episode_search=self.episode_search_var,
+                episode_saved_only=self.episode_saved_only_var,
+                episode_filter_summary=self.episode_filter_summary_var,
+                episode_selection_summary=self.episode_selection_summary_var,
+                progress=self.progress_text_var,
+                theme=self.theme_var,
+                font_size=self.font_size_var,
+                font_size_display=self.font_size_display_var,
+                settings_save_button=self.settings_save_button_var,
+                settings_summary=self.settings_summary_var,
+            ),
+            self.program_search_history,
+            self._program_genre_filter_values,
+        )
+        shell = self.shell
+        self.program_view = shell.program_view
+        self.episode_view = shell.episode_view
+        self.activity_view = shell.activity_view
+        self.settings_view = shell.settings_view
+        self.browser_screen = shell.browser_screen
+        self.settings_screen = shell.settings_view.settings_screen
+        self.program_tree = shell.program_view.tree
+        self.program_tree_programs = shell.program_view.programs_by_item
+        self.program_genre_filter_combo = shell.program_view.genre_combo
+        self.program_search_entry = shell.program_view.search_entry
+        self.ondemand_link_button = shell.program_view.ondemand_link_button
+        self.episode_tree = shell.episode_view.tree
+        self.displayed_episode_map = shell.episode_view.episodes_by_item
+        self.episode_scroll = shell.episode_view.scrollbar
+        self.episode_title_var = shell.episode_view.episode_title_var
+        self.episode_search_entry = shell.episode_view.search_entry
+        self.episode_saved_only_check = shell.episode_view.saved_only_check
+        self.fetch_button = shell.episode_view.fetch_button
+        self.download_button = shell.episode_view.download_button
+        self.error_banner_frame = shell.episode_view.error_banner_frame
+        self.error_banner_label = shell.episode_view.error_banner_label
+        self.error_retry_button = shell.episode_view.error_retry_button
+        self.active_download_rows = shell.activity_view.rows
+        self.download_jobs_canvas = shell.activity_view.canvas
+        self.download_jobs_inner = shell.activity_view.inner
+        self.settings_save_button = shell.settings_view.settings_save_button
+        self.font_size_scale = shell.settings_view.font_size_scale
+        self.selected_cell_entry = shell.selected_cell_entry
+        self.copy_cell_button = shell.copy_cell_button
+        self.clear_button = shell.clear_button
+        self.settings_button = shell.settings_button
+        self.logo_canvas = shell.logo_canvas
+
+        self._update_program_tree_headings()
+        self._update_episode_tree_headings()
+        self.download_button.state(["disabled"])
+        self._refresh_treeview_theme()
+        self._update_settings_ui()
+        self._show_screen("browser", announce=False)
 
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
@@ -99,7 +172,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self._start_residual_backup_cleanup()
 
         self.download_polling = False
-        self.active_download_rows: dict[str, dict] = {}
+        self.active_download_rows = {}
 
         # Mixin がアクセスするプロパティ。programs は初期値、filtered_programs は動的更新、
         # episodes_cache は DataManager と同期。
@@ -107,11 +180,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.filtered_programs = self.data_manager.programs
         self.episodes_cache = self.data_manager.episodes_cache
 
-        self.program_tree_programs: dict[str, Program] = {}
+        self.program_tree_programs = {}
         self.selected_program_key: str | None = None
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
-        self.displayed_episode_map: dict[str, Episode] = {}
+        self.displayed_episode_map = {}
         self.selected_episode_keys: tuple[str, ...] = ()
         self.program_sort_state = ("no", False)
         self.episode_sort_state = ("date", True)
@@ -148,15 +221,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _show_screen(self, screen_name: str, announce: bool = True):
         """指定したスクリーンを表示する。"""
         if screen_name == "settings":
-            self.browser_screen.grid_remove()
-            self.settings_screen.grid()
+            self.shell.show_screen("settings")
             self.settings_button_var.set("ブラウザに戻る")
             self.current_screen = "settings"
             if announce:
                 self.status_var.set("表示設定画面")
         else:
-            self.settings_screen.grid_remove()
-            self.browser_screen.grid()
+            self.shell.show_screen("browser")
             self.settings_button_var.set("表示設定")
             self.current_screen = "browser"
             if announce:

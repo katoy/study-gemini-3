@@ -60,6 +60,8 @@ class TestGuiComprehensive(unittest.TestCase):
 
     def test_listing_logic(self):
         browser = self._create_mock_browser()
+        browser.program_view = MagicMock()
+        browser.program_view.generation = 1
         self.assertEqual(browser._program_key(self.programs[0]), "SITE1_01")
         browser.program_genre_filter_var.get.return_value = "すべて"
         browser.program_search_var.get.return_value = ""
@@ -68,15 +70,11 @@ class TestGuiComprehensive(unittest.TestCase):
 
     def test_downloads_ui_updates(self):
         browser = self._create_mock_browser()
-        browser.active_download_rows = {
-            "key1": {"state": "running", "percent_var": MagicMock(), "progress": MagicMock(),
-                     "progress_meta_var": MagicMock(), "status_var": MagicMock()}
-        }
+        browser.activity_view = MagicMock()
         browser._update_download_row_progress("key1", percent=50.0, eta="10s")
-        if browser.root.after.called:
-            callback = browser.root.after.call_args[0][1]
-            callback()
-            browser.active_download_rows["key1"]["percent_var"].set.assert_called()
+        browser.activity_view.update_progress.assert_called_once_with(
+            "key1", percent=50.0, eta="10s", status_text=None
+        )
 
     def test_open_saved_folder_interaction(self):
         """☑ マーククリックでフォルダを開く機能をテスト。"""
