@@ -35,6 +35,10 @@ class GuiDownloadsMixin:
         eta: str | None = None,
         status_text: str | None = None,
     ):
+        if hasattr(self, "activity_view"):
+            self.activity_view.update_progress(episode_key, percent=percent, eta=eta, status_text=status_text)
+            return
+
         def _update():
             row = self.active_download_rows.get(episode_key)
             if row is None or row["state"] != "running":
@@ -289,6 +293,9 @@ class GuiDownloadsMixin:
         return "break"
 
     def _add_download_row(self, program: Program, episode: Episode):
+        if hasattr(self, "activity_view"):
+            self.activity_view.add(episode)
+            return
         episode_key = _episode_key(episode)
         if episode_key in self.active_download_rows:
             return
@@ -302,6 +309,9 @@ class GuiDownloadsMixin:
         self._reflow_download_rows(auto_scroll=True)
 
     def _finish_download_row(self, episode_key: str, status: str):
+        if hasattr(self, "activity_view"):
+            self.activity_view.finish(episode_key, status)
+            return
         row = self.active_download_rows.get(episode_key)
         if row is None:
             return
@@ -318,6 +328,9 @@ class GuiDownloadsMixin:
         self._update_download_summary()
 
     def _remove_download_row(self, episode_key: str):
+        if hasattr(self, "activity_view"):
+            self.activity_view.remove(episode_key)
+            return
         row = self.active_download_rows.pop(episode_key, None)
         if row:
             row["frame"].destroy()
@@ -325,10 +338,16 @@ class GuiDownloadsMixin:
             self._update_download_summary()
 
     def _reset_download_row(self, episode_key: str):
+        if hasattr(self, "activity_view"):
+            self.activity_view.reset(episode_key)
+            return
         if episode_key in self.active_download_rows:
             self._remove_download_row(episode_key)
 
     def _update_download_summary(self):
+        if hasattr(self, "activity_view"):
+            self.activity_view._update_summary()
+            return
         active = sum(1 for r in self.active_download_rows.values() if r["state"] == "running")
         total = len(self.active_download_rows)
         if total == 0:
@@ -337,6 +356,9 @@ class GuiDownloadsMixin:
             self.progress_text_var.set(f"実行中: {active} / 全体: {total}")
 
     def _reflow_download_rows(self, *, auto_scroll: bool = False):
+        if hasattr(self, "activity_view"):
+            self.activity_view._reflow(auto_scroll=auto_scroll)
+            return
         # Canvas 内のアイテムを上から順に再配置
         for i, row in enumerate(self.active_download_rows.values()):
             row["frame"].grid(row=i, column=0, sticky="ew", padx=5, pady=2)

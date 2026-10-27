@@ -1,11 +1,13 @@
 """Widget construction helpers for EpisodeGuiBrowser."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from .protocols import GuiBrowserProtocol
 
+from .activity_view import ActivityView
 from .logo import create_brand_logo
+from .program_view import ProgramListActions, ProgramListView
 from .toolkit import tk, ttk
 
 
@@ -112,80 +114,20 @@ class GuiBuildMixin:
         self.settings_button.grid(row=0, column=2)
 
     def _build_sidebar(self) -> None:
-        sidebar = ttk.Frame(self.browser_panes, style="Sidebar.TFrame", padding=16, width=430)
-        sidebar.columnconfigure(0, weight=1)
-        sidebar.rowconfigure(2, weight=1)
-        self._build_sidebar_header(sidebar)
-        self._build_sidebar_search(sidebar)
-        self._build_program_tree(sidebar)
-        self.browser_panes.add(sidebar, weight=11)
-
-    def _build_sidebar_header(self, sidebar: "ttk.Frame") -> None:
-        sidebar_header = ttk.Frame(sidebar, style="SidebarInner.TFrame")
-        sidebar_header.grid(row=0, column=0, sticky="ew")
-        sidebar_header.columnconfigure(0, weight=1)
-        ttk.Label(sidebar_header, text="番組一覧", style="CardTitleAlt.TLabel").grid(row=0, column=0, sticky="w")
-        self.ondemand_link_button = ttk.Button(
-            sidebar_header,
-            text="らじる★らじる",
-            command=self._open_ondemand_site,
-            style="RajiruLink.TButton",
-            cursor="hand2",
+        self.program_view = ProgramListView(
+            self.browser_panes,
+            cast(ProgramListActions, self),
+            self.program_search_var,
+            self.program_genre_filter_var,
+            self.program_list_summary_var,
+            self.program_search_history,
+            self._program_genre_filter_values,
         )
-        self.ondemand_link_button.grid(row=0, column=1, sticky="e")
-        self._bind_tooltip(self.ondemand_link_button, "聞き逃し検索の公式サイト")
-
-    def _build_sidebar_search(self, sidebar: "ttk.Frame") -> None:
-        sidebar_actions = ttk.Frame(sidebar, style="SidebarInner.TFrame")
-        sidebar_actions.grid(row=1, column=0, sticky="ew", pady=(4, 12))
-        sidebar_actions.columnconfigure(0, weight=1)
-
-        # ジャンル選択
-        self.program_genre_filter_combo = ttk.Combobox(
-            sidebar_actions,
-            textvariable=self.program_genre_filter_var,
-            values=self._program_genre_filter_values(),
-            state="readonly",
-        )
-        self.program_genre_filter_combo.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        self.program_genre_filter_combo.bind("<<ComboboxSelected>>", self._on_program_filter_change)
-
-        # 番組検索
-        self.program_search_entry = ttk.Combobox(
-            sidebar_actions,
-            textvariable=self.program_search_var,
-            values=self.program_search_history,
-        )
-        self.program_search_entry.grid(row=1, column=0, sticky="ew")
-        self.program_search_entry.bind("<Escape>", self._clear_program_search)
-        self.program_search_entry.bind("<Down>", self._focus_program_tree_from_search)
-        self.program_search_entry.bind("<Return>", self._commit_program_search)
-        self.program_search_entry.bind("<<ComboboxSelected>>", self._on_program_search_history_selected)
-        self.program_search_entry.bind("<FocusIn>", self._on_program_search_focus_in)
-        self.program_search_entry.bind("<FocusOut>", self._on_program_search_focus_out)
-
-        ttk.Label(sidebar_actions, textvariable=self.program_list_summary_var, style="CardMetaAlt.TLabel").grid(
-            row=2, column=0, sticky="w", pady=(8, 0)
-        )
-
-    def _build_program_tree(self, sidebar: "ttk.Frame") -> None:
-        self.program_tree = ttk.Treeview(
-            sidebar,
-            columns=("no", "date", "title"),
-            show="headings",
-            selectmode="browse",
-        )
-        _set_tree_heading(self.program_tree, "no", text="No.", anchor="e", command=lambda: self._toggle_program_sort("no"))
-        _set_tree_heading(self.program_tree, "date", text="更新日", anchor="w", command=lambda: self._toggle_program_sort("date"))
-        _set_tree_heading(self.program_tree, "title", text="番組", anchor="w", command=lambda: self._toggle_program_sort("title"))
-        self.program_tree.column("no", width=60, anchor="e", stretch=False)
-        self.program_tree.column("date", width=140, anchor="w", stretch=False)
-        self.program_tree.column("title", width=360, anchor="w")
+        self.ondemand_link_button = self.program_view.ondemand_link_button
+        self.program_genre_filter_combo = self.program_view.genre_combo
+        self.program_search_entry = self.program_view.search_entry
+        self.program_tree = self.program_view.tree
         self._update_program_tree_headings()
-        program_scroll = ttk.Scrollbar(sidebar, orient="vertical", command=self.program_tree.yview)
-        self.program_tree.configure(yscrollcommand=program_scroll.set)
-        self.program_tree.grid(row=2, column=0, sticky="nsew")
-        program_scroll.grid(row=2, column=1, sticky="ns")
 
     def _build_detail_panel(self, right_panes: "ttk.Panedwindow") -> None:
         detail = ttk.Frame(right_panes, style="Card.TFrame", padding=18, width=860, height=300)
@@ -322,25 +264,17 @@ class GuiBuildMixin:
         self.episode_scroll.grid(row=3, column=1, sticky="ns", pady=(8, 0))
 
     def _build_activity_panel(self, right_panes: "ttk.Panedwindow") -> None:
-        activity = ttk.Frame(right_panes, style="Card.TFrame", padding=6, height=140)
-        activity.columnconfigure(0, weight=1)
-        activity.rowconfigure(1, weight=1)
-        self.progress_label = ttk.Label(
-            activity, textvariable=self.progress_text_var, anchor="w", style="CardMeta.TLabel"
+        self.activity_view = ActivityView(
+            self.root, right_panes, self.progress_text_var, self._build_scrollable_frame, self._on_cancel_one
         )
-        self.progress_label.grid(row=0, column=0, sticky="ew", pady=(0, 4))
-        self.download_jobs_frame = ttk.Frame(activity, padding=2)
-        self.download_jobs_frame.grid(row=1, column=0, sticky="nsew")
-        self.download_jobs_frame.columnconfigure(0, weight=1)
-        self.download_jobs_frame.rowconfigure(0, weight=1)
-        self.download_jobs_canvas, self.download_jobs_scrollbar, self.download_jobs_inner, self.download_jobs_window = self._build_scrollable_frame(
-            self.download_jobs_frame, "CardInner.TFrame"
-        )
-        self.download_jobs_empty = ttk.Label(
-            self.download_jobs_inner, text="実行中のダウンロードはありません。", style="CardMeta.TLabel"
-        )
-        self.download_jobs_empty.grid(row=0, column=0, sticky="w")
-        right_panes.add(activity, weight=1)
+        self.active_download_rows = self.activity_view.rows
+        self.progress_label = self.activity_view.progress_label
+        self.download_jobs_frame = self.activity_view.jobs_frame
+        self.download_jobs_canvas = self.activity_view.canvas
+        self.download_jobs_scrollbar = self.activity_view.scrollbar
+        self.download_jobs_inner = self.activity_view.inner
+        self.download_jobs_window = self.activity_view.window
+        self.download_jobs_empty = self.activity_view.empty_label
 
     def _build_settings_screen(self) -> None:
         self._build_settings_canvas_frame()
@@ -537,12 +471,6 @@ class GuiBuildMixin:
         self.copy_cell_button.state(["disabled"])
 
     def _bind_all_events(self) -> None:
-        self.program_tree.bind("<<TreeviewSelect>>", self._on_program_select)
-        self.program_tree.bind("<ButtonRelease-1>", self._on_program_tree_click)
-        self.program_tree.bind("<Double-1>", self._on_program_double_click)
-        self.program_tree.bind("<Return>", self._start_fetch_selected)
-        self.program_tree.bind("<Control-c>", self._copy_selected_cell_to_clipboard)
-        self.program_tree.bind("<Command-c>", self._copy_selected_cell_to_clipboard)
         self.episode_tree.bind("<ButtonRelease-1>", self._on_episode_tree_click)
         self.episode_tree.bind("<Motion>", self._on_episode_tree_motion)
         self.episode_tree.bind("<Leave>", self._on_episode_tree_leave)
