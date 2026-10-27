@@ -5,7 +5,7 @@ import logging
 import queue
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from ..config import (  # noqa: F401
     DEFAULT_UI_FONT_SIZE_PT,
@@ -15,7 +15,7 @@ from ..config import (  # noqa: F401
     _save_help_seen_version,
 )
 from ..types import Episode, Program
-from .build import AppShell, ShellActions, UiVars
+from .build import AppShell, UiVars
 from .data_manager import DataManager
 from .download_manager import DownloadManager
 from .download_panel import GuiDownloadsMixin
@@ -67,7 +67,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def _build_widgets(self) -> None:
         self.shell = AppShell(
             self.root,
-            cast(ShellActions, self),
+            self,
             self._palette,
             UiVars(
                 status=self.status_var,

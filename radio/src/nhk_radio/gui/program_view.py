@@ -1,7 +1,7 @@
 """Program list widgets and their local event bindings."""
 
 from collections.abc import Callable
-from typing import Protocol
+from typing import Any, Protocol
 
 from ..types import Program
 from .toolkit import tk, ttk
@@ -21,8 +21,8 @@ class ProgramListActions(Protocol):
     def _on_program_search_focus_out(self, event=None): ...
     def _toggle_program_sort(self, column: str): ...
     def _on_program_select(self, event=None): ...
-    def _on_program_tree_click(self, event=None): ...
-    def _on_program_double_click(self, event=None): ...
+    def _on_program_tree_click(self, event): ...
+    def _on_program_double_click(self, event): ...
     def _start_fetch_selected(self, event=None): ...
     def _copy_selected_cell_to_clipboard(self, event=None): ...
 
@@ -69,14 +69,15 @@ class ProgramListView:
         self.genre_combo.bind("<<ComboboxSelected>>", actions._on_program_filter_change)
         self.search_entry = ttk.Combobox(search, textvariable=search_var, values=search_history)
         self.search_entry.grid(row=1, column=0, sticky="ew")
-        for sequence, callback in (
+        search_bindings: tuple[tuple[str, Callable[..., Any]], ...] = (
             ("<Escape>", actions._clear_program_search),
             ("<Down>", actions._focus_program_tree_from_search),
             ("<Return>", actions._commit_program_search),
             ("<<ComboboxSelected>>", actions._on_program_search_history_selected),
             ("<FocusIn>", actions._on_program_search_focus_in),
             ("<FocusOut>", actions._on_program_search_focus_out),
-        ):
+        )
+        for sequence, callback in search_bindings:
             self.search_entry.bind(sequence, callback)
         ttk.Label(search, textvariable=summary_var, style="CardMetaAlt.TLabel").grid(
             row=2, column=0, sticky="w", pady=(8, 0)
@@ -94,14 +95,15 @@ class ProgramListView:
         scrollbar.grid(row=2, column=1, sticky="ns")
         parent.add(sidebar, weight=11)
 
-        for sequence, callback in (
+        tree_bindings: tuple[tuple[str, Callable[..., Any]], ...] = (
             ("<<TreeviewSelect>>", actions._on_program_select),
             ("<ButtonRelease-1>", actions._on_program_tree_click),
             ("<Double-1>", actions._on_program_double_click),
             ("<Return>", actions._start_fetch_selected),
             ("<Control-c>", actions._copy_selected_cell_to_clipboard),
             ("<Command-c>", actions._copy_selected_cell_to_clipboard),
-        ):
+        )
+        for sequence, callback in tree_bindings:
             self.tree.bind(sequence, callback)
         self.frame = sidebar
 
