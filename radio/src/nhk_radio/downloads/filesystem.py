@@ -1,6 +1,7 @@
 """ダウンロード関連のパス計算とファイルスキャン。"""
 
 import fnmatch
+import glob
 import logging
 import os
 from collections import OrderedDict
@@ -15,7 +16,10 @@ logger = logging.getLogger(__name__)
 # mtime ベースの自動無効化により古いエントリは再スキャン時に上書きされる。
 # メモリリーク防止のため、最大エントリ数を制限する。
 # 環境変数 NHK_RADIO_FILE_SCAN_CACHE_SIZE で上書き可能（デフォルト 100）
-_FILE_SCAN_CACHE_MAX_SIZE = int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
+try:
+    _FILE_SCAN_CACHE_MAX_SIZE = int(os.environ.get("NHK_RADIO_FILE_SCAN_CACHE_SIZE", "100"))
+except ValueError:
+    _FILE_SCAN_CACHE_MAX_SIZE = 100
 
 import threading
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
@@ -93,35 +97,77 @@ def _episode_key(episode: Episode) -> str:
 
 def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
+    raw_ep_title = (episode.title or episode.display_title or "").strip()
+    title_variants = [episode_title]
+    try:
+        import yt_dlp.utils
+        yt_sanitized = yt_dlp.utils.sanitize_filename(raw_ep_title)
+        if yt_sanitized and yt_sanitized not in title_variants:
+            title_variants.append(yt_sanitized)
+    except Exception:
+        pass
+
     patterns: list[str] = []
     for program_title in program_titles:
-        if episode_date:
-            patterns.append(f"{episode_date}_{program_title}_{episode_title}.*")
-            patterns.append(f"*_{episode_date}_{program_title}_{episode_title}.*")
-        else:
-            patterns.append(f"{program_title}_{episode_title}.*")
-            patterns.append(f"*_{program_title}_{episode_title}.*")
+        esc_prog = glob.escape(program_title)
+        for t_var in title_variants:
+            esc_ep = glob.escape(t_var)
+            if episode_date:
+                patterns.append(f"{episode_date}_{esc_prog}_{esc_ep}.*")
+                patterns.append(f"*_{episode_date}_{esc_prog}_{esc_ep}.*")
+            else:
+                patterns.append(f"{esc_prog}_{esc_ep}.*")
+                patterns.append(f"*_{esc_prog}_{esc_ep}.*")
     return patterns
 
 
-def _episode_output_matches(path: Path, program: Program, episode: Episode) -> bool:
-    if not path.is_file() or path.name == ".downloaded.json" or path.suffix in {".part", ".ytdl"}:
+def _episode_output_matches(path: Path, program: Program, episode: Episode, *, audio_only: bool = True) -> bool:
+    name = path.name
+    # 一時ファイル、不完全ファイル、バックアップファイルを除外 (M4, G4, 2-1)
+    if (
+        not path.is_file()
+        or name == ".downloaded.json"
+        or ".part" in name
+        or name.endswith(".ytdl")
+        or name.endswith(".bak")
+        or name.endswith(".nhkradio-bak")
+    ):
+        return False
+
+    # audio_only の場合、音声ファイル以外（例: 変換失敗で残った .mp4）は保存済みとみなさない (M4)
+    if audio_only and path.suffix.lower() not in {".mp3", ".m4a", ".aac", ".wav"}:
         return False
 
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
-    name = path.name
 
     # 1) 日付による絞り込み (最も強力な指標)
     if episode_date and episode_date not in name:
         return False
 
-    # 2) エピソードタイトルが含まれているか
-    # (記号などが除去された safe_name で比較)
-    if episode_title and episode_title not in _safe_name(name):
+    # 2) 番組タイトルが含まれているか (少なくとも1つ)
+    if not any(title in _safe_name(name) for title in program_titles):
         return False
 
-    # 3) 番組タイトルが含まれているか (少なくとも1つ)
-    return any(title in _safe_name(name) for title in program_titles)
+    # 3) エピソードタイトルとの照合 (M5: 完全一致で「第1回」が「第1回 解説」に誤マッチするのを防止)
+    raw_ep_title = (episode.title or episode.display_title or "").strip()
+    if not raw_ep_title:
+        return True
+
+    title_variants = {episode_title, _safe_name(raw_ep_title), raw_ep_title}
+    try:
+        import yt_dlp.utils
+        yt_sanitized = yt_dlp.utils.sanitize_filename(raw_ep_title)
+        if yt_sanitized:
+            title_variants.add(yt_sanitized)
+    except Exception:
+        pass
+
+    stem = path.stem
+    for tv in title_variants:
+        if tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name):
+            return True
+
+    return False
 
 
 def _get_cached_glob_files(directory: Path) -> list[Path]:
@@ -162,11 +208,13 @@ def _clear_file_scan_cache(directory: Path | None = None):
             _FILE_SCAN_CACHE.clear()
 
 
-def _episode_output_candidates(program_dir: Path, program: Program, episode: Episode) -> list[Path]:
+def _episode_output_candidates(
+    program_dir: Path, program: Program, episode: Episode, *, audio_only: bool = True
+) -> list[Path]:
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
 
     files = _get_cached_glob_files(program_dir)
-    candidates = [path for path in files if _episode_output_matches(path, program, episode)]
+    candidates = [path for path in files if _episode_output_matches(path, program, episode, audio_only=audio_only)]
 
     suffix_priority = {
         ".mp3": 0,
@@ -175,6 +223,12 @@ def _episode_output_candidates(program_dir: Path, program: Program, episode: Epi
         ".wav": 3,
         ".mp4": 4,
     }
+    def _safe_mtime(p: Path) -> float:
+        try:
+            return -p.stat().st_mtime
+        except OSError:
+            return 0.0
+
     candidates.sort(
         key=lambda path: (
             0
@@ -183,7 +237,7 @@ def _episode_output_candidates(program_dir: Path, program: Program, episode: Epi
             else 1,
             0 if episode_title and f"_{episode_title}." in path.name else 1,
             suffix_priority.get(path.suffix.lower(), 99),
-            -path.stat().st_mtime,
+            _safe_mtime(path),
         )
     )
     return candidates

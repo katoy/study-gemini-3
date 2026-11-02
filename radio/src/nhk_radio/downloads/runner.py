@@ -1,12 +1,15 @@
 """yt-dlp サブプロセス実行と進捗解析。"""
 
+import collections
 import logging
 import re
 import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from ..constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
 from . import filesystem
@@ -22,12 +25,18 @@ def _yt_dlp_command(
     no_playlist: bool,
     newline: bool = False,
     max_items: int | None = None,
+    force_overwrites: bool = False,
+    print_filepath: bool = False,
 ) -> list[str]:
     cmd = ["yt-dlp"]
     if newline:
         cmd.append("--newline")
     # AES-128 暗号化 HLS ストリームで ffmpeg が aac_adtstoasc フィルタに失敗するのを防ぐ
     cmd.append("--hls-use-mpegts")
+    if force_overwrites:
+        cmd.append("--force-overwrites")
+    if print_filepath:
+        cmd += ["--print", "after_move:filepath", "--progress"]
     # HLS フラグメントの並列ダウンロードとソケットタイムアウトを設定
     cmd += ["--concurrent-fragments", str(YTDLP_CONCURRENT_FRAGMENTS)]
     cmd += ["--socket-timeout", str(YTDLP_SOCKET_TIMEOUT)]
@@ -42,13 +51,22 @@ def _yt_dlp_command(
     return cmd
 
 
-def download_episode_command(url: str, output_dir: Path, filename_template: str, audio_only: bool = True) -> list[str]:
+def download_episode_command(
+    url: str,
+    output_dir: Path,
+    filename_template: str,
+    audio_only: bool = True,
+    *,
+    force_overwrites: bool = False,
+) -> list[str]:
     return _yt_dlp_command(
         url,
         str(output_dir / filename_template),
         audio_only=audio_only,
         no_playlist=True,
         newline=True,
+        force_overwrites=force_overwrites,
+        print_filepath=True,
     )
 
 
@@ -85,10 +103,27 @@ def _format_download_eta(eta: str | None) -> str:
     return f"残り {eta}" if eta else "残り --:--"
 
 
+def _terminate_process(process: subprocess.Popen) -> None:
+    """プロセス（POSIX ではプロセスグループ）を確実に終了させる (G5)。"""
+    if sys.platform != "win32":
+        import os
+        import signal
+
+        try:
+            pgid = os.getpgid(process.pid)
+            os.killpg(pgid, signal.SIGTERM)
+        except (AttributeError, OSError, TypeError):
+            pass
+    with suppress(Exception):
+        process.terminate()
+
+
 def run_yt_dlp_subprocess(
     cmd: list[str],
     on_progress: Callable[[float | None, str | None, str | None], None] | None = None,
     cancel_event: threading.Event | None = None,
+    on_process: Callable[[subprocess.Popen], None] | None = None,
+    on_output_path: Callable[[Path], None] | None = None,
 ) -> bool:
     """yt-dlp サブプロセスを実行し、進捗をコールバックで報告する。
 
@@ -96,26 +131,62 @@ def run_yt_dlp_subprocess(
         cmd: yt-dlp コマンド (リスト形式)
         on_progress: 進捗コールバック (percent, eta, status)
         cancel_event: キャンセルイベント（設定されたら terminate）
+        on_process: Popen 生成時のコールバック (G5)
+        on_output_path: 移動先パス検出時のコールバック (H1)
 
     Returns:
         成功時 True、キャンセル時 False、失敗時 False
     """
     process = None
+    output_lines: collections.deque[str] = collections.deque(maxlen=20)
+    stop_monitor = threading.Event()
+
+    popen_kwargs: dict[str, Any] = {}
+    if sys.platform != "win32":
+        popen_kwargs["start_new_session"] = True
+
     try:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
+            **popen_kwargs,
         )
+
+        if on_process:
+            on_process(process)
+
+        # 出力のない区間でも即座にキャンセルできるよう監視スレッドを起動 (M10, G5)
+        if cancel_event:
+            def _cancel_watcher():
+                while not stop_monitor.is_set() and process.poll() is None:
+                    if cancel_event.wait(timeout=0.1):
+                        _terminate_process(process)
+                        break
+
+            threading.Thread(target=_cancel_watcher, daemon=True).start()
 
         if process.stdout:
             for line in process.stdout:
-                # キャンセルイベントがセットされたら terminate
+                output_lines.append(line)
+                # キャンセルイベントがセットされたら terminate (G5)
                 if cancel_event and cancel_event.is_set():
-                    process.terminate()
+                    _terminate_process(process)
                     break
+
+                stripped = line.strip()
+                if (
+                    on_output_path
+                    and not stripped.startswith("[")
+                    and (stripped.endswith(".mp3") or stripped.endswith(".m4a") or stripped.endswith(".mp4"))
+                ):
+                    candidate_p = Path(stripped)
+                    if candidate_p.is_absolute() or candidate_p.parent.name:
+                        on_output_path(candidate_p)
 
                 # 進捗コールバックを実行
                 if on_progress:  # pragma: no cover - 環境依存: モック stdout でのコールバック検証
@@ -125,7 +196,10 @@ def run_yt_dlp_subprocess(
 
         # タイムアウト 120 秒で wait
         try:
-            return process.wait(timeout=120) == 0
+            return_code = process.wait(timeout=120)
+            if return_code != 0 and not (cancel_event and cancel_event.is_set()):
+                logger.error(f"yt-dlp 実行失敗 (終了コード {return_code}):\n" + "".join(output_lines))
+            return return_code == 0 and not (cancel_event and cancel_event.is_set())
         except subprocess.TimeoutExpired:
             logger.warning("yt-dlp プロセスが応答しません。強制終了します。")
             process.kill()
@@ -134,7 +208,16 @@ def run_yt_dlp_subprocess(
     except Exception as e:
         logger.error(f"yt-dlp 実行エラー: {e}")
         if process is not None:
+            _terminate_process(process)
             with suppress(Exception):
-                process.terminate()
-                process.wait()
+                process.wait(timeout=10)
         return False
+    except BaseException:
+        # start_new_session により SIGINT が子へ届かないため、明示的に停止してから再送出する (2-2)
+        if process is not None:
+            _terminate_process(process)
+            with suppress(Exception):
+                process.wait(timeout=10)
+        raise
+    finally:
+        stop_monitor.set()

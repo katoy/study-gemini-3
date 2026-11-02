@@ -187,12 +187,12 @@ class GuiSmokeTest(unittest.TestCase):
         mock_set.assert_not_called()
 
     def test_search_history_persistence_smoke(self):
-        """検索履歴の保存（_persist_ui_settings）が呼ばれることを確認。"""
+        """検索履歴の保存（_persist_search_history）が呼ばれることを確認。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             browser = EpisodeGuiBrowser(self.programs, Path("/tmp"))
 
         # 検索履歴を確定したときに永続化が呼ばれるか
-        with patch.object(browser, "_persist_ui_settings") as mock_persist:
+        with patch.object(browser, "_persist_search_history") as mock_persist:
             browser._remember_program_search("テスト検索")
             mock_persist.assert_called_once()
             self.assertIn("テスト検索", browser.program_search_history)
@@ -1015,6 +1015,30 @@ class GuiFinalTest(unittest.TestCase):
         # episodes_cache は OrderedDict であること
         self.assertIsNotNone(b.episodes_cache)
         self.assertEqual(len(b.episodes_cache), 0)
+
+    def test_handle_browser_shortcut_modifiers_and_popups(self):
+        """G10: 修飾キーまたはポップアップ表示中にショートカットが無視されることを確認。"""
+        with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
+            b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
+        b._start_download_selected = MagicMock()
+        b._start_fetch_selected = MagicMock()
+
+        # 1) 修飾キー (Ctrl=0x4) ありの "d" は無視される
+        event_ctrl = MagicMock(keysym="d", state=0x4, widget=self.root)
+        self.assertIsNone(b._handle_browser_shortcut(event_ctrl))
+        b._start_download_selected.assert_not_called()
+
+        # 2) help_popup 表示中は "d" が無視される
+        b.help_popup = MagicMock()
+        b.help_popup.winfo_exists.return_value = True
+        event_plain = MagicMock(keysym="d", state=0, widget=self.root)
+        self.assertIsNone(b._handle_browser_shortcut(event_plain))
+        b._start_download_selected.assert_not_called()
+
+        # 3) ポップアップが閉じていれば発火する
+        b.help_popup.winfo_exists.return_value = False
+        b._handle_browser_shortcut(event_plain)
+        b._start_download_selected.assert_called_once()
 
 
 if __name__ == "__main__":

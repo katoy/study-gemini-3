@@ -1,6 +1,11 @@
 """Download tracking and output helpers."""
 
-from .cleanup import cleanup_partial_episode_files, open_downloaded_folder
+from .cleanup import (
+    BACKUP_SUFFIX,
+    cleanup_partial_episode_files,
+    cleanup_residual_backup_files,
+    open_downloaded_folder,
+)
 from .filesystem import (
     _FILE_SCAN_CACHE,
     _FILE_SCAN_CACHE_MAX_SIZE,
@@ -44,6 +49,7 @@ from .runner import (
 
 __all__ = [
     "cleanup_partial_episode_files",
+    "cleanup_residual_backup_files",
     "download_episode_command",
     "find_episode_downloaded_path",
     "get_downloaded_episode_keys",

@@ -34,7 +34,14 @@ def _format_onair_date(onair_date: str, started_at: str | None = None) -> str:
 
 
 def _format_episode_date(date_text: str) -> str:
-    if len(date_text) >= 8 and date_text[:8].isdigit():
+    # 8桁の YYYYMMDD のみ日付としてパース（10桁の timestamp などが誤解釈されるのを防ぐ）
+    if len(date_text) == 8 and date_text.isdigit():
+        try:
+            day = datetime.strptime(date_text, "%Y%m%d")
+            return _fixed_display_date(day)
+        except ValueError:
+            pass
+    elif len(date_text) > 8 and date_text[:8].isdigit() and not date_text[8:].isdigit():
         try:
             day = datetime.strptime(date_text[:8], "%Y%m%d")
             return _fixed_display_date(day)

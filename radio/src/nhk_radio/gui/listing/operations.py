@@ -122,7 +122,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -171,7 +173,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -188,7 +192,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -205,7 +211,9 @@ class GuiOperationsMixin:
         if not episode or not self.displayed_program:
             return
 
-        path = find_episode_downloaded_path(self.output_dir, self.displayed_program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
             return
@@ -227,29 +235,25 @@ class GuiOperationsMixin:
 
     def _redownload_episode(self, item_id: str):
         """エピソードを再ダウンロード（上書き確認付き）。"""
-        from ...downloads import find_episode_downloaded_path, remove_episode_from_manifest
+        from ...downloads import find_episode_downloaded_path
 
         episode = self.displayed_episode_map.get(item_id)
         if not episode or not self.displayed_program:
             return
 
         program = self.displayed_program
-        path = find_episode_downloaded_path(self.output_dir, program, episode)
+        path = find_episode_downloaded_path(
+            self.output_dir, program, episode, audio_only=self.audio_only
+        )
 
-        if path is not None:
-            if not mb.askyesno(
-                "ファイルの上書き",
-                f"ファイルが既に存在します。上書きしてダウンロードしますか？\n\n{path.name}",
-                parent=self.root,
-            ):
-                return
-
-            try:
-                path.unlink()
-                remove_episode_from_manifest(self.output_dir, program, episode)
-            except OSError as e:
-                self.status_var.set(f"既存ファイルの削除に失敗しました: {e}")
-                return
+        # 注意: 事前の unlink は行わない。ダウンロードワーカー側で安全に退避・復元されるため、
+        # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
+        if path is not None and not mb.askyesno(
+            "ファイルの上書き",
+            f"ファイルが既に存在します。上書きしてダウンロードしますか？\n\n{path.name}",
+            parent=self.root,
+        ):
+            return
 
         from ...downloads import _episode_key
 

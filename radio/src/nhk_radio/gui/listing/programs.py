@@ -19,9 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_PROGRAM_INSERT_CHUNK = 50
-
-
 class GuiProgramsMixin:
     """Logic for program listing, filtering, and selection."""
 
@@ -35,10 +32,8 @@ class GuiProgramsMixin:
         self._apply_program_filters()
 
     def _update_program_genre_filter_values(self):
-        if hasattr(self, "program_genre_filter_combo"):
-            values = tuple(self._program_genre_filter_values())
-            if tuple(self.program_genre_filter_combo.cget("values")) != values:
-                self.program_genre_filter_combo.configure(values=values)
+        if hasattr(self, "program_view"):
+            self.program_view.set_genres(self._program_genre_filter_values())
 
     def _apply_program_filters(self):
         needle = self._normalized_search_text(self.program_search_var.get())
@@ -62,72 +57,17 @@ class GuiProgramsMixin:
         current_key = None
         if preserve_selection:
             current_program = self._selected_program()
-            current_key = (
-                self._program_key(current_program)
-                if current_program is not None
-                else self.selected_program_key
-            )
+            current_key = self._program_key(current_program) if current_program is not None else self.selected_program_key
         programs = self._sorted_programs(self.filtered_programs)
-        self.program_tree_programs.clear()
-        for item_id in self.program_tree.get_children():
-            self.program_tree.delete(item_id)
-
-        self._populate_generation = getattr(self, "_populate_generation", 0) + 1
-        generation = self._populate_generation
-
-        def _insert_chunk(start: int, selected_so_far: str) -> None:
-            if self._populate_generation != generation:
-                return
-            chunk = programs[start : start + _PROGRAM_INSERT_CHUNK]
-            sel = selected_so_far
-            for i, program in enumerate(chunk):
-                idx = start + i
-                item_id = f"program-{idx}"
-                self.program_tree.insert(
-                    "",
-                    "end",
-                    iid=item_id,
-                    values=(
-                        self.program_order_map.get(self._program_key(program), idx + 1),
-                        program.display_date or "----",
-                        program.display_title or program.title,
-                    ),
-                )
-                self.program_tree_programs[item_id] = program
-                if current_key is not None and self._program_key(program) == current_key:
-                    sel = item_id
-            next_start = start + _PROGRAM_INSERT_CHUNK
-            if next_start < len(programs):
-                self.root.after(0, lambda s=sel: _insert_chunk(next_start, s))
-            else:
-                _finalize(sel)
-
-        def _finalize(selected_item_id: str) -> None:
-            if self._populate_generation != generation:
-                return
-            if selected_item_id:
-                self.program_tree.selection_set(selected_item_id)
-                self.program_tree.see(selected_item_id)
-                self.selected_program_key = self._program_key(
-                    self.program_tree_programs.get(selected_item_id)
-                )
-            elif programs:
-                self.program_tree.selection_set("program-0")
-                self.program_tree.see("program-0")
-                self.selected_program_key = self._program_key(
-                    self.program_tree_programs.get("program-0")
-                )
-            else:
-                self.selected_program_key = None
-            self.program_list_summary_var.set(
-                f"{len(programs)} / {len(self.programs)} 番組"
-                + (" (検索中)" if len(programs) < len(self.programs) else "")
-            )
-
-        if programs:
-            _insert_chunk(0, "")
-        else:
-            _finalize("")
+        self.program_view.render(
+            programs,
+            len(self.programs),
+            current_key,
+            self.program_order_map,
+            self._program_key,
+            lambda key: setattr(self, "selected_program_key", key),
+        )
+        self._populate_generation = self.program_view.generation
 
     def _program_genre_filter_values(self) -> list[str]:
         seen_labels = list(
@@ -150,9 +90,8 @@ class GuiProgramsMixin:
         return self._normalized_search_text(text)
 
     def _update_program_search_history_values(self):
-        if hasattr(self, "program_search_entry"):
-            history = list(self.program_search_history)
-            self.program_search_entry.configure(values=history)
+        if hasattr(self, "program_view"):
+            self.program_view.set_search_history(self.program_search_history)
 
     def _remember_program_search(self, term: str):
         term = (term or "").strip()
@@ -173,7 +112,7 @@ class GuiProgramsMixin:
 
         self.program_search_history = new_history[:SEARCH_HISTORY_LIMIT]
         self._update_program_search_history_values()
-        self._persist_ui_settings()
+        self._persist_search_history()
 
     def _program_key(self, program: Program | None) -> str | None:
         if program is None:
@@ -217,7 +156,9 @@ class GuiProgramsMixin:
         if episodes is not None:
             # バッチ判定で全エピソードの保存状態を効率的に取得
             from ...downloads import get_downloaded_episode_keys
-            downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, program, episodes, audio_only=self.audio_only
+            )
             saved_count = len(downloaded_keys)
             stats = f"{len(episodes)} エピソード (保存済み {saved_count})"
             if message:
@@ -281,11 +222,7 @@ class GuiProgramsMixin:
         self._populate_programs()
 
     def _update_program_tree_headings(self):
-        for c in ["no", "date", "title"]:
-            label = {"no": "No.", "date": "更新日", "title": "番組"}[c]
-            if self.program_sort_state[0] == c:
-                label += " ▲" if self.program_sort_state[1] else " ▼"
-            self.program_tree.heading(c, text=label)
+        self.program_view.update_headings(self.program_sort_state)
 
     def _on_program_tree_click(self, event):
         cell = self._tree_cell_from_event(self.program_tree, event)

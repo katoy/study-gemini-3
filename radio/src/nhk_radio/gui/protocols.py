@@ -1,11 +1,16 @@
 """GUI Mixin が要求するプロトコル型（Protocol）の定義。"""
 
+import queue
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 from typing import Any, Protocol
 
 from ..types import Episode, Program
+from .activity_view import ActivityView
+from .episode_view import EpisodeDetailView
+from .program_view import ProgramListView
+from .settings_view import SettingsView
 
 
 class GuiBrowserProtocol(Protocol):
@@ -19,10 +24,14 @@ class GuiBrowserProtocol(Protocol):
     # コンポーネント（Widget）
     # ========================
     root: tk.Tk
+    program_view: ProgramListView
+    episode_view: EpisodeDetailView
+    activity_view: ActivityView
+    settings_view: SettingsView
     program_tree: ttk.Treeview
     episode_tree: ttk.Treeview
-    program_search_entry: tk.Entry
-    episode_search_entry: tk.Entry
+    program_search_entry: ttk.Combobox
+    episode_search_entry: ttk.Entry
     program_genre_filter_combo: ttk.Combobox
     episode_saved_only_check: ttk.Checkbutton
     download_button: ttk.Button
@@ -65,6 +74,7 @@ class GuiBrowserProtocol(Protocol):
     displayed_episodes: list[Episode]
     displayed_episode_map: dict[str, Episode]
     selected_episode_keys: tuple[str, ...]
+    _download_check_queue: queue.Queue[Any]
 
     # ========================
     # ソート・フィルタ状態
@@ -76,8 +86,9 @@ class GuiBrowserProtocol(Protocol):
     # 設定・パス
     # ========================
     output_dir: Path
+    audio_only: bool
     current_theme: str
-    current_font_size: str
+    current_font_size: int
     loading: bool
 
     # ========================

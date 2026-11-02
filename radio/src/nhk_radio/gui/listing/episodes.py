@@ -1,6 +1,8 @@
 """GUI episodes Mixin — エピソードツリーの表示・検索・フィルタ。"""
 
+import contextlib
 import logging
+import queue
 import tkinter as tk
 from tkinter import ttk
 from typing import TYPE_CHECKING
@@ -23,109 +25,90 @@ class GuiEpisodeMixin:
         self: GuiBrowserProtocol
 
     def _render_episode_rows(self, program: Program, episodes: list[Episode], clear_selection: bool = True):
-        preserved_episode_keys: tuple[str, ...] = ()
+        preserved_keys = ()
         if not clear_selection:
-            preserved_episode_keys = self._selected_episode_keys() or self.selected_episode_keys
-
-        self.displayed_episode_map.clear()
-        for item_id in self.episode_tree.get_children():
-            self.episode_tree.delete(item_id)
-
+            preserved_keys = self._selected_episode_keys() or self.selected_episode_keys
         rendered = self._sorted_episodes(episodes)
-        to_check = []
-        from ...text import _program_genre_text
-        genre_text = _program_genre_text(program)
-        for index, episode in enumerate(rendered):
-            iid = f"episode-{index}"
-            self.displayed_episode_map[iid] = episode
-
-            # 初期状態は「未ダウンロード」として高速描画
-            saved = self._downloaded_cell_text(False)
-            date_time = episode.display_date or "----"
-            btime = episode.broadcast_time
-            if btime:
-                date_time = f"{date_time} {btime}"
-            dur = episode.duration_str or "----"
-            title = f"{episode.display_title or episode.title} ({genre_text})"
-
-            # 描画バグ回避のため、背景色タグ（even/odd）の設定は行わない
-            self.episode_tree.insert(
-                "",
-                "end",
-                iid=iid,
-                values=(saved, date_time, dur, title),
-            )
-            to_check.append((iid, episode))
-
+        to_check, self.selected_episode_keys = self.episode_view.render_rows(
+            program,
+            rendered,
+            total_count=len(episodes),
+            clear_selection=clear_selection,
+            preserved_keys=preserved_keys,
+        )
         if rendered:
-            if clear_selection:
-                self.episode_tree.selection_remove(self.episode_tree.selection())
-                self.episode_tree.focus("")
-                self.selected_episode_keys = ()
-            else:
-                selected_ids = [
-                    iid for iid, episode in self.displayed_episode_map.items()
-                    if _episode_key(episode) in preserved_episode_keys
-                ]
-                if selected_ids:
-                    self.episode_tree.selection_set(selected_ids)
-                    self.episode_tree.focus(selected_ids[0])
-                    self.episode_tree.see(selected_ids[0])
-                    self.selected_episode_keys = tuple(
-                        _episode_key(self.displayed_episode_map[iid]) for iid in selected_ids
-                    )
-                else:
-                    first = next(iter(self.displayed_episode_map))
-                    self.episode_tree.selection_set(first)
-                    self.episode_tree.focus(first)
-                    self.episode_tree.see(first)
-                    self.selected_episode_keys = (_episode_key(self.displayed_episode_map[first]),)
-            self.download_button.state(["!disabled"])
-
-            # 判定処理を開始
+            self._download_check_generation = getattr(self, "_download_check_generation", 0) + 1
+            current_gen = self._download_check_generation
+            if not hasattr(self, "_download_check_queue"):
+                self._download_check_queue: queue.Queue[tuple[Program, list[tuple[str, bool]], int] | None] = queue.Queue()
             import threading
-            threading.Thread(target=self._async_download_check_worker, args=(program, to_check), daemon=True).start()
-        else:
-            self.episode_tree.selection_remove(self.episode_tree.selection())
-            self.episode_tree.focus("")
-            self.download_button.state(["disabled"])
-
-        self._update_episode_filter_summary(len(rendered), len(episodes))
-        self._update_episode_selection_summary()
+            threading.Thread(
+                target=self._async_download_check_worker,
+                args=(program, to_check, current_gen),
+                daemon=True,
+            ).start()
+            if getattr(self, "_download_check_poll_id", None):
+                with contextlib.suppress(tk.TclError, ValueError):
+                    self.root.after_cancel(self._download_check_poll_id)
+            with contextlib.suppress(Exception):
+                self._download_check_poll_id = self.root.after(50, self._poll_download_check)
         self._schedule_saved_button_refresh()
 
-    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]]):
-        """バックグラウンドで保存済み判定を行い、UIスレッドに通知する。"""
-        if self.displayed_program != program:
+    def _async_download_check_worker(self, program: Program, to_check: list[tuple[str, Episode]], generation: int):
+        """バックグラウンドで保存済み判定を行い、結果をキューに格納する (G3)。"""
+        try:
+            if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
+                return
+
+            # エピソードをバッチで一括判定（N+1 問題を解決）
+            episodes = [ep for _iid, ep in to_check]
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, program, episodes, audio_only=self.audio_only
+            )
+
+            # True / False の双方を反映 (G3)
+            results = [(iid, _episode_key(ep) in downloaded_keys) for iid, ep in to_check]
+
+            if self.displayed_program == program and getattr(self, "_download_check_generation", 0) == generation:
+                if not hasattr(self, "_download_check_queue"):
+                    self._download_check_queue = queue.Queue()
+                self._download_check_queue.put((program, results, generation))
+        finally:
+            if hasattr(self, "_download_check_queue"):
+                self._download_check_queue.put(None)
+
+    def _poll_download_check(self):
+        """保存済み判定ワーカースレッドからの結果をポーリングして UI に反映する (G3)。"""
+        if not hasattr(self, "_download_check_queue"):
             return
 
-        # エピソードをバッチで一括判定（N+1 問題を解決）
-        episodes = [ep for _iid, ep in to_check]
-        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+        finished = False
+        while True:
+            try:
+                item = self._download_check_queue.get_nowait()
+                if item is None:
+                    finished = True
+                else:
+                    prog, results, gen = item
+                    if self.displayed_program == prog and getattr(self, "_download_check_generation", 0) == gen:
+                        self._apply_download_check_results(prog, results, gen)
+            except queue.Empty:
+                break
 
-        results = [(iid, True) for iid, ep in to_check if _episode_key(ep) in downloaded_keys]
+        if not finished and getattr(self, "_download_check_generation", 0) > 0:
+            if getattr(self, "_download_check_poll_id", None):
+                with contextlib.suppress(tk.TclError, ValueError):
+                    self.root.after_cancel(self._download_check_poll_id)
+            with contextlib.suppress(Exception):
+                self._download_check_poll_id = self.root.after(50, self._poll_download_check)
 
-        if results and self.displayed_program == program:
-            self.root.after(0, lambda: self._apply_download_check_results(program, results))
-
-    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]]):
+    def _apply_download_check_results(self, program: Program, results: list[tuple[str, bool]], generation: int):
         """判定結果を UI に反映する。"""
-        if self.displayed_program != program:
+        if self.displayed_program != program or getattr(self, "_download_check_generation", 0) != generation:
             return
 
         for iid, is_dl in results:
-            if not self.episode_tree.exists(iid):
-                continue
-
-            saved = self._downloaded_cell_text(is_dl)
-            current_values = self.episode_tree.item(iid, "values")
-            if not current_values:
-                continue
-
-            new_values = list(current_values)
-            new_values[0] = saved
-            # 背景色の変更（タグの付与）は行わず、値のみを更新する
-            self.episode_tree.item(iid, values=tuple(new_values))
+            self.episode_view.set_saved(iid, is_dl)
 
     def _rerender_displayed_episodes(self):
         if self.displayed_program is None:
@@ -138,15 +121,13 @@ class GuiEpisodeMixin:
 
         # バッチ判定で全エピソードの保存状態を効率的に取得
         episodes = list(self.displayed_episode_map.values())
-        downloaded_keys = get_downloaded_episode_keys(self.output_dir, program, episodes)
+        downloaded_keys = get_downloaded_episode_keys(
+            self.output_dir, program, episodes, audio_only=self.audio_only
+        )
 
         for iid, episode in self.displayed_episode_map.items():
-            values = list(self.episode_tree.item(iid, "values"))
-            if len(values) < 3:
-                continue
             is_downloaded = _episode_key(episode) in downloaded_keys
-            values[0] = self._downloaded_cell_text(is_downloaded)
-            self.episode_tree.item(iid, values=tuple(values))
+            self.episode_view.set_saved(iid, is_downloaded)
         self._schedule_saved_button_refresh()
         self._update_program_overview(self.displayed_program, self.displayed_episodes, "保存状態を更新")
 
@@ -174,7 +155,7 @@ class GuiEpisodeMixin:
         has_saved = False
         if self.displayed_program and self.displayed_episodes:
             downloaded_keys = get_downloaded_episode_keys(
-                self.output_dir, self.displayed_program, self.displayed_episodes
+                self.output_dir, self.displayed_program, self.displayed_episodes, audio_only=self.audio_only
             )
             has_saved = bool(downloaded_keys)
 
@@ -186,11 +167,23 @@ class GuiEpisodeMixin:
                 self.episode_saved_only_var.set(False)
 
     def _on_episode_filter_change(self, *_args):
+        if getattr(self, "_episode_search_timer", None):
+            with contextlib.suppress(tk.TclError, ValueError):
+                self.root.after_cancel(self._episode_search_timer)
+        self._episode_search_timer = self.root.after(150, self._apply_episode_filter)
+
+    def _apply_episode_filter(self):
         if self.displayed_program:
             self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
 
     def _clear_episode_search(self, _event=None):
         self.episode_search_var.set("")
+        # set("") の trace でスケジュールされたタイマーを確実にキャンセルして二重描画を防止 (2-3)
+        if getattr(self, "_episode_search_timer", None):
+            with contextlib.suppress(tk.TclError, ValueError):
+                self.root.after_cancel(self._episode_search_timer)
+            self._episode_search_timer = None
+        self._apply_episode_filter()
         if hasattr(self, "episode_search_entry"):
             self.episode_search_entry.focus_set()
         return "break"
@@ -206,7 +199,9 @@ class GuiEpisodeMixin:
         # バッチ判定: フィルタリングとソートの両方で使用
         downloaded_keys: set[str] = set()
         if self.displayed_program and (saved_only or self.episode_sort_state[0] == "saved"):
-            downloaded_keys = get_downloaded_episode_keys(self.output_dir, self.displayed_program, episodes)
+            downloaded_keys = get_downloaded_episode_keys(
+                self.output_dir, self.displayed_program, episodes, audio_only=self.audio_only
+            )
 
         filtered = episodes
         if needle:
@@ -245,19 +240,13 @@ class GuiEpisodeMixin:
             self._render_episode_rows(self.displayed_program, self.displayed_episodes, clear_selection=False)
 
     def _update_episode_tree_headings(self):
-        headers = {"saved": "DL", "date": "放送日時", "duration": "長さ", "title": "タイトル"}
-        for c, base_label in headers.items():
-            label = base_label
-            if self.episode_sort_state[0] == c:
-                label += " ▲" if self.episode_sort_state[1] else " ▼"
-            self.episode_tree.heading(c, text=label)
+        self.episode_view.update_headings(self.episode_sort_state)
 
     def _update_episode_filter_summary(self, count: int, total: int):
-        self.episode_filter_summary_var.set(f"表示 {count} / 全 {total} 件")
+        self.episode_view.update_filter_summary(count, total)
 
     def _update_episode_selection_summary(self):
-        count = len(self.episode_tree.selection())
-        self.episode_selection_summary_var.set(f"選択 {count} 件")
+        self.episode_view.update_selection_summary()
 
     def _on_episode_selection_change(self, _event=None):
         self.selected_episode_keys = self._selected_episode_keys()
@@ -326,9 +315,6 @@ class GuiEpisodeMixin:
         """マウスが tree を離れたら cursor と tooltip をリセット。"""
         self.episode_tree.config(cursor="")
         self._hide_tooltip()
-
-    def _on_episode_tree_scroll(self, *args):
-        self.episode_tree.yview(*args)
 
     def _bind_tooltip(self, widget, text: str):
         widget.bind("<Enter>", lambda event: self._show_tooltip(event, text), add="+")

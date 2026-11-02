@@ -11,14 +11,8 @@ if TYPE_CHECKING:
 
 from ..cache import clear_all_cache
 from ..constants import NHK_ONDEMAND_URL
-from ..downloads import (
-    _episode_key,
-    _format_download_eta,
-    _format_download_percent,
-    program_output_dir,
-)
+from ..downloads import _episode_key, program_output_dir
 from ..types import Episode, Program
-from .toolkit import tk, ttk
 
 
 class GuiDownloadsMixin:
@@ -35,23 +29,7 @@ class GuiDownloadsMixin:
         eta: str | None = None,
         status_text: str | None = None,
     ):
-        def _update():
-            row = self.active_download_rows.get(episode_key)
-            if row is None or row["state"] != "running":
-                return
-
-            if percent is not None:
-                row["percent_var"].set(_format_download_percent(percent))
-                row["progress"].stop()
-                row["progress"].configure(mode="determinate", maximum=100, value=min(max(percent, 0.0), 100.0))
-                row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
-            elif eta is not None:
-                row["progress_meta_var"].set(f"{row['percent_var'].get()} / {_format_download_eta(eta)}")
-
-            if status_text is not None:
-                row["status_var"].set(status_text)
-
-        self.root.after(0, _update)
+        self.activity_view.update_progress(episode_key, percent=percent, eta=eta, status_text=status_text)
 
     def _update_fetch_button_state(self):
         if not hasattr(self, "fetch_button"):
@@ -73,6 +51,14 @@ class GuiDownloadsMixin:
         """UI event handler for Download button."""
         import tkinter.messagebox as mb
 
+        # マウスのダブルクリックが ☑ 列 (saved: #1) で発生した場合はダウンロード処理を行わず終了 (G9)
+        # キー操作 (<Return> 等) の場合はマウス座標に影響されないようスキップする
+        is_mouse_click = _event is not None and (getattr(_event, "num", None) == 1 or not getattr(_event, "keysym", None))
+        if is_mouse_click and hasattr(self, "episode_tree") and hasattr(self, "_tree_cell_from_event"):
+            cell = self._tree_cell_from_event(self.episode_tree, _event)
+            if cell and cell[1] == "#1":
+                return "break"
+
         from ..downloads import find_episode_downloaded_path
 
         if self.displayed_program is None:
@@ -92,7 +78,9 @@ class GuiDownloadsMixin:
         # 既に保存済みのエピソードをチェック
         existing_episodes = []
         for episode in selected:
-            path = find_episode_downloaded_path(self.output_dir, program, episode)
+            path = find_episode_downloaded_path(
+                self.output_dir, program, episode, audio_only=self.audio_only
+            )
             if path is not None:
                 existing_episodes.append((episode, path))
 
@@ -105,17 +93,8 @@ class GuiDownloadsMixin:
                 parent=self.root,
             ):
                 return "break"
-
-            # 既存ファイルを削除
-            from ..downloads import remove_episode_from_manifest
-
-            for episode, path in existing_episodes:
-                try:
-                    path.unlink()
-                    remove_episode_from_manifest(self.output_dir, program, episode)
-                except OSError as e:
-                    self.status_var.set(f"既存ファイルの削除に失敗しました: {e}")
-                    return "break"
+            # 注意: 事前の unlink は行わない。yt-dlp の --force-overwrites により安全に上書きされるため、
+            # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
 
         new_jobs_count = 0
         for episode in selected:
@@ -182,7 +161,7 @@ class GuiDownloadsMixin:
                 self._finish_download_row(episode_key, "中断")
                 self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
 
-        if self.download_manager.is_active():
+        if self.download_manager.is_active() or not self.download_result_queue.empty():
             # アクティブなダウンロード数に基づいて動的にポーリング間隔を調整
             # 3 個以上なら 50ms、1-2 個なら 100ms（複数ジョブでの応答性 vs CPU 使用率）
             active_count = len(self.download_manager.processes)
@@ -288,115 +267,28 @@ class GuiDownloadsMixin:
         return "break"
 
     def _add_download_row(self, program: Program, episode: Episode):
-        episode_key = _episode_key(episode)
-        if episode_key in self.active_download_rows:
-            return
-
-        index = len(self.active_download_rows)
-        widgets = self._create_download_job_widgets(index, episode, episode_key)
-        self.active_download_rows[episode_key] = {
-            "state": "running",
-            **widgets,
-        }
-        self._reflow_download_rows(auto_scroll=True)
+        self.activity_view.add(episode)
 
     def _finish_download_row(self, episode_key: str, status: str):
-        row = self.active_download_rows.get(episode_key)
-        if row is None:
-            return
-
-        row["state"] = "done"
-        row["status_var"].set(status)
-        row["progress"].stop()
-        if status == "完了":
-            row["progress"].configure(value=100)
-            row["percent_var"].set("100%")
-
-        # ボタンを「削除」に変更
-        row["action_button"].configure(text="削除", command=lambda: self._remove_download_row(episode_key))
-        self._update_download_summary()
+        self.activity_view.finish(episode_key, status)
 
     def _remove_download_row(self, episode_key: str):
-        row = self.active_download_rows.pop(episode_key, None)
-        if row:
-            row["frame"].destroy()
-            self._reflow_download_rows()
-            self._update_download_summary()
+        self.activity_view.remove(episode_key)
 
     def _reset_download_row(self, episode_key: str):
-        if episode_key in self.active_download_rows:
-            self._remove_download_row(episode_key)
+        self.activity_view.reset(episode_key)
 
     def _update_download_summary(self):
-        active = sum(1 for r in self.active_download_rows.values() if r["state"] == "running")
-        total = len(self.active_download_rows)
-        if total == 0:
-            self.progress_text_var.set("ダウンロードジョブはありません")
-        else:
-            self.progress_text_var.set(f"実行中: {active} / 全体: {total}")
+        self.activity_view._update_summary()
 
     def _reflow_download_rows(self, *, auto_scroll: bool = False):
-        # Canvas 内のアイテムを上から順に再配置
-        for i, row in enumerate(self.active_download_rows.values()):
-            row["frame"].grid(row=i, column=0, sticky="ew", padx=5, pady=2)
-
-        self.root.update_idletasks()
-        self.download_jobs_canvas.configure(scrollregion=self.download_jobs_canvas.bbox("all"))
-        if auto_scroll:
-            self.download_jobs_canvas.yview_moveto(1.0)
-
-    def _create_download_job_widgets(self, index: int, episode: Episode, episode_key: str) -> dict:
-        frame = ttk.Frame(self.download_jobs_inner, style="Card.TFrame")
-        # column 1 (プログレスバー) が伸縮するように設定
-        frame.columnconfigure(1, weight=1)
-
-        title_label = ttk.Label(
-            frame,
-            text=episode.display_title or episode.title,
-            style="Bold.TLabel"
-        )
-        title_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5))
-
-        status_var = tk.StringVar(value="準備中...")
-        # 状態ラベルにもある程度の幅を持たせて安定させる
-        status_label = ttk.Label(frame, textvariable=status_var, font=("", 9), width=10, anchor="e")
-        status_label.grid(row=0, column=2, sticky="e", padx=10, pady=(10, 5))
-
-        progress = ttk.Progressbar(frame, mode="indeterminate", length=200)
-        progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
-        progress.start(10)
-
-        percent_var = tk.StringVar(value="--%")
-        progress_meta_var = tk.StringVar(value="--% / 残り --:--")
-        # 進捗テキストラベルに固定幅 (width=22) を設定して、伸縮を防ぐ
-        meta_label = ttk.Label(frame, textvariable=progress_meta_var, font=("", 9), width=22, anchor="e")
-        meta_label.grid(row=1, column=2, sticky="e", padx=10, pady=5)
-
-        action_button = ttk.Button(
-            frame,
-            text="中止",
-            command=lambda: self._on_cancel_one(episode_key),
-            width=8
-        )
-        action_button.grid(row=0, column=3, rowspan=2, padx=10, pady=10)
-
-        return {
-            "frame": frame,
-            "status_var": status_var,
-            "progress": progress,
-            "percent_var": percent_var,
-            "progress_meta_var": progress_meta_var,
-            "action_button": action_button,
-        }
+        self.activity_view._reflow(auto_scroll=auto_scroll)
 
     def _show_error_banner(self, message: str) -> None:
-        """Display error banner with the given message."""
-        self.error_banner_label.config(text=message)
-        self.error_banner_frame.grid()
+        self.episode_view.show_error(message)
 
     def _hide_error_banner(self) -> None:
-        """Hide error banner."""
-        self.error_banner_frame.grid_remove()
+        self.episode_view.hide_error()
 
 
 __all__ = ["GuiDownloadsMixin"]

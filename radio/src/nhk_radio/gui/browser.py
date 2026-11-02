@@ -1,7 +1,9 @@
 """Tkinter GUI browser for NHK radio programs."""
 
 import contextlib
+import logging
 import queue
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,7 +15,7 @@ from ..config import (  # noqa: F401
     _save_help_seen_version,
 )
 from ..types import Episode, Program
-from .build import GuiBuildMixin
+from .build import AppShell, UiVars
 from .data_manager import DataManager
 from .download_manager import DownloadManager
 from .download_panel import GuiDownloadsMixin
@@ -27,8 +29,10 @@ if TYPE_CHECKING:
     # Protocol を実装していることをコンパイラに確認させる
     _: GuiBrowserProtocol
 
+logger = logging.getLogger(__name__)
 
-class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDownloadsMixin):
+
+class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def __init__(self, programs: list[Program] | None, output_dir: Path, *, audio_only: bool = True, genre: str | None = None, root: tk.Tk | None = None):
         if tk is None or ttk is None:
             raise RuntimeError("tkinter が利用できません")
@@ -60,6 +64,66 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             # 起動後に非同期取得を開始
             self.root.after(100, lambda: self._start_fetch_programs(genre))
 
+    def _build_widgets(self) -> None:
+        self.shell = AppShell(
+            self.root,
+            self,
+            self._palette,
+            UiVars(
+                status=self.status_var,
+                selected_cell_meta=self.selected_cell_meta_var,
+                selected_cell_value=self.selected_cell_value_var,
+                settings_button=self.settings_button_var,
+                program_search=self.program_search_var,
+                program_genre=self.program_genre_filter_var,
+                program_summary=self.program_list_summary_var,
+                program_title=self.selected_program_title_var,
+                program_meta=self.selected_program_meta_var,
+                program_stats=self.selected_program_stats_var,
+                fetch_button=self.fetch_button_var,
+                episode_message=self.episode_message_var,
+                episode_search=self.episode_search_var,
+                episode_saved_only=self.episode_saved_only_var,
+                episode_filter_summary=self.episode_filter_summary_var,
+                episode_selection_summary=self.episode_selection_summary_var,
+                progress=self.progress_text_var,
+                theme=self.theme_var,
+                font_size=self.font_size_var,
+                font_size_display=self.font_size_display_var,
+                settings_save_button=self.settings_save_button_var,
+                settings_summary=self.settings_summary_var,
+            ),
+            self.program_search_history,
+            self._program_genre_filter_values,
+        )
+        shell = self.shell
+        self.program_view = shell.program_view
+        self.episode_view = shell.episode_view
+        self.activity_view = shell.activity_view
+        self.settings_view = shell.settings_view
+        self.program_tree = shell.program_view.tree
+        self.program_tree_programs = shell.program_view.programs_by_item
+        self.program_genre_filter_combo = shell.program_view.genre_combo
+        self.program_search_entry = shell.program_view.search_entry
+        self.episode_tree = shell.episode_view.tree
+        self.displayed_episode_map = shell.episode_view.episodes_by_item
+        self.episode_scroll = shell.episode_view.scrollbar
+        self.episode_title_var = shell.episode_view.episode_title_var
+        self.episode_search_entry = shell.episode_view.search_entry
+        self.episode_saved_only_check = shell.episode_view.saved_only_check
+        self.fetch_button = shell.episode_view.fetch_button
+        self.download_button = shell.episode_view.download_button
+        self.active_download_rows = shell.activity_view.rows
+        self.selected_cell_entry = shell.selected_cell_entry
+        self.copy_cell_button = shell.copy_cell_button
+
+        self._update_program_tree_headings()
+        self._update_episode_tree_headings()
+        self.download_button.state(["disabled"])
+        self._refresh_treeview_theme()
+        self._update_settings_ui()
+        self._show_screen("browser", announce=False)
+
     def _initialize_runtime_state(self, programs: list[Program]) -> None:
         self.result: tuple[Program, list[Episode]] | tuple[None, None] = (None, None)
         self.loading = False
@@ -67,7 +131,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
         # UI 状態 (ThemeManager 初期化前にプレースホルダを設定)
         self.current_theme = DEFAULT_UI_THEME
-        self.current_font_size = str(DEFAULT_UI_FONT_SIZE_PT)
+        self.current_font_size = int(DEFAULT_UI_FONT_SIZE_PT)
         self.current_screen = "browser"
         self.settings_dirty = False
         self.program_search_history: list[str] = []
@@ -91,8 +155,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             on_result=self._on_download_manager_result,
         )
 
+        # 起動時に前回のクラッシュ等で残ったバックアップファイルを非同期に復元・整理 (G4, 2-2, 2-3)
+        self._start_residual_backup_cleanup()
+
         self.download_polling = False
-        self.active_download_rows: dict[str, dict] = {}
+        self.active_download_rows = {}
 
         # Mixin がアクセスするプロパティ。programs は初期値、filtered_programs は動的更新、
         # episodes_cache は DataManager と同期。
@@ -100,11 +167,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.filtered_programs = self.data_manager.programs
         self.episodes_cache = self.data_manager.episodes_cache
 
-        self.program_tree_programs: dict[str, Program] = {}
+        self.program_tree_programs = {}
         self.selected_program_key: str | None = None
         self.displayed_program: Program | None = None
         self.displayed_episodes: list[Episode] = []
-        self.displayed_episode_map: dict[str, Episode] = {}
+        self.displayed_episode_map = {}
         self.selected_episode_keys: tuple[str, ...] = ()
         self.program_sort_state = ("no", False)
         self.episode_sort_state = ("date", True)
@@ -141,15 +208,13 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
     def _show_screen(self, screen_name: str, announce: bool = True):
         """指定したスクリーンを表示する。"""
         if screen_name == "settings":
-            self.browser_screen.grid_remove()
-            self.settings_screen.grid()
+            self.shell.show_screen("settings")
             self.settings_button_var.set("ブラウザに戻る")
             self.current_screen = "settings"
             if announce:
                 self.status_var.set("表示設定画面")
         else:
-            self.settings_screen.grid_remove()
-            self.browser_screen.grid()
+            self.shell.show_screen("browser")
             self.settings_button_var.set("表示設定")
             self.current_screen = "browser"
             if announce:
@@ -222,7 +287,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.font_size_display_var = tk.StringVar()
         self.settings_save_button_var = tk.StringVar()
         self.theme_var = tk.StringVar(value=self.current_theme)
-        self.font_size_var = tk.IntVar(value=int(self.current_font_size))
+        self.font_size_var = tk.IntVar(value=self.current_font_size)
         self.program_search_var.trace_add("write", self._on_program_search_change)
         self.episode_search_var.trace_add("write", self._on_episode_filter_change)
         self.episode_saved_only_var.trace_add("write", self._on_episode_filter_change)
@@ -234,6 +299,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
             font_size=self.current_font_size,
             search_history=self.program_search_history,
         )
+
+    def _persist_search_history(self):
+        """検索履歴のみを永続化する (G8)。"""
+        self.theme_manager.save_search_history(self.program_search_history)
 
     def _set_progress(self, current: int, total: int, text: str = ""):
         """進捗状況を更新する。"""
@@ -248,6 +317,24 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
         self.episodes_cache.clear()
         self._populate_programs()
         self.status_var.set("キャッシュをクリアしました")
+
+    def _start_residual_backup_cleanup(self) -> None:
+        """起動時にバックグラウンドスレッドで残存バックアップファイルを復元・整理する (2-2, 2-3)。"""
+
+        def _worker() -> None:
+            try:
+                from ..downloads.cleanup import BACKUP_MIN_AGE_SECONDS, cleanup_residual_backup_files
+
+                active_dirs = self.download_manager.get_active_program_dirs()
+                cleanup_residual_backup_files(
+                    self.output_dir,
+                    active_program_dirs=active_dirs,
+                    min_age_seconds=BACKUP_MIN_AGE_SECONDS,
+                )
+            except Exception as e:
+                logger.debug(f"残存バックアップの非同期整理で例外: {e}")
+
+        threading.Thread(target=_worker, daemon=True, name="ResidualBackupCleanup").start()
 
     def _start_fetch_programs(self, genre: str | None = None):
         """Initial background fetch of all programs."""
@@ -298,13 +385,19 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
                 return
             self._discard_unsaved_settings()
         has_running_download = any(row["state"] == "running" for row in self.active_download_rows.values())
-        if self.loading or has_running_download:
+        if has_running_download:
             if messagebox is not None:
                 messagebox.showwarning(
-                    "処理中です",
-                    "一覧取得またはダウンロード処理が実行中です。完了または中断してから閉じてください。",
+                    "ダウンロード処理中です",
+                    "ダウンロード処理が実行中です。完了または中断してから閉じてください。",
                     parent=self.root,
                 )
+            return
+        if self.loading and messagebox is not None and not messagebox.askyesno(
+            "一覧取得中",
+            "一覧を取得中ですが、終了しますか？",
+            parent=self.root,
+        ):
             return
         self.result = (None, None)
         self.root.destroy()
@@ -415,6 +508,22 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiBuildMixin, GuiListingMixin, GuiDown
 
     def _handle_browser_shortcut(self, event):
         if self.current_screen != "browser" or self.loading or self._is_text_input_focus():
+            return None
+        # ヘルプダイアログや別ポップアップなどの別ウィンドウが開いている時はショートカットを無効化 (G10)
+        if getattr(self, "help_popup", None) and self.help_popup.winfo_exists():
+            return None
+        if getattr(self, "saved_episode_popup", None) and self.saved_episode_popup.winfo_exists():
+            return None
+        widget = getattr(event, "widget", None)
+        if widget and hasattr(widget, "winfo_toplevel"):
+            try:
+                if widget.winfo_toplevel() != self.root:
+                    return None
+            except Exception:
+                pass
+        # 修飾キー (Control, Alt/Option, Command など) が押されている場合は無視 (G10)
+        # 0x4: Control, 0x8: Mod1/Alt, 0x100000: Command (macOS)
+        if getattr(event, "state", 0) & (0x4 | 0x8 | 0x100000):
             return None
         key = (event.keysym or "").lower()
         if key == "f":

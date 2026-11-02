@@ -16,6 +16,7 @@ env/
 .nox/
 .coverage
 .coverage.*
+coverage.json
 htmlcov/
 .eggs/
 *.egg-info/

@@ -82,10 +82,15 @@ def load_program_cache(genre: str | None, ttl_seconds: int = CACHE_TTL_SECONDS) 
     items = _load_json_ttl_cache(_program_cache_path(genre), "programs", ttl_seconds)
     if items is None:
         return None
-    return [
-        Program(**_filter_dataclass_kwargs(Program, item))
-        for item in items
-    ]
+    try:
+        return [
+            Program(**_filter_dataclass_kwargs(Program, item))
+            for item in items
+            if isinstance(item, dict)
+        ]
+    except (TypeError, ValueError) as e:
+        logger.debug(f"番組キャッシュの復元に失敗: {e}")
+        return None
 
 
 def save_program_cache(genre: str | None, programs: list[Program]):
@@ -129,10 +134,15 @@ def load_episode_cache(program: Program, ttl_seconds: int = CACHE_TTL_SECONDS) -
     items = _load_json_ttl_cache(_episode_cache_path(program), "episodes", ttl_seconds)
     if items is None:
         return None
-    return [
-        Episode(**_filter_dataclass_kwargs(Episode, item))
-        for item in items
-    ]
+    try:
+        return [
+            Episode(**_filter_dataclass_kwargs(Episode, item))
+            for item in items
+            if isinstance(item, dict)
+        ]
+    except (TypeError, ValueError) as e:
+        logger.debug(f"エピソードキャッシュの復元に失敗: {e}")
+        return None
 
 
 def save_episode_cache(program: Program, episodes: list[Episode]):

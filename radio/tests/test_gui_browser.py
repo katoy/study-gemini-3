@@ -60,6 +60,8 @@ class TestGuiComprehensive(unittest.TestCase):
 
     def test_listing_logic(self):
         browser = self._create_mock_browser()
+        browser.program_view = MagicMock()
+        browser.program_view.generation = 1
         self.assertEqual(browser._program_key(self.programs[0]), "SITE1_01")
         browser.program_genre_filter_var.get.return_value = "すべて"
         browser.program_search_var.get.return_value = ""
@@ -68,15 +70,11 @@ class TestGuiComprehensive(unittest.TestCase):
 
     def test_downloads_ui_updates(self):
         browser = self._create_mock_browser()
-        browser.active_download_rows = {
-            "key1": {"state": "running", "percent_var": MagicMock(), "progress": MagicMock(),
-                     "progress_meta_var": MagicMock(), "status_var": MagicMock()}
-        }
+        browser.activity_view = MagicMock()
         browser._update_download_row_progress("key1", percent=50.0, eta="10s")
-        if browser.root.after.called:
-            callback = browser.root.after.call_args[0][1]
-            callback()
-            browser.active_download_rows["key1"]["percent_var"].set.assert_called()
+        browser.activity_view.update_progress.assert_called_once_with(
+            "key1", percent=50.0, eta="10s", status_text=None
+        )
 
     def test_open_saved_folder_interaction(self):
         """☑ マーククリックでフォルダを開く機能をテスト。"""
@@ -155,29 +153,26 @@ class TestGuiComprehensive(unittest.TestCase):
     def test_show_error_banner(self):
         """Test that _show_error_banner displays the banner with the given message."""
         browser = self._create_mock_browser()
-        browser.error_banner_frame = MagicMock()
-        browser.error_banner_label = MagicMock()
+        browser.episode_view = MagicMock()
 
         message = "テスト エラーメッセージ"
         browser._show_error_banner(message)
 
-        browser.error_banner_label.config.assert_called_once_with(text=message)
-        browser.error_banner_frame.grid.assert_called_once()
+        browser.episode_view.show_error.assert_called_once_with(message)
 
     def test_hide_error_banner(self):
         """Test that _hide_error_banner hides the banner."""
         browser = self._create_mock_browser()
-        browser.error_banner_frame = MagicMock()
+        browser.episode_view = MagicMock()
 
         browser._hide_error_banner()
 
-        browser.error_banner_frame.grid_remove.assert_called_once()
+        browser.episode_view.hide_error.assert_called_once()
 
     def test_finish_fetch_shows_error_banner_on_error(self):
         """Test that _finish_fetch displays error banner when error occurs."""
         browser = self._create_mock_browser()
-        browser.error_banner_frame = MagicMock()
-        browser.error_banner_label = MagicMock()
+        browser.episode_view = MagicMock()
         browser.status_var = MagicMock()
         browser._set_loading = MagicMock()
         browser._set_progress = MagicMock()
@@ -191,13 +186,12 @@ class TestGuiComprehensive(unittest.TestCase):
 
         browser._finish_fetch(program, [], "api", error)
 
-        browser.error_banner_label.config.assert_called_once_with(text=f"取得に失敗しました: {error}")
-        browser.error_banner_frame.grid.assert_called_once()
+        browser.episode_view.show_error.assert_called_once_with(f"取得に失敗しました: {error}")
 
     def test_finish_fetch_hides_error_banner_on_success(self):
         """Test that _finish_fetch hides error banner on success."""
         browser = self._create_mock_browser()
-        browser.error_banner_frame = MagicMock()
+        browser.episode_view = MagicMock()
         browser.status_var = MagicMock()
         browser._set_loading = MagicMock()
         browser._set_progress = MagicMock()
@@ -217,7 +211,7 @@ class TestGuiComprehensive(unittest.TestCase):
 
         browser._finish_fetch(program, episodes, "api", None)
 
-        browser.error_banner_frame.grid_remove.assert_called_once()
+        browser.episode_view.hide_error.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

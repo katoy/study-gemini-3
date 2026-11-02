@@ -38,12 +38,6 @@ dev = [
 addopts = "--cov=src/nhk_radio --cov-report=term-missing"
 testpaths = ["tests"]
 
-[tool.coverage.run]
-source = ["src/nhk_radio"]
-
-[tool.coverage.report]
-show_missing = true
-
 [tool.ruff]
 line-length = 120
 target-version = "py313"
@@ -67,7 +61,7 @@ ignore = [
 known-first-party = ["nhk_radio"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = false
 ignore_missing_imports = true
 
@@ -81,11 +75,7 @@ disable_error_code = ["attr-defined", "has-type", "assignment", "arg-type", "mis
 module = "nhk_radio.gui.browser"
 disable_error_code = ["misc", "assignment"]
 
-# GUI build, download_panel: Protocol ベース設計で attr-defined は冗長
-[[tool.mypy.overrides]]
-module = "nhk_radio.gui.build"
-disable_error_code = ["attr-defined", "misc"]
-
+# GUI download_panel: Protocol ベース設計で attr-defined は冗長
 [[tool.mypy.overrides]]
 module = "nhk_radio.gui.download_panel"
 disable_error_code = ["attr-defined", "misc"]

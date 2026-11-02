@@ -32,7 +32,7 @@ def run_coverage() -> dict:
         cwd=RADIO_DIR,
         check=True,
     )
-    with open(COVERAGE_JSON) as f:
+    with open(COVERAGE_JSON, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -68,7 +68,7 @@ def build_table(data: dict) -> str:
 
 def update_readme(table: str) -> None:
     """README.md のカバレッジセクションを差し替える。"""
-    text = README.read_text()
+    text = README.read_text(encoding="utf-8")
 
     new_section = f"{BEGIN_MARKER}\n{table}\n{END_MARKER}"
 
@@ -84,7 +84,7 @@ def update_readme(table: str) -> None:
         else:
             updated = text[:insert_at] + f"\n\n## テストカバレッジ\n\n{new_section}" + text[insert_at:]
 
-    README.write_text(updated)
+    README.write_text(updated, encoding="utf-8")
     print(f"README.md を更新しました（カバレッジ {table.splitlines()[-1]}）")
 
 

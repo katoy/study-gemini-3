@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Any, cast
 
 import httpx
@@ -90,11 +91,26 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
             if status == 429:
+                if attempt >= HTTP_RETRY_COUNT - 1:
+                    logger.error(f"HTTPエラー 429 Too Many Requests (リトライ上限到達): {url}")
+                    raise
                 # Retry-After ヘッダーを優先、なければバックオフ計算
                 retry_after = e.response.headers.get("Retry-After")
-                delay = float(retry_after) if retry_after else min(
-                    HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY
-                )
+                delay = None
+                if retry_after:
+                    try:
+                        delay = float(retry_after)
+                    except ValueError:
+                        from email.utils import parsedate_to_datetime
+                        try:
+                            dt = parsedate_to_datetime(retry_after)
+                            delay = max(0.0, dt.timestamp() - time.time())
+                        except (TypeError, ValueError):
+                            pass
+                if delay is None:
+                    delay = min(HTTP_RETRY_BASE_DELAY * (2 ** attempt), HTTP_RETRY_MAX_DELAY)
+                else:
+                    delay = min(delay, HTTP_RETRY_MAX_DELAY)
                 logger.warning(f"429 Too Many Requests: {url} — {delay:.1f}s 待機 (attempt {attempt + 1}/{HTTP_RETRY_COUNT})")
                 await asyncio.sleep(delay)
                 last_exc = e
@@ -116,8 +132,8 @@ async def http_get_json_async(client: httpx.AsyncClient, url: str, timeout: int 
                 continue
             logger.error(f"ネットワークエラー: {e} ({url})")
             raise
-    assert last_exc is not None
-    raise last_exc
+    assert last_exc is not None  # pragma: no cover - defensive: loop always raises or returns
+    raise last_exc  # pragma: no cover
 
 
 
@@ -137,10 +153,16 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
     if cached is not None:
         return cached
 
-    programs = await _fetch_by_genre_async(genre) if genre else await _fetch_all_async()
+    programs, had_failure = (
+        await _fetch_by_genre_with_status_async(genre) if genre else await _fetch_all_with_status_async()
+    )
 
     if programs:
-        save_program_cache(genre, programs)
+        # ジャンル取得に一部失敗があった場合は不完全な一覧を長期間キャッシュしない (M8)
+        if not had_failure:
+            save_program_cache(genre, programs)
+        else:
+            logger.warning("一部ジャンルの取得に失敗したため、不完全な番組一覧キャッシュの保存をスキップしました。")
         return programs
 
     stale = load_program_cache(genre, ttl_seconds=CACHE_TTL_INFINITE)
@@ -213,12 +235,17 @@ def _make_entry(s: ApiProgramRaw, genre: str | None = None) -> Program:
     )
 
 
-async def _fetch_all_async() -> list[Program]:
-    """全ジャンルの番組を取得してまとめる (非同期・並列版)"""
+async def _fetch_all_with_status_async() -> tuple[list[Program], bool]:
+    """全ジャンルの番組を取得してまとめる (非同期・並列版)。
+
+    Returns:
+        (番組リスト, 一部取得失敗があったかどうかの真偽値)
+    """
     logger.info("番組一覧を取得中...")
     seen: set[tuple[str, str]] = set()
     programs: list[Program] = []
     program_map: dict[tuple[str, str], Program] = {}
+    had_failure = False
 
     async with httpx.AsyncClient(headers=_HEADERS) as client:
         # 1) corners/new_arrivals (最新追加・最多)
@@ -233,8 +260,11 @@ async def _fetch_all_async() -> list[Program]:
                         entry = _make_entry(s)
                         programs.append(entry)
                         program_map[key] = entry
+            else:
+                had_failure = True
         except (httpx.HTTPError, ValueError) as e:
             logger.debug(f"最新追加の取得に失敗 (スキップ): {e}")
+            had_failure = True
 
         # 2) 各ジャンルを追加 (並列取得して補完)
         sem = asyncio.Semaphore(MAX_CONCURRENT_API_REQUESTS)
@@ -253,6 +283,7 @@ async def _fetch_all_async() -> list[Program]:
 
         for g, genre_data in results:
             if not isinstance(genre_data, dict):
+                had_failure = True
                 continue
             data = cast(dict[str, Any], genre_data)
             for s_raw in data.get("series", []):
@@ -280,14 +311,24 @@ async def _fetch_all_async() -> list[Program]:
 
     if programs:
         logger.info(f"{len(programs)} 件の番組を取得しました。")
-        return programs
+        return programs, had_failure
 
     logger.warning("番組一覧を取得できませんでした。ネットワーク状態を確認してください。")
-    return []
+    return [], had_failure
 
 
-async def _fetch_by_genre_async(genre: str) -> list[Program]:
-    """指定ジャンルの番組一覧を取得する (非同期版)"""
+async def _fetch_all_async() -> list[Program]:
+    """全ジャンルの番組を取得してまとめる (非同期・並列版)。後方互換ラッパー。"""
+    programs, _ = await _fetch_all_with_status_async()
+    return programs
+
+
+async def _fetch_by_genre_with_status_async(genre: str) -> tuple[list[Program], bool]:
+    """指定ジャンルの番組一覧を取得する (非同期版)。
+
+    Returns:
+        (番組リスト, 取得失敗があったかどうかの真偽値)
+    """
     label = GENRE_LABELS.get(genre, genre)
     logger.info(f"{label}一覧を取得中...")
     try:
@@ -296,11 +337,17 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
         if isinstance(data, dict):
             programs = [_make_entry(cast(ApiProgramRaw, s), genre=genre) for s in data.get("series", [])]
             logger.info(f"{len(programs)} 件を取得しました。")
-            return programs
-        return []
+            return programs, False
+        return [], True
     except Exception as e:
         logger.error(f"{label}一覧の取得に失敗: {e}")
-        return []
+        return [], True
+
+
+async def _fetch_by_genre_async(genre: str) -> list[Program]:
+    """指定ジャンルの番組一覧を取得する (非同期版)。後方互換ラッパー。"""
+    programs, _ = await _fetch_by_genre_with_status_async(genre)
+    return programs
 
 
 # ──────────────────────────────────────────────────────
@@ -315,7 +362,16 @@ def _parse_episode_info(info: dict) -> Episode:
     upload_date = info.get("upload_date") or ""
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
-    date = upload_date or (str(int(timestamp)) if timestamp else "")
+    if upload_date:
+        date = str(upload_date)
+    elif timestamp:
+        try:
+            from zoneinfo import ZoneInfo
+            date = datetime.fromtimestamp(float(timestamp), ZoneInfo("Asia/Tokyo")).strftime("%Y%m%d")
+        except Exception:
+            date = str(int(timestamp))
+    else:
+        date = ""
     if ep_id:
         ep_url = f"https://www.nhk.or.jp/radio/player/ondemand.html?p={ep_id}"
     else:

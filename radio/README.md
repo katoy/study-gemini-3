@@ -229,16 +229,26 @@ radio/
 │       ├── cache.py     # 一覧キャッシュ (TTL 付き)
 │       ├── config.py    # 設定と UI 設定パス
 │       ├── constants.py # API エンドポイント・ジャンル定数
-│       ├── downloads.py # yt-dlp 実行・保存先管理・重複判定・マニフェスト管理
-│       │                 # - run_yt_dlp_subprocess() 統一サブプロセス管理
-│       │                 # - get_downloaded_episode_keys() バッチ判定
-│       │                 # - マニフェストキャッシング (mtime 検証付き)
+│       ├── downloads/   # ダウンロード実行・保存先管理・重複判定・マニフェスト管理
+│       │   ├── cleanup.py    # 一時ファイル (.part, .ytdl) のクリーンアップ
+│       │   ├── filesystem.py # 保存先パス計算・ファイル照合・スキャンキャッシュ
+│       │   ├── manifest.py   # マニフェスト (.downloaded.json) 管理
+│       │   └── runner.py     # yt-dlp サブプロセス実行・進捗解析・プロセス制御
 │       ├── text.py      # 表示整形ユーティリティ
 │       ├── types.py     # Program / Episode の dataclass 定義
 │       ├── help.md      # GUI ヘルプ本文
-│       └── gui/         # Tkinter GUI (mixin 構成)
-│           ├── download_manager.py # 並行ダウンロード管理・進捗追跡
-│           ├── downloads.py        # ダウンロード UI 更新・動的ポーリング
+│       └── gui/         # Tkinter GUI (部品クラスと画面制御)
+│           ├── browser.py          # データ取得・保存と画面部品の調停
+│           ├── build.py            # AppShell・画面全体の配置と切り替え
+│           ├── program_view.py     # 番組一覧の描画・操作
+│           ├── episode_view.py     # エピソード詳細の描画・操作
+│           ├── activity_view.py    # ダウンロード進捗の表示状態
+│           ├── settings_view.py    # 表示設定画面
+│           ├── data_manager.py     # データ取得・キャッシュ管理
+│           ├── download_manager.py # 並行ダウンロードワーカー管理
+│           ├── download_panel.py   # 取得・保存イベントの調停
+│           ├── theme_manager.py    # テーマ・フォント設定
+│           └── listing/            # 番組・エピソード一覧ツリー・操作
 ├── scripts/         # デモ動画生成スクリプト等
 ├── tests/           # pytest ベースの回帰テスト
 ├── .cache/          # 番組一覧・エピソード一覧・UI 設定キャッシュ
@@ -248,38 +258,41 @@ radio/
 
 ## テストカバレッジ
 
-**339 個の回帰テスト**（pytest + 39 subtests）により、主要機能の品質を保証しています。カバレッジは自動計測され、各コミット時に検証されます。
+**393 個の回帰テスト**（pytest）により、主要機能の品質を保証しています。カバレッジは自動計測され、各コミット時に検証されます。
 
 ### ✅ 100% テストカバレッジ達成
 
 GUI フォルダを除く全モジュールで 100% のステートメント・ブランチカバレッジを達成しました。
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-08-02
+最終計測: 2026-10-28
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
 | `__init__.py` | 0 | 100% |
 | `__main__.py` | 1 | 100% |
 | `_io.py` | 19 | 100% |
-| `cache.py` | 93 | 100% |
-| `cli.py` | 185 | 100% |
+| `cache.py` | 101 | 100% |
+| `cli.py` | 198 | 100% |
 | `config.py` | 137 | 100% |
 | `constants.py` | 17 | 100% |
-| `core.py` | 217 | 100% |
+| `core.py` | 252 | 100% |
 | `downloads/__init__.py` | 5 | 100% |
-| `downloads/cleanup.py` | 29 | 100% |
-| `downloads/filesystem.py` | 106 | 100% |
-| `downloads/manifest.py` | 102 | 100% |
-| `downloads/runner.py` | 73 | 100% |
+| `downloads/cleanup.py` | 81 | 100% |
+| `downloads/filesystem.py` | 142 | 99% |
+| `downloads/manifest.py` | 105 | 100% |
+| `downloads/runner.py` | 111 | 99% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/build.py` | 318 | 100% |
+| `gui/activity_view.py` | 94 | 84% |
+| `gui/build.py` | 109 | 93% |
+| `gui/episode_view.py` | 132 | 94% |
 | `gui/help_markdown.py` | 132 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
-| `gui/protocols.py` | 28 | 39% |
-| `text.py` | 133 | 100% |
+| `gui/program_view.py` | 95 | 95% |
+| `gui/settings_view.py` | 102 | 100% |
+| `text.py` | 139 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **1631** | **98%** |
+| **合計** | **2008** | **98%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

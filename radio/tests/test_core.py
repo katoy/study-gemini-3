@@ -161,7 +161,7 @@ class CoreHelpersTest(unittest.TestCase):
         fresh = [Program(title="fresh", display_title="fresh", display_date="----", site_id="S", corner_id="01", url="U", genre="language", genre_label="語学")]
         with (
             patch.object(core, "load_program_cache", side_effect=[None]),
-            patch.object(core, "_fetch_by_genre_async", new_callable=AsyncMock, return_value=fresh),
+            patch.object(core, "_fetch_by_genre_with_status_async", new_callable=AsyncMock, return_value=(fresh, False)),
             patch.object(core, "save_program_cache") as save_mock,
         ):
             self.assertEqual(core.fetch_program_list("language"), fresh)
@@ -170,7 +170,7 @@ class CoreHelpersTest(unittest.TestCase):
         stale_list = [Program(title="stale", display_title="stale", display_date="----", site_id="S", corner_id="01", url="U")]
         with (
             patch.object(core, "load_program_cache", side_effect=[None, stale_list]),
-            patch.object(core, "_fetch_all_async", new_callable=AsyncMock, return_value=[]),
+            patch.object(core, "_fetch_all_with_status_async", new_callable=AsyncMock, return_value=([], False)),
         ):
             self.assertEqual(core.fetch_program_list(None), stale_list)
 

@@ -18,16 +18,15 @@ def analyze_calls():
                 continue
 
     gui_dir = Path("src/nhk_radio/gui")
-    files = ["browser.py", "build.py", "listing.py", "styling.py", "downloads.py"]
+    py_files = sorted(gui_dir.rglob("*.py"))
 
     errors = []
 
-    for filename in files:
-        path = gui_dir / filename
-        if not path.exists():
+    for path in py_files:
+        if path.name.startswith("__"):
             continue
 
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
 
         for node in ast.walk(tree):
             # self.method(...) の呼び出しを探す
@@ -40,6 +39,8 @@ def analyze_calls():
                 method_name = node.func.attr
 
                 if method_name in signatures:
+                    if any(isinstance(a, ast.Starred) for a in node.args):
+                        continue
                     sig = signatures[method_name]
                     # 引数の数を計算 (selfは除外されている)
                     # Callノードの args と keywords をカウント
@@ -55,11 +56,14 @@ def analyze_calls():
 
                     if call_arg_count < min_args or (call_arg_count > max_args and not has_varargs):
                         errors.append(
-                            f"{filename}:{node.lineno} - {method_name} expected {min_args}-{max_args} args, but got {call_arg_count}"
+                            f"{path.name}:{node.lineno} - {method_name} expected {min_args}-{max_args} args, but got {call_arg_count}"
                         )
 
     for err in errors:
         print(err)
+    if errors:
+        import sys
+        sys.exit(1)
 
 if __name__ == "__main__":
     analyze_calls()
