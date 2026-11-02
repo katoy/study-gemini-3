@@ -1,13 +1,14 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, mock_open, patch
 
 # Add scripts directory to path to import split_pdf and pdf_utils
 sys.path.append(str(Path(__file__).parent.parent / "scripts"))
 
-import split_pdf
 import pdf_utils
+import split_pdf
+
 
 def test_get_file_size_mb():
     with patch("os.path.getsize") as mock_getsize:
@@ -75,7 +76,7 @@ def test_split_pdf_over_20mb():
         assert result[2] == os.path.join(output_dir, "large_part3.pdf")
         
         # Writer 1 (pages 0-4)
-        for i in range(0, 5):
+        for i in range(5):
             mock_writers[0].add_page.assert_any_call(mock_pages[i])
         assert mock_writers[0].add_page.call_count == 5
         

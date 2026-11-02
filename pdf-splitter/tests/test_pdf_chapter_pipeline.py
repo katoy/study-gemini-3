@@ -1,8 +1,8 @@
 import os
-import sys
 import stat
+import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, mock_open, patch
 
 # Add scripts directory to path to import pdf_chapter_pipeline
 sys.path.append(str(Path(__file__).parent.parent / "scripts"))
