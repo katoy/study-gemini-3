@@ -37,6 +37,8 @@
 ```text
 pdf-splitter/
 ├── plugin.json                           # プラグインのメタデータ定義
+├── run.sh                                # パイプライン実行用シェルスクリプト
+├── .python-version                       # Python バージョン指定 (3.15)
 ├── .gitignore                            # キャッシュやPDF成果物の無視設定
 ├── agents/
 │   ├── pdf-ocr-chapter-splitter/
@@ -145,7 +147,23 @@ Kindle 本のページ画像で比較した結果（文字誤り率 CER、詳細
 ## 実行方法とオプション
 
 ### 基本的な実行方法
-`uv run` を使用して、依存ライブラリを自動解決しながらスクリプトを実行します。
+
+付属の実行スクリプト `run.sh` または `uv run` を使用して、依存ライブラリを自動解決しながら実行します。
+
+#### 方法 1: `run.sh` を使用（推奨）
+
+```bash
+# ヘルプ・使い方の確認
+./run.sh -h
+
+# 対象 PDF を指定して実行
+./run.sh "<対象PDFの絶対パスまたは相対パス>"
+
+# 例: サンプルデータで実行
+./run.sh data/Kindle_14.pdf
+```
+
+#### 方法 2: `uv run` で直接実行
 
 ```bash
 uv run scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>"
@@ -153,11 +171,12 @@ uv run scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>"
 
 ### 高度なオプションとトラブルシューティング
 
-#### 1. 使用する Python バージョンの明示
-システムの Python 環境によっては、`uv` が特定の古いバージョンを探索してエラー終了することがあります。その場合は `--python 3.12`（または3.12以上のバージョン）を明示して実行してください。
+#### 1. 使用する Python バージョン
+本プロジェクトは Python 3.15 系（`.python-version` にて 3.15 を指定）で動作確認されています。
+明示的にバージョンを指定する場合は `--python 3.15` を付与してください。
 
 ```bash
-uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --max-size-mb 20
+uv run --python 3.15 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --max-size-mb 20
 ```
 
 Tesseract (ocrmypdf) で OCR する場合は `--ocr-engine tesseract --lang jpn+eng`（縦書きは `--lang jpn_vert`）を指定します。`scripts/split_pdf.py` も同じ `--ocr-engine` を受け付けます。
@@ -178,7 +197,11 @@ OCRのテキスト化精度やPDFのレイアウトによっては、自動的�
 
 **実行コマンド**:
 ```bash
-uv run --python 3.12 scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --chapters-json "<作成したchapters.jsonの絶対パス>"
+# run.sh を使用する場合
+./run.sh "<対象PDFのパス>" --chapters-json "<作成したchapters.jsonのパス>"
+
+# uv run を直接使用する場合
+uv run scripts/pdf_chapter_pipeline.py "<対象PDFの絶対パス>" --chapters-json "<作成したchapters.jsonの絶対パス>"
 ```
 
 ---

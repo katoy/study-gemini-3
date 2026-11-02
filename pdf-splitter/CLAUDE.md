@@ -1,7 +1,7 @@
 # Project Rules: PDF Splitter
 
 ## Commands (Token-Optimized)
-- Test suite: `uv run --python 3.12 --with pytest --with pypdf pytest tests/ -q` (always use `-q` to save tokens)
+- Test suite: `uv run --python 3.15 --with pytest --with pypdf pytest tests/ -q` (always use `-q` to save tokens)
 - Formatter/Lint: `uv run ruff check --fix`
 
 ## Agent Token Optimization Guidelines

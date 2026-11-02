@@ -12,10 +12,9 @@ PDF 分割スクリプト
 
 import argparse
 import os
-import sys
 import shutil
+import sys
 from pathlib import Path
-from typing import List
 
 try:
     from pypdf import PdfReader, PdfWriter
@@ -25,7 +24,7 @@ except ImportError:
 import pdf_utils
 
 
-def split_pdf(pdf_path: str, output_dir: str, base_filename: str) -> List[str]:
+def split_pdf(pdf_path: str, output_dir: str, base_filename: str) -> list[str]:
     """
     PDF を分割します。
     各パートがなるべく同じページ数になるように分割します。

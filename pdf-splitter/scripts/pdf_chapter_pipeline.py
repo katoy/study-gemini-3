@@ -24,11 +24,9 @@ import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
-
-from pypdf import PdfReader, PdfWriter
 
 import pdf_utils
+from pypdf import PdfReader, PdfWriter
 
 
 @dataclass
@@ -37,7 +35,7 @@ class TocEntry:
     title: str
     printed_page: int
     is_chapter: bool
-    physical_page: Optional[int] = None
+    physical_page: int | None = None
 
 
 def find_toc_pages(reader: PdfReader, scan_limit: int = 30) -> list[int]:
@@ -130,7 +128,7 @@ def normalize(s: str) -> str:
     return re.sub(r'\s+', '', unicodedata.normalize("NFKC", s))
 
 
-def compute_offset(reader: PdfReader, entries: list[TocEntry], sample_size: int = 4, threshold: float = 0.55) -> Optional[int]:
+def compute_offset(reader: PdfReader, entries: list[TocEntry], sample_size: int = 4, threshold: float = 0.55) -> int | None:
     """
     印字ページ番号から物理ページ番号へのオフセットを推定。
     章レベルエントリの先頭数件について、複数のオフセット候補を試し、
