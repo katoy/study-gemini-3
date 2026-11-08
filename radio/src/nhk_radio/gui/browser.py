@@ -4,6 +4,7 @@ import contextlib
 import logging
 import queue
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,10 @@ if TYPE_CHECKING:
     _: GuiBrowserProtocol
 
 logger = logging.getLogger(__name__)
+
+# 終了時に中止した DL の後始末を待つ上限秒数とポーリング間隔
+_QUIT_WAIT_SECONDS = 5.0
+_QUIT_POLL_INTERVAL_MS = 100
 
 
 class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
@@ -207,15 +212,15 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
 
     def _show_screen(self, screen_name: str, announce: bool = True):
         """指定したスクリーンを表示する。"""
+        if screen_name != "settings" and self.current_screen == "settings" and not self._confirm_leave_settings():
+            return
         if screen_name == "settings":
             self.shell.show_screen("settings")
-            self.settings_button_var.set("ブラウザに戻る")
             self.current_screen = "settings"
             if announce:
                 self.status_var.set("表示設定画面")
         else:
             self.shell.show_screen("browser")
-            self.settings_button_var.set("表示設定")
             self.current_screen = "browser"
             if announce:
                 self.status_var.set("番組ブラウザ")
@@ -315,8 +320,18 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def _reset_ui_state_after_cache_clear(self):
         """キャッシュクリア後にUI表示を初期化する。"""
         self.episodes_cache.clear()
+        # 削除済みキャッシュの内容を表示し続けないよう、エピソード一覧と概要もリセットする (M6)
+        self.displayed_program = None
+        self.displayed_episodes = []
+        self.selected_episode_keys = ()
+        self.episode_view.clear()
+        self.episode_message_var.set("")
+        self._update_program_overview(None)
         self._populate_programs()
+        self._refresh_fetch_button_label()
         self.status_var.set("キャッシュをクリアしました")
+        # clear_all_data で番組一覧も空になるため、取り直して一覧が空のまま残らないようにする
+        self._start_fetch_programs()
 
     def _start_residual_backup_cleanup(self) -> None:
         """起動時にバックグラウンドスレッドで残存バックアップファイルを復元・整理する (2-2, 2-3)。"""
@@ -372,13 +387,12 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         return self.result
 
     def _cancel(self):
-        if self.help_popup is not None and self.help_popup.winfo_exists():
-            self.help_popup.destroy()
-            return
-        if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
-            self.saved_episode_popup.destroy()
-            return
-        if self.current_screen == "settings" and self.settings_dirty:
+        # 補助ウィンドウが開いていても 1 回の操作で終了できるようにする (M3)
+        for popup in (self.help_popup, self.saved_episode_popup):
+            if popup is not None and popup.winfo_exists():
+                popup.destroy()
+        # 未保存の表示設定は表示中の画面に関係なく確認する (M1)
+        if self.settings_dirty:
             if messagebox is None or not messagebox.askyesno(
                 "未保存の表示設定", "未保存の表示設定を破棄して終了しますか？", parent=self.root
             ):
@@ -386,12 +400,16 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             self._discard_unsaved_settings()
         has_running_download = any(row["state"] == "running" for row in self.active_download_rows.values())
         if has_running_download:
-            if messagebox is not None:
-                messagebox.showwarning(
-                    "ダウンロード処理中です",
-                    "ダウンロード処理が実行中です。完了または中断してから閉じてください。",
-                    parent=self.root,
-                )
+            # DL 中でも「すべて中止して終了」を選べるようにする (M4)
+            if messagebox is None or not messagebox.askyesno(
+                "ダウンロード処理中です",
+                "ダウンロード処理が実行中です。すべて中止して終了しますか？",
+                parent=self.root,
+            ):
+                return
+            self.download_manager.cancel_all()
+            self.status_var.set("ダウンロードを中止して終了します...")
+            self._destroy_after_downloads_stop(time.monotonic() + _QUIT_WAIT_SECONDS)
             return
         if self.loading and messagebox is not None and not messagebox.askyesno(
             "一覧取得中",
@@ -399,8 +417,33 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             parent=self.root,
         ):
             return
+        self._destroy_root()
+
+    def _destroy_after_downloads_stop(self, deadline: float) -> None:
+        """中止した DL ワーカーが退避ファイルの復元を終えるまで待ってから終了する (M4)。"""
+        if self.download_manager.is_active() and time.monotonic() < deadline:
+            self.root.after(_QUIT_POLL_INTERVAL_MS, lambda: self._destroy_after_downloads_stop(deadline))
+            return
+        self._destroy_root()
+
+    def _destroy_root(self) -> None:
         self.result = (None, None)
         self.root.destroy()
+
+    def _confirm_leave_settings(self) -> bool:
+        """未保存の表示設定があれば保存 / 破棄 / キャンセルを確認する。離脱してよければ True (M1)。"""
+        if not self.settings_dirty or messagebox is None:
+            return True
+        answer = messagebox.askyesnocancel(
+            "未保存の表示設定", "表示設定が保存されていません。保存しますか？", parent=self.root
+        )
+        if answer is None:
+            return False
+        if answer:
+            self._save_ui_settings_from_screen()
+        else:
+            self._discard_unsaved_settings()
+        return True
 
     def _is_text_input_focus(self) -> bool:
         widget = self.root.focus_get()
@@ -410,6 +453,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             getattr(self, "program_search_entry", None),
             getattr(self, "episode_search_entry", None),
             getattr(self, "selected_cell_entry", None),
+            # ジャンル選択中の文字入力で F / D が発火しないようにする (F5)
+            getattr(self, "program_genre_filter_combo", None),
         }
 
     def _show_help_dialog(self, _event=None):

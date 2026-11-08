@@ -182,6 +182,8 @@ class TestGuiComprehensive(unittest.TestCase):
         browser.episodes_cache = {}
 
         program = self.programs[0]
+        # 取得対象の番組が選択中であること (通常フロー)
+        browser.selected_program_key = browser._program_key(program)
         error = "API 接続エラー"
 
         browser._finish_fetch(program, [], "api", error)
@@ -209,6 +211,7 @@ class TestGuiComprehensive(unittest.TestCase):
             )
         ]
 
+        browser.selected_program_key = browser._program_key(program)
         browser._finish_fetch(program, episodes, "api", None)
 
         browser.episode_view.hide_error.assert_called_once()

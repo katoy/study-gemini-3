@@ -96,7 +96,8 @@ class GuiOperationsMixin:
             state=state_saved,
         )
         menu.add_command(
-            label="再度ダウンロード",
+            # 未保存の行では通常の DL なので、ラベルを動作に合わせる (F2)
+            label="再度ダウンロード" if is_saved else "ダウンロード",
             command=lambda: self._redownload_episode(item_id),
         )
         menu.add_separator()
@@ -230,6 +231,9 @@ class GuiOperationsMixin:
             remove_episode_from_manifest(self.output_dir, self.displayed_program, episode)
             self.status_var.set(f"削除しました: {path.name}")
             self._refresh_downloaded_column(self.displayed_program)
+            if self.episode_saved_only_var.get():
+                # 「保存済みのみ」表示中は削除した行を一覧から外す (F3)
+                self._apply_episode_filter()
         except OSError as e:
             self.status_var.set(f"削除に失敗しました: {e}")
 

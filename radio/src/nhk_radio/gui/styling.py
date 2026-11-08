@@ -66,6 +66,9 @@ class GuiStylingMixin:
             self.current_font_size,
             self.program_search_history
         )
+        # 破棄時の戻り先を最後に保存した値にする
+        self.saved_theme = self.current_theme
+        self.saved_font_size = self.current_font_size
         self.settings_dirty = False
         self._update_settings_ui()
         self.status_var.set("表示設定を保存しました。")

@@ -129,11 +129,18 @@ class GuiProgramsMixin:
         program = self._selected_program()
         if program:
             self.selected_program_key = self._program_key(program)
-            # 概要を即座に更新
-            self._update_program_overview(program, None, "詳細を読み込み中...")
-            self.selected_program_title_var.set(program.display_title or program.title)
-            self.selected_program_meta_var.set(f"{_program_genre_text(program)} / {program.display_date}")
-            self.selected_program_stats_var.set("")
+            self._refresh_fetch_button_label()
+            # 表示中のエピソード一覧と同じ番組なら何もしない (再描画時の選択イベント対策)
+            if self._program_key(self.displayed_program) == self.selected_program_key:
+                return
+            # 一覧を選択中の番組に揃え、別番組のエピソードを誤って DL しないようにする (H1)
+            cached = self._cached_episodes_for(program)
+            if cached:
+                self._update_program_overview(program, cached, "キャッシュ表示")
+                self._show_episodes(program, cached, message=f"キャッシュから {len(cached)} 件を表示中")
+            else:
+                self._update_program_overview(program, None, "一覧は未取得です")
+                self._show_episodes(program, [], message="「一覧を取得」(F) でエピソードを取得してください")
 
     def _update_program_overview(
         self,
@@ -228,7 +235,8 @@ class GuiProgramsMixin:
         cell = self._tree_cell_from_event(self.program_tree, event)
         if cell:
             item_id, col, _value = cell
-            if col == "title":
+            # col は "#3" 形式の列 ID で返る (F1)
+            if col == "#3":
                 self._set_selected_tree_cell(self.program_tree, col, _value)
 
     def _on_program_double_click(self, event):
