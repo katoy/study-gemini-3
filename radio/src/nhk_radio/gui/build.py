@@ -198,7 +198,7 @@ class AppShell:
         )
         ttk.Label(
             status_area,
-            text="Ctrl/Cmd+F: 番組検索  Ctrl/Cmd+L: エピソード検索  F: 一覧取得  D: DL  F1: ヘルプ",
+            text="Ctrl/Cmd+F: 番組検索  Ctrl/Cmd+L: エピソード検索  F: 一覧取得  D: DL  F1 / ?: ヘルプ",
             style="StatusHint.TLabel",
             anchor="e",
         ).grid(row=0, column=2, sticky="e", padx=(12, 0))

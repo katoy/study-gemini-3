@@ -30,7 +30,6 @@ class GuiEpisodeMixin:
             preserved_keys = self._selected_episode_keys() or self.selected_episode_keys
         rendered = self._sorted_episodes(episodes)
         to_check, self.selected_episode_keys = self.episode_view.render_rows(
-            program,
             rendered,
             total_count=len(episodes),
             clear_selection=clear_selection,

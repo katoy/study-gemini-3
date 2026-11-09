@@ -3,8 +3,7 @@
 from typing import Protocol
 
 from ..downloads import _episode_key
-from ..text import _program_genre_text
-from ..types import Episode, Program
+from ..types import Episode
 from .toolkit import tk, ttk
 
 
@@ -151,6 +150,15 @@ class EpisodeDetailView:
         ):
             self.tree.bind(sequence, callback)
 
+    def clear(self) -> None:
+        """一覧を空にして、番組未表示の状態に戻す。"""
+        self.episodes_by_item.clear()
+        self.tree.delete(*self.tree.get_children())
+        self.episode_title_var.set("エピソード一覧")
+        self.download_button.state(["disabled"])
+        self.update_filter_summary(0, 0)
+        self.update_selection_summary()
+
     def show_error(self, message: str) -> None:
         self.error_banner_label.config(text=message)
         self.error_banner_frame.grid()
@@ -166,7 +174,6 @@ class EpisodeDetailView:
 
     def render_rows(
         self,
-        program: Program,
         episodes: list[Episode],
         *,
         total_count: int,
@@ -178,7 +185,6 @@ class EpisodeDetailView:
             self.tree.delete(item_id)
 
         to_check: list[tuple[str, Episode]] = []
-        genre_text = _program_genre_text(program)
         for index, episode in enumerate(episodes):
             item_id = f"episode-{index}"
             self.episodes_by_item[item_id] = episode
@@ -193,7 +199,8 @@ class EpisodeDetailView:
                     "",
                     date_time,
                     episode.duration_str or "----",
-                    f"{episode.display_title or episode.title} ({genre_text})",
+                    # 全行同じ値になるジャンル表記は付けない (L1)
+                    episode.display_title or episode.title,
                 ),
             )
             to_check.append((item_id, episode))
@@ -208,12 +215,15 @@ class EpisodeDetailView:
                     item_id for item_id, episode in self.episodes_by_item.items()
                     if _episode_key(episode) in preserved_keys
                 ]
-                if not selected_ids:
-                    selected_ids = ["episode-0"]
-                self.tree.selection_set(selected_ids)
-                self.tree.focus(selected_ids[0])
-                self.tree.see(selected_ids[0])
-                selected_keys = tuple(_episode_key(self.episodes_by_item[item_id]) for item_id in selected_ids)
+                if selected_ids:
+                    self.tree.selection_set(selected_ids)
+                    self.tree.focus(selected_ids[0])
+                    self.tree.see(selected_ids[0])
+                    selected_keys = tuple(_episode_key(self.episodes_by_item[item_id]) for item_id in selected_ids)
+                else:
+                    # 選択行が絞り込みで隠れた場合や初回表示では先頭行を自動選択せず、選択なしにする (H3, H4)
+                    self.tree.selection_remove(self.tree.selection())
+                    self.tree.focus("")
             self.download_button.state(["!disabled"])
         else:
             self.tree.selection_remove(self.tree.selection())

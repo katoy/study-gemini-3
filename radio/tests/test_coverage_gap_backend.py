@@ -552,6 +552,33 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             time.sleep(0.15)
             self.assertFalse(res)
 
+    def test_run_yt_dlp_subprocess_on_process_and_watcher_timeout(self):
+        """on_process にプロセスを渡し、未キャンセル時は監視スレッドが待機を繰り返す。"""
+        import threading
+        import time
+
+        from nhk_radio.downloads import runner
+
+        polls = iter([None, None, None])
+        mock_proc = MagicMock()
+        mock_proc.poll.side_effect = lambda: next(polls, 0)
+        mock_proc.wait.return_value = 0
+
+        def _slow_stdout():
+            # 監視スレッドが wait のタイムアウトを複数回経験できるだけ出力を遅らせる
+            time.sleep(0.35)
+            yield from ()
+
+        mock_proc.stdout = _slow_stdout()
+        received = []
+        with patch("subprocess.Popen", return_value=mock_proc):
+            res = runner.run_yt_dlp_subprocess(
+                ["test"], cancel_event=threading.Event(), on_process=received.append
+            )
+        self.assertTrue(res)
+        self.assertEqual(received, [mock_proc])
+        self.assertGreaterEqual(mock_proc.poll.call_count, 2)
+
     def test_run_yt_dlp_subprocess_on_output_path(self):
         from nhk_radio.downloads import runner
         captured = []

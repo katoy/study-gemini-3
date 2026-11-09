@@ -47,6 +47,7 @@ class MockGui(GuiDownloadsMixin):
         self.activity_view.canvas = self.download_jobs_canvas
         self.activity_view.inner = self.download_jobs_inner
         self.activity_view.on_cancel_one = self._on_cancel_one
+        self.activity_view.clear_finished_button = MagicMock()
 
     @property
     def active_download_rows(self):
@@ -199,7 +200,7 @@ class GuiDownloadsTest(unittest.TestCase):
             self.assertIn("frame", widgets)
 
     def test_clear_cache(self):
-        with patch("nhk_radio.cache.clear_all_cache"):
+        with patch("nhk_radio.cache.clear_all_cache"), patch("tkinter.messagebox.askyesno", return_value=True):
             self.gui._clear_cache()
             self.gui.status_var.set.assert_any_call("キャッシュを削除中...")
             # 完了通知

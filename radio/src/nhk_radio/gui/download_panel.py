@@ -39,13 +39,21 @@ class GuiDownloadsMixin:
         else:
             self.fetch_button.state(["!disabled"])
 
-    def _set_loading(self, loading: bool, allow_cancel: bool = False):
+    def _set_loading(self, loading: bool):
         self.loading = loading
         self._update_fetch_button_state()
         if loading:
-            self.fetch_button_var.set("取得を中止" if allow_cancel else "取得中...")
+            self.fetch_button_var.set("取得中...")
         else:
-            self.fetch_button_var.set("一覧を取得")
+            self._refresh_fetch_button_label()
+
+    def _refresh_fetch_button_label(self):
+        """選択中の番組を取得済みなら「再取得」、未取得なら「一覧を取得」と表示する (L5)。"""
+        if self.loading:
+            return
+        program = self._selected_program()
+        fetched = program is not None and (program.site_id, program.corner_id) in self.episodes_cache
+        self.fetch_button_var.set("再取得" if fetched else "一覧を取得")
 
     def _start_download_selected(self, _event=None):
         """UI event handler for Download button."""
@@ -95,6 +103,13 @@ class GuiDownloadsMixin:
                 return "break"
             # 注意: 事前の unlink は行わない。yt-dlp の --force-overwrites により安全に上書きされるため、
             # ダウンロード失敗時に元ファイルを失うことを防止する (G4)
+        elif _event is not None and not mb.askyesno(
+            "ダウンロードの確認",
+            f"選択した {len(selected)} 件のエピソードをダウンロードしますか？",
+            parent=self.root,
+        ):
+            # ダブルクリック / Enter による誤操作での即 DL を防ぐ (H3)
+            return "break"
 
         new_jobs_count = 0
         for episode in selected:
@@ -155,10 +170,10 @@ class GuiDownloadsMixin:
                 ):
                     self._refresh_downloaded_column(program)
             elif kind == "failed_one":
-                self._finish_download_row(episode_key, "失敗")
+                self._finish_download_row(episode_key, "失敗", program, episode)
                 self.status_var.set(f"ダウンロード失敗: {episode.display_title or episode.title}")
             elif kind == "cancelled_one":
-                self._finish_download_row(episode_key, "中断")
+                self._finish_download_row(episode_key, "中断", program, episode)
                 self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
 
         if self.download_manager.is_active() or not self.download_result_queue.empty():
@@ -185,7 +200,7 @@ class GuiDownloadsMixin:
             self._update_program_overview(program, None, "取得中")
             self._set_progress(0, 1, "")
 
-        self._set_loading(True, allow_cancel=False)
+        self._set_loading(True)
         self.data_manager.start_fetch_episodes(program)
         self.root.after(50, self._poll_fetch_result)
         return "break"
@@ -207,7 +222,16 @@ class GuiDownloadsMixin:
         self._set_loading(False)
         self._set_progress(0, 1, "")
         key = (program.site_id, program.corner_id)
-        if error is not None:
+        title = program.display_title or program.title
+        if self.selected_program_key != self._program_key(program):
+            # 取得中に別番組へ切り替えた場合は、選択中の番組の表示を上書きしない (H1)
+            if error is None:
+                self.episodes_cache[key] = (time.time(), episodes)
+                self.episodes_cache.move_to_end(key)
+                self.status_var.set(f"「{title}」の一覧取得が完了しました (表示は選択中の番組のまま)。")
+            else:
+                self.status_var.set(f"「{title}」の取得失敗: {error}")
+        elif error is not None:
             # エラー時はキャッシュに空リストを書き込まない
             # （期限切れキャッシュが再利用できるようにするため）
             self.status_var.set(f"取得失敗: {error}")
@@ -225,7 +249,8 @@ class GuiDownloadsMixin:
             self.episodes_cache[key] = (time.time(), episodes)
             self.episodes_cache.move_to_end(key)
             source_label = {"stale-cache": "期限切れキャッシュ"}.get(source, "最新取得")
-            self.status_var.set("")
+            # 直前の操作結果を空文字で消さず、取得結果を表示する (M7)
+            self.status_var.set(f"「{title}」のエピソード一覧を表示しました ({len(episodes)} 件)。")
             self._hide_error_banner()
             self._update_program_overview(program, episodes, source_label)
             self._show_episodes(program, episodes, message=f"{source_label}で {len(episodes)} 件を表示中")
@@ -234,9 +259,18 @@ class GuiDownloadsMixin:
 
         if len(self.episodes_cache) > 100:
             self.episodes_cache.popitem(last=False)
+        self._refresh_fetch_button_label()
 
     def _clear_cache(self):
+        import tkinter.messagebox as mb
+
         if self.loading:
+            return
+        if not mb.askyesno(
+            "キャッシュを全削除",
+            "番組一覧とエピソード一覧のキャッシュをすべて削除しますか？\n(保存済みの音声ファイルは削除されません)",
+            parent=self.root,
+        ):
             return
         self.status_var.set("キャッシュを削除中...")
         self._set_loading(True)
@@ -269,8 +303,27 @@ class GuiDownloadsMixin:
     def _add_download_row(self, program: Program, episode: Episode):
         self.activity_view.add(episode)
 
-    def _finish_download_row(self, episode_key: str, status: str):
-        self.activity_view.finish(episode_key, status)
+    def _finish_download_row(
+        self, episode_key: str, status: str, program: Program | None = None, episode: Episode | None = None
+    ):
+        on_retry = None
+        if program is not None and episode is not None:
+            on_retry = lambda: self._retry_download(program, episode)  # noqa: E731
+        self.activity_view.finish(episode_key, status, on_retry)
+
+    def _retry_download(self, program: Program, episode: Episode):
+        """失敗・中断したダウンロードを同じ番組・エピソードでやり直す (F4)。"""
+        episode_key = _episode_key(episode)
+        row = self.active_download_rows.get(episode_key)
+        if row and row["state"] == "running":
+            return
+        self._reset_download_row(episode_key)
+        self._add_download_row(program, episode)
+        self.download_manager.start_download(program, episode)
+        self.status_var.set(f"再試行しています: {episode.display_title or episode.title}")
+        if not self.download_polling:
+            self.download_polling = True
+            self.root.after(100, self._poll_download_result)
 
     def _remove_download_row(self, episode_key: str):
         self.activity_view.remove(episode_key)

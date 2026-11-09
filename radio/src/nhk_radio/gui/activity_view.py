@@ -31,8 +31,14 @@ class ActivityView:
             activity, textvariable=progress_text_var, anchor="w", style="CardMeta.TLabel"
         )
         self.progress_label.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        # 完了・失敗・中断した行をまとめて消す (F4)
+        self.clear_finished_button = ttk.Button(
+            activity, text="完了分をクリア", command=self.clear_finished, style="Quiet.TButton"
+        )
+        self.clear_finished_button.grid(row=0, column=1, sticky="e", pady=(0, 4))
+        self.clear_finished_button.state(["disabled"])
         self.jobs_frame = ttk.Frame(activity, padding=2)
-        self.jobs_frame.grid(row=1, column=0, sticky="nsew")
+        self.jobs_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
         self.jobs_frame.columnconfigure(0, weight=1)
         self.jobs_frame.rowconfigure(0, weight=1)
         self.canvas, self.scrollbar, self.inner, self.window = create_scrollable_frame(
@@ -77,7 +83,8 @@ class ActivityView:
         self.rows[episode_key] = {"state": "running", **widgets}
         self._reflow(auto_scroll=True)
 
-    def finish(self, episode_key: str, status: str) -> None:
+    def finish(self, episode_key: str, status: str, on_retry: Callable[[], None] | None = None) -> None:
+        """行を終了状態にする。on_retry を渡すと「再試行」ボタンを出す (F4)。"""
         row = self.rows.get(episode_key)
         if row is None:
             return
@@ -87,7 +94,11 @@ class ActivityView:
         if status == "完了":
             row["progress"].configure(value=100)
             row["percent_var"].set("100%")
-        row["action_button"].configure(text="削除", command=lambda: self.remove(episode_key))
+        if on_retry is not None:
+            # 失敗・中断した行はその場でやり直せるようにする (行の削除は「完了分をクリア」で行う)
+            row["action_button"].configure(text="再試行", command=on_retry)
+        else:
+            row["action_button"].configure(text="削除", command=lambda: self.remove(episode_key))
         self._update_summary()
 
     def remove(self, episode_key: str) -> None:
@@ -97,6 +108,13 @@ class ActivityView:
             self._reflow()
             self._update_summary()
 
+    def clear_finished(self) -> None:
+        """実行中以外の行をすべて削除する。"""
+        for episode_key in [key for key, row in self.rows.items() if row["state"] != "running"]:
+            self.rows.pop(episode_key)["frame"].destroy()
+        self._reflow()
+        self._update_summary()
+
     def reset(self, episode_key: str) -> None:
         if episode_key in self.rows:
             self.remove(episode_key)
@@ -105,6 +123,7 @@ class ActivityView:
         active = sum(row["state"] == "running" for row in self.rows.values())
         total = len(self.rows)
         self.progress_text_var.set("ダウンロードジョブはありません" if not total else f"実行中: {active} / 全体: {total}")
+        self.clear_finished_button.state(["!disabled"] if total > active else ["disabled"])
 
     def _reflow(self, *, auto_scroll: bool = False) -> None:
         for index, row in enumerate(self.rows.values()):

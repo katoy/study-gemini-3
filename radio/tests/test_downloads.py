@@ -110,6 +110,14 @@ class DownloadHelpersTest(unittest.TestCase):
             self.assertFalse(downloads._episode_output_matches(partial, PROGRAM, EPISODE))
             self.assertEqual(downloads._episode_output_candidates(program_dir, PROGRAM, EPISODE)[0], preferred)
 
+    def test_episode_output_matches_when_sanitized_title_is_empty(self):
+        """yt-dlp のサニタイズ結果が空でも、他の表記ゆれ候補で照合できる。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "20240415_番組A_第1回.mp3"
+            path.write_text("x", encoding="utf-8")
+            with patch("yt_dlp.utils.sanitize_filename", return_value=""):
+                self.assertTrue(downloads._episode_output_matches(path, PROGRAM, EPISODE))
+
     def test_episode_output_helpers_without_date_and_manifest_only_cases(self):
         episode = Episode(id="", title="第1回", display_title="第1回", date="", display_date="", broadcast_time="", duration_str="", url="")
         patterns = downloads._episode_output_patterns(PROGRAM, episode)
