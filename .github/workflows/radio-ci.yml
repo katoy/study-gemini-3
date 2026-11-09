@@ -73,3 +73,18 @@ jobs:
           --cov-report=json
           -q
       - run: uv run python scripts/check_non_gui_coverage.py coverage.json
+
+  test:
+    # main のブランチ保護が必須とする "Tests" チェック。GUI テストも含めて全件実行する
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.15"
+          enable-cache: true
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: uv sync --dev
+      # Tk の GUI テスト用に仮想ディスプレイ上で実行する
+      - run: xvfb-run -a uv run pytest -q
