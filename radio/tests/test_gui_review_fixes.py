@@ -322,6 +322,8 @@ class GuiReviewFixesTest(unittest.TestCase):
 
     def test_settings_opens_as_dialog_over_browser(self):
         """表示設定はダイアログで開き、番組ブラウザ画面はそのまま残る (L3)。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
         dialog = self.browser.shell.settings_dialog
         self.assertEqual(dialog.state(), "withdrawn")
         self.assertIs(self.browser.settings_view.settings_screen.master, dialog)
@@ -333,6 +335,8 @@ class GuiReviewFixesTest(unittest.TestCase):
 
     def test_settings_dialog_close_button_confirms_unsaved(self):
         """ウィンドウの閉じるボタンも未保存の確認を通す。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
         self._make_settings_dirty()
         dialog = self.browser.shell.settings_dialog
         close = dialog.tk.call("wm", "protocol", dialog._w, "WM_DELETE_WINDOW")
@@ -344,6 +348,8 @@ class GuiReviewFixesTest(unittest.TestCase):
 
     def test_settings_dialog_opens_modeless_when_grab_fails(self):
         """grab に失敗してもダイアログは開く。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
         dialog = self.browser.shell.settings_dialog
         with patch.object(dialog, "grab_set", side_effect=tk.TclError("not viewable")):
             self.browser._show_screen("settings")
