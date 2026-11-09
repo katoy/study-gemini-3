@@ -204,7 +204,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             self.fetch_result_queue.put((program, episodes, source, error))
 
     def _toggle_settings_screen(self):
-        """設定画面とブラウザ画面を切り替える。"""
+        """表示設定ダイアログを開く。開いていれば (未保存の確認をして) 閉じる。"""
         if self.current_screen == "browser":
             self._show_screen("settings")
         else:
@@ -218,12 +218,12 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             self.shell.show_screen("settings")
             self.current_screen = "settings"
             if announce:
-                self.status_var.set("表示設定画面")
+                self.status_var.set("表示設定を開きました")
         else:
             self.shell.show_screen("browser")
             self.current_screen = "browser"
             if announce:
-                self.status_var.set("番組ブラウザ")
+                self.status_var.set("表示設定を閉じました")
         self._update_settings_ui()
 
     def _reset_ui_settings(self):

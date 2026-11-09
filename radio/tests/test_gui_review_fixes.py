@@ -311,14 +311,49 @@ class GuiReviewFixesTest(unittest.TestCase):
             destroy.assert_called_once()
 
 
-    # --- M2: 設定ボタンのラベル ---
+    # --- M2 / L3: 設定ボタンのラベルと設定ダイアログ ---
 
-    def test_settings_button_label_follows_screen(self):
-        """設定ボタンのラベルが画面に合わせて切り替わる。"""
+    def test_settings_button_label_is_constant(self):
+        """設定はダイアログで開くため、ボタンのラベルは常に「表示設定」。"""
         self.browser._show_screen("settings")
-        self.assertEqual(self.browser.settings_button_var.get(), "番組一覧")
+        self.assertEqual(self.browser.settings_button_var.get(), "表示設定")
         self.browser._show_screen("browser")
         self.assertEqual(self.browser.settings_button_var.get(), "表示設定")
+
+    def test_settings_opens_as_dialog_over_browser(self):
+        """表示設定はダイアログで開き、番組ブラウザ画面はそのまま残る (L3)。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
+        dialog = self.browser.shell.settings_dialog
+        self.assertEqual(dialog.state(), "withdrawn")
+        self.assertIs(self.browser.settings_view.settings_screen.master, dialog)
+        self.browser._toggle_settings_screen()
+        self.assertEqual(dialog.state(), "normal")
+        self.assertTrue(self.browser.shell.browser_screen.grid_info())
+        self.browser._toggle_settings_screen()
+        self.assertEqual(dialog.state(), "withdrawn")
+
+    def test_settings_dialog_close_button_confirms_unsaved(self):
+        """ウィンドウの閉じるボタンも未保存の確認を通す。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
+        self._make_settings_dirty()
+        dialog = self.browser.shell.settings_dialog
+        close = dialog.tk.call("wm", "protocol", dialog._w, "WM_DELETE_WINDOW")
+        with patch("nhk_radio.gui.browser.messagebox.askyesnocancel", return_value=None) as ask:
+            dialog.tk.call(close)
+        ask.assert_called_once()
+        self.assertEqual(self.browser.current_screen, "settings")
+        self.assertEqual(dialog.state(), "normal")
+
+    def test_settings_dialog_opens_modeless_when_grab_fails(self):
+        """grab に失敗してもダイアログは開く。"""
+        # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
+        self.root.deiconify()
+        dialog = self.browser.shell.settings_dialog
+        with patch.object(dialog, "grab_set", side_effect=tk.TclError("not viewable")):
+            self.browser._show_screen("settings")
+        self.assertEqual(dialog.state(), "normal")
 
     # --- M6: キャッシュ削除後の表示リセット ---
 

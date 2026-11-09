@@ -131,7 +131,8 @@ class GuiStylingMixin:
         """Updates StringVar values for settings UI based on current theme/font."""
         if not hasattr(self, "settings_view"):
             return
-        self.settings_button_var.set("番組一覧" if self.current_screen == "settings" else "表示設定")
+        # 設定はダイアログで開くため、ヘッダーのボタンは常に「表示設定」 (L3)
+        self.settings_button_var.set("表示設定")
         self.settings_view.update(self.current_theme, self.current_font_size, self.settings_dirty)
 
 __all__ = ["GuiStylingMixin"]
