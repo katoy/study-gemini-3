@@ -475,6 +475,55 @@ class GuiReviewFixesTest(unittest.TestCase):
         with patch.object(self.browser.root, "focus_get", return_value=self.browser.program_genre_filter_combo):
             self.assertTrue(self.browser._is_text_input_focus())
 
+    # --- L4: 最小幅と列幅 ---
+
+    def test_initial_column_widths_fit_minimum_window(self):
+        """伸縮するタイトル列の初期幅を抑え、最小幅でも列の合計が一覧幅を超えにくくする。"""
+        from nhk_radio.gui.episode_view import EPISODE_TITLE_COLUMN_WIDTH
+        from nhk_radio.gui.program_view import PROGRAM_TITLE_COLUMN_WIDTH
+
+        ep_tree, prog_tree = self.browser.episode_tree, self.browser.program_tree
+        self.assertEqual(ep_tree.column("title", "width"), EPISODE_TITLE_COLUMN_WIDTH)
+        self.assertTrue(ep_tree.column("title", "stretch"))
+        self.assertEqual(prog_tree.column("title", "width"), PROGRAM_TITLE_COLUMN_WIDTH)
+        # 最小幅 1040px で計測した一覧幅 (エピソード約 530px / 番組約 374px) に収まること
+        self.assertLessEqual(sum(ep_tree.column(c, "width") for c in ("saved", "date", "duration", "title")), 520)
+        self.assertLessEqual(sum(prog_tree.column(c, "width") for c in ("no", "date", "title")), 370)
+
+    # --- L7: アクティビティパネルの初期高さ ---
+
+    def test_initial_sash_set_once_with_ratio_cap(self):
+        """初回レイアウト時だけ仕切りを設定し、高さは右側ペインの割合で上限を設ける。"""
+        from nhk_radio.gui.activity_view import ACTIVITY_MAX_INITIAL_RATIO
+
+        view = self.browser.activity_view
+        view._initial_sash_bind_id = "bind-id"
+        with (
+            patch.object(view.parent, "winfo_height", return_value=1000),
+            patch.object(view.frame, "winfo_reqheight", return_value=500),
+            patch.object(view.parent, "sashpos") as sashpos,
+            patch.object(view.parent, "unbind") as unbind,
+        ):
+            view._set_initial_sash()
+            sashpos.assert_called_once_with(0, 1000 - int(1000 * ACTIVITY_MAX_INITIAL_RATIO))
+            unbind.assert_called_once_with("<Configure>", "bind-id")
+            self.assertIsNone(view._initial_sash_bind_id)
+
+    def test_initial_sash_uses_requested_height_and_waits_for_layout(self):
+        """要求高さが上限未満ならそのまま使い、未レイアウト (高さ 1) のときは何もしない。"""
+        view = self.browser.activity_view
+        view._initial_sash_bind_id = None
+        with (
+            patch.object(view.frame, "winfo_reqheight", return_value=170),
+            patch.object(view.parent, "sashpos") as sashpos,
+        ):
+            with patch.object(view.parent, "winfo_height", return_value=1):
+                view._set_initial_sash()
+            sashpos.assert_not_called()
+            with patch.object(view.parent, "winfo_height", return_value=1000):
+                view._set_initial_sash()
+            sashpos.assert_called_once_with(0, 830)
+
     # --- L1: タイトル列 ---
 
     def test_episode_title_column_has_no_genre_suffix(self):

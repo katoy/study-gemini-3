@@ -9,6 +9,16 @@ from .toolkit import tk, ttk
 
 # 失敗理由ラベルの折り返し幅 (px)
 REASON_WRAP_LENGTH = 640
+# ジョブ行の上下余白 (px)
+JOB_ROW_PAD_Y = 3
+# ジョブ一覧の表示領域の初期高さ (px)。1 行約 39px x 3 件 (L7)
+JOBS_CANVAS_HEIGHT = 120
+# 初期表示でアクティビティパネルが右側ペインに占める高さの上限 (割合)
+ACTIVITY_MAX_INITIAL_RATIO = 0.3
+# ジョブ行の進捗バーの長さ (px)
+JOB_PROGRESS_LENGTH = 120
+# ジョブ行のタイトルに確保する最低文字数
+JOB_TITLE_MIN_CHARS = 16
 
 
 class ActivityView:
@@ -27,7 +37,7 @@ class ActivityView:
         self.on_cancel_one = on_cancel_one
         self.rows: dict[str, dict[str, Any]] = {}
 
-        activity = ttk.Frame(parent, style="Card.TFrame", padding=6, height=140)
+        activity = ttk.Frame(parent, style="Card.TFrame", padding=6)
         activity.columnconfigure(0, weight=1)
         activity.rowconfigure(1, weight=1)
         self.progress_label = ttk.Label(
@@ -36,7 +46,7 @@ class ActivityView:
         self.progress_label.grid(row=0, column=0, sticky="ew", pady=(0, 4))
         # 完了・失敗・中断した行をまとめて消す (F4)
         self.clear_finished_button = ttk.Button(
-            activity, text="完了分をクリア", command=self.clear_finished, style="Quiet.TButton"
+            activity, text="完了分をクリア", command=self.clear_finished, style="DownloadJobAction.TButton"
         )
         self.clear_finished_button.grid(row=0, column=1, sticky="e", pady=(0, 4))
         self.clear_finished_button.state(["disabled"])
@@ -47,12 +57,28 @@ class ActivityView:
         self.canvas, self.scrollbar, self.inner, self.window = create_scrollable_frame(
             self.jobs_frame, "CardInner.TFrame"
         )
+        # 初期表示でジョブ 3 件程度がスクロールなしで見える高さを要求する (L7)
+        self.canvas.configure(height=JOBS_CANVAS_HEIGHT)
         self.empty_label = ttk.Label(
             self.inner, text="実行中のダウンロードはありません。", style="CardMeta.TLabel"
         )
         self.empty_label.grid(row=0, column=0, sticky="w")
         parent.add(activity, weight=1)
         self.frame = activity
+        self.parent = parent
+        # 初回のレイアウト確定時に一度だけ仕切り位置を決める (L7)
+        self._initial_sash_bind_id: str | None = parent.bind("<Configure>", self._set_initial_sash, add="+")
+
+    def _set_initial_sash(self, _event=None) -> None:
+        """ジョブ 3 件分の高さを目安に、右側ペインの仕切り位置を一度だけ設定する。"""
+        total = self.parent.winfo_height()
+        if total <= 1:
+            return
+        if self._initial_sash_bind_id is not None:
+            self.parent.unbind("<Configure>", self._initial_sash_bind_id)
+            self._initial_sash_bind_id = None
+        target = min(self.frame.winfo_reqheight(), int(total * ACTIVITY_MAX_INITIAL_RATIO))
+        self.parent.sashpos(0, total - target)
 
     def update_progress(
         self,
@@ -146,31 +172,41 @@ class ActivityView:
             self.canvas.yview_moveto(1.0)
 
     def _create_job_widgets(self, episode: Episode, episode_key: str) -> dict[str, Any]:
+        # 初期高さでも 3 件程度見えるよう、1 ジョブを 1 行にまとめる (L7)
         frame = ttk.Frame(self.inner, style="Card.TFrame")
-        frame.columnconfigure(1, weight=1)
-        ttk.Label(frame, text=episode.display_title or episode.title, style="Bold.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 5)
+        frame.columnconfigure(0, weight=1)
+        # 長いタイトルは右端で切れる。最低限の文字数分の幅は確保する
+        ttk.Label(
+            frame, text=episode.display_title or episode.title, style="Bold.TLabel", width=JOB_TITLE_MIN_CHARS
+        ).grid(
+            row=0, column=0, sticky="ew", padx=(10, 6), pady=JOB_ROW_PAD_Y
         )
-        status_var = tk.StringVar(value="準備中...")
-        ttk.Label(frame, textvariable=status_var, font=("", 9), width=10, anchor="e").grid(
-            row=0, column=2, sticky="e", padx=10, pady=(10, 5)
-        )
-        progress = ttk.Progressbar(frame, mode="indeterminate", length=200)
-        progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        progress = ttk.Progressbar(frame, mode="indeterminate", length=JOB_PROGRESS_LENGTH)
+        progress.grid(row=0, column=1, sticky="ew", padx=6, pady=JOB_ROW_PAD_Y)
         progress.start(10)
         percent_var = tk.StringVar(value="--%")
         progress_meta_var = tk.StringVar(value="--% / 残り --:--")
-        ttk.Label(frame, textvariable=progress_meta_var, font=("", 9), width=22, anchor="e").grid(
-            row=1, column=2, sticky="e", padx=10, pady=5
+        ttk.Label(frame, textvariable=progress_meta_var, font=("", 9), width=18, anchor="e").grid(
+            row=0, column=2, sticky="e", padx=6, pady=JOB_ROW_PAD_Y
         )
-        action_button = ttk.Button(frame, text="中止", command=lambda: self.on_cancel_one(episode_key), width=8)
-        action_button.grid(row=0, column=3, rowspan=2, padx=10, pady=10)
+        status_var = tk.StringVar(value="準備中...")
+        ttk.Label(frame, textvariable=status_var, font=("", 9), width=10, anchor="e").grid(
+            row=0, column=3, sticky="e", padx=6, pady=JOB_ROW_PAD_Y
+        )
+        action_button = ttk.Button(
+            frame,
+            text="中止",
+            command=lambda: self.on_cancel_one(episode_key),
+            width=8,
+            style="DownloadJobAction.TButton",
+        )
+        action_button.grid(row=0, column=4, padx=(6, 10), pady=JOB_ROW_PAD_Y)
         # 失敗理由は失敗時だけ表示する (F4)
         reason_var = tk.StringVar(value="")
         reason_label = ttk.Label(
             frame, textvariable=reason_var, style="CardMeta.TLabel", wraplength=REASON_WRAP_LENGTH, justify="left"
         )
-        reason_label.grid(row=2, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 8))
+        reason_label.grid(row=1, column=0, columnspan=5, sticky="w", padx=10, pady=(0, JOB_ROW_PAD_Y))
         reason_label.grid_remove()
         return {
             "frame": frame,

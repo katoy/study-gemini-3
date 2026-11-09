@@ -176,6 +176,8 @@ class ThemeManager:
         sec_fg = p["accent_dark"] if self.current_theme == "light" else p["text"]
         for name in ["Quiet.TButton", "RajiruLink.TButton", "Toggle.TButton", "FontStep.TButton", "DownloadJobAction.TButton"]:
             self.style.configure(name, background=sec_bg, foreground=sec_fg, relief="solid" if self.current_theme == "light" else "flat")
+        # アクティビティのジョブ行・見出しは行を低く保つため余白を詰める (L7)
+        self.style.configure("DownloadJobAction.TButton", padding=(10, 2))
 
     def _configure_inputs(self, p, f):
         self.style.configure("TEntry", fieldbackground=p["input_bg"], foreground=p["text"], insertcolor=p["text"])
