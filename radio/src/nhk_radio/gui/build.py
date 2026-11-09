@@ -15,7 +15,7 @@ from .toolkit import tk, ttk
 logger = logging.getLogger(__name__)
 
 # 表示設定ダイアログの初期サイズと最小サイズ (px)
-SETTINGS_DIALOG_SIZE = "900x640"
+SETTINGS_DIALOG_SIZE = "900x560"
 SETTINGS_DIALOG_MIN_SIZE = (720, 480)
 
 
@@ -50,6 +50,7 @@ class ShellActions(ProgramListActions, EpisodeActions, SettingsActions, Protocol
     def _clear_cache(self): ...
     def _toggle_settings_screen(self): ...
     def _copy_selected_cell_to_clipboard(self, event=None): ...
+    def _hide_selected_cell_area(self): ...
     def _focus_program_search(self, event=None): ...
     def _focus_episode_search(self, event=None): ...
     def _handle_escape(self, event=None): ...
@@ -261,6 +262,15 @@ class AppShell:
         )
         self.copy_cell_button.grid(row=0, column=2, sticky="e", padx=(8, 0))
         self.copy_cell_button.state(["disabled"])
+        ttk.Button(
+            self.selected_cell_area,
+            text="✕",
+            command=self.actions._hide_selected_cell_area,
+            style="Quiet.TButton",
+            width=3,
+        ).grid(row=0, column=3, sticky="e", padx=(8, 0))
+        # 普段は一覧の高さを優先して隠し、セルをクリックしたときだけ表示する (L2)
+        self.selected_cell_area.grid_remove()
 
     def _bind_root_events(self) -> None:
         for sequence, callback in (

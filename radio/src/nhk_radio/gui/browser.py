@@ -120,6 +120,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.download_button = shell.episode_view.download_button
         self.active_download_rows = shell.activity_view.rows
         self.selected_cell_entry = shell.selected_cell_entry
+        self.selected_cell_area = shell.selected_cell_area
         self.copy_cell_button = shell.copy_cell_button
 
         self._update_program_tree_headings()

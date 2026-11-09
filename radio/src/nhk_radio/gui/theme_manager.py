@@ -181,6 +181,8 @@ class ThemeManager:
 
     def _configure_inputs(self, p, f):
         self.style.configure("TEntry", fieldbackground=p["input_bg"], foreground=p["text"], insertcolor=p["text"])
+        # 読み取り専用 (選択セル欄など) でも既定の明るい背景にせず、テーマの配色で読めるようにする
+        self.style.map("TEntry", fieldbackground=[("readonly", p["input_bg"])], foreground=[("readonly", p["text"])])
         self.style.configure("TCombobox", fieldbackground=p["input_bg"], background=p["input_bg"], foreground=p["text"], arrowcolor=p["text"])
         self.style.map("TCombobox",
             fieldbackground=[("readonly", p["input_bg"])],

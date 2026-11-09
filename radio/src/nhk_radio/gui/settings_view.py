@@ -142,17 +142,7 @@ class SettingsView:
             wraplength=380,
             justify="left",
         ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        font_preview = ttk.Frame(font_group, style="FontPreview.TFrame", padding=14)
-        font_preview.grid(row=5, column=0, sticky="ew", pady=(14, 0))
-        font_preview.columnconfigure(0, weight=1)
-        ttk.Label(font_preview, text="プレビュー", style="FontPreviewTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            font_preview,
-            text="番組一覧、詳細カード、設定ラベルにこのサイズがそのまま反映されます。",
-            style="FontPreviewBody.TLabel",
-            wraplength=380,
-            justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        # プレビューは下部の「プレビュー」欄に 1 か所だけ置く (L3)
 
     def _build_font_quick_actions(self, font_group: "ttk.LabelFrame") -> None:
         font_quick_actions = ttk.Frame(font_group, style="CardInner.TFrame")
