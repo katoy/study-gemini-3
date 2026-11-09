@@ -1,5 +1,6 @@
 """Composition of the application's Tk screens and shared chrome."""
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
@@ -10,6 +11,12 @@ from .logo import create_brand_logo
 from .program_view import ProgramListActions, ProgramListView
 from .settings_view import SettingsActions, SettingsView
 from .toolkit import tk, ttk
+
+logger = logging.getLogger(__name__)
+
+# 表示設定ダイアログの初期サイズと最小サイズ (px)
+SETTINGS_DIALOG_SIZE = "900x640"
+SETTINGS_DIALOG_MIN_SIZE = (720, 480)
 
 
 @dataclass(frozen=True)
@@ -113,8 +120,10 @@ class AppShell:
         self.activity_view = ActivityView(
             root, right_panes, variables.progress, self._build_scrollable_frame, actions._on_cancel_one
         )
+        # 表示設定はメイン画面を切り替えず、モーダルダイアログで開く (L3)
+        self.settings_dialog = self._build_settings_dialog()
         self.settings_view = SettingsView(
-            self.screen_container,
+            self.settings_dialog,
             actions,
             self._build_scrollable_frame,
             theme_var=variables.theme,
@@ -126,13 +135,44 @@ class AppShell:
         self._build_status_bar()
         self._bind_root_events()
 
+    def _build_settings_dialog(self) -> tk.Toplevel:
+        """表示設定ダイアログを非表示の状態で作る。"""
+        dialog = tk.Toplevel(self.root)
+        dialog.withdraw()
+        dialog.title("表示設定")
+        dialog.transient(self.root)
+        dialog.geometry(SETTINGS_DIALOG_SIZE)
+        dialog.minsize(*SETTINGS_DIALOG_MIN_SIZE)
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(0, weight=1)
+        # 閉じるボタンも「番組一覧に戻る」と同じ扱いにし、未保存の確認を通す
+        dialog.protocol("WM_DELETE_WINDOW", self.actions._toggle_settings_screen)
+        return dialog
+
+    def _center_settings_dialog(self) -> None:
+        """表示設定ダイアログをメインウィンドウの中央に置く。"""
+        dialog = self.settings_dialog
+        width, height = (int(v) for v in SETTINGS_DIALOG_SIZE.split("x"))
+        x = self.root.winfo_rootx() + max((self.root.winfo_width() - width) // 2, 0)
+        y = self.root.winfo_rooty() + max((self.root.winfo_height() - height) // 2, 0)
+        dialog.geometry(f"+{x}+{y}")
+
     def show_screen(self, screen_name: str) -> None:
+        dialog = self.settings_dialog
         if screen_name == "settings":
-            self.browser_screen.grid_remove()
-            self.settings_view.settings_screen.grid()
+            self._center_settings_dialog()
+            dialog.deiconify()
+            dialog.lift()
+            dialog.focus_set()
+            try:
+                # 設定中はメイン画面を操作できないようにする
+                dialog.grab_set()
+            except tk.TclError as e:
+                # 表示前などで grab できない場合はモードレスのまま開く
+                logger.debug("表示設定ダイアログの grab に失敗: %s", e)
         else:
-            self.settings_view.settings_screen.grid_remove()
-            self.browser_screen.grid()
+            dialog.grab_release()
+            dialog.withdraw()
 
     def _build_scrollable_frame(self, parent, inner_style, padding=0):
         canvas = tk.Canvas(parent, background=self.palette["surface"], highlightthickness=1, bd=0, relief="flat")

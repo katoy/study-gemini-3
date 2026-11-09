@@ -7,6 +7,7 @@ from .toolkit import tk, ttk
 
 
 class SettingsActions(Protocol):
+    def _toggle_settings_screen(self): ...
     def _reset_ui_settings(self): ...
     def _save_ui_settings_from_screen(self): ...
     def _apply_theme(self, theme_name: str): ...
@@ -23,7 +24,7 @@ class SettingsActions(Protocol):
 class SettingsView:
     def __init__(
         self,
-        screen_container: ttk.Frame,
+        screen_container: tk.Misc,
         actions: SettingsActions,
         create_scrollable_frame: Callable[..., tuple[Any, Any, Any, Any]],
         *,
@@ -82,6 +83,9 @@ class SettingsView:
         ttk.Button(
             settings_actions, text="規定値にリセット", command=self.actions._reset_ui_settings, style="Quiet.TButton"
         ).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(
+            settings_actions, text="閉じる", command=self.actions._toggle_settings_screen, style="Quiet.TButton"
+        ).grid(row=0, column=2, padx=(8, 0))
         self.settings_save_button = ttk.Button(
             settings_actions,
             textvariable=self.settings_save_button_var,
@@ -91,7 +95,7 @@ class SettingsView:
         self.settings_save_button.grid(row=0, column=1)
         ttk.Label(
             self.settings_inner,
-            text="テーマと文字サイズはこの画面でまとめて変更できます。選択内容はその場で反映され、保存すると次回起動時にも引き継がれます。",
+            text="テーマと文字サイズをまとめて変更できます。選択内容はその場で反映され、保存すると次回起動時にも引き継がれます。",
             style="AppSub.TLabel",
             wraplength=880,
             justify="left",

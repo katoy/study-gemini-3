@@ -110,6 +110,8 @@ class TestGuiComprehensive(unittest.TestCase):
             patch("nhk_radio.gui.build.ttk.Progressbar"),
             patch("nhk_radio.gui.build.ttk.Panedwindow"),
             patch("nhk_radio.gui.build.tk.Canvas"),
+            # モックの root を親に本物の Toplevel を作ると停止するため、ダイアログもモックにする
+            patch("nhk_radio.gui.build.tk.Toplevel"),
             patch("nhk_radio.gui.build.tk.Text"),
             patch("nhk_radio.gui.build.create_brand_logo"),
             patch("nhk_radio.gui.browser._load_ui_settings", return_value={}),

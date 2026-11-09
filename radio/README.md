@@ -245,7 +245,7 @@ radio/
 │           ├── program_view.py     # 番組一覧の描画・操作
 │           ├── episode_view.py     # エピソード詳細の描画・操作
 │           ├── activity_view.py    # ダウンロード進捗の表示状態
-│           ├── settings_view.py    # 表示設定画面
+│           ├── settings_view.py    # 表示設定ダイアログ
 │           ├── data_manager.py     # データ取得・キャッシュ管理
 │           ├── download_manager.py # 並行ダウンロードワーカー管理
 │           ├── download_panel.py   # 取得・保存イベントの調停
@@ -286,15 +286,15 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `downloads/runner.py` | 123 | 100% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/activity_view.py` | 130 | 92% |
-| `gui/build.py` | 109 | 93% |
+| `gui/build.py` | 138 | 95% |
 | `gui/episode_view.py` | 139 | 94% |
 | `gui/help_markdown.py` | 132 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
 | `gui/program_view.py` | 96 | 95% |
-| `gui/settings_view.py` | 102 | 100% |
+| `gui/settings_view.py` | 103 | 100% |
 | `text.py` | 139 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **2064** | **99%** |
+| **合計** | **2094** | **99%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

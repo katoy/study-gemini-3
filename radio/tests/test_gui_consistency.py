@@ -85,12 +85,13 @@ class GuiConsistencyTest(unittest.TestCase):
                 self.assertGreater(browser.program_view.frame.winfo_width(), 0)
                 self.assertGreater(browser.episode_view.frame.winfo_width(), 0)
                 self.assertGreater(browser.activity_view.frame.winfo_height(), 0)
+        # 表示設定はダイアログで開き、番組ブラウザ画面は表示されたまま (L3)
         browser._show_screen("settings")
-        self.assertTrue(browser.settings_view.settings_screen.grid_info())
-        self.assertFalse(browser.shell.browser_screen.grid_info())
-        browser._show_screen("browser")
+        self.assertEqual(browser.shell.settings_dialog.state(), "normal")
         self.assertTrue(browser.shell.browser_screen.grid_info())
-        self.assertFalse(browser.settings_view.settings_screen.grid_info())
+        browser._show_screen("browser")
+        self.assertEqual(browser.shell.settings_dialog.state(), "withdrawn")
+        self.assertTrue(browser.shell.browser_screen.grid_info())
         browser.current_theme = "dark"
         browser.current_font_size = 18
         browser._apply_current_theme()
