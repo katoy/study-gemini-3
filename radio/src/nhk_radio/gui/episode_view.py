@@ -6,6 +6,9 @@ from ..downloads import _episode_key
 from ..types import Episode
 from .toolkit import tk, ttk
 
+# タイトル列の初期幅 (px)。残り幅は stretch で埋まる
+EPISODE_TITLE_COLUMN_WIDTH = 160
+
 
 class EpisodeActions(Protocol):
     def _start_fetch_selected(self, event=None): ...
@@ -127,7 +130,8 @@ class EpisodeDetailView:
         self.tree.column("saved", width=60, anchor="center", stretch=False)
         self.tree.column("date", width=190, anchor="w", stretch=False)
         self.tree.column("duration", width=100, anchor="e", stretch=False)
-        self.tree.column("title", width=560, anchor="w")
+        # 最小ウィンドウ幅でも列合計が一覧幅に収まるよう、伸縮するタイトル列の初期幅は小さくする (L4)
+        self.tree.column("title", width=EPISODE_TITLE_COLUMN_WIDTH, anchor="w")
         self.scrollbar = ttk.Scrollbar(detail, orient="vertical", command=self._on_scroll)
         self.tree.configure(yscrollcommand=self._on_yscroll)
         self.tree.grid(row=3, column=0, sticky="nsew", pady=(8, 0))

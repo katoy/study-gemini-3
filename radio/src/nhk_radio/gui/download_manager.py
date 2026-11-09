@@ -126,6 +126,8 @@ class DownloadManager:
                 self.processes[episode_key] = None
 
         success = False
+        # 失敗時に UI へ渡す理由 (F4)
+        failure_reasons: list[str] = []
         captured_output_path: list[Path] = []
         backup_path: Path | None = None
         existing_path: Path | None = None
@@ -185,11 +187,13 @@ class DownloadManager:
                 cancel_event=cancel_event,
                 on_process=on_proc,
                 on_output_path=on_output_path,
+                on_error=failure_reasons.append,
             )
             success = success and not cancel_event.is_set()
 
         except Exception as e:
             logger.error(f"Download thread error: {e}")
+            failure_reasons.append(str(e))
             success = False
 
         finally:
@@ -228,6 +232,8 @@ class DownloadManager:
                     with suppress(Exception):
                         cleanup_partial_episode_files(self.output_dir, program, episode)
                 res_type = "cancelled_one" if cancel_event.is_set() else "failed_one"
+                if res_type == "failed_one":
+                    terminal_event_data = failure_reasons[-1] if failure_reasons else None
 
             self.on_result(res_type, episode_key, program, episode, terminal_event_data)
 

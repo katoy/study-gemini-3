@@ -606,6 +606,71 @@ class BackendCoverageCompletionTest(unittest.TestCase):
             log_error.assert_called_once()
             self.assertIn("error message line 1", log_error.call_args[0][0])
 
+    def test_failure_reason_prefers_last_error_line(self):
+        """失敗理由は最後の ERROR 行、無ければ終了コードになる (F4)。"""
+        from nhk_radio.downloads.runner import _failure_reason
+        lines = ["[info] x\n", "ERROR: first\n", "ERROR: [generic] HTTP Error 404\n", "done\n"]
+        self.assertEqual(_failure_reason(lines, 1), "[generic] HTTP Error 404")
+        self.assertEqual(_failure_reason(["ERROR:\n"], 1), "ERROR:")
+        self.assertEqual(_failure_reason(["plain\n"], 2), "yt-dlp が終了コード 2 で終了しました")
+
+    def test_run_yt_dlp_subprocess_reports_failure_reason(self):
+        """終了コードが 0 以外なら on_error に理由を渡す。"""
+        from nhk_radio.downloads import runner
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = 1
+        mock_proc.wait.return_value = 1
+        mock_proc.stdout = ["ERROR: Unsupported URL\n"]
+        reasons: list[str] = []
+        with patch("subprocess.Popen", return_value=mock_proc):
+            self.assertFalse(runner.run_yt_dlp_subprocess(["test"], on_error=reasons.append))
+        self.assertEqual(reasons, ["Unsupported URL"])
+
+    def test_run_yt_dlp_subprocess_reports_timeout_and_exception(self):
+        """タイムアウトと起動失敗でも on_error に理由を渡す。"""
+        from nhk_radio.downloads import runner
+        mock_proc = MagicMock()
+        mock_proc.stdout = []
+        mock_proc.wait.side_effect = [subprocess.TimeoutExpired("yt-dlp", 120), 0]
+        reasons: list[str] = []
+        with patch("subprocess.Popen", return_value=mock_proc):
+            self.assertFalse(runner.run_yt_dlp_subprocess(["test"], on_error=reasons.append))
+        with patch("subprocess.Popen", side_effect=OSError("not found")):
+            self.assertFalse(runner.run_yt_dlp_subprocess(["test"], on_error=reasons.append))
+        self.assertEqual(reasons, ["yt-dlp が応答しないため強制終了しました", "yt-dlp の実行エラー: not found"])
+
+    def test_download_worker_passes_failure_reason(self):
+        """ワーカーは failed_one の data に失敗理由を載せる (F4)。"""
+        import tempfile
+        import threading
+
+        from nhk_radio.gui.download_manager import DownloadManager
+        from nhk_radio.types import Episode
+        program = Program(title="番組", display_title="番組", display_date="D", site_id="S", corner_id="C", url="U")
+        episode = Episode(id="1", title="第1回", display_title="第1回", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+
+        def _fail(*_args, on_error=None, **_kwargs):
+            on_error("HTTP Error 403")
+            return False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            on_result = MagicMock()
+            dm = DownloadManager(Path(tmp), True, on_result)
+            with patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", side_effect=_fail):
+                dm._download_worker(program, episode, "ep_key", threading.Event())
+            self.assertEqual(on_result.call_args.args[0], "failed_one")
+            self.assertEqual(on_result.call_args.args[4], "HTTP Error 403")
+
+            on_result.reset_mock()
+            with patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", side_effect=RuntimeError("boom")):
+                dm._download_worker(program, episode, "ep_key", threading.Event())
+            self.assertEqual(on_result.call_args.args[4], "boom")
+
+            on_result.reset_mock()
+            with patch("nhk_radio.gui.download_manager.run_yt_dlp_subprocess", return_value=False):
+                dm._download_worker(program, episode, "ep_key", threading.Event())
+            self.assertIsNone(on_result.call_args.args[4])
+
     # --- text.py ---
     def test_format_episode_date_invalid_prefix(self):
         # 99999999_extra で strptime が ValueError になるケース

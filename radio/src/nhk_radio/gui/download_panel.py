@@ -170,8 +170,11 @@ class GuiDownloadsMixin:
                 ):
                     self._refresh_downloaded_column(program)
             elif kind == "failed_one":
-                self._finish_download_row(episode_key, "失敗", program, episode)
-                self.status_var.set(f"ダウンロード失敗: {episode.display_title or episode.title}")
+                # data には失敗理由 (str) が入る。理由が取れない場合は None (F4)
+                reason = data if isinstance(data, str) and data else None
+                self._finish_download_row(episode_key, "失敗", program, episode, reason)
+                title = episode.display_title or episode.title
+                self.status_var.set(f"ダウンロード失敗: {title}" + (f" ({reason})" if reason else ""))
             elif kind == "cancelled_one":
                 self._finish_download_row(episode_key, "中断", program, episode)
                 self.status_var.set(f"ダウンロードを中断しました: {episode.display_title or episode.title}")
@@ -304,12 +307,17 @@ class GuiDownloadsMixin:
         self.activity_view.add(episode)
 
     def _finish_download_row(
-        self, episode_key: str, status: str, program: Program | None = None, episode: Episode | None = None
+        self,
+        episode_key: str,
+        status: str,
+        program: Program | None = None,
+        episode: Episode | None = None,
+        reason: str | None = None,
     ):
         on_retry = None
         if program is not None and episode is not None:
             on_retry = lambda: self._retry_download(program, episode)  # noqa: E731
-        self.activity_view.finish(episode_key, status, on_retry)
+        self.activity_view.finish(episode_key, status, on_retry, reason)
 
     def _retry_download(self, program: Program, episode: Episode):
         """失敗・中断したダウンロードを同じ番組・エピソードでやり直す (F4)。"""

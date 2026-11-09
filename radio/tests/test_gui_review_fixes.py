@@ -417,12 +417,36 @@ class GuiReviewFixesTest(unittest.TestCase):
             patch.object(self.browser.activity_view, "finish") as finish,
         ):
             self.browser._poll_download_result()
-            _key, status, on_retry = finish.call_args.args
+            _key, status, on_retry, _reason = finish.call_args.args
             self.assertEqual(status, "失敗")
             self.browser.activity_view.rows[key]["state"] = "done"
             on_retry()
         self.browser.download_manager.start_download.assert_called_once_with(program, episode)
         self.assertEqual(self.browser.activity_view.rows[key]["state"], "running")
+
+    def test_failed_download_shows_reason(self):
+        """失敗理由をステータスとアクティビティの行に表示する (F4)。"""
+        program, episode = self.programs[0], self.episodes[0]
+        self.browser._add_download_row(program, episode)
+        key = next(iter(self.browser.activity_view.rows))
+        self.browser.download_result_queue.put(("failed_one", key, program, episode, "HTTP Error 404"))
+        self.browser.download_polling = True
+        with patch.object(self.browser.root, "after"):
+            self.browser._poll_download_result()
+        self.assertEqual(self.browser.status_var.get(), "ダウンロード失敗: E1 (HTTP Error 404)")
+        self.assertEqual(self.browser.activity_view.rows[key]["reason_var"].get(), "失敗理由: HTTP Error 404")
+
+    def test_failed_download_without_reason(self):
+        """理由が取れない失敗では理由を表示しない。"""
+        program, episode = self.programs[0], self.episodes[0]
+        self.browser._add_download_row(program, episode)
+        key = next(iter(self.browser.activity_view.rows))
+        self.browser.download_result_queue.put(("failed_one", key, program, episode, None))
+        self.browser.download_polling = True
+        with patch.object(self.browser.root, "after"):
+            self.browser._poll_download_result()
+        self.assertEqual(self.browser.status_var.get(), "ダウンロード失敗: E1")
+        self.assertEqual(self.browser.activity_view.rows[key]["reason_var"].get(), "")
 
     def test_completed_download_row_offers_remove(self):
         """完了した行は従来どおり「削除」ボタンになる。"""
@@ -450,6 +474,55 @@ class GuiReviewFixesTest(unittest.TestCase):
         """ジャンル選択にフォーカスがあるときは単キーショートカットを無効にする。"""
         with patch.object(self.browser.root, "focus_get", return_value=self.browser.program_genre_filter_combo):
             self.assertTrue(self.browser._is_text_input_focus())
+
+    # --- L4: 最小幅と列幅 ---
+
+    def test_initial_column_widths_fit_minimum_window(self):
+        """伸縮するタイトル列の初期幅を抑え、最小幅でも列の合計が一覧幅を超えにくくする。"""
+        from nhk_radio.gui.episode_view import EPISODE_TITLE_COLUMN_WIDTH
+        from nhk_radio.gui.program_view import PROGRAM_TITLE_COLUMN_WIDTH
+
+        ep_tree, prog_tree = self.browser.episode_tree, self.browser.program_tree
+        self.assertEqual(ep_tree.column("title", "width"), EPISODE_TITLE_COLUMN_WIDTH)
+        self.assertTrue(ep_tree.column("title", "stretch"))
+        self.assertEqual(prog_tree.column("title", "width"), PROGRAM_TITLE_COLUMN_WIDTH)
+        # 最小幅 1040px で計測した一覧幅 (エピソード約 530px / 番組約 374px) に収まること
+        self.assertLessEqual(sum(ep_tree.column(c, "width") for c in ("saved", "date", "duration", "title")), 520)
+        self.assertLessEqual(sum(prog_tree.column(c, "width") for c in ("no", "date", "title")), 370)
+
+    # --- L7: アクティビティパネルの初期高さ ---
+
+    def test_initial_sash_set_once_with_ratio_cap(self):
+        """初回レイアウト時だけ仕切りを設定し、高さは右側ペインの割合で上限を設ける。"""
+        from nhk_radio.gui.activity_view import ACTIVITY_MAX_INITIAL_RATIO
+
+        view = self.browser.activity_view
+        view._initial_sash_bind_id = "bind-id"
+        with (
+            patch.object(view.parent, "winfo_height", return_value=1000),
+            patch.object(view.frame, "winfo_reqheight", return_value=500),
+            patch.object(view.parent, "sashpos") as sashpos,
+            patch.object(view.parent, "unbind") as unbind,
+        ):
+            view._set_initial_sash()
+            sashpos.assert_called_once_with(0, 1000 - int(1000 * ACTIVITY_MAX_INITIAL_RATIO))
+            unbind.assert_called_once_with("<Configure>", "bind-id")
+            self.assertIsNone(view._initial_sash_bind_id)
+
+    def test_initial_sash_uses_requested_height_and_waits_for_layout(self):
+        """要求高さが上限未満ならそのまま使い、未レイアウト (高さ 1) のときは何もしない。"""
+        view = self.browser.activity_view
+        view._initial_sash_bind_id = None
+        with (
+            patch.object(view.frame, "winfo_reqheight", return_value=170),
+            patch.object(view.parent, "sashpos") as sashpos,
+        ):
+            with patch.object(view.parent, "winfo_height", return_value=1):
+                view._set_initial_sash()
+            sashpos.assert_not_called()
+            with patch.object(view.parent, "winfo_height", return_value=1000):
+                view._set_initial_sash()
+            sashpos.assert_called_once_with(0, 830)
 
     # --- L1: タイトル列 ---
 

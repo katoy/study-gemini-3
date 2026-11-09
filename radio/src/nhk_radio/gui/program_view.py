@@ -6,6 +6,9 @@ from typing import Any, Protocol
 from ..types import Program
 from .toolkit import tk, ttk
 
+# タイトル列の初期幅 (px)。残り幅は stretch で埋まる
+PROGRAM_TITLE_COLUMN_WIDTH = 170
+
 _INSERT_CHUNK = 50
 
 
@@ -88,7 +91,8 @@ class ProgramListView:
             self.tree.heading(column, text=text, anchor=anchor, command=lambda col=column: actions._toggle_program_sort(col))
         self.tree.column("no", width=60, anchor="e", stretch=False)
         self.tree.column("date", width=140, anchor="w", stretch=False)
-        self.tree.column("title", width=360, anchor="w")
+        # 最小ウィンドウ幅でも列合計が一覧幅に収まるよう、伸縮するタイトル列の初期幅は小さくする (L4)
+        self.tree.column("title", width=PROGRAM_TITLE_COLUMN_WIDTH, anchor="w")
         scrollbar = ttk.Scrollbar(sidebar, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.grid(row=2, column=0, sticky="nsew")
