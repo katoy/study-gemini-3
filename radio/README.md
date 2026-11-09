@@ -281,9 +281,9 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `core.py` | 252 | 100% |
 | `downloads/__init__.py` | 5 | 100% |
 | `downloads/cleanup.py` | 81 | 100% |
-| `downloads/filesystem.py` | 142 | 99% |
+| `downloads/filesystem.py` | 142 | 100% |
 | `downloads/manifest.py` | 105 | 100% |
-| `downloads/runner.py` | 111 | 99% |
+| `downloads/runner.py` | 111 | 100% |
 | `gui/__init__.py` | 2 | 100% |
 | `gui/activity_view.py` | 105 | 90% |
 | `gui/build.py` | 109 | 93% |
