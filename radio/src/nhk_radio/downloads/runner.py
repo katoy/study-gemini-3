@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -118,12 +118,22 @@ def _terminate_process(process: subprocess.Popen) -> None:
         process.terminate()
 
 
+def _failure_reason(output_lines: Iterable[str], return_code: int) -> str:
+    """yt-dlp の出力から失敗理由を 1 行で取り出す。ERROR 行が無ければ終了コードを返す。"""
+    for line in reversed(list(output_lines)):
+        stripped = line.strip()
+        if stripped.startswith("ERROR:"):
+            return stripped.removeprefix("ERROR:").strip() or stripped
+    return f"yt-dlp が終了コード {return_code} で終了しました"
+
+
 def run_yt_dlp_subprocess(
     cmd: list[str],
     on_progress: Callable[[float | None, str | None, str | None], None] | None = None,
     cancel_event: threading.Event | None = None,
     on_process: Callable[[subprocess.Popen], None] | None = None,
     on_output_path: Callable[[Path], None] | None = None,
+    on_error: Callable[[str], None] | None = None,
 ) -> bool:
     """yt-dlp サブプロセスを実行し、進捗をコールバックで報告する。
 
@@ -133,6 +143,7 @@ def run_yt_dlp_subprocess(
         cancel_event: キャンセルイベント（設定されたら terminate）
         on_process: Popen 生成時のコールバック (G5)
         on_output_path: 移動先パス検出時のコールバック (H1)
+        on_error: 失敗時 (キャンセルを除く) に理由を受け取るコールバック (F4)
 
     Returns:
         成功時 True、キャンセル時 False、失敗時 False
@@ -199,14 +210,20 @@ def run_yt_dlp_subprocess(
             return_code = process.wait(timeout=120)
             if return_code != 0 and not (cancel_event and cancel_event.is_set()):
                 logger.error(f"yt-dlp 実行失敗 (終了コード {return_code}):\n" + "".join(output_lines))
+                if on_error:
+                    on_error(_failure_reason(output_lines, return_code))
             return return_code == 0 and not (cancel_event and cancel_event.is_set())
         except subprocess.TimeoutExpired:
             logger.warning("yt-dlp プロセスが応答しません。強制終了します。")
             process.kill()
             process.wait()
+            if on_error:
+                on_error("yt-dlp が応答しないため強制終了しました")
             return False
     except Exception as e:
         logger.error(f"yt-dlp 実行エラー: {e}")
+        if on_error:
+            on_error(f"yt-dlp の実行エラー: {e}")
         if process is not None:
             _terminate_process(process)
             with suppress(Exception):

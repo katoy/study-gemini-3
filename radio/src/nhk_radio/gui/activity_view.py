@@ -7,6 +7,9 @@ from ..downloads import _episode_key, _format_download_eta, _format_download_per
 from ..types import Episode
 from .toolkit import tk, ttk
 
+# 失敗理由ラベルの折り返し幅 (px)
+REASON_WRAP_LENGTH = 640
+
 
 class ActivityView:
     """Own the download rows; callers supply only download cancellation."""
@@ -83,8 +86,14 @@ class ActivityView:
         self.rows[episode_key] = {"state": "running", **widgets}
         self._reflow(auto_scroll=True)
 
-    def finish(self, episode_key: str, status: str, on_retry: Callable[[], None] | None = None) -> None:
-        """行を終了状態にする。on_retry を渡すと「再試行」ボタンを出す (F4)。"""
+    def finish(
+        self,
+        episode_key: str,
+        status: str,
+        on_retry: Callable[[], None] | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """行を終了状態にする。on_retry で「再試行」ボタン、reason で失敗理由を表示する (F4)。"""
         row = self.rows.get(episode_key)
         if row is None:
             return
@@ -94,6 +103,9 @@ class ActivityView:
         if status == "完了":
             row["progress"].configure(value=100)
             row["percent_var"].set("100%")
+        if reason:
+            row["reason_var"].set(f"失敗理由: {reason}")
+            row["reason_label"].grid()
         if on_retry is not None:
             # 失敗・中断した行はその場でやり直せるようにする (行の削除は「完了分をクリア」で行う)
             row["action_button"].configure(text="再試行", command=on_retry)
@@ -153,6 +165,13 @@ class ActivityView:
         )
         action_button = ttk.Button(frame, text="中止", command=lambda: self.on_cancel_one(episode_key), width=8)
         action_button.grid(row=0, column=3, rowspan=2, padx=10, pady=10)
+        # 失敗理由は失敗時だけ表示する (F4)
+        reason_var = tk.StringVar(value="")
+        reason_label = ttk.Label(
+            frame, textvariable=reason_var, style="CardMeta.TLabel", wraplength=REASON_WRAP_LENGTH, justify="left"
+        )
+        reason_label.grid(row=2, column=0, columnspan=4, sticky="w", padx=10, pady=(0, 8))
+        reason_label.grid_remove()
         return {
             "frame": frame,
             "status_var": status_var,
@@ -160,4 +179,6 @@ class ActivityView:
             "percent_var": percent_var,
             "progress_meta_var": progress_meta_var,
             "action_button": action_button,
+            "reason_var": reason_var,
+            "reason_label": reason_label,
         }

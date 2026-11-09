@@ -417,12 +417,36 @@ class GuiReviewFixesTest(unittest.TestCase):
             patch.object(self.browser.activity_view, "finish") as finish,
         ):
             self.browser._poll_download_result()
-            _key, status, on_retry = finish.call_args.args
+            _key, status, on_retry, _reason = finish.call_args.args
             self.assertEqual(status, "失敗")
             self.browser.activity_view.rows[key]["state"] = "done"
             on_retry()
         self.browser.download_manager.start_download.assert_called_once_with(program, episode)
         self.assertEqual(self.browser.activity_view.rows[key]["state"], "running")
+
+    def test_failed_download_shows_reason(self):
+        """失敗理由をステータスとアクティビティの行に表示する (F4)。"""
+        program, episode = self.programs[0], self.episodes[0]
+        self.browser._add_download_row(program, episode)
+        key = next(iter(self.browser.activity_view.rows))
+        self.browser.download_result_queue.put(("failed_one", key, program, episode, "HTTP Error 404"))
+        self.browser.download_polling = True
+        with patch.object(self.browser.root, "after"):
+            self.browser._poll_download_result()
+        self.assertEqual(self.browser.status_var.get(), "ダウンロード失敗: E1 (HTTP Error 404)")
+        self.assertEqual(self.browser.activity_view.rows[key]["reason_var"].get(), "失敗理由: HTTP Error 404")
+
+    def test_failed_download_without_reason(self):
+        """理由が取れない失敗では理由を表示しない。"""
+        program, episode = self.programs[0], self.episodes[0]
+        self.browser._add_download_row(program, episode)
+        key = next(iter(self.browser.activity_view.rows))
+        self.browser.download_result_queue.put(("failed_one", key, program, episode, None))
+        self.browser.download_polling = True
+        with patch.object(self.browser.root, "after"):
+            self.browser._poll_download_result()
+        self.assertEqual(self.browser.status_var.get(), "ダウンロード失敗: E1")
+        self.assertEqual(self.browser.activity_view.rows[key]["reason_var"].get(), "")
 
     def test_completed_download_row_offers_remove(self):
         """完了した行は従来どおり「削除」ボタンになる。"""
