@@ -333,6 +333,34 @@ class GuiReviewFixesTest(unittest.TestCase):
         self.browser._toggle_settings_screen()
         self.assertEqual(dialog.state(), "withdrawn")
 
+    def test_settings_dialog_has_single_preview(self):
+        """表示設定のプレビューは 1 か所だけ (L3)。"""
+        from tkinter import ttk
+
+        from nhk_radio.gui.settings_view import SettingsView
+
+        # 本テストでは Canvas がモックのため、実フレームに直接組み立てて数える
+        container = tk.Toplevel(self.root)
+        SettingsView(
+            container,
+            self.browser,
+            lambda parent, _style, padding=0: (None, None, ttk.Frame(parent), None),
+            theme_var=tk.StringVar(master=self.root),
+            font_size_var=tk.IntVar(master=self.root),
+            font_size_display_var=tk.StringVar(master=self.root),
+            settings_save_button_var=tk.StringVar(master=self.root),
+            settings_summary_var=tk.StringVar(master=self.root),
+        )
+        found = []
+        stack = [container]
+        while stack:
+            widget = stack.pop()
+            stack.extend(widget.winfo_children())
+            with suppress(tk.TclError):
+                if widget.cget("text") == "プレビュー":
+                    found.append(widget)
+        self.assertEqual(len(found), 1)
+
     def test_settings_dialog_close_button_confirms_unsaved(self):
         """ウィンドウの閉じるボタンも未保存の確認を通す。"""
         # X11 では親が非表示だと transient なダイアログも表示されないため、root を表示しておく
@@ -509,6 +537,26 @@ class GuiReviewFixesTest(unittest.TestCase):
         """ジャンル選択にフォーカスがあるときは単キーショートカットを無効にする。"""
         with patch.object(self.browser.root, "focus_get", return_value=self.browser.program_genre_filter_combo):
             self.assertTrue(self.browser._is_text_input_focus())
+
+    # --- L2: 選択セル欄 ---
+
+    def test_selected_cell_area_hidden_until_cell_click(self):
+        """選択セル欄は普段は隠れ、セルをクリックしたときだけ表示される (L2)。"""
+        area = self.browser.selected_cell_area
+        self.assertFalse(area.grid_info())
+        self.browser._show_episodes(self.programs[0], self.episodes, "loaded")
+        self.browser._set_selected_tree_cell(self.browser.episode_tree, "#4", "E1")
+        self.assertTrue(area.grid_info())
+        self.assertEqual(self.browser.selected_cell_value_var.get(), "E1")
+        self.assertTrue(self.browser.copy_cell_button.instate(["!disabled"]))
+
+    def test_hide_selected_cell_area_clears_value(self):
+        """✕ で閉じると値を消して欄を隠し、コピーも無効になる。"""
+        self.browser._update_selected_cell_ui("エピソード一覧 / タイトル", "E1")
+        self.browser._hide_selected_cell_area()
+        self.assertFalse(self.browser.selected_cell_area.grid_info())
+        self.assertEqual(self.browser.selected_cell_value_var.get(), "")
+        self.assertTrue(self.browser.copy_cell_button.instate(["disabled"]))
 
     # --- L4: 最小幅と列幅 ---
 

@@ -37,6 +37,7 @@ class GuiBrowserProtocol(Protocol):
     download_button: ttk.Button
     saved_button: ttk.Button
     copy_cell_button: ttk.Button
+    selected_cell_area: ttk.Frame
     fetch_button: ttk.Button
 
     # ========================
@@ -132,3 +133,4 @@ class GuiBrowserProtocol(Protocol):
     # その他の重要メソッド
     # ========================
     def _update_selected_cell_ui(self, meta: str, value: str) -> None: ...
+    def _hide_selected_cell_area(self) -> None: ...

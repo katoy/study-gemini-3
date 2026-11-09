@@ -374,6 +374,16 @@ class GuiEpisodeMixin:
         self.selected_cell_value_var.set(value)
         if hasattr(self, "copy_cell_button"):
             self.copy_cell_button.state(["!disabled"])
+        if hasattr(self, "selected_cell_area"):
+            # セルをクリックしたときだけ選択セル欄を表示する (L2)
+            self.selected_cell_area.grid()
+
+    def _hide_selected_cell_area(self):
+        """選択セル欄を空にして隠す (L2)。"""
+        self.selected_cell_meta_var.set("")
+        self.selected_cell_value_var.set("")
+        self.copy_cell_button.state(["disabled"])
+        self.selected_cell_area.grid_remove()
 
     def _cached_episodes_for(self, program: Program) -> list[Episode] | None:
         """指定した番組のキャッシュされたエピソードを返す。"""
