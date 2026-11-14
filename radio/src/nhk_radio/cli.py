@@ -20,6 +20,7 @@ from .downloads import (
     cleanup_partial_episode_files,
     download_episode_command,
     is_episode_downloaded,
+    output_template,
     program_filename_template,
     program_output_dir,
     run_yt_dlp_subprocess,
@@ -164,7 +165,7 @@ def download_url_direct(
     target_dir = program_output_dir(output_dir, program)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    tmpl = str(target_dir / program_filename_template(program, max_items=bool(max_items)))
+    tmpl = output_template(target_dir, program_filename_template(program, max_items=bool(max_items)))
 
     cmd = _yt_dlp_command(
         url,

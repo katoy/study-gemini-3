@@ -91,6 +91,30 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
     return saved_paths
 
 
+def _resolve_manifest_path(saved_path_str: str, output_dir: Path, program: Program) -> Path | None:
+    """マニフェストに記録されたパスを解決する。保存先の外を指す場合は None を返す。
+
+    マニフェストが改ざんされても、GUI の削除などで保存先の外のファイルを触らないようにする (L4)。
+
+    Args:
+        saved_path_str: マニフェストに記録されたパス (番組ディレクトリ基準の相対パスか絶対パス)。
+        output_dir: 保存先のルートディレクトリ。
+        program: 対象の番組。
+
+    Returns:
+        保存先の下にある解決済みのパス。保存先の外なら None。
+    """
+    from . import filesystem
+
+    resolved = Path(saved_path_str)
+    if not resolved.is_absolute():
+        resolved = filesystem.program_output_dir(output_dir, program) / resolved
+    if not resolved.resolve().is_relative_to(output_dir.resolve()):
+        logger.warning(f"保存先の外を指すマニフェストの記録を無視しました: {saved_path_str}")
+        return None
+    return resolved
+
+
 def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
     """マニフェストをアトミックに保存する。失敗時は warning を出して False を返す。
 
@@ -157,10 +181,8 @@ def get_downloaded_episode_keys(
     for episode in episodes:
         episode_key = filesystem._episode_key(episode)
         saved_path_str = saved_paths.get(episode_key)
-        if saved_path_str:
-            resolved = Path(saved_path_str)
-            if not resolved.is_absolute():  # pragma: no cover
-                resolved = filesystem.program_output_dir(output_dir, program) / resolved
+        resolved = _resolve_manifest_path(saved_path_str, output_dir, program) if saved_path_str else None
+        if resolved is not None:
             if resolved.exists():  # pragma: no cover
                 if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
                     downloaded_keys.add(episode_key)
@@ -189,10 +211,8 @@ def find_episode_downloaded_path(
 
     # 1) マニフェストに記録されたパスを最優先で確認
     saved_path_str = saved_paths.get(episode_key)
-    if saved_path_str:
-        resolved = Path(saved_path_str)
-        if not resolved.is_absolute():  # pragma: no cover
-            resolved = filesystem.program_output_dir(output_dir, program) / resolved
+    resolved = _resolve_manifest_path(saved_path_str, output_dir, program) if saved_path_str else None
+    if resolved is not None:
         if resolved.exists():  # pragma: no cover
             if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
                 return resolved

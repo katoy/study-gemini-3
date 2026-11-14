@@ -40,6 +40,7 @@ from .manifest import (
 )
 from .runner import (
     download_episode_command,
+    output_template,
     _format_download_eta,
     _format_download_percent,
     _parse_yt_dlp_progress,
@@ -56,6 +57,7 @@ __all__ = [
     "is_episode_downloaded",
     "mark_episode_downloaded",
     "open_downloaded_folder",
+    "output_template",
     "program_filename_template",
     "program_output_dir",
     "remove_episode_from_manifest",

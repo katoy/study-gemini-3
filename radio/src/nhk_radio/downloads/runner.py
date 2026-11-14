@@ -47,8 +47,24 @@ def _yt_dlp_command(
         cmd += ["--playlist-end", str(max_items)]
     elif no_playlist:  # pragma: no cover
         cmd.append("--no-playlist")
-    cmd.append(url)
+    # `-` で始まる URL をオプションと解釈させないよう、`--` の後に置く (L4)
+    cmd += ["--", url]
     return cmd
+
+
+def output_template(output_dir: Path, filename_template: str) -> str:
+    """保存先ディレクトリとファイル名テンプレートから yt-dlp の出力テンプレートを作る。
+
+    ディレクトリ名の `%` は yt-dlp のテンプレート記法と衝突するため `%%` にエスケープする (L4)。
+
+    Args:
+        output_dir: 保存先ディレクトリ。
+        filename_template: yt-dlp のファイル名テンプレート (エスケープ済み)。
+
+    Returns:
+        `-o` に渡す出力テンプレート。
+    """
+    return str(Path(str(output_dir).replace("%", "%%")) / filename_template)
 
 
 def download_episode_command(
@@ -61,7 +77,7 @@ def download_episode_command(
 ) -> list[str]:
     return _yt_dlp_command(
         url,
-        str(output_dir / filename_template),
+        output_template(output_dir, filename_template),
         audio_only=audio_only,
         no_playlist=True,
         newline=True,
