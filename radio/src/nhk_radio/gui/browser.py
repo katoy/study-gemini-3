@@ -147,7 +147,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             on_program_result=self._on_data_manager_programs,
             on_episode_result=self._on_data_manager_episodes,
         )
-        self.data_manager.update_programs(programs)
 
         # UI同期用キュー
         self.fetch_result_queue: queue.Queue | None = queue.Queue()
@@ -167,10 +166,9 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.download_polling = False
         self.active_download_rows = {}
 
-        # Mixin がアクセスするプロパティ。programs は初期値、filtered_programs は動的更新、
-        # episodes_cache は DataManager と同期。
-        self.programs = self.data_manager.programs
-        self.filtered_programs = self.data_manager.programs
+        # 番組リストはブラウザが持つ。filtered_programs は絞り込み結果で、programs とは別のリストにする。
+        # episodes_cache は DataManager が持つキャッシュそのものを参照する (G16)。
+        self.filtered_programs = list(self.programs)
         self.episodes_cache = self.data_manager.episodes_cache
 
         self.program_tree_programs = {}
@@ -331,7 +329,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self._populate_programs()
         self._refresh_fetch_button_label()
         self.status_var.set("キャッシュをクリアしました")
-        # clear_all_data で番組一覧も空になるため、取り直して一覧が空のまま残らないようにする
+        # 番組一覧は表示したまま取り直す。取り直しに失敗しても一覧が空のまま残らない
         self._start_fetch_programs()
 
     def _start_residual_backup_cleanup(self) -> None:

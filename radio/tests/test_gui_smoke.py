@@ -1001,12 +1001,13 @@ class GuiFinalTest(unittest.TestCase):
         self.assertIsInstance(b.filtered_programs, list)
 
     def test_smoke_populate_programs_consistency(self):
-        """T-2: _populate_programs 後の data_manager 整合性を検証。"""
+        """T-2: _populate_programs 後の番組リストの整合性を検証。"""
         with patch("nhk_radio.gui.browser.tk.Tk", return_value=self.root):
             b = EpisodeGuiBrowser(self.programs, Path("/tmp"))
-        # programs と data_manager.programs の整合性
-        self.assertEqual(len(b.programs), len(b.data_manager.programs))
-        self.assertEqual(b.programs[0].site_id, b.data_manager.programs[0].site_id)
+        # 番組リストはブラウザだけが持ち、絞り込み結果は別のリストにする (G16)
+        self.assertEqual(len(b.programs), len(self.programs))
+        self.assertEqual(b.programs[0].site_id, self.programs[0].site_id)
+        self.assertIsNot(b.filtered_programs, b.programs)
 
     def test_smoke_episode_cache_initial_empty(self):
         """T-2: 初期状態で episodes_cache が有効なことを検証。"""

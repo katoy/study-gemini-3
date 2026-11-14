@@ -21,7 +21,7 @@
 | G12 小さな UI 不具合 | ⚠️ 未解消 | 3 点とも残る |
 | G13 UI スレッドでのファイル I/O | ⚠️ 未解消 | 右クリックなどの操作で、UI スレッドから保存先を参照する |
 | G14 キャンセル時の `.part` | ⚠️ 未解消 | 動作は「残す」で一貫しているが、意図を書いたコメントが無い |
-| G16 状態の持ち主があいまい | ⚠️ 未解消 | 3 点とも残る |
+| G16 状態の持ち主があいまい | ✅ 解消 | 下記 5 で対応した |
 | G17 使われていない値 | ⚠️ 一部解消 | `self.result` は使われている。`started_count` / `finished_count` は残る |
 
 ## 2. 詳細
@@ -118,3 +118,14 @@
 
 - 回帰テスト: `tests/test_security_hardening.py`（11 件）。修正前は 9 件が失敗した（残る 2 件は、既存の動作が保たれることを確かめるテスト）。CI の non-GUI カバレッジ対象にも追加した。
 - 結果: ruff と mypy は合格。pytest は 457 passed。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 5. 対応状況（2026-11-15, ブランチ `fix/g16-state-ownership`）
+
+| 項目 | 対応内容 |
+|---|---|
+| G16 番組リストの共有 | `DataManager` から `programs` / `filtered_programs` / `update_programs` を外した。`DataManager` はこれらを読んでいなかったため、番組リストはブラウザだけが持つ。`filtered_programs` は初期化時から `programs` と別のリストにした |
+| G16 ワーカーによる `clear()` | キャッシュ全削除のワーカーは `clear_all_cache()`（ディスク）だけを行う。メモリ上のエピソードキャッシュは UI スレッドの `_on_cache_cleared_success` で消す。使われなくなった `clear_all_data` は削除した。番組一覧は表示したまま取り直す（従来も、一度取得し直した後は共有が切れて空にならなかった） |
+| G16 上限処理の重複 | エピソードキャッシュへの書き込みを `DataManager.store_episodes` 1 か所にまとめ、上限を定数 `EPISODE_CACHE_MAX_PROGRAMS = 100` にした。取得ワーカーはキャッシュに書かず、UI スレッドの `_finish_fetch` だけが書く |
+
+- 回帰テスト: `tests/test_state_ownership.py`（10 件）。共有を前提にしていた `test_smoke_populate_programs_consistency` は、新しい持ち方に合わせて書き換えた。
+- 結果: ruff と mypy は合格。pytest は 467 passed。non-GUI カバレッジは 15 ファイルとも 100%。

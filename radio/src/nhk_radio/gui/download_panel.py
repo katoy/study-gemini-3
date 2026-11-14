@@ -2,7 +2,6 @@
 
 import queue
 import threading
-import time
 import webbrowser
 from typing import TYPE_CHECKING
 
@@ -224,13 +223,11 @@ class GuiDownloadsMixin:
     def _finish_fetch(self, program: Program, episodes: list[Episode], source: str, error: str | None):
         self._set_loading(False)
         self._set_progress(0, 1, "")
-        key = (program.site_id, program.corner_id)
         title = program.display_title or program.title
         if self.selected_program_key != self._program_key(program):
             # 取得中に別番組へ切り替えた場合は、選択中の番組の表示を上書きしない (H1)
             if error is None:
-                self.episodes_cache[key] = (time.time(), episodes)
-                self.episodes_cache.move_to_end(key)
+                self.data_manager.store_episodes(program, episodes)
                 self.status_var.set(f"「{title}」の一覧取得が完了しました (表示は選択中の番組のまま)。")
             else:
                 self.status_var.set(f"「{title}」の取得失敗: {error}")
@@ -249,8 +246,7 @@ class GuiDownloadsMixin:
                 self._update_program_overview(program, None, "取得失敗")
                 self._show_episodes(program, [], message="一覧は未取得です。取得に失敗しました。")
         else:
-            self.episodes_cache[key] = (time.time(), episodes)
-            self.episodes_cache.move_to_end(key)
+            self.data_manager.store_episodes(program, episodes)
             source_label = {"stale-cache": "期限切れキャッシュ"}.get(source, "最新取得")
             # 直前の操作結果を空文字で消さず、取得結果を表示する (M7)
             self.status_var.set(f"「{title}」のエピソード一覧を表示しました ({len(episodes)} 件)。")
@@ -260,8 +256,6 @@ class GuiDownloadsMixin:
             if episodes:
                 self.episode_tree.focus_set()
 
-        if len(self.episodes_cache) > 100:
-            self.episodes_cache.popitem(last=False)
         self._refresh_fetch_button_label()
 
     def _clear_cache(self):
@@ -280,8 +274,8 @@ class GuiDownloadsMixin:
 
         def _worker():
             try:
+                # メモリ上の状態は UI スレッドの _on_cache_cleared_success で消す (G16)
                 clear_all_cache()
-                self.data_manager.clear_all_data()
                 self.root.after(0, self._on_cache_cleared_success)
             except Exception as e:
                 message = str(e)
@@ -292,7 +286,6 @@ class GuiDownloadsMixin:
     def _on_cache_cleared_success(self):
         self._set_loading(False)
         self.status_var.set("キャッシュを削除しました。")
-        self.episodes_cache.clear()
         self._reset_ui_state_after_cache_clear()
 
     def _on_cache_cleared_error(self, error: str):

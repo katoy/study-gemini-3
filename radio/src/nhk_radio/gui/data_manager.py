@@ -8,9 +8,16 @@ from collections.abc import Callable
 from ..core import fetch_program_list, refresh_episode_list
 from ..types import Episode, Program
 
+# エピソードキャッシュに保持する番組数の上限
+EPISODE_CACHE_MAX_PROGRAMS = 100
+
 
 class DataManager:
-    """Manages program lists, episode caches, and their background fetching."""
+    """Manages program lists, episode caches, and their background fetching.
+
+    番組リストは表示側 (EpisodeGuiBrowser) が持つ。ここではエピソードキャッシュだけを持ち、
+    キャッシュへの書き込みは UI スレッドから store_episodes で行う (G16)。
+    """
 
     def __init__(
         self,
@@ -20,8 +27,6 @@ class DataManager:
         self.on_program_result = on_program_result
         self.on_episode_result = on_episode_result
 
-        self.programs: list[Program] = []
-        self.filtered_programs: list[Program] = []
         self.episodes_cache: OrderedDict[tuple[str, str], tuple[float, list[Episode]]] = OrderedDict()
 
         self._fetching_programs = False
@@ -61,7 +66,6 @@ class DataManager:
             err = None
             try:
                 episodes, source = refresh_episode_list(program)
-                self._update_episode_cache(program, episodes)
             except Exception as e:
                 err = str(e)
             finally:
@@ -81,22 +85,15 @@ class DataManager:
                 return episodes
         return None
 
-    def clear_all_data(self):
-        """Clears all in-memory data and caches."""
-        self.programs.clear()
-        self.filtered_programs.clear()
-        self.episodes_cache.clear()
+    def store_episodes(self, program: Program, episodes: list[Episode]) -> None:
+        """エピソード一覧をキャッシュに入れ、上限を超えたら最も古いものを捨てる。
 
-    def update_programs(self, programs: list[Program]):
-        """Sets the master program list."""
-        self.programs = list(programs)
-
-    def _update_episode_cache(self, program: Program, episodes: list[Episode]):
-        """Updates the internal episode cache with size limit."""
+        Args:
+            program: 対象の番組。
+            episodes: 取得したエピソード一覧。
+        """
         key = (program.site_id, program.corner_id)
         self.episodes_cache[key] = (time.time(), episodes)
         self.episodes_cache.move_to_end(key)
-
-        # Capacity limit (100 programs)
-        if len(self.episodes_cache) > 100:
+        while len(self.episodes_cache) > EPISODE_CACHE_MAX_PROGRAMS:
             self.episodes_cache.popitem(last=False)
