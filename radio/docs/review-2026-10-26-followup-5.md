@@ -12,7 +12,7 @@
 |---|---|---|
 | L1 タイムゾーン | ⚠️ 未解消 | UTC の日付をそのまま表示に使っている |
 | L3 `manifest.py` | ⚠️ 未解消 | 3 点とも残る |
-| L4 セキュリティ | ⚠️ 未解消 | 3 点が残る。`site_id` は未確認 |
+| L4 セキュリティ | ✅ 解消 | 下記 4 で対応した |
 | L5 `_safe_name` | ⚠️ 未解消 | 予約名・制御文字・長さ上限を扱っていない |
 | L6 `cli.py` | ⚠️ 一部解消 | CI に tkinter が入り、実害は小さくなった。3 点ともコード上は残る |
 | L7 `core.py` | ⚠️ 未解消 | 3 点とも残る |
@@ -106,3 +106,15 @@
 4. **L3**: キャッシュはコピーを返す。相対パスの基準ディレクトリを直す。
 5. **G12 / G11 / G17**: メニューの `destroy`、tooltip の再利用、" 0/1" の表示、使われていないカウンタの削除。
 6. **L1 / L5 / L6 / L8 / G13 / G14**: 影響を確かめてから順次対応する。G14 はコメントの追加だけで済む。
+
+## 4. 対応状況（2026-11-15, ブランチ `fix/l4-security`）
+
+| 項目 | 対応内容 |
+|---|---|
+| L4 マニフェストのパス | `manifest.py` に `_resolve_manifest_path` を追加した。解決したパスが保存先（`output_dir`）の下に無ければ、警告を出して使わない。`find_episode_downloaded_path` と `get_downloaded_episode_keys` の両方で使う。保存先の下にある絶対パス（旧ディレクトリの記録）は従来どおり使える |
+| L4 URL の前の `--` | `runner.py` の `_yt_dlp_command` で、URL の直前に `--` を置く |
+| L4 テンプレートの `%` | 番組名の `%` を `%%` にエスケープする（`program_filename_template`）。保存先ディレクトリ名の `%` も、新設した `output_template` でエスケープする。CLI の URL モードも `output_template` を使う。yt-dlp の `prepare_filename` で、`%` がそのまま出力されることを確かめた |
+| L4 `site_id` | `_program_storage_id` で `site_id` / `corner_id` を `_safe_name` に通す。通常の英数字の ID は変わらないため、既存の保存先はそのまま使える |
+
+- 回帰テスト: `tests/test_security_hardening.py`（11 件）。修正前は 9 件が失敗した（残る 2 件は、既存の動作が保たれることを確かめるテスト）。CI の non-GUI カバレッジ対象にも追加した。
+- 結果: ruff と mypy は合格。pytest は 457 passed。non-GUI カバレッジは 15 ファイルとも 100%。

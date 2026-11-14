@@ -34,7 +34,8 @@ def _program_storage_id(program: Program) -> str:
     site_id = (program.site_id or "").strip()
     corner_id = (program.corner_id or "").strip()
     if site_id and corner_id:
-        return f"{site_id}_{corner_id}"
+        # ID にパス区切りなどが含まれても保存先の外へ出ないよう無害化する (L4)
+        return f"{_safe_name(site_id)}_{_safe_name(corner_id)}"
     return _safe_name(_program_storage_title(program))
 
 
@@ -82,7 +83,8 @@ def _episode_output_identity(program: Program, episode: Episode) -> tuple[list[s
 
 
 def program_filename_template(program: Program, max_items: bool = False) -> str:
-    title = _safe_name(_program_storage_title(program))
+    # 番組名の `%` は yt-dlp のテンプレート記法と衝突するため `%%` にエスケープする (L4)
+    title = _safe_name(_program_storage_title(program)).replace("%", "%%")
     if max_items:
         return f"%(playlist_index)s_%(upload_date)s_{title}_%(title)s.%(ext)s"
     return f"%(upload_date)s_{title}_%(title)s.%(ext)s"
