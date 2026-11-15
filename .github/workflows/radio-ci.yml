@@ -71,6 +71,7 @@ jobs:
           tests/test_manifest_loading.py
           tests/test_security_hardening.py
           tests/test_text.py
+          tests/test_timezone.py
           --cov=src/nhk_radio
           --cov-report=term-missing
           --cov-report=json

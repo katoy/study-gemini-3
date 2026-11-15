@@ -32,7 +32,8 @@ class TextHelpersTest(unittest.TestCase):
     def test_format_broadcast_time(self):
         self.assertEqual(text._format_broadcast_time(None), "")
         self.assertEqual(text._format_broadcast_time("bad"), "")
-        self.assertEqual(text._format_broadcast_time(1713188400), datetime.fromtimestamp(1713188400).strftime("%H:%M"))
+        # 1713188400 は JST 2024-04-15 22:40。実行環境のタイムゾーンに依らず JST で表示する (L1)
+        self.assertEqual(text._format_broadcast_time(1713188400), "22:40")
 
     def test_format_duration_handles_variants(self):
         self.assertEqual(text._format_duration(None), "")

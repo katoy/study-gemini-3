@@ -149,7 +149,8 @@ def save_episode_cache(program: Program, episodes: list[Episode]):
     episode_dicts = []
     for e in episodes:
         d = asdict(e)
-        d["display_date"] = _format_episode_date(str(e.date or ""))
+        # JST で作った表示日付を、UTC の upload_date から作り直して上書きしない (L1)
+        d["display_date"] = e.display_date or _format_episode_date(str(e.date or ""))
         episode_dicts.append(d)
     _save_json_cache(
         _episode_cache_path(program),
