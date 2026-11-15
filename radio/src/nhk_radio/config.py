@@ -1,6 +1,7 @@
 """Configuration and UI settings helpers for the NHK radio downloader."""
 
 import json
+import logging
 import os
 import sys
 import unicodedata
@@ -8,6 +9,8 @@ from pathlib import Path
 
 from . import _io
 from .text import _normalize_text
+
+logger = logging.getLogger(__name__)
 
 
 def _default_user_cache_root() -> Path:
@@ -88,9 +91,9 @@ def _migrate_legacy_ui_settings():
     try:
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         legacy_path.replace(settings_path)
-    except OSError:
-        # 移行失敗は致命的ではない (新規作成として扱う)
-        pass
+    except OSError as e:
+        # 移行失敗は致命的ではない (新規作成として扱う) が、原因を追えるよう記録する (L8)
+        logger.warning(f"旧 UI 設定の移行に失敗しました: {legacy_path} -> {settings_path} ({e})")
 
 
 DEFAULT_UI_THEME = "light"
@@ -170,13 +173,13 @@ def _save_ui_settings(theme: str, font_size: int, program_search_history: list[s
     if not isinstance(existing, dict):
         existing = {}
 
+    # 既存の内容 (help_seen_version や、新しい版が書いた未知のキー) を残し、既知のキーだけを上書きする (L8)
     payload = {
+        **existing,
         "theme": theme,
         "font_size_pt": font_size,
         "program_search_history": program_search_history or [],
     }
-    if isinstance(existing.get("help_seen_version"), int):
-        payload["help_seen_version"] = existing["help_seen_version"]
 
     _io.atomic_write_json(path, payload)
 
