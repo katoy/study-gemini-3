@@ -111,6 +111,8 @@ class ActivityView:
         widgets = self._create_job_widgets(episode, episode_key)
         self.rows[episode_key] = {"state": "running", **widgets}
         self._reflow(auto_scroll=True)
+        # 行を追加したら「実行中: N」も更新する (G11)
+        self._update_summary()
 
     def finish(
         self,

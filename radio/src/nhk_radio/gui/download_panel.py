@@ -200,7 +200,6 @@ class GuiDownloadsMixin:
             self.status_var.set(f"「{title}」のエピソード一覧を取得中...")
             self.episode_message_var.set("取得中...")
             self._update_program_overview(program, None, "取得中")
-            self._set_progress(0, 1, "")
 
         self._set_loading(True)
         self.data_manager.start_fetch_episodes(program)
@@ -222,7 +221,6 @@ class GuiDownloadsMixin:
 
     def _finish_fetch(self, program: Program, episodes: list[Episode], source: str, error: str | None):
         self._set_loading(False)
-        self._set_progress(0, 1, "")
         title = program.display_title or program.title
         if self.selected_program_key != self._program_key(program):
             # 取得中に別番組へ切り替えた場合は、選択中の番組の表示を上書きしない (H1)

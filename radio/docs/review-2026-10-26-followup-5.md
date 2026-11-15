@@ -17,12 +17,12 @@
 | L6 `cli.py` | ⚠️ 一部解消 | CI に tkinter が入り、実害は小さくなった。3 点ともコード上は残る |
 | L7 `core.py` | ✅ 解消 | 下記 6 で対応した。「最大 9 回試行」は誤りだった |
 | L8 `config.py` | ⚠️ 未解消 | 2 点とも残る |
-| G11 表示の不整合 | ⚠️ 一部解消 | 「実行中: N」の表示は無くなった。" 0/1" の表示は残る |
-| G12 小さな UI 不具合 | ⚠️ 未解消 | 3 点とも残る |
+| G11 表示の不整合 | ✅ 解消 | 下記 8 で対応した。当初「実行中: N は無くなった」としたのは誤り |
+| G12 小さな UI 不具合 | ✅ 解消 | 下記 8 で対応した |
 | G13 UI スレッドでのファイル I/O | ⚠️ 未解消 | 右クリックなどの操作で、UI スレッドから保存先を参照する |
 | G14 キャンセル時の `.part` | ⚠️ 未解消 | 動作は「残す」で一貫しているが、意図を書いたコメントが無い |
 | G16 状態の持ち主があいまい | ✅ 解消 | 下記 5 で対応した |
-| G17 使われていない値 | ⚠️ 一部解消 | `self.result` は使われている。`started_count` / `finished_count` は残る |
+| G17 使われていない値 | ✅ 解消 | `self.result` は使われている。`started_count` / `finished_count` は下記 8 で削除した |
 
 ## 2. 詳細
 
@@ -71,7 +71,7 @@
 ### G11 表示の不整合
 
 - `browser.py:313-319` の `_set_progress` は、`total > 0` のとき `f"{text} {current}/{total}"` を表示する。`download_panel.py:204`、`:226` が `_set_progress(0, 1, "")` を呼ぶため、一覧を取得するたびに " 0/1" と表示される。
-- 「実行中: N」の概要表示は、現在のコードには無い（解消済み）。
+- ~~「実行中: N」の概要表示は、現在のコードには無い（解消済み）。~~ **訂正**: `activity_view.py` の `_update_summary` に残っていた。確認時に grep の出力を途中で切っていたため見落とした。`add` が `_update_summary` を呼ばないため、行を追加しても更新されない（下記 8 で対応）。
 
 ### G12 小さな UI 不具合
 
@@ -151,3 +151,19 @@
 
 - 回帰テスト: `tests/test_manifest_loading.py`（5 件）。修正前は 4 件が失敗した（残る 1 件は、現在の番組ディレクトリの相対パスが変わらないことを確かめるテスト）。CI の non-GUI カバレッジ対象にも追加した。旧ディレクトリの相対パスがそのまま返ることを確かめていた `test_load_download_manifest_handles_invalid_and_legacy_files` は、新しい動作に合わせて書き換えた。
 - 結果: ruff と mypy は合格。pytest は 478 passed。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 8. 対応状況（2026-11-15, ブランチ `fix/g11-g12-g17-ui`）
+
+| 項目 | 対応内容 |
+|---|---|
+| G11 " 0/1" の表示 | エピソード一覧の取得で呼んでいた `_set_progress(0, 1, "")` を削除した。この表示はダウンロードの概要（「実行中: N / 全体: M」）と同じ StringVar を使っていたため、取得のたびに概要を上書きしていた。呼び出し元が無くなった `_set_progress` も削除した |
+| G11 「実行中: N」の更新 | `ActivityView.add` で `_update_summary` を呼ぶ。行を追加した時点で件数が更新される |
+| G12 右クリックメニュー | `tk.Menu` を 1 つ作って使い回し、開くたびに項目を作り直す。右クリックのたびにメニューが溜まらなくなった。X11 では `tk_popup` がすぐに戻るため、使い終わりに `destroy` する方法は取らなかった |
+| G12 tooltip | 同じ文言の tooltip を表示し直すときは、ウィンドウを作り直さず位置だけ動かす |
+| G12 `<Button-2>` | 右クリックに使うボタンを `context_menu_buttons` で決める。macOS (aqua) は Button-2 と Button-3、Linux と Windows は Button-3 だけ（Button-2 は中ボタン） |
+| G17 | `DownloadManager` の `started_count` / `finished_count` を削除した |
+
+- 回帰テスト: `tests/test_gui_small_fixes.py`（9 件）。修正前は、新設の `context_menu_buttons` を import できず収集の段階で失敗した。
+- 変更に合わせて既存テスト 3 件を書き換えた: `_set_progress` の存在と呼び出しを確かめるテスト 2 件、毎回 `tk.Menu` を差し替えて項目を数えるテスト 1 件。
+- 気付いた点（未変更）: `download_panel.py` の `_update_download_summary` はどこからも呼ばれていない。
+- 結果: ruff と mypy は合格。pytest は 487 passed。non-GUI カバレッジは 15 ファイルとも 100%。

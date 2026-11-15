@@ -322,6 +322,15 @@ class GuiEpisodeMixin:
         widget.bind("<ButtonPress>", lambda _event: self._hide_tooltip(), add="+")
 
     def _show_tooltip(self, event, text: str):
+        # マウスが動くたびに作り直さないよう、同じ文言なら位置だけ動かす (G12)
+        if (
+            self.tooltip_window is not None
+            and self.tooltip_window.winfo_exists()
+            and self.tooltip_label is not None
+            and self.tooltip_label.cget("text") == text
+        ):
+            self._move_tooltip(event)
+            return
         self._hide_tooltip()
         tooltip = tk.Toplevel(self.root)
         tooltip.wm_overrideredirect(True)

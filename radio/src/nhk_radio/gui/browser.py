@@ -187,6 +187,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.help_markdown_content: str | None = None
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
+        self.episode_context_menu: tk.Menu | None = None
         self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
     def _on_download_manager_result(self, res_type, key, program, episode, data):
@@ -307,14 +308,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def _persist_search_history(self):
         """検索履歴のみを永続化する (G8)。"""
         self.theme_manager.save_search_history(self.program_search_history)
-
-    def _set_progress(self, current: int, total: int, text: str = ""):
-        """進捗状況を更新する。"""
-        if total > 0:
-            # 簡易的な進捗文字列を生成
-            self.progress_text_var.set(f"{text} {current}/{total}")
-        else:
-            self.progress_text_var.set(text)
 
     def _reset_ui_state_after_cache_clear(self):
         """キャッシュクリア後にUI表示を初期化する。"""
