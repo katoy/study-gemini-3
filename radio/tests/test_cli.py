@@ -74,7 +74,7 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli.sys.stdout, "write") as write_mock,
             patch.object(cli.sys.stdout, "flush") as flush_mock,
         ):
-            def simulate_progress(cmd, on_progress, cancel_event=None):
+            def simulate_progress(cmd, on_progress, cancel_event=None, on_output_path=None):
                 if on_progress:
                     on_progress(10.0, None, "downloading")
                 return True

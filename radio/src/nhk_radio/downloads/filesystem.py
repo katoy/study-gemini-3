@@ -82,12 +82,47 @@ def _episode_output_identity(program: Program, episode: Episode) -> tuple[list[s
     return program_titles, episode_title, episode_date
 
 
+# ファイル名 1 要素の上限 (多くのファイルシステムで 255 バイト)
+FILENAME_MAX_BYTES = 255
+# 拡張子と、一時ファイル (.part-Frag9999) や退避 (.nhkradio-bak) の接尾辞のために残すバイト数
+FILENAME_SUFFIX_RESERVE_BYTES = 32
+# 件数指定のときに先頭に付く playlist_index と区切りのために残すバイト数
+FILENAME_INDEX_RESERVE_BYTES = 8
+# upload_date (YYYYMMDD) のバイト数
+UPLOAD_DATE_BYTES = 8
+# 番組名が極端に長くても、エピソード名に残す最小のバイト数
+EPISODE_TITLE_MIN_BYTES = 30
+
+
+def _episode_title_max_bytes(program_title: str) -> int:
+    """ファイル名が上限に収まるよう、エピソード名に使えるバイト数を返す。
+
+    Args:
+        program_title: ファイル名に入れる番組名 (エスケープ前)。
+
+    Returns:
+        エピソード名に使えるバイト数。EPISODE_TITLE_MIN_BYTES を下回らない。
+    """
+    used = (
+        FILENAME_INDEX_RESERVE_BYTES
+        + UPLOAD_DATE_BYTES
+        + len("__")
+        + len(program_title.encode("utf-8"))
+        + FILENAME_SUFFIX_RESERVE_BYTES
+    )
+    return max(FILENAME_MAX_BYTES - used, EPISODE_TITLE_MIN_BYTES)
+
+
 def program_filename_template(program: Program, max_items: bool = False) -> str:
+    safe_title = _safe_name(_program_storage_title(program))
     # 番組名の `%` は yt-dlp のテンプレート記法と衝突するため `%%` にエスケープする (L4)
-    title = _safe_name(_program_storage_title(program)).replace("%", "%%")
+    title = safe_title.replace("%", "%%")
+    # エピソード名が長くてもファイル名が上限を超えないよう、yt-dlp にバイト数で詰めさせる (L5)。
+    # 普通の長さの名前は変わらない
+    episode_title = f"%(title).{_episode_title_max_bytes(safe_title)}B"
     if max_items:
-        return f"%(playlist_index)s_%(upload_date)s_{title}_%(title)s.%(ext)s"
-    return f"%(upload_date)s_{title}_%(title)s.%(ext)s"
+        return f"%(playlist_index)s_%(upload_date)s_{title}_{episode_title}.%(ext)s"
+    return f"%(upload_date)s_{title}_{episode_title}.%(ext)s"
 
 
 def _episode_key(episode: Episode) -> str:
