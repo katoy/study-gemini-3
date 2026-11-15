@@ -399,23 +399,17 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
         "no_warnings": True,
         "skip_download": True,
         "socket_timeout": YTDLP_SOCKET_TIMEOUT,
-        "retries": 2,
+        # yt-dlp の retries はダウンロードにだけ効き、一覧取得には効かない。
+        # 再試行は refresh_episode_list で行う (L7)
     }
 
+    episodes: list[Episode] = []
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(program.url, download=False)
-            if info is None:
-                msg = "番組情報の取得に失敗しました。番組が終了しているか、一時的にアクセスできない可能性があります。"
-                logger.error(f"エピソード取得失敗: {msg}")
-                raise RuntimeError(msg)
-
+        if info is not None:
             entries = info.get("entries", [])
             episodes = [_parse_episode_info(entry) for entry in entries if entry]
-
-            if verbose:
-                logger.info(f"{len(episodes)} 件のエピソードを取得しました。")
-            return episodes
     except yt_dlp.utils.DownloadError as e:
         msg = str(e)
         if "ffmpeg" in msg.lower():
@@ -429,6 +423,16 @@ def fetch_episodes(program: Program, verbose: bool = True) -> list[Episode]:
     except Exception as e:
         logger.error(f"予期しないエラーが発生しました: {e}")
         raise RuntimeError(f"エピソード取得失敗: {e}") from e
+
+    # 自分で投げる RuntimeError を上の except Exception で包み直さないよう、try の外で判定する (L7)
+    if info is None:
+        msg = "番組情報の取得に失敗しました。番組が終了しているか、一時的にアクセスできない可能性があります。"
+        logger.error(f"エピソード取得失敗: {msg}")
+        raise RuntimeError(msg)
+
+    if verbose:
+        logger.info(f"{len(episodes)} 件のエピソードを取得しました。")
+    return episodes
 
 
 def get_episode_list(
@@ -467,7 +471,8 @@ def refresh_episode_list(
         return episodes, "network"
 
     stale = load_episode_cache(program, ttl_seconds=CACHE_TTL_INFINITE)
-    if stale:
+    # 空の一覧もキャッシュとして有効なので、None と区別する (L7)
+    if stale is not None:
         return stale, "stale-cache"
 
     raise RuntimeError(last_error or "エピソード一覧を取得できませんでした")
