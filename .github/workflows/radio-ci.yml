@@ -63,6 +63,7 @@ jobs:
           tests/test_cli_extended.py
           tests/test_cli_l6.py
           tests/test_config.py
+          tests/test_config_l8.py
           tests/test_core.py
           tests/test_core_fetch_episodes.py
           tests/test_coverage_gap.py
