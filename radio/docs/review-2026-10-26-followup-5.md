@@ -15,7 +15,7 @@
 | L4 セキュリティ | ✅ 解消 | 下記 4 で対応した |
 | L5 `_safe_name` | ⚠️ 未解消 | 予約名・制御文字・長さ上限を扱っていない |
 | L6 `cli.py` | ⚠️ 一部解消 | CI に tkinter が入り、実害は小さくなった。3 点ともコード上は残る |
-| L7 `core.py` | ⚠️ 未解消 | 3 点とも残る |
+| L7 `core.py` | ✅ 解消 | 下記 6 で対応した。「最大 9 回試行」は誤りだった |
 | L8 `config.py` | ⚠️ 未解消 | 2 点とも残る |
 | G11 表示の不整合 | ⚠️ 一部解消 | 「実行中: N」の表示は無くなった。" 0/1" の表示は残る |
 | G12 小さな UI 不具合 | ⚠️ 未解消 | 3 点とも残る |
@@ -129,3 +129,14 @@
 
 - 回帰テスト: `tests/test_state_ownership.py`（10 件）。共有を前提にしていた `test_smoke_populate_programs_consistency` は、新しい持ち方に合わせて書き換えた。
 - 結果: ruff と mypy は合格。pytest は 467 passed。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 6. 対応状況（2026-11-15, ブランチ `fix/l7-core-retry`）
+
+| 項目 | 対応内容 |
+|---|---|
+| L7 ログの二重出力 | `fetch_episodes` で、`info is None` の判定を `try` の外に移した。自分で投げた `RuntimeError` を同じ関数の `except Exception` が捕まえなくなり、エラーログは 1 回、メッセージも「エピソード取得失敗:」が二重に付かなくなった |
+| L7 リトライの重複 | **指摘は誤りだった**。yt-dlp 2026.03.17 では、`retries` を参照するのはダウンロード処理（`downloader/http.py` など）だけで、NHK の抽出処理は再試行しない。通信を失敗させて数えると、`retries` を 0・2・10 と変えても `fetch_episodes` 1 回あたりの通信は 2 回（設定ファイルと番組 API）で変わらず、`refresh_episode_list` 全体では 6 回（3 回の試行 × 2）だった。効いていない `retries: 2` を削除した。削除後も 6 回で変わらないことを確かめた |
+| L7 空の stale キャッシュ | `refresh_episode_list` の判定を `if stale is not None:` にした。以前に 0 件で取得できた番組は、取得に失敗しても 0 件の stale キャッシュを返す。`fetch_program_list_async` の `stale or programs` は、そこに来る時点で `programs` も空なので結果が変わらず、変更していない |
+
+- 回帰テスト: `tests/test_core_fetch_episodes.py`（6 件）。修正前は 3 件が失敗した（残る 3 件は、既存の動作が保たれることを確かめるテスト）。CI の non-GUI カバレッジ対象にも追加した。
+- 結果: ruff と mypy は合格。pytest は 473 passed。non-GUI カバレッジは 15 ファイルとも 100%。
