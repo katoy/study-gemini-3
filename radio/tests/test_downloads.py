@@ -70,10 +70,14 @@ class DownloadHelpersTest(unittest.TestCase):
         self.assertEqual(
             downloads._episode_output_identity(PROGRAM, EPISODE), (["番組A", "SITE_01"], "第1回", "20240415")
         )
-        self.assertEqual(downloads.program_filename_template(PROGRAM), "%(upload_date)s_番組A_%(title)s.%(ext)s")
+        # エピソード名はファイル名が上限を超えないようバイト数で詰める (L5)
+        title_bytes = downloads.filesystem._episode_title_max_bytes("番組A")
+        self.assertEqual(
+            downloads.program_filename_template(PROGRAM), f"%(upload_date)s_番組A_%(title).{title_bytes}B.%(ext)s"
+        )
         self.assertEqual(
             downloads.program_filename_template(PROGRAM, max_items=True),
-            "%(playlist_index)s_%(upload_date)s_番組A_%(title)s.%(ext)s",
+            f"%(playlist_index)s_%(upload_date)s_番組A_%(title).{title_bytes}B.%(ext)s",
         )
         self.assertEqual(downloads._episode_key(Episode(id="", date="20240415", title="第1回", display_title="", display_date="", broadcast_time="", duration_str="", url="")), "20240415:第1回")
 

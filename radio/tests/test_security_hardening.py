@@ -126,7 +126,8 @@ def test_program_filename_template_escapes_percent() -> None:
     """番組名の `%` は `%%` にエスケープし、yt-dlp が番組名をそのまま出力する。"""
     template = downloads.program_filename_template(_program(title="100%(新)"))
 
-    assert template == "%(upload_date)s_100%%(新)_%(title)s.%(ext)s"
+    title_bytes = downloads.filesystem._episode_title_max_bytes("100%(新)")
+    assert template == f"%(upload_date)s_100%%(新)_%(title).{title_bytes}B.%(ext)s"
     assert _render(template) == "20240415_100%(新)_T.mp3"
 
 

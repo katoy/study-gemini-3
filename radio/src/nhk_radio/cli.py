@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from .cache import clear_all_cache
@@ -20,6 +21,7 @@ from .downloads import (
     cleanup_partial_episode_files,
     download_episode_command,
     is_episode_downloaded,
+    mark_episode_downloaded,
     output_template,
     program_filename_template,
     program_output_dir,
@@ -127,8 +129,12 @@ def download_episode(
     filename_template: str,
     *,
     audio_only: bool = True,
+    on_output_path: Callable[[Path], None] | None = None,
 ) -> bool:
-    """yt-dlp で1エピソードをダウンロードし、進捗を表示する"""
+    """yt-dlp で1エピソードをダウンロードし、進捗を表示する
+
+    on_output_path には、yt-dlp が出力した実際の保存先が渡される。
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     cmd = download_episode_command(url, output_dir, filename_template, audio_only=audio_only)
 
@@ -144,7 +150,7 @@ def download_episode(
             last_percent = percent
 
     try:
-        success = run_yt_dlp_subprocess(cmd, on_progress=on_progress)
+        success = run_yt_dlp_subprocess(cmd, on_progress=on_progress, on_output_path=on_output_path)
         if last_percent >= 0:
             sys.stdout.write("\n")
             sys.stdout.flush()
@@ -221,8 +227,11 @@ def _download_selected_episodes(
         if is_episode_downloaded(output_dir, program, episode, audio_only=audio_only):
             logger.info(f"スキップ: {title} (保存済み)")
             continue
+        output_paths: list[Path] = []
         try:
-            success = download_episode(episode.url, target_dir, filename_template, audio_only=audio_only)
+            success = download_episode(
+                episode.url, target_dir, filename_template, audio_only=audio_only, on_output_path=output_paths.append
+            )
         except KeyboardInterrupt:
             cleanup_partial_episode_files(output_dir, program, episode)
             logger.info("ダウンロードが中断されました。")
@@ -230,6 +239,11 @@ def _download_selected_episodes(
         if not success:
             logger.error(f"失敗: {title}")
             failed_count += 1
+            continue
+        if output_paths and output_paths[-1].exists():
+            # 実際の保存先が分かれば記録する。名前を詰めた回 (L5) は名前のパターン照合では見つからないため
+            mark_episode_downloaded(output_dir, program, episode, output_paths[-1])
+            downloaded_count += 1
             continue
         downloaded_path = sync_episode_download_history(output_dir, program, episode, audio_only=audio_only)
         if downloaded_path is None:
