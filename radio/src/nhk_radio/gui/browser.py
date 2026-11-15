@@ -188,6 +188,14 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
         self.episode_context_menu: tk.Menu | None = None
+        # 表示中の番組の保存状態 (保存済みのエピソードのキー)。UI スレッドではこれを使い、
+        # 判定はバックグラウンドで行う (G13)
+        self.displayed_saved_keys: set[str] = set()
+        self.saved_keys_program_key: str | None = None
+        self.saved_keys_generation = 0
+        self.saved_keys_queue: queue.Queue[tuple[Program, int, set[str] | None]] = queue.Queue()
+        self.saved_keys_poll_id: str | None = None
+        self.program_overview_state: tuple[Program, list[Episode] | None, str] | None = None
         self.program_order_map = {self._program_key(program): index for index, program in enumerate(programs, 1)}
 
     def _on_download_manager_result(self, res_type, key, program, episode, data):

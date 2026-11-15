@@ -203,8 +203,9 @@ class GuiConsistencyTest(unittest.TestCase):
             self.assertEqual(len(browser.displayed_episode_map), 1)
             iid = list(browser.displayed_episode_map.keys())[0]
 
-            # 1) _refresh_downloaded_column を呼び出し
+            # 1) _refresh_downloaded_column を呼び出し、バックグラウンドの判定結果が届くまで待つ (G13)
             browser._refresh_downloaded_column(program)
+            self._wait_saved_keys(browser)
             # episode_tree.item の値に ☑ が含まれること
             values = browser.episode_tree.item(iid, "values")
             self.assertTrue(values and "☑" in values[0])
@@ -270,8 +271,17 @@ class GuiConsistencyTest(unittest.TestCase):
         # タイマーは None になっていること
         self.assertIsNone(getattr(browser, "_episode_search_timer", None))
 
+    def _wait_saved_keys(self, browser, timeout: float = 5.0) -> None:
+        """保存状態の判定結果がキューに届くまで待ち、UI に反映する。"""
+        import time
+
+        deadline = time.monotonic() + timeout
+        while browser.saved_keys_queue.empty() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        browser._poll_saved_keys()
+
     def test_async_download_check_queue_and_poll(self):
-        """保存済み判定ワーカースレッドがキュー経由で通信し、UI スレッドがポーリングで安全に反映すること (G3)"""
+        """保存状態はワーカースレッドで判定してキューで渡し、UI スレッドがポーリングで反映すること (G3, G13)"""
         from nhk_radio.types import Episode, Program
 
         program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
@@ -281,21 +291,49 @@ class GuiConsistencyTest(unittest.TestCase):
         browser.displayed_episodes = [ep]
         browser._render_episode_rows(program, [ep])
 
-        applied = False
-
-        def fake_apply_results(prog, results, gen):
-            nonlocal applied
-            applied = True
-
-        browser._apply_download_check_results = fake_apply_results  # type: ignore[method-assign]
-
-        with patch("nhk_radio.gui.listing.episodes.get_downloaded_episode_keys", return_value={"20240401_E1"}):
-            browser._async_download_check_worker(program, [("episode-0", ep)], generation=browser._download_check_generation)
+        # ワーカーを直接動かし、キューに結果を入れる
+        browser.saved_keys_generation = 1
+        with patch("nhk_radio.gui.listing.episodes.get_downloaded_episode_keys", return_value={"1"}):
+            browser._saved_keys_worker(program, [ep], generation=1)
 
         # キューからポーリングで反映
-        browser._poll_download_check()
-        self.assertTrue(applied)
+        browser._poll_saved_keys()
+        self.assertEqual(browser.displayed_saved_keys, {"1"})
+        self.assertEqual(browser.saved_keys_program_key, browser._program_key(program))
 
+    def test_poll_saved_keys_ignores_stale_generation(self):
+        """古い判定の結果は反映せず、最新の結果を待ち続ける (G13)"""
+        from nhk_radio.types import Episode, Program
+
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        ep = Episode(id="1", title="E1", display_title="E1", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        browser = EpisodeGuiBrowser([program], Path("/dummy"), audio_only=True, root=self.root)
+        browser.displayed_program = program
+        browser.displayed_episodes = [ep]
+        browser.saved_keys_generation = 2
+        browser.saved_keys_queue.put((program, 1, {"1"}))
+
+        with patch.object(browser.root, "after", return_value="after#1") as after_mock:
+            browser._poll_saved_keys()
+
+        self.assertEqual(browser.displayed_saved_keys, set())
+        after_mock.assert_called_once()
+
+    def test_saved_keys_worker_reports_failure_as_none(self):
+        """判定に失敗したら警告を出し、None を渡して反映しない (G13)"""
+        from nhk_radio.types import Episode, Program
+
+        program = Program(title="P", display_title="P", display_date="D", site_id="S", corner_id="C", url="U")
+        ep = Episode(id="1", title="E1", display_title="E1", date="20240401", display_date="D", broadcast_time="", duration_str="", url="U")
+        browser = EpisodeGuiBrowser([program], Path("/dummy"), audio_only=True, root=self.root)
+        browser.displayed_program = program
+        browser.saved_keys_generation = 1
+        with patch("nhk_radio.gui.listing.episodes.get_downloaded_episode_keys", side_effect=OSError("nas down")):
+            browser._saved_keys_worker(program, [ep], generation=1)
+        browser._poll_saved_keys()
+
+        self.assertEqual(browser.displayed_saved_keys, set())
+        self.assertIsNone(browser.saved_keys_program_key)
 
 if __name__ == "__main__":
     unittest.main()
