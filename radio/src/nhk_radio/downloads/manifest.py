@@ -56,7 +56,8 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
             cached_at, cached_mtime, cached_data = _MANIFEST_CACHE[primary_manifest_path]
             if (time.time() - cached_at < _MANIFEST_CACHE_TTL_SECONDS and
                 cached_mtime == primary_mtime):
-                return cached_data
+                # 呼び出し側が書き換えてもキャッシュが変わらないよう、コピーを返す (L3)
+                return dict(cached_data)
 
     # キャッシュミス: ディスクから読み込み
     saved_paths: dict[str, str] = {}
@@ -82,13 +83,17 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
         paths = payload.get("paths")
         if isinstance(paths, dict):  # pragma: no cover
             for key, value in paths.items():
-                saved_paths[str(key)] = str(value)
+                path_str = str(value)
+                # 旧ディレクトリの相対パスは、そのマニフェストがあるディレクトリを基準に解決する (L3)
+                if manifest_path != primary_manifest_path and not Path(path_str).is_absolute():
+                    path_str = str(manifest_path.parent / path_str)
+                saved_paths[str(key)] = path_str
 
     # キャッシュに格納 (timestamp, mtime, data)
     with _MANIFEST_CACHE_LOCK:
         _MANIFEST_CACHE[primary_manifest_path] = (time.time(), primary_mtime, saved_paths)
 
-    return saved_paths
+    return dict(saved_paths)
 
 
 def _resolve_manifest_path(saved_path_str: str, output_dir: Path, program: Program) -> Path | None:
