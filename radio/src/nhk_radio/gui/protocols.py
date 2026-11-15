@@ -72,10 +72,16 @@ class GuiBrowserProtocol(Protocol):
     # エピソードデータ
     # ========================
     displayed_program: Program | None
+    # 表示中の番組の保存状態のキャッシュと、その非同期判定の状態 (G13)
+    displayed_saved_keys: set[str]
+    saved_keys_program_key: str | None
+    saved_keys_generation: int
+    saved_keys_queue: queue.Queue[tuple[Program, int, set[str] | None]]
+    saved_keys_poll_id: str | None
+    program_overview_state: tuple[Program, list[Episode] | None, str] | None
     displayed_episodes: list[Episode]
     displayed_episode_map: dict[str, Episode]
     selected_episode_keys: tuple[str, ...]
-    _download_check_queue: queue.Queue[Any]
 
     # ========================
     # ソート・フィルタ状態
@@ -126,6 +132,9 @@ class GuiBrowserProtocol(Protocol):
     def _tree_cell_from_event(self, tree: ttk.Treeview, event: Any) -> tuple[str, str, str] | None: ...
     def _set_selected_tree_cell(self, tree: ttk.Treeview, column_id: str, value: str) -> None: ...
     def _is_episode_downloaded(self, item_id: str) -> bool: ...
+    def _reset_saved_keys(self) -> None: ...
+    def _start_saved_keys_refresh(self) -> None: ...
+    def _refresh_program_overview_stats(self) -> None: ...
     def _play_episode_file(self, item_id: str) -> None: ...
     def _show_episode_context_menu(self, event: Any, item_id: str) -> None: ...
 

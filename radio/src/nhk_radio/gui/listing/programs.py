@@ -149,6 +149,7 @@ class GuiProgramsMixin:
         message: str = "",
     ):
         if program is None:
+            self.program_overview_state = None
             self.selected_program_title_var.set("")
             self.selected_program_meta_var.set("左の番組一覧から選択すると、ここに番組の概要が表示されます。")
             self.selected_program_stats_var.set("")
@@ -160,19 +161,29 @@ class GuiProgramsMixin:
             meta += f" / ID {program.site_id}{program.corner_id}"
         self.selected_program_meta_var.set(meta)
 
-        if episodes is not None:
-            # バッチ判定で全エピソードの保存状態を効率的に取得
-            from ...downloads import get_downloaded_episode_keys
-            downloaded_keys = get_downloaded_episode_keys(
-                self.output_dir, program, episodes, audio_only=self.audio_only
-            )
-            saved_count = len(downloaded_keys)
-            stats = f"{len(episodes)} エピソード (保存済み {saved_count})"
-            if message:
-                stats += f" | {message}"
-            self.selected_program_stats_var.set(stats)
-        else:
+        self.program_overview_state = (program, episodes, message)
+        self._refresh_program_overview_stats()
+
+    def _refresh_program_overview_stats(self) -> None:
+        """概要の件数表示を更新する。保存済みの件数はメモリ上のキャッシュから数える (G13)。"""
+        state = self.program_overview_state
+        if state is None:
+            return
+        program, episodes, message = state
+        if episodes is None:
             self.selected_program_stats_var.set(message)
+            return
+        from ...downloads import _episode_key
+
+        if self.saved_keys_program_key == self._program_key(program):
+            saved = str(sum(_episode_key(e) in self.displayed_saved_keys for e in episodes))
+        else:
+            # 判定が終わるまでは件数を出さない (結果が届いたら _apply_saved_keys が描き直す)
+            saved = "確認中"
+        stats = f"{len(episodes)} エピソード (保存済み {saved})"
+        if message:
+            stats += f" | {message}"
+        self.selected_program_stats_var.set(stats)
 
     def _on_program_search_change(self, *_args):
         if getattr(self, "_search_timer", None):
