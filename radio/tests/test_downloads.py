@@ -92,7 +92,8 @@ class DownloadHelpersTest(unittest.TestCase):
 
             saved_paths = downloads._load_download_manifest(PROGRAM, output_dir)
 
-        self.assertEqual(saved_paths["ep-1"], "20240415_番組A_第1回.mp3")
+        # 旧ディレクトリの相対パスは、旧ディレクトリを基準にした絶対パスになる (L3)
+        self.assertEqual(saved_paths["ep-1"], str(legacy_dir / "20240415_番組A_第1回.mp3"))
 
     def test_episode_output_pattern_matching_and_candidates(self):
         with tempfile.TemporaryDirectory() as tmp:
