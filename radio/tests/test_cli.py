@@ -123,8 +123,9 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "is_episode_downloaded", return_value=True),
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
-            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
-            self.assertEqual(count, 0)
+            # 戻り値は (完了件数, 失敗件数)。スキップはどちらにも数えない (L6)
+            result = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+            self.assertEqual(result, (0, 0))
             logger_mock.info.assert_any_call("スキップ: E1 (保存済み)")
 
     def test_download_selected_episodes_warns_when_history_sync_fails(self):
@@ -136,8 +137,8 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "sync_episode_download_history", return_value=None),
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
-            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
-        self.assertEqual(count, 1)
+            result = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+        self.assertEqual(result, (1, 0))
         logger_mock.warning.assert_called_with("ダウンロード履歴の記録に失敗: E1")
 
     def test_interactive_cli_fallback_flow(self):
@@ -147,10 +148,10 @@ class CliHelpersTest(unittest.TestCase):
             patch.object(cli, "select_program", return_value=program) as select_program_mock,
             patch.object(cli, "get_episode_list", return_value=(episodes, "net")) as get_episode_list_mock,
             patch.object(cli, "select_episodes", return_value=episodes) as select_episodes_mock,
-            patch.object(cli, "_download_selected_episodes", return_value=1) as download_mock,
+            patch.object(cli, "_download_selected_episodes", return_value=(1, 0)) as download_mock,
             patch("builtins.print"),
         ):
-            cli._interactive_cli_fallback([program], Path("/tmp"), audio_only=True)
+            self.assertEqual(cli._interactive_cli_fallback([program], Path("/tmp"), audio_only=True), 0)
             # 各関数が正しい引数で呼ばれたことを確認
             select_program_mock.assert_called_once_with([program])
             get_episode_list_mock.assert_called_once_with(program)

@@ -98,8 +98,9 @@ class CliExtendedTest(unittest.TestCase):
             patch.object(cli, "download_episode", return_value=False),
             patch("nhk_radio.cli.logger") as logger_mock,
         ):
-            count = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
-            self.assertEqual(count, 0)
+            # 戻り値は (完了件数, 失敗件数) (L6)
+            result = cli._download_selected_episodes(program, episodes, Path("/tmp"), audio_only=True)
+            self.assertEqual(result, (0, 1))
             logger_mock.error.assert_called_with("失敗: E1")
 
     def test_interactive_cli_fallback_no_program(self):
@@ -148,9 +149,9 @@ class CliExtendedTest(unittest.TestCase):
         episodes = [Episode(id="ep1", title="E1", display_title="E1", date="20240415", display_date="20240415", broadcast_time="", duration_str="", url="U")]
         with (
             patch.object(cli, "browse_programs", return_value=(program, episodes)),
-            patch.object(cli, "_download_selected_episodes", autospec=True, return_value=1) as download_mock,
+            patch.object(cli, "_download_selected_episodes", autospec=True, return_value=(1, 0)) as download_mock,
         ):
-            cli.interactive_mode(Path("/tmp"))
+            self.assertEqual(cli.interactive_mode(Path("/tmp")), 0)
             download_mock.assert_called_once_with(program, episodes, Path("/tmp"), audio_only=True)
 
     def test_interactive_mode_sets_tk_silence_deprecation_on_darwin(self):

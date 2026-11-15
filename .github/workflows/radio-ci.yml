@@ -61,6 +61,7 @@ jobs:
           tests/test_cache.py
           tests/test_cli.py
           tests/test_cli_extended.py
+          tests/test_cli_l6.py
           tests/test_config.py
           tests/test_core.py
           tests/test_core_fetch_episodes.py

@@ -14,7 +14,7 @@
 | L3 `manifest.py` | ⚠️ 一部解消 | 下記 7 で 2 点に対応した。プロセスをまたぐロックは残る |
 | L4 セキュリティ | ✅ 解消 | 下記 4 で対応した |
 | L5 `_safe_name` | ✅ 解消 | 下記 11 で対応した |
-| L6 `cli.py` | ⚠️ 一部解消 | CI に tkinter が入り、実害は小さくなった。3 点ともコード上は残る |
+| L6 `cli.py` | ✅ 解消 | 下記 12 で対応した |
 | L7 `core.py` | ✅ 解消 | 下記 6 で対応した。「最大 9 回試行」は誤りだった |
 | L8 `config.py` | ⚠️ 未解消 | 2 点とも残る |
 | G11 表示の不整合 | ✅ 解消 | 下記 8 で対応した。当初「実行中: N は無くなった」としたのは誤り |
@@ -210,3 +210,15 @@
 - 残る点: `_safe_name` が詰めるのは番組名などの 1 要素だけ。yt-dlp が作るファイル名全体（`日付_番組名_エピソード名.拡張子`）は、エピソード名が長いと 255 バイトを超えうる。
 - 回帰テスト: `tests/test_safe_name.py`（20 件）。修正前は、新設の定数を import できず収集の段階で失敗した。CI の non-GUI カバレッジ対象にも追加した。
 - 結果: ruff と mypy は合格。pytest は 520 passed。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 12. 対応状況（2026-11-16, ブランチ `fix/l6-cli`）
+
+| 項目 | 対応内容 |
+|---|---|
+| GUI のトップレベル import | `sys.modules['tkinter'] = None` で tkinter が無い環境を再現すると、`import nhk_radio.cli` が `ImportError` になり、URL モードも使えなかった。GUI の import を `try/except ImportError` で囲み、import できなければ `browse_programs = None` とする。対話モードは GUI が使えないものとして CLI のフォールバックで動く。関数内での遅延 import にしなかったのは、`nhk_radio.cli.browse_programs` を差し替えている既存テストを保つため |
+| `-n` の負の値 | `-n` / `--max-items` は 1 以上の整数だけを受け付ける。0 以下や整数でない値は、argparse のエラー（終了コード 2）にする |
+| 対話モードの終了コード | `_download_selected_episodes` は `(完了件数, 失敗件数)` を返す。`interactive_mode` と `_interactive_cli_fallback` は、失敗が 1 件でもあれば 1、なければ 0 を返し、`run_cli` がそれを終了コードにする |
+
+- 回帰テスト: `tests/test_cli_l6.py`（12 件）。修正前は 10 件が失敗した。CI の non-GUI カバレッジ対象にも追加した。
+- 戻り値を変えたため、`_download_selected_episodes` の件数を確かめる既存テスト 6 件を `(完了件数, 失敗件数)` に合わせて書き換えた。
+- 結果: ruff と mypy は合格。pytest は 534 passed。non-GUI カバレッジは 15 ファイルとも 100%。
