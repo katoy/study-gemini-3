@@ -8,6 +8,16 @@ from datetime import datetime, timedelta, timezone
 from .constants import GENRE_LABELS, JP_WEEKDAYS
 from .types import Program
 
+# ファイル名 1 要素の上限 (多くのファイルシステムで 255 バイト)
+SAFE_NAME_MAX_BYTES = 255
+
+# Windows でファイル名に使えない予約名 (拡張子が付いていても使えない)
+WINDOWS_RESERVED_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
+
 # 日本標準時。日本には夏時間が無いため固定オフセットで足り、tzdata の無い Windows でも動く (L1)
 JST = timezone(timedelta(hours=9), "JST")
 
@@ -181,9 +191,28 @@ def _program_display_title(series_title: str, corner_name: str) -> str:
 
 
 def _safe_name(text: str, fallback: str = "unknown") -> str:
-    safe = re.sub(r'[\\/:*?"<>|]', "_", _normalize_text(text))
+    """テキストを、ファイル名やディレクトリ名の 1 要素として使える形にする。
+
+    Args:
+        text: 元のテキスト。
+        fallback: 結果が空になったときに返す名前。
+
+    Returns:
+        パス区切り・禁止文字・制御文字を `_` に置き換え、Windows の予約名を避け、
+        UTF-8 で SAFE_NAME_MAX_BYTES バイト以内に詰めた名前。
+    """
+    # 制御文字 (改行・タブ・NUL など) も置き換える (L5)
+    safe = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "_", _normalize_text(text))
     # Windows は末尾のドット/空白を持つ名前を扱えないため除去する
     safe = safe.rstrip(" .")
+    # Windows の予約名 (CON, NUL.txt など) は末尾に `_` を付けて避ける (L5)
+    stem, dot, rest = safe.partition(".")
+    if stem.upper() in WINDOWS_RESERVED_NAMES:
+        safe = f"{stem}_{dot}{rest}"
+    # UTF-8 で上限バイト数を超えたら、文字の途中で切らないように詰める (L5)
+    encoded = safe.encode("utf-8")
+    if len(encoded) > SAFE_NAME_MAX_BYTES:
+        safe = encoded[:SAFE_NAME_MAX_BYTES].decode("utf-8", errors="ignore").rstrip(" .")
     return safe or fallback
 
 
