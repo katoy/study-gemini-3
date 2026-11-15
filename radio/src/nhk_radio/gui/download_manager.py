@@ -224,9 +224,11 @@ class DownloadManager:
                             time.sleep(delay)
                 res_type = "done_one"
             else:
-                if not cancel_event.is_set():
-                    with suppress(Exception):
-                        cleanup_partial_episode_files(self.output_dir, program, episode)
+                # --force-overwrites は --no-continue を含み、残した .part から再開されることは無い。
+                # そのためキャンセル時も失敗時と同じく片付ける。run_yt_dlp_subprocess は
+                # プロセスの終了を待ってから戻るため、書き込み中のファイルを消すことは無い (G14)
+                with suppress(Exception):
+                    cleanup_partial_episode_files(self.output_dir, program, episode)
                 res_type = "cancelled_one" if cancel_event.is_set() else "failed_one"
                 if res_type == "failed_one":
                     terminal_event_data = failure_reasons[-1] if failure_reasons else None
