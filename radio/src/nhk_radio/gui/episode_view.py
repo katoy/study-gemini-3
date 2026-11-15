@@ -10,6 +10,23 @@ from .toolkit import tk, ttk
 EPISODE_TITLE_COLUMN_WIDTH = 160
 
 
+def context_menu_buttons(windowing_system: str) -> tuple[str, ...]:
+    """右クリックメニューを開くマウスボタンのイベント名を返す。
+
+    macOS (aqua) では右ボタンが Button-2 になる場合があるため両方を使う。
+    Linux (x11) と Windows (win32) では Button-2 は中ボタンなので使わない (G12)。
+
+    Args:
+        windowing_system: `tk windowingsystem` の値 (aqua / x11 / win32)。
+
+    Returns:
+        bind に渡すイベント名のタプル。
+    """
+    if windowing_system == "aqua":
+        return ("<Button-2>", "<Button-3>")
+    return ("<Button-3>",)
+
+
 class EpisodeActions(Protocol):
     def _start_fetch_selected(self, event=None): ...
     def _start_download_selected(self, event=None): ...
@@ -149,10 +166,10 @@ class EpisodeDetailView:
             ("<<TreeviewSelect>>", actions._on_episode_selection_change),
             ("<Control-c>", actions._copy_selected_cell_to_clipboard),
             ("<Command-c>", actions._copy_selected_cell_to_clipboard),
-            ("<Button-2>", actions._on_episode_tree_right_click),
-            ("<Button-3>", actions._on_episode_tree_right_click),
         ):
             self.tree.bind(sequence, callback)
+        for sequence in context_menu_buttons(str(self.tree.tk.call("tk", "windowingsystem"))):
+            self.tree.bind(sequence, actions._on_episode_tree_right_click)
 
     def clear(self) -> None:
         """一覧を空にして、番組未表示の状態に戻す。"""

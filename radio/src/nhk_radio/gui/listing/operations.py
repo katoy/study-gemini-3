@@ -65,7 +65,13 @@ class GuiOperationsMixin:
         """エピソード右クリックコンテキストメニューを表示。"""
         is_saved = self._is_saved_item(item_id)
 
-        menu = tk.Menu(self.root, tearoff=0)
+        # 右クリックのたびに Menu を作ると破棄されずに溜まるため、1 つを使い回す (G12)
+        menu = self.episode_context_menu
+        if menu is None:
+            menu = tk.Menu(self.root, tearoff=0)
+            self.episode_context_menu = menu
+        else:
+            menu.delete(0, "end")
 
         state_saved = "normal" if is_saved else "disabled"
 

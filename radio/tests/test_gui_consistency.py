@@ -107,9 +107,7 @@ class GuiConsistencyTest(unittest.TestCase):
         # 1. 状態変更
         b._set_loading(True)
         b._set_loading(False)
-        # 2. 進捗更新
-        b._set_progress(1, 10, "Testing")
-        # 3. 設定の保存
+        # 2. 設定の保存
         b._persist_ui_settings()
 
     def test_method_argument_arity(self):

@@ -45,9 +45,6 @@ class DownloadManager:
         self.active_program_dirs: dict[str, Path] = {}
         self.process_lock = threading.Lock()
 
-        self.started_count = 0
-        self.finished_count = 0
-
     def start_download(self, program: Program, episode: Episode) -> str:
         """Starts a background download for the given episode."""
         episode_key = _episode_key(episode)
@@ -60,7 +57,6 @@ class DownloadManager:
             self.cancel_events[episode_key] = cancel_event
             self.processes[episode_key] = None
             self.active_program_dirs[episode_key] = program_output_dir(self.output_dir, program)
-            self.started_count += 1
 
         thread = threading.Thread(
             target=self._download_worker,
@@ -241,4 +237,3 @@ class DownloadManager:
                 self.processes.pop(episode_key, None)
                 self.cancel_events.pop(episode_key, None)
                 self.active_program_dirs.pop(episode_key, None)
-                self.finished_count += 1

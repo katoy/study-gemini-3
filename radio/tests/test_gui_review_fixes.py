@@ -415,6 +415,8 @@ class GuiReviewFixesTest(unittest.TestCase):
     # --- F2: 右クリックメニューのラベル ---
 
     def _menu_labels(self, saved: bool) -> list[str]:
+        # メニューは使い回すため、毎回作り直させて差し替えた tk.Menu の呼び出しを数える (G12)
+        self.browser.episode_context_menu = None
         with (
             patch("nhk_radio.gui.listing.operations.tk.Menu") as menu_cls,
             patch.object(self.browser, "_is_saved_item", return_value=saved),
