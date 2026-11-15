@@ -74,6 +74,7 @@ jobs:
           tests/test_manifest_loading.py
           tests/test_manifest_process_lock.py
           tests/test_security_hardening.py
+          tests/test_symlink_containment.py
           tests/test_text.py
           tests/test_timezone.py
           tests/test_ui_io_cost.py

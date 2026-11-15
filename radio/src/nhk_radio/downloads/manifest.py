@@ -147,6 +147,26 @@ def _resolve_manifest_path(saved_path_str: str, output_dir: Path, program: Progr
     return normalized
 
 
+def is_within_output_dir(path: Path, output_dir: Path) -> bool:
+    """path が保存先の下にあるかを、親ディレクトリのシンボリックリンクを解決して判定する。
+
+    _resolve_manifest_path の字句的な検証では、保存先の中のディレクトリが外を指す
+    シンボリックリンクだと見抜けない。削除や退避などファイルを壊す操作の直前に使う。
+    ファイル自体のリンクは、削除してもリンクが消えるだけなので、親ディレクトリだけを解決する。
+
+    Args:
+        path: 確かめるファイルのパス。
+        output_dir: 保存先のルートディレクトリ。
+
+    Returns:
+        保存先の下にあれば True。
+    """
+    try:
+        return path.parent.resolve().is_relative_to(output_dir.resolve())
+    except OSError:
+        return False
+
+
 def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
     """マニフェストをアトミックに保存する。失敗時は warning を出して False を返す。
 

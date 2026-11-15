@@ -212,7 +212,7 @@ class GuiOperationsMixin:
 
     def _delete_episode_file(self, item_id: str):
         """ファイルを削除（確認ダイアログ付き）。"""
-        from ...downloads import find_episode_downloaded_path, remove_episode_from_manifest
+        from ...downloads import find_episode_downloaded_path, is_within_output_dir, remove_episode_from_manifest
 
         episode = self.displayed_episode_map.get(item_id)
         if not episode or not self.displayed_program:
@@ -223,6 +223,10 @@ class GuiOperationsMixin:
         )
         if path is None:
             self.status_var.set("ファイルが見つかりません。")
+            return
+        if not is_within_output_dir(path, self.output_dir):
+            # リンクをたどると保存先の外を指すファイルは削除しない
+            self.status_var.set(f"保存先の外を指すため削除しません: {path}")
             return
 
         if not mb.askyesno(

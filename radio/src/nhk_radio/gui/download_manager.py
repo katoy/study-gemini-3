@@ -133,9 +133,13 @@ class DownloadManager:
             target_dir.mkdir(parents=True, exist_ok=True)
 
             # 上書き時にダウンロード失敗やキャンセルで元ファイルを失わないよう、事前退避 (G4, 2-1)
-            from ..downloads import BACKUP_SUFFIX, find_episode_downloaded_path
+            from ..downloads import BACKUP_SUFFIX, find_episode_downloaded_path, is_within_output_dir
 
             existing_path = find_episode_downloaded_path(self.output_dir, program, episode, audio_only=self.audio_only)
+            if existing_path and not is_within_output_dir(existing_path, self.output_dir):
+                # リンクの先 (保存先の外) のファイルを退避で動かしたり、成功時に消したりしない
+                logger.warning(f"保存先の外を指すため、既存ファイルを退避しません: {existing_path}")
+                existing_path = None
             if existing_path and existing_path.exists():
                 try:
                     backup_path = existing_path.with_name(existing_path.name + BACKUP_SUFFIX)
