@@ -403,11 +403,11 @@ class BackendCoverageCompletionTest(unittest.TestCase):
         info = {
             "id": "ep1",
             "title": "Ep 1",
-            "timestamp": 1700000000,
+            # 日付に変換できない範囲外の timestamp は、文字列のまま date にする
+            "timestamp": 1e20,
         }
-        with patch("zoneinfo.ZoneInfo", side_effect=Exception("zoneinfo error")):
-            ep = core._parse_episode_info(info)
-            self.assertEqual(ep.date, "1700000000")
+        ep = core._parse_episode_info(info)
+        self.assertEqual(ep.date, str(int(1e20)))
 
     # --- downloads/filesystem.py ---
     def test_filesystem_audio_only_matches_false_for_video(self):

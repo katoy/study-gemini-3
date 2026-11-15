@@ -13,7 +13,6 @@ import asyncio
 import logging
 import re
 import time
-from datetime import datetime
 from typing import Any, cast
 
 import httpx
@@ -40,6 +39,7 @@ from .text import (
     _format_episode_date,
     _format_onair_date,
     _genre_label,
+    _jst_date_from_timestamp,
     _normalize_text,
     _program_display_title,
 )
@@ -362,14 +362,14 @@ def _parse_episode_info(info: dict) -> Episode:
     upload_date = info.get("upload_date") or ""
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
+    jst_date = _jst_date_from_timestamp(timestamp)
+    # date は保存ファイル名 (yt-dlp の %(upload_date)s) との照合に使うため、yt-dlp の値を優先する
     if upload_date:
         date = str(upload_date)
+    elif jst_date:
+        date = jst_date
     elif timestamp:
-        try:
-            from zoneinfo import ZoneInfo
-            date = datetime.fromtimestamp(float(timestamp), ZoneInfo("Asia/Tokyo")).strftime("%Y%m%d")
-        except Exception:
-            date = str(int(timestamp))
+        date = str(int(timestamp))
     else:
         date = ""
     if ep_id:
@@ -381,7 +381,8 @@ def _parse_episode_info(info: dict) -> Episode:
         title=title,
         display_title=_normalize_text(title),
         date=date,
-        display_date=_format_episode_date(upload_date or date),
+        # yt-dlp の upload_date は UTC の日付で、JST の早朝の放送は前日になるため、表示は JST で作る (L1)
+        display_date=_format_episode_date(jst_date or upload_date or date),
         broadcast_time=_format_broadcast_time(timestamp),
         duration_str=_format_duration(duration),
         url=ep_url,

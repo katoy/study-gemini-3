@@ -3,10 +3,13 @@
 import re
 import unicodedata
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from .constants import GENRE_LABELS, JP_WEEKDAYS
 from .types import Program
+
+# 日本標準時。日本には夏時間が無いため固定オフセットで足り、tzdata の無い Windows でも動く (L1)
+JST = timezone(timedelta(hours=9), "JST")
 
 
 def _normalize_text(text: str) -> str:
@@ -21,6 +24,9 @@ def _format_onair_date(onair_date: str, started_at: str | None = None) -> str:
     if started_at:
         try:
             day = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            # UTC などで来ても JST の日付で表示する (L1)
+            if day.tzinfo is not None:
+                day = day.astimezone(JST)
             return _fixed_display_date(day)
         except (ValueError, TypeError):
             pass
@@ -74,12 +80,30 @@ def _parse_date_str(date_text: str) -> datetime | None:
 
 
 def _format_broadcast_time(timestamp) -> str:
-    """Unix timestamp を HH:MM 形式 (ローカル時刻) に変換する"""
+    """Unix timestamp を HH:MM 形式 (JST) に変換する"""
     if timestamp is None:
         return ""
     try:
-        dt = datetime.fromtimestamp(float(timestamp))
+        # 実行環境のタイムゾーンに依らず、放送地の JST で表示する (L1)
+        dt = datetime.fromtimestamp(float(timestamp), JST)
         return dt.strftime("%H:%M")
+    except (ValueError, OSError, OverflowError):
+        return ""
+
+
+def _jst_date_from_timestamp(timestamp) -> str:
+    """Unix timestamp を JST の YYYYMMDD 形式に変換する。
+
+    Args:
+        timestamp: Unix timestamp (秒)。None や変換できない値も受け付ける。
+
+    Returns:
+        JST の日付 (YYYYMMDD)。変換できなければ空文字。
+    """
+    if timestamp is None:
+        return ""
+    try:
+        return datetime.fromtimestamp(float(timestamp), JST).strftime("%Y%m%d")
     except (ValueError, OSError, OverflowError):
         return ""
 
