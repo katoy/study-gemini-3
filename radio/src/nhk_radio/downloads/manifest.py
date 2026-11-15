@@ -5,6 +5,8 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from .. import _io
@@ -33,6 +35,26 @@ def _download_manifest_lock(program: Program, output_dir: Path) -> threading.RLo
     # 全番組共有の単一ロック。個別番組ごとのロックではなく、
     # マニフェスト全体へのアクセスを保護するため統一ロックを使用。
     return _MANIFEST_LOCK
+
+
+@contextmanager
+def _manifest_write_lock(program: Program, output_dir: Path) -> Iterator[None]:
+    """マニフェストの読み込みから保存までを、スレッド間とプロセス間 (GUI と CLI など) で排他する (L3)。
+
+    ロックを取った直後に読み込みキャッシュを捨てる。キャッシュは mtime で新しさを判定するため、
+    別プロセスの書き込みが同じ mtime の刻みで起きると、古い内容を読んで上書きしてしまう。
+
+    Args:
+        program: 対象の番組。
+        output_dir: 保存先のルートディレクトリ。
+
+    Yields:
+        None。ブロックを抜けるとロックを外す。
+    """
+    manifest_path = _download_manifest_path(program, output_dir)
+    with _download_manifest_lock(program, output_dir), _io.file_lock(manifest_path.with_name(".downloaded.json.lock")):
+        _clear_manifest_cache(manifest_path)
+        yield
 
 
 def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str]:
@@ -159,7 +181,7 @@ def mark_episode_downloaded(
     """ダウンロード済みエピソードをマニフェストに記録する。保存成功なら True。"""
     from . import filesystem
 
-    with _download_manifest_lock(program, output_dir):
+    with _manifest_write_lock(program, output_dir):
         saved_paths = _load_download_manifest(program, output_dir)
         episode_key = filesystem._episode_key(episode)
         program_dir = filesystem.program_output_dir(output_dir, program)
@@ -244,7 +266,7 @@ def remove_episode_from_manifest(output_dir: Path, program: Program, episode: Ep
     """マニフェストから指定エピソードを削除する。"""
     from . import filesystem
 
-    with _download_manifest_lock(program, output_dir):
+    with _manifest_write_lock(program, output_dir):
         saved_paths = _load_download_manifest(program, output_dir)
         episode_key = filesystem._episode_key(episode)
         if episode_key not in saved_paths:
