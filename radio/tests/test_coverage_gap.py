@@ -136,10 +136,10 @@ class CoverageGapExtraTest(unittest.TestCase):
             patch.object(cli, "program_output_dir", return_value=Path("/tmp")),
             patch.object(cli, "program_filename_template", return_value="%(id)s.%(ext)s"),
         ):
-            count = cli._download_selected_episodes(
+            result = cli._download_selected_episodes(
                 program, [episode], Path("/tmp"), audio_only=True
             )
-            self.assertEqual(count, 1)
+            self.assertEqual(result, (1, 0))
             sync_mock.assert_called_once()
 
     def test_http_get_json_async_executes_body(self):

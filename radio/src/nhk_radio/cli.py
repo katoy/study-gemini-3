@@ -26,7 +26,12 @@ from .downloads import (
     run_yt_dlp_subprocess,
     sync_episode_download_history,
 )
-from .gui import browse_programs
+
+try:
+    from .gui import browse_programs
+except ImportError:
+    # tkinter が無い環境でも URL モードと CLI の対話モードは使えるようにする (L6)
+    browse_programs = None  # type: ignore[assignment]
 from .types import Episode, Program
 
 logger = logging.getLogger(__name__)
@@ -193,10 +198,24 @@ def download_url_direct(
         sys.exit(1)
 
 
-def _download_selected_episodes(program: Program, episodes: list[Episode], output_dir: Path, *, audio_only: bool) -> int:
+def _download_selected_episodes(
+    program: Program, episodes: list[Episode], output_dir: Path, *, audio_only: bool
+) -> tuple[int, int]:
+    """選んだエピソードを順にダウンロードする。
+
+    Args:
+        program: 対象の番組。
+        episodes: ダウンロードするエピソード。
+        output_dir: 保存先のルートディレクトリ。
+        audio_only: 音声だけを保存するか。
+
+    Returns:
+        (完了件数, 失敗件数)。保存済みでスキップした回はどちらにも数えない。
+    """
     target_dir = program_output_dir(output_dir, program)
     filename_template = program_filename_template(program)
     downloaded_count = 0
+    failed_count = 0
     for episode in episodes:
         title = episode.display_title or episode.title
         if is_episode_downloaded(output_dir, program, episode, audio_only=audio_only):
@@ -210,19 +229,21 @@ def _download_selected_episodes(program: Program, episodes: list[Episode], outpu
             raise
         if not success:
             logger.error(f"失敗: {title}")
+            failed_count += 1
             continue
         downloaded_path = sync_episode_download_history(output_dir, program, episode, audio_only=audio_only)
         if downloaded_path is None:
             logger.warning(f"ダウンロード履歴の記録に失敗: {title}")
         downloaded_count += 1
-    return downloaded_count
+    return downloaded_count, failed_count
 
 
-def _interactive_cli_fallback(programs: list[Program], output_dir: Path, *, audio_only: bool) -> None:
+def _interactive_cli_fallback(programs: list[Program], output_dir: Path, *, audio_only: bool) -> int:
+    """GUI を使わない対話モード。終了コード (失敗があれば 1) を返す。"""
     program = select_program(programs)
     if program is None:
         print("終了します。")
-        return
+        return 0
 
     try:
         episodes, _source = get_episode_list(program)
@@ -233,18 +254,23 @@ def _interactive_cli_fallback(programs: list[Program], output_dir: Path, *, audi
     selected = select_episodes(episodes)
     if not selected:
         print("終了します。")
-        return
+        return 0
 
-    completed = _download_selected_episodes(program, selected, output_dir, audio_only=audio_only)
-    print(f"完了: {completed} 件")
+    completed, failed = _download_selected_episodes(program, selected, output_dir, audio_only=audio_only)
+    print(f"完了: {completed} 件" + (f" / 失敗: {failed} 件" if failed else ""))
+    # 失敗があれば終了コードで呼び出し元に知らせる (L6)
+    return 1 if failed else 0
 
 
-def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: bool = True):
+def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: bool = True) -> int:
+    """GUI (使えなければ CLI) の対話モード。終了コード (失敗があれば 1) を返す。"""
     # macOS における GUI 起動時の Mach port エラー出力を抑制するための試み
     if sys.platform == "darwin" and "TK_SILENCE_DEPRECATION" not in os.environ:
         os.environ["TK_SILENCE_DEPRECATION"] = "1"
 
     try:
+        if browse_programs is None:
+            raise RuntimeError("tkinter が利用できません")
         # programs=None を渡して、GUI 内部で非同期取得を開始させる
         program, episodes = browse_programs(None, output_dir, audio_only=audio_only, genre=genre)
     except RuntimeError as e:
@@ -254,13 +280,15 @@ def interactive_mode(output_dir: Path, genre: str | None = None, *, audio_only: 
         if not programs:
             logger.error("番組が見つかりませんでした。")
             sys.exit(1)
-        _interactive_cli_fallback(programs, output_dir, audio_only=audio_only)
-        return
+        return _interactive_cli_fallback(programs, output_dir, audio_only=audio_only)
 
+    failed = 0
     if program and episodes:
-        completed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
-        logger.info(f"完了: {completed} 件")
+        completed, failed = _download_selected_episodes(program, episodes, output_dir, audio_only=audio_only)
+        logger.info(f"完了: {completed} 件" + (f" / 失敗: {failed} 件" if failed else ""))
     logger.info("終了します。")
+    # 失敗があれば終了コードで呼び出し元に知らせる (L6)
+    return 1 if failed else 0
 
 
 def run_cli(args):
@@ -282,9 +310,29 @@ def run_cli(args):
 
     if args.url:
         download_url_direct(args.url, output_dir, args.max_items, audio_only=not args.keep_video, genre=args.genre)
-    else:
-        interactive_mode(output_dir, genre=args.genre, audio_only=not args.keep_video)
-    return 0
+        return 0
+    return interactive_mode(output_dir, genre=args.genre, audio_only=not args.keep_video)
+
+
+def _positive_int(value: str) -> int:
+    """argparse 用: 1 以上の整数だけを受け付ける (L6)。
+
+    Args:
+        value: コマンドラインで渡された文字列。
+
+    Returns:
+        1 以上の整数。
+
+    Raises:
+        argparse.ArgumentTypeError: 整数でない、または 1 未満のとき。
+    """
+    try:
+        number = int(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"1 以上の整数を指定してください: {value}") from e
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"1 以上の整数を指定してください: {value}")
+    return number
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -316,7 +364,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir", "-o", default="./downloads", help="保存先ディレクトリ (デフォルト: ./downloads)"
     )
-    parser.add_argument("--max-items", "-n", type=int, default=None, help="最大ダウンロード件数")
+    parser.add_argument("--max-items", "-n", type=_positive_int, default=None, help="最大ダウンロード件数 (1 以上)")
     parser.add_argument("--keep-video", action="store_true", help="音声変換せず元ファイルを保持する")
     parser.add_argument(
         "--clear-cache", action="store_true", help="番組一覧・エピソード一覧のキャッシュを削除して終了する"
