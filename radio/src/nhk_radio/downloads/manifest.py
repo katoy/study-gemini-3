@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -107,17 +108,21 @@ def _resolve_manifest_path(saved_path_str: str, output_dir: Path, program: Progr
         program: 対象の番組。
 
     Returns:
-        保存先の下にある解決済みのパス。保存先の外なら None。
+        保存先の下にある正規化したパス。保存先の外なら None。
     """
     from . import filesystem
 
     resolved = Path(saved_path_str)
     if not resolved.is_absolute():
         resolved = filesystem.program_output_dir(output_dir, program) / resolved
-    if not resolved.resolve().is_relative_to(output_dir.resolve()):
+    # resolve() はパスの階層ごとに lstat を呼び、NAS では UI が固まるほど遅くなる (G13)。
+    # 改ざん対策には絶対パスと `..` を弾けば足りるため、ファイルシステムに触れずに字句的に判定する
+    normalized = Path(os.path.normpath(os.path.abspath(resolved)))
+    root = Path(os.path.normpath(os.path.abspath(output_dir)))
+    if not normalized.is_relative_to(root):
         logger.warning(f"保存先の外を指すマニフェストの記録を無視しました: {saved_path_str}")
         return None
-    return resolved
+    return normalized
 
 
 def _save_download_manifest(program: Program, output_dir: Path, paths: dict[str, str]) -> bool:
