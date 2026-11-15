@@ -20,7 +20,7 @@
 | G11 表示の不整合 | ✅ 解消 | 下記 8 で対応した。当初「実行中: N は無くなった」としたのは誤り |
 | G12 小さな UI 不具合 | ✅ 解消 | 下記 8 で対応した |
 | G13 UI スレッドでのファイル I/O | ⚠️ 未解消 | 右クリックなどの操作で、UI スレッドから保存先を参照する |
-| G14 キャンセル時の `.part` | ⚠️ 未解消 | 動作は「残す」で一貫しているが、意図を書いたコメントが無い |
+| G14 キャンセル時の `.part` | ✅ 解消 | 下記 10 で対応した。残す意味が無かったため、コメントではなく動作を直した |
 | G16 状態の持ち主があいまい | ✅ 解消 | 下記 5 で対応した |
 | G17 使われていない値 | ✅ 解消 | `self.result` は使われている。`started_count` / `finished_count` は下記 8 で削除した |
 
@@ -190,3 +190,10 @@
 - 回帰テスト: `tests/test_timezone.py`（13 件）。実行環境を UTC にしたテストを含む。修正前は 6 件が失敗した。CI の non-GUI カバレッジ対象にも追加した。
 - 変更に合わせて既存テスト 2 件を書き換えた: `ZoneInfo` の失敗を想定していたテスト（範囲外の `timestamp` で同じ分岐を確かめる形にした）と、期待値をローカルタイムゾーンで計算していたテスト（UTC の CI では落ちるため、JST の固定値にした）。
 - 結果: ruff と mypy は合格。pytest は 500 passed（ローカルのタイムゾーンでも `TZ=UTC` でも）。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 10. 対応状況（2026-11-16, ブランチ `fix/g14-cancel-cleanup`）
+
+- **調べたこと**: GUI のダウンロードは常に `--force-overwrites` 付きで yt-dlp を動かす。yt-dlp では `--force-overwrites` が `--no-continue` を含む（`yt_dlp/__init__.py` の `if opts.overwrites:  # --force-overwrites implies --no-continue`）。そのため、キャンセルで残した `.part` から再開されることは無く、再試行しない限り保存先に残り続けるだけだった。CLI は Ctrl+C で中断したときに片付けており（`cli.py`）、GUI だけが残していた。
+- **対応**: `DownloadManager._download_worker` で、キャンセル時も失敗時と同じく `cleanup_partial_episode_files` を呼ぶ。`run_yt_dlp_subprocess` はキャンセル時にプロセスグループを止め、`process.wait` で終了を待ってから戻るため、書き込み中のファイルを消すことは無い。
+- 回帰テスト: `tests/test_cancel_cleanup.py`（2 件）。修正前はキャンセルの 1 件が失敗した。
+- 結果: ruff と mypy は合格。pytest は 502 passed。
