@@ -146,11 +146,6 @@ class GuiDownloadsTest(unittest.TestCase):
             self.gui._poll_download_result()
             self.assertEqual(row["state"], "done")
 
-    def test_update_download_summary(self):
-        self.gui.active_download_rows = {"k1": {"state": "running"}}
-        self.gui._update_download_summary()
-        self.gui.progress_text_var.set.assert_called_with("実行中: 1 / 全体: 1")
-
     def test_reflow_download_rows(self):
         row_frame = MagicMock()
         self.gui.active_download_rows = {"k1": {"frame": row_frame, "state": "done"}}

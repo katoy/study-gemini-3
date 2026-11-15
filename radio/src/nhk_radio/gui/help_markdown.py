@@ -6,12 +6,16 @@ from importlib import resources
 from ..constants import GENRE_LABELS, NHK_GENRES
 from ..text import _normalize_text
 from ..types import Program
+from .shortcuts import render_help_list
 
 
 def build_help_markdown(programs: list[Program]) -> str:
     template = resources.files("nhk_radio").joinpath("help.md").read_text(encoding="utf-8")
-    return template.replace("{{GENRE_LIST}}", _render_genre_list_markdown()).replace(
-        "{{CORNER_LIST}}", _render_corner_list_markdown(programs)
+    return (
+        template.replace("{{GENRE_LIST}}", _render_genre_list_markdown())
+        .replace("{{CORNER_LIST}}", _render_corner_list_markdown(programs))
+        # ショートカットの一覧はステータスバーのヒントと同じ定義から作る (GUI レビュー L6)
+        .replace("{{SHORTCUT_LIST}}", render_help_list())
     )
 
 

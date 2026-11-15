@@ -330,9 +330,6 @@ class GuiDownloadsMixin:
     def _reset_download_row(self, episode_key: str):
         self.activity_view.reset(episode_key)
 
-    def _update_download_summary(self):
-        self.activity_view._update_summary()
-
     def _reflow_download_rows(self, *, auto_scroll: bool = False):
         self.activity_view._reflow(auto_scroll=auto_scroll)
 
