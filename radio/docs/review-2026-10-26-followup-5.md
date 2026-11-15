@@ -277,3 +277,13 @@
 - 一覧の絞り込みなど頻繁に呼ばれる判定は、上記 14 の字句的な比較のままにしている（`resolve()` の負荷を避けるため）。
 - 回帰テスト: `tests/test_symlink_containment.py`（5 件）。修正前は 3 件が失敗した（うち 1 件は保存先の外のファイルが消える再現）。CI の non-GUI カバレッジ対象にも追加した。
 - 結果: ruff と mypy は合格。pytest は 551 passed。non-GUI カバレッジは 15 ファイルとも 100%。
+
+## 17. 追加対応: 小さな残件（2026-11-16, ブランチ `chore/gui-shortcuts-single-source`）
+
+| 項目 | 対応内容 |
+|---|---|
+| ショートカットの二重管理（GUI レビュー L6 の注記） | `gui/shortcuts.py` にショートカットの一覧を 1 か所で定義し、ステータスバーのヒント（`render_status_hint`）とヘルプ本文（`help.md` の `{{SHORTCUT_LIST}}`）の両方をそこから作る。ヒントの文言は従来と同じ。ヘルプ本文の並び順はヒントに合わせた（`F`・`D` が `F1 / ?` の前） |
+| 使われていない `_update_download_summary`（上記 8 で気付いた点） | 削除した。この関数だけを呼んでいたテスト 1 件も削除した |
+
+- 回帰テスト: `tests/test_shortcuts.py`（4 件）。
+- 結果: ruff と mypy は合格。pytest は 554 passed。

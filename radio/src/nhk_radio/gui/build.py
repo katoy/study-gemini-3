@@ -10,6 +10,7 @@ from .episode_view import EpisodeActions, EpisodeDetailView
 from .logo import create_brand_logo
 from .program_view import ProgramListActions, ProgramListView
 from .settings_view import SettingsActions, SettingsView
+from .shortcuts import render_status_hint
 from .toolkit import tk, ttk
 
 logger = logging.getLogger(__name__)
@@ -239,7 +240,8 @@ class AppShell:
         )
         ttk.Label(
             status_area,
-            text="Ctrl/Cmd+F: 番組検索  Ctrl/Cmd+L: エピソード検索  F: 一覧取得  D: DL  F1 / ?: ヘルプ",
+            # ヘルプ本文のショートカット一覧と同じ定義から作る (GUI レビュー L6)
+            text=render_status_hint(),
             style="StatusHint.TLabel",
             anchor="e",
         ).grid(row=0, column=2, sticky="e", padx=(12, 0))
