@@ -127,7 +127,8 @@ def test_program_filename_template_escapes_percent() -> None:
     template = downloads.program_filename_template(_program(title="100%(新)"))
 
     title_bytes = downloads.filesystem._episode_title_max_bytes("100%(新)")
-    assert template == f"%(upload_date)s_100%%(新)_%(title).{title_bytes}B.%(ext)s"
+    date_field = downloads.filesystem.FILENAME_DATE_FIELD
+    assert template == f"{date_field}_100%%(新)_%(title).{title_bytes}B.%(ext)s"
     assert _render(template) == "20240415_100%(新)_T.mp3"
 
 
