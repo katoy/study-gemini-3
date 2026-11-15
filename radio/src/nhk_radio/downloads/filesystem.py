@@ -4,6 +4,7 @@ import fnmatch
 import glob
 import logging
 import os
+import re
 from collections import OrderedDict
 from pathlib import Path
 
@@ -90,6 +91,15 @@ FILENAME_SUFFIX_RESERVE_BYTES = 32
 FILENAME_INDEX_RESERVE_BYTES = 8
 # upload_date (YYYYMMDD) のバイト数
 UPLOAD_DATE_BYTES = 8
+# JST と UTC の差 (秒)
+JST_OFFSET_SECONDS = 9 * 60 * 60
+# ファイル名の日付。yt-dlp の upload_date は UTC の日付で、JST 0〜9 時の放送は前日になるため、
+# 放送時刻があれば JST の日付にする。無ければ従来どおり upload_date を使う (L1)
+FILENAME_DATE_FIELD = (
+    f"%(release_timestamp+{JST_OFFSET_SECONDS}>%Y%m%d,"
+    f"timestamp+{JST_OFFSET_SECONDS}>%Y%m%d,"
+    "upload_date)s"
+)
 # 番組名が極端に長くても、エピソード名に残す最小のバイト数
 EPISODE_TITLE_MIN_BYTES = 30
 
@@ -121,8 +131,33 @@ def program_filename_template(program: Program, max_items: bool = False) -> str:
     # 普通の長さの名前は変わらない
     episode_title = f"%(title).{_episode_title_max_bytes(safe_title)}B"
     if max_items:
-        return f"%(playlist_index)s_%(upload_date)s_{title}_{episode_title}.%(ext)s"
-    return f"%(upload_date)s_{title}_{episode_title}.%(ext)s"
+        return f"%(playlist_index)s_{FILENAME_DATE_FIELD}_{title}_{episode_title}.%(ext)s"
+    return f"{FILENAME_DATE_FIELD}_{title}_{episode_title}.%(ext)s"
+
+
+def _episode_dates(episode: Episode) -> list[str]:
+    """保存済みの照合に使う日付 (YYYYMMDD) を返す。
+
+    yt-dlp の upload_date (episode.date) は UTC の日付で、JST 0〜9 時の放送は前日になる。
+    新しいファイル名は JST の日付 (表示日付と同じ) で保存するため、同じ放送の 2 つの日付を両方受け付ける。
+    隣の日の回と取り違えないよう、前後の日を広く受け付けることはしない (L1)。
+
+    Args:
+        episode: 対象のエピソード。
+
+    Returns:
+        [UTC の日付, JST の日付]。同じなら 1 つ。分からなければ空。
+    """
+    dates: list[str] = []
+    utc_date = (episode.date or "").strip()
+    if utc_date:
+        dates.append(utc_date)
+    match = re.match(r"(\d{4})-(\d{2})-(\d{2})", episode.display_date or "")
+    if match:
+        jst_date = "".join(match.groups())
+        if jst_date not in dates:
+            dates.append(jst_date)
+    return dates
 
 
 def _episode_key(episode: Episode) -> str:
@@ -144,14 +179,16 @@ def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
     except Exception:
         pass
 
+    episode_dates = _episode_dates(episode)
     patterns: list[str] = []
     for program_title in program_titles:
         esc_prog = glob.escape(program_title)
         for t_var in title_variants:
             esc_ep = glob.escape(t_var)
-            if episode_date:
-                patterns.append(f"{episode_date}_{esc_prog}_{esc_ep}.*")
-                patterns.append(f"*_{episode_date}_{esc_prog}_{esc_ep}.*")
+            if episode_dates:
+                for date in episode_dates:
+                    patterns.append(f"{date}_{esc_prog}_{esc_ep}.*")
+                    patterns.append(f"*_{date}_{esc_prog}_{esc_ep}.*")
             else:
                 patterns.append(f"{esc_prog}_{esc_ep}.*")
                 patterns.append(f"*_{esc_prog}_{esc_ep}.*")
@@ -177,8 +214,9 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode, *, a
 
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
 
-    # 1) 日付による絞り込み (最も強力な指標)
-    if episode_date and episode_date not in name:
+    # 1) 日付による絞り込み (最も強力な指標)。UTC と JST の日付のどちらかを含めばよい (L1)
+    episode_dates = _episode_dates(episode)
+    if episode_dates and not any(date in name for date in episode_dates):
         return False
 
     # 2) 番組タイトルが含まれているか (少なくとも1つ)
