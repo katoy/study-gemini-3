@@ -2,6 +2,7 @@
 
 import fnmatch
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -90,14 +91,14 @@ def cleanup_residual_backup_files(
     Returns:
         処理したバックアップファイルの数
     """
-    if not output_dir.exists():
+    if not os.path.exists(output_dir):
         return 0
 
     active_dirs = active_program_dirs or set()
     cleaned = 0
 
     try:
-        candidate_dirs = [output_dir] + [p for p in output_dir.iterdir() if p.is_dir()]
+        candidate_dirs = [output_dir] + [p for p in output_dir.iterdir() if os.path.isdir(p)]
     except OSError as e:
         logger.debug(f"ディレクトリ走査に失敗: {output_dir} ({e})")
         return 0
@@ -107,7 +108,7 @@ def cleanup_residual_backup_files(
         if prog_dir in active_dirs:
             continue
         try:
-            files = [p for p in prog_dir.iterdir() if p.is_file()]
+            files = [p for p in prog_dir.iterdir() if os.path.isfile(p)]
         except OSError:
             continue
 
@@ -126,7 +127,7 @@ def cleanup_residual_backup_files(
 
             orig = path.with_name(orig_name)
             try:
-                if not orig.exists():
+                if not os.path.exists(orig):
                     path.replace(orig)
                 else:
                     path.unlink()
@@ -146,20 +147,21 @@ def open_downloaded_folder(folder_path: Path) -> bool:
     Returns:
         成功時 True、失敗時 False
     """
-    if not folder_path.exists():
-        logger.warning(f"フォルダが存在しません: {folder_path}")
+    if not folder_path.is_dir():
+        logger.warning(f"フォルダが存在しないかディレクトリではありません: {folder_path}")
         return False
 
+    target = os.path.abspath(folder_path)
     try:
         if sys.platform == "darwin":
             # macOS
-            subprocess.run(["open", str(folder_path)], check=True)
+            subprocess.run(["open", target], check=True)
         elif sys.platform == "win32":
             # Windows
-            subprocess.run(["explorer", str(folder_path)], check=True)
+            subprocess.run(["explorer", target], check=True)
         else:
             # Linux その他
-            subprocess.run(["xdg-open", str(folder_path)], check=True)
+            subprocess.run(["xdg-open", target], check=True)
         return True
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
         logger.error(f"フォルダを開く際にエラー: {e}")

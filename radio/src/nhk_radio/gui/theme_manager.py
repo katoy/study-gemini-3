@@ -1,5 +1,7 @@
 """UI Theme and Style management decoupled from main logic."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

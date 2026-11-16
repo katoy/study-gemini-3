@@ -1,5 +1,7 @@
 """Episode detail widgets and local interactions."""
 
+from __future__ import annotations
+
 from typing import Protocol
 
 from ..downloads import _episode_key

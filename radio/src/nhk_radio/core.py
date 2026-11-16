@@ -14,6 +14,7 @@ import logging
 import re
 import time
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import httpx
 import yt_dlp  # type: ignore[import-untyped]
@@ -175,6 +176,9 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
 
 
 def url_to_program(url: str) -> Program | None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or parsed.hostname != "www.nhk.or.jp":
+        return None
     match = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
     if not match:
         return None

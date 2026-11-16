@@ -267,7 +267,7 @@ radio/
 GUI フォルダを除く全モジュールで 100% のステートメント・ブランチカバレッジを達成しました。
 
 <!-- COVERAGE-BEGIN -->
-最終計測: 2026-11-16
+最終計測: 2026-11-17
 
 | モジュール | ステートメント数 | カバレッジ |
 |:----------|----------------:|----------:|
@@ -278,24 +278,24 @@ GUI フォルダを除く全モジュールで 100% のステートメント・�
 | `cli.py` | 219 | 100% |
 | `config.py` | 137 | 100% |
 | `constants.py` | 17 | 100% |
-| `core.py` | 252 | 100% |
+| `core.py` | 256 | 100% |
 | `downloads/__init__.py` | 5 | 100% |
-| `downloads/cleanup.py` | 81 | 100% |
-| `downloads/filesystem.py` | 169 | 100% |
+| `downloads/cleanup.py` | 83 | 100% |
+| `downloads/filesystem.py` | 165 | 100% |
 | `downloads/manifest.py` | 128 | 100% |
-| `downloads/runner.py` | 125 | 100% |
+| `downloads/runner.py` | 124 | 100% |
 | `gui/__init__.py` | 2 | 100% |
-| `gui/activity_view.py` | 131 | 92% |
-| `gui/build.py` | 141 | 95% |
-| `gui/episode_view.py` | 145 | 95% |
+| `gui/activity_view.py` | 132 | 92% |
+| `gui/build.py` | 164 | 95% |
+| `gui/episode_view.py` | 146 | 95% |
 | `gui/help_markdown.py` | 133 | 100% |
 | `gui/listing/__init__.py` | 5 | 100% |
-| `gui/program_view.py` | 96 | 95% |
-| `gui/settings_view.py` | 98 | 100% |
+| `gui/program_view.py` | 97 | 95% |
+| `gui/settings_view.py` | 99 | 100% |
 | `gui/shortcuts.py` | 14 | 100% |
 | `text.py` | 157 | 100% |
 | `types.py` | 29 | 100% |
-| **合計** | **2238** | **99%** |
+| **合計** | **2266** | **99%** |
 <!-- COVERAGE-END -->
 ## ライセンス
 

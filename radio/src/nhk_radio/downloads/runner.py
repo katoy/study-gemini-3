@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from ..constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
-from . import filesystem
 
 logger = logging.getLogger(__name__)
 

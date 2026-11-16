@@ -1,5 +1,7 @@
 """Download activity panel and its local presentation state."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from typing import Any
 

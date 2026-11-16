@@ -69,7 +69,7 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
 
     # プライマリマニフェストの mtime を取得
     try:
-        primary_mtime = primary_manifest_path.stat().st_mtime if primary_manifest_path.exists() else -1.0
+        primary_mtime = primary_manifest_path.stat().st_mtime if os.path.exists(primary_manifest_path) else -1.0
     except OSError:
         primary_mtime = -1.0
 
@@ -91,7 +91,7 @@ def _load_download_manifest(program: Program, output_dir: Path) -> dict[str, str
             manifest_paths.append(manifest_path)
 
     for manifest_path in manifest_paths:
-        if not manifest_path.exists():  # pragma: no cover
+        if not os.path.exists(manifest_path):  # pragma: no cover
             continue
         try:
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -234,8 +234,8 @@ def get_downloaded_episode_keys(
         episode_key = filesystem._episode_key(episode)
         saved_path_str = saved_paths.get(episode_key)
         resolved = _resolve_manifest_path(saved_path_str, output_dir, program) if saved_path_str else None
-        if resolved is not None:
-            if resolved.exists():  # pragma: no cover
+        if resolved is not None:  # noqa: SIM102
+            if resolved.exists():  # pragma: no cover  # noqa: SIM102
                 if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
                     downloaded_keys.add(episode_key)
 
@@ -264,8 +264,8 @@ def find_episode_downloaded_path(
     # 1) マニフェストに記録されたパスを最優先で確認
     saved_path_str = saved_paths.get(episode_key)
     resolved = _resolve_manifest_path(saved_path_str, output_dir, program) if saved_path_str else None
-    if resolved is not None:
-        if resolved.exists():  # pragma: no cover
+    if resolved is not None:  # noqa: SIM102
+        if resolved.exists():  # pragma: no cover  # noqa: SIM102
             if not audio_only or resolved.suffix.lower() in {".mp3", ".m4a", ".aac", ".wav"}:
                 return resolved
 

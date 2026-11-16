@@ -1,5 +1,7 @@
 """Brand logo widget for the NHK radio downloader."""
 
+from __future__ import annotations
+
 from .toolkit import tk
 
 

@@ -123,7 +123,8 @@ class GuiOperationsMixin:
         import subprocess
         import sys
 
-        from ...downloads import find_episode_downloaded_path
+        from ...downloads import find_episode_downloaded_path, is_within_output_dir
+        from ...downloads.cleanup import MEDIA_EXTENSIONS
 
         episode = self.displayed_episode_map.get(item_id)
         if not episode or not self.displayed_program:
@@ -137,12 +138,27 @@ class GuiOperationsMixin:
             return
 
         try:
+            within_output = is_within_output_dir(path, self.output_dir) and path.resolve().is_relative_to(
+                self.output_dir.resolve()
+            )
+        except OSError:
+            within_output = False
+        if not within_output:
+            self.status_var.set(f"保存先の外を指すため再生しません: {path}")
+            return
+
+        if path.suffix.lower() not in MEDIA_EXTENSIONS:
+            self.status_var.set(f"再生できないファイル形式です: {path.name}")
+            return
+
+        target = os.path.abspath(path)
+        try:
             if sys.platform == "darwin":
-                subprocess.Popen(["open", str(path)])
+                subprocess.Popen(["open", target])
             elif sys.platform == "win32":
-                os.startfile(str(path))
+                os.startfile(target)
             else:
-                subprocess.Popen(["xdg-open", str(path)])
+                subprocess.Popen(["xdg-open", target])
             self.status_var.set(f"再生中: {path.name}")
         except Exception as e:
             self.status_var.set(f"再生に失敗しました: {e}")

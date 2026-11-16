@@ -5,6 +5,7 @@ import tkinter as tk
 import webbrowser  # noqa: F401
 from contextlib import suppress
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from ...config import SEARCH_HISTORY_LIMIT
 from ...constants import GENRE_LABELS, NHK_GENRES
@@ -285,6 +286,10 @@ class GuiProgramsMixin:
         url = program.url or NHK_DETAIL_TMPL.format(
             site_id=program.site_id, corner_id=program.corner_id
         )
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname != "www.nhk.or.jp":
+            self.status_var.set("無効な番組 URL です。")
+            return
 
         try:
             webbrowser.open(url)

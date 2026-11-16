@@ -179,7 +179,7 @@ def download_url_direct(
     tmpl = output_template(target_dir, program_filename_template(program, max_items=bool(max_items)))
 
     cmd = _yt_dlp_command(
-        url,
+        program.url,
         tmpl,
         audio_only=audio_only,
         no_playlist=not bool(max_items),

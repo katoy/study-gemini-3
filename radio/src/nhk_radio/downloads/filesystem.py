@@ -1,10 +1,10 @@
 """ダウンロード関連のパス計算とファイルスキャン。"""
 
-import fnmatch
 import glob
 import logging
 import os
 import re
+import threading
 from collections import OrderedDict
 from pathlib import Path
 
@@ -22,7 +22,6 @@ try:
 except ValueError:
     _FILE_SCAN_CACHE_MAX_SIZE = 100
 
-import threading
 _FILE_SCAN_CACHE: OrderedDict[Path, tuple[float, list[Path]]] = OrderedDict()
 _FILE_SCAN_CACHE_LOCK = threading.Lock()
 
@@ -238,11 +237,7 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode, *, a
         pass
 
     stem = path.stem
-    for tv in title_variants:
-        if tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name):
-            return True
-
-    return False
+    return any(tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name) for tv in title_variants)
 
 
 def _get_cached_glob_files(directory: Path) -> list[Path]:

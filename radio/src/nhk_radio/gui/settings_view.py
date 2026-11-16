@@ -1,5 +1,7 @@
 """Display settings screen widgets."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -101,7 +103,7 @@ class SettingsView:
             justify="left",
         ).grid(row=1, column=0, sticky="w", pady=(8, 18))
 
-    def _build_theme_group(self, settings_body: "ttk.Frame") -> None:
+    def _build_theme_group(self, settings_body: ttk.Frame) -> None:
         theme_group = ttk.LabelFrame(settings_body, text="テーマ", padding=16)
         theme_group.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         theme_group.columnconfigure(0, weight=1)
@@ -125,7 +127,7 @@ class SettingsView:
             style="Settings.TRadiobutton",
         ).grid(row=2, column=0, sticky="w")
 
-    def _build_font_group(self, settings_body: "ttk.Frame") -> None:
+    def _build_font_group(self, settings_body: ttk.Frame) -> None:
         font_group = ttk.LabelFrame(settings_body, text="文字サイズ", padding=16)
         font_group.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
         font_group.columnconfigure(0, weight=1)
@@ -144,7 +146,7 @@ class SettingsView:
         ).grid(row=4, column=0, sticky="w", pady=(8, 0))
         # プレビューは下部の「プレビュー」欄に 1 か所だけ置く (L3)
 
-    def _build_font_quick_actions(self, font_group: "ttk.LabelFrame") -> None:
+    def _build_font_quick_actions(self, font_group: ttk.LabelFrame) -> None:
         font_quick_actions = ttk.Frame(font_group, style="CardInner.TFrame")
         font_quick_actions.grid(row=1, column=0, sticky="ew")
         font_quick_actions.columnconfigure(1, weight=1)
@@ -158,7 +160,7 @@ class SettingsView:
             row=0, column=2, sticky="e"
         )
 
-    def _build_font_preset_row(self, font_group: "ttk.LabelFrame") -> None:
+    def _build_font_preset_row(self, font_group: ttk.LabelFrame) -> None:
         preset_row = ttk.Frame(font_group, style="CardInner.TFrame")
         preset_row.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         ttk.Label(preset_row, text="よく使うサイズ", style="CardMeta.TLabel").grid(
@@ -173,7 +175,7 @@ class SettingsView:
                 width=5,
             ).grid(row=0, column=index, padx=(0, 8))
 
-    def _build_font_size_scale(self, font_group: "ttk.LabelFrame") -> None:
+    def _build_font_size_scale(self, font_group: ttk.LabelFrame) -> None:
         font_control = ttk.Frame(font_group, style="CardInner.TFrame")
         font_control.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         font_control.columnconfigure(1, weight=1)
