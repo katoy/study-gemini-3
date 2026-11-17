@@ -36,6 +36,7 @@ class ThemeManager:
 
         config._save_ui_settings(theme, font_size, search_history)
         self.settings = {
+            **self.settings,
             "theme": theme,
             "font_size_pt": font_size,
             "program_search_history": search_history,
@@ -48,6 +49,11 @@ class ThemeManager:
         font_size = int(raw_font_size) if isinstance(raw_font_size, (int, str)) else self.current_font_size
         config._save_ui_settings(theme, font_size, search_history)
         self.settings["program_search_history"] = list(search_history)
+
+    def save_favorite_programs(self, favorites: list[str]) -> None:
+        """お気に入り番組キー一覧を永続化する。"""
+        config._save_favorite_programs(favorites)
+        self.settings["favorite_programs"] = list(favorites)
 
     def apply_theme(self, theme_name: str | None = None, font_size: int | None = None):
         """Applies current palette and fonts to the ttk.Style and root window."""

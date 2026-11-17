@@ -21,12 +21,63 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+FAVORITE_GENRE_LABEL = "★ お気に入り"
+
+
 class GuiProgramsMixin:
     """Logic for program listing, filtering, and selection."""
 
     if TYPE_CHECKING:
         # 型チェック時に self の型をアノテート
         self: "GuiBrowserProtocol"
+
+    def _is_favorite_program(self, program: Program | None) -> bool:
+        """指定番組がお気に入り登録されているか返す。"""
+        key = self._program_key(program)
+        return key is not None and key in getattr(self, "favorite_programs", ())
+
+    def _refresh_favorite_button_label(self) -> None:
+        """選択中/表示中番組に合わせてお気に入りボタンの表示を更新する。"""
+        if not hasattr(self, "favorite_button_var"):
+            return
+        program = self._selected_program() or self.displayed_program
+        is_fav = self._is_favorite_program(program)
+        self.favorite_button_var.set("★ お気に入り済み" if is_fav else "☆ お気に入り")
+        if hasattr(self, "favorite_button"):
+            if program is None:
+                self.favorite_button.state(["disabled"])
+            else:
+                self.favorite_button.state(["!disabled"])
+
+    def _toggle_favorite_selected(self, _event=None):
+        """選択中または表示中の番組のお気に入り登録を切り替える。"""
+        program = self._selected_program() or self.displayed_program
+        key = self._program_key(program)
+        if program is None or key is None:
+            return "break"
+        title = program.display_title or program.title
+        favorites = list(getattr(self, "favorite_programs", []))
+        if key in favorites:
+            favorites = [item for item in favorites if item != key]
+            self.status_var.set(f"「{title}」をお気に入りから外しました。")
+        else:
+            favorites.append(key)
+            self.status_var.set(f"「{title}」をお気に入りに登録しました。")
+        self.favorite_programs = favorites
+        self._persist_favorite_programs()
+        self._refresh_favorite_button_label()
+        self._apply_program_filters()
+        return "break"
+
+    def _refresh_program_list(self, _event=None):
+        """番組一覧キャッシュを破棄して最新の番組一覧を取得し直す。"""
+        if self.loading:
+            return "break"
+        from ...cache import clear_program_cache
+
+        clear_program_cache()
+        self._start_fetch_programs(getattr(self, "genre", None))
+        return "break"
 
     def _on_program_filter_change(self, *_args):
         if not hasattr(self, "program_tree"):
@@ -41,7 +92,9 @@ class GuiProgramsMixin:
         needle = self._normalized_search_text(self.program_search_var.get())
         genre_filter = self.program_genre_filter_var.get()
         filtered = list(self.programs)
-        if genre_filter and genre_filter != "すべて":
+        if genre_filter == FAVORITE_GENRE_LABEL:
+            filtered = [program for program in filtered if self._is_favorite_program(program)]
+        elif genre_filter and genre_filter != "すべて":
             filtered = [
                 program
                 for program in filtered
@@ -61,15 +114,22 @@ class GuiProgramsMixin:
             current_program = self._selected_program()
             current_key = self._program_key(current_program) if current_program is not None else self.selected_program_key
         programs = self._sorted_programs(self.filtered_programs)
+
+        def _on_rendered(key: str | None) -> None:
+            self.selected_program_key = key
+            self._refresh_favorite_button_label()
+
         self.program_view.render(
             programs,
             len(self.programs),
             current_key,
             self.program_order_map,
             self._program_key,
-            lambda key: setattr(self, "selected_program_key", key),
+            _on_rendered,
+            is_favorite=self._is_favorite_program,
         )
         self._populate_generation = self.program_view.generation
+        self._refresh_favorite_button_label()
 
     def _program_genre_filter_values(self) -> list[str]:
         seen_labels = list(
@@ -82,7 +142,7 @@ class GuiProgramsMixin:
         )
         ordered = [GENRE_LABELS[g] for g in NHK_GENRES if GENRE_LABELS[g] in seen_labels]
         remaining = [label for label in seen_labels if label not in ordered]
-        return ["すべて", *ordered, *remaining, "未分類"]
+        return ["すべて", FAVORITE_GENRE_LABEL, *ordered, *remaining, "未分類"]
 
     def _program_search_target(self, program: Program) -> str:
         text = (
@@ -129,6 +189,7 @@ class GuiProgramsMixin:
 
     def _on_program_select(self, _event=None):
         program = self._selected_program()
+        self._refresh_favorite_button_label()
         if program:
             self.selected_program_key = self._program_key(program)
             self._refresh_fetch_button_label()
@@ -195,7 +256,14 @@ class GuiProgramsMixin:
 
     def _clear_program_search(self, _event=None):
         self.program_search_var.set("")
-        self.program_search_entry.focus_set()
+        if getattr(self, "_search_timer", None):
+            with suppress(tk.TclError, ValueError):
+                self.root.after_cancel(self._search_timer)
+            self._search_timer = None
+        self._apply_program_filters()
+        if hasattr(self, "program_search_entry"):
+            self.program_search_entry.focus_set()
+        return "break"
 
     def _focus_program_tree_from_search(self, _event=None):
         self.program_tree.focus_set()

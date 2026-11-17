@@ -10,6 +10,7 @@ from .toolkit import tk, ttk
 
 class SettingsActions(Protocol):
     def _toggle_settings_screen(self): ...
+    def _clear_cache(self): ...
     def _reset_ui_settings(self): ...
     def _save_ui_settings_from_screen(self): ...
     def _apply_theme(self, theme_name: str): ...
@@ -82,19 +83,23 @@ class SettingsView:
         ttk.Label(settings_header, text="表示設定", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
         settings_actions = ttk.Frame(settings_header, style="CardInner.TFrame")
         settings_actions.grid(row=0, column=1, sticky="e")
+        self.clear_cache_button = ttk.Button(
+            settings_actions, text="キャッシュを全削除", command=self.actions._clear_cache, style="Quiet.TButton"
+        )
+        self.clear_cache_button.grid(row=0, column=0, padx=(0, 8))
         ttk.Button(
             settings_actions, text="規定値にリセット", command=self.actions._reset_ui_settings, style="Quiet.TButton"
-        ).grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(
-            settings_actions, text="閉じる", command=self.actions._toggle_settings_screen, style="Quiet.TButton"
-        ).grid(row=0, column=2, padx=(8, 0))
+        ).grid(row=0, column=1, padx=(0, 8))
         self.settings_save_button = ttk.Button(
             settings_actions,
             textvariable=self.settings_save_button_var,
             command=self.actions._save_ui_settings_from_screen,
             style="Accent.TButton",
         )
-        self.settings_save_button.grid(row=0, column=1)
+        self.settings_save_button.grid(row=0, column=2)
+        ttk.Button(
+            settings_actions, text="閉じる", command=self.actions._toggle_settings_screen, style="Quiet.TButton"
+        ).grid(row=0, column=3, padx=(8, 0))
         ttk.Label(
             self.settings_inner,
             text="テーマと文字サイズをまとめて変更できます。選択内容はその場で反映され、保存すると次回起動時にも引き継がれます。",

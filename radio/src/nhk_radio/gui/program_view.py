@@ -16,6 +16,7 @@ _INSERT_CHUNK = 50
 
 class ProgramListActions(Protocol):
     def _open_ondemand_site(self, event=None): ...
+    def _refresh_program_list(self, event=None): ...
     def _bind_tooltip(self, widget, text: str): ...
     def _on_program_filter_change(self, *args): ...
     def _clear_program_search(self, event=None): ...
@@ -56,6 +57,14 @@ class ProgramListView:
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
         ttk.Label(header, text="番組一覧", style="CardTitleAlt.TLabel").grid(row=0, column=0, sticky="w")
+        self.refresh_programs_button = ttk.Button(
+            header,
+            text="↻ 更新",
+            command=actions._refresh_program_list,
+            style="Quiet.TButton",
+        )
+        self.refresh_programs_button.grid(row=0, column=1, sticky="e", padx=(0, 6))
+        actions._bind_tooltip(self.refresh_programs_button, "番組一覧キャッシュを破棄して再取得")
         self.ondemand_link_button = ttk.Button(
             header,
             text="らじる★らじる",
@@ -63,14 +72,15 @@ class ProgramListView:
             style="RajiruLink.TButton",
             cursor="hand2",
         )
-        self.ondemand_link_button.grid(row=0, column=1, sticky="e")
+        self.ondemand_link_button.grid(row=0, column=2, sticky="e")
         actions._bind_tooltip(self.ondemand_link_button, "聞き逃し検索の公式サイト")
 
         search = ttk.Frame(sidebar, style="SidebarInner.TFrame")
         search.grid(row=1, column=0, sticky="ew", pady=(4, 12))
         search.columnconfigure(0, weight=1)
+        search.columnconfigure(1, weight=0)
         self.genre_combo = ttk.Combobox(search, textvariable=genre_var, values=genre_values(), state="readonly")
-        self.genre_combo.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.genre_combo.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         self.genre_combo.bind("<<ComboboxSelected>>", actions._on_program_filter_change)
         self.search_entry = ttk.Combobox(search, textvariable=search_var, values=search_history)
         self.search_entry.grid(row=1, column=0, sticky="ew")
@@ -84,8 +94,12 @@ class ProgramListView:
         )
         for sequence, callback in search_bindings:
             self.search_entry.bind(sequence, callback)
+        self.clear_search_button = ttk.Button(
+            search, text="クリア", command=actions._clear_program_search, style="Quiet.TButton"
+        )
+        self.clear_search_button.grid(row=1, column=1, padx=(6, 0))
         ttk.Label(search, textvariable=summary_var, style="CardMetaAlt.TLabel").grid(
-            row=2, column=0, sticky="w", pady=(8, 0)
+            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0)
         )
 
         self.tree = ttk.Treeview(sidebar, columns=("no", "date", "title"), show="headings", selectmode="browse")
@@ -136,6 +150,7 @@ class ProgramListView:
         order_map: dict[str | None, int],
         key_for: Callable[[Program | None], str | None],
         on_selected: Callable[[str | None], None],
+        is_favorite: Callable[[Program], bool] | None = None,
     ) -> None:
         self.programs_by_item.clear()
         for item_id in self.tree.get_children():
@@ -164,6 +179,9 @@ class ProgramListView:
             selected = selected_so_far
             for index, program in enumerate(chunk, start):
                 item_id = f"program-{index}"
+                display_title = program.display_title or program.title
+                if is_favorite is not None and is_favorite(program):
+                    display_title = f"★ {display_title}"
                 self.tree.insert(
                     "",
                     "end",
@@ -171,7 +189,7 @@ class ProgramListView:
                     values=(
                         order_map.get(key_for(program), index + 1),
                         program.display_date or "----",
-                        program.display_title or program.title,
+                        display_title,
                     ),
                 )
                 self.programs_by_item[item_id] = program

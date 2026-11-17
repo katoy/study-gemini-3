@@ -261,10 +261,11 @@ class GuiDownloadsMixin:
 
         if self.loading:
             return
+        parent = self._settings_dialog_parent() if hasattr(self, "_settings_dialog_parent") else self.root
         if not mb.askyesno(
             "キャッシュを全削除",
             "番組一覧とエピソード一覧のキャッシュをすべて削除しますか？\n(保存済みの音声ファイルは削除されません)",
-            parent=self.root,
+            parent=parent,
         ):
             return
         self.status_var.set("キャッシュを削除中...")

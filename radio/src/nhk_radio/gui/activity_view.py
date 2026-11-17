@@ -15,6 +15,8 @@ REASON_WRAP_LENGTH = 640
 JOB_ROW_PAD_Y = 3
 # ジョブ一覧の表示領域の初期高さ (px)。1 行約 39px x 3 件 (L7)
 JOBS_CANVAS_HEIGHT = 120
+# ダウンロードジョブが無いときの最小キャンバス高さ (px)
+JOBS_CANVAS_EMPTY_HEIGHT = 36
 # 初期表示でアクティビティパネルが右側ペインに占める高さの上限 (割合)
 ACTIVITY_MAX_INITIAL_RATIO = 0.3
 # ジョブ行の進捗バーの長さ (px)
@@ -33,10 +35,12 @@ class ActivityView:
         progress_text_var: tk.StringVar,
         create_scrollable_frame: Callable[..., tuple[Any, Any, Any, Any]],
         on_cancel_one: Callable[[str], None],
+        on_cancel_all: Callable[[], None] | None = None,
     ) -> None:
         self.root = root
         self.progress_text_var = progress_text_var
         self.on_cancel_one = on_cancel_one
+        self.on_cancel_all = on_cancel_all
         self.rows: dict[str, dict[str, Any]] = {}
 
         activity = ttk.Frame(parent, style="Card.TFrame", padding=6)
@@ -46,21 +50,26 @@ class ActivityView:
             activity, textvariable=progress_text_var, anchor="w", style="CardMeta.TLabel"
         )
         self.progress_label.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        self.cancel_all_button = ttk.Button(
+            activity, text="すべて中止", command=self._handle_cancel_all, style="DownloadJobAction.TButton"
+        )
+        self.cancel_all_button.grid(row=0, column=1, sticky="e", padx=(0, 6), pady=(0, 4))
+        self.cancel_all_button.state(["disabled"])
         # 完了・失敗・中断した行をまとめて消す (F4)
         self.clear_finished_button = ttk.Button(
             activity, text="完了分をクリア", command=self.clear_finished, style="DownloadJobAction.TButton"
         )
-        self.clear_finished_button.grid(row=0, column=1, sticky="e", pady=(0, 4))
+        self.clear_finished_button.grid(row=0, column=2, sticky="e", pady=(0, 4))
         self.clear_finished_button.state(["disabled"])
         self.jobs_frame = ttk.Frame(activity, padding=2)
-        self.jobs_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self.jobs_frame.grid(row=1, column=0, columnspan=3, sticky="nsew")
         self.jobs_frame.columnconfigure(0, weight=1)
         self.jobs_frame.rowconfigure(0, weight=1)
         self.canvas, self.scrollbar, self.inner, self.window = create_scrollable_frame(
             self.jobs_frame, "CardInner.TFrame"
         )
-        # 初期表示でジョブ 3 件程度がスクロールなしで見える高さを要求する (L7)
-        self.canvas.configure(height=JOBS_CANVAS_HEIGHT)
+        # ジョブが無い間は最小限の高さにして一覧領域を広く確保し、開始時に拡張する
+        self.canvas.configure(height=JOBS_CANVAS_EMPTY_HEIGHT)
         self.empty_label = ttk.Label(
             self.inner, text="実行中のダウンロードはありません。", style="CardMeta.TLabel"
         )
@@ -161,13 +170,20 @@ class ActivityView:
         if episode_key in self.rows:
             self.remove(episode_key)
 
+    def _handle_cancel_all(self) -> None:
+        if self.on_cancel_all is not None:
+            self.on_cancel_all()
+
     def _update_summary(self) -> None:
         active = sum(row["state"] == "running" for row in self.rows.values())
         total = len(self.rows)
         self.progress_text_var.set("ダウンロードジョブはありません" if not total else f"実行中: {active} / 全体: {total}")
+        if hasattr(self, "cancel_all_button"):
+            self.cancel_all_button.state(["!disabled"] if active > 0 else ["disabled"])
         self.clear_finished_button.state(["!disabled"] if total > active else ["disabled"])
 
     def _reflow(self, *, auto_scroll: bool = False) -> None:
+        self.canvas.configure(height=JOBS_CANVAS_HEIGHT if self.rows else JOBS_CANVAS_EMPTY_HEIGHT)
         for index, row in enumerate(self.rows.values()):
             row["frame"].grid(row=index, column=0, sticky="ew", padx=5, pady=2)
         self.root.update_idletasks()

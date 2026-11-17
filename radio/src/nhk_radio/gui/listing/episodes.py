@@ -174,6 +174,37 @@ class GuiEpisodeMixin:
     def _clear_episode_filter(self, _event=None):
         return self._clear_episode_search(_event)
 
+    def _episode_search_target(self, episode: Episode) -> str:
+        """タイトル・放送日・放送時刻・長さを含む検索対象文字列を返す。"""
+        return self._normalized_search_text(
+            f"{episode.title} {episode.display_title} {episode.display_date} "
+            f"{episode.date} {episode.broadcast_time} {episode.duration_str}"
+        )
+
+    def _select_unsaved_episodes(self, _event=None):
+        """表示中のエピソードのうち未保存の回だけをすべて選択する。"""
+        if self.displayed_program is None:
+            return "break"
+        if not self.displayed_episode_map:
+            self.status_var.set("選択できるエピソードがありません。")
+            return "break"
+        unsaved_ids = [
+            item_id
+            for item_id, episode in self.displayed_episode_map.items()
+            if _episode_key(episode) not in self.displayed_saved_keys
+        ]
+        if unsaved_ids:
+            self.episode_tree.selection_set(unsaved_ids)
+            self.episode_tree.focus(unsaved_ids[0])
+            self.episode_tree.see(unsaved_ids[0])
+            self.status_var.set(f"未保存のエピソード {len(unsaved_ids)} 件を選択しました。")
+        else:
+            self.episode_tree.selection_remove(self.episode_tree.selection())
+            self.episode_tree.focus("")
+            self.status_var.set("表示中のエピソードはすべて保存済みです。")
+        self._on_episode_selection_change()
+        return "break"
+
     def _sorted_episodes(self, episodes: list[Episode]) -> list[Episode]:
         # フィルタリング
         needle = self._normalized_search_text(self.episode_search_var.get())
@@ -184,7 +215,7 @@ class GuiEpisodeMixin:
 
         filtered = episodes
         if needle:
-            filtered = [e for e in filtered if needle in self._normalized_search_text(f"{e.title} {e.display_title}")]
+            filtered = [e for e in filtered if needle in self._episode_search_target(e)]
         if saved_only and self.displayed_program:
             filtered = [e for e in filtered if _episode_key(e) in downloaded_keys]
 

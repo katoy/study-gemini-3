@@ -46,6 +46,7 @@ class UiVars:
     font_size_display: tk.StringVar
     settings_save_button: tk.StringVar
     settings_summary: tk.StringVar
+    favorite_button: tk.StringVar | None = None
 
 
 class ShellActions(ProgramListActions, EpisodeActions, SettingsActions, Protocol):
@@ -59,6 +60,7 @@ class ShellActions(ProgramListActions, EpisodeActions, SettingsActions, Protocol
     def _handle_escape(self, event=None): ...
     def _handle_browser_shortcut(self, event): ...
     def _on_cancel_one(self, episode_key: str): ...
+    def _on_cancel_all(self): ...
 
 
 class AppShell:
@@ -120,9 +122,15 @@ class AppShell:
             saved_only_var=variables.episode_saved_only,
             filter_summary_var=variables.episode_filter_summary,
             selection_summary_var=variables.episode_selection_summary,
+            favorite_var=variables.favorite_button,
         )
         self.activity_view = ActivityView(
-            root, right_panes, variables.progress, self._build_scrollable_frame, actions._on_cancel_one
+            root,
+            right_panes,
+            variables.progress,
+            self._build_scrollable_frame,
+            actions._on_cancel_one,
+            actions._on_cancel_all,
         )
         # 表示設定はメイン画面を切り替えず、モーダルダイアログで開く (L3)
         self.settings_dialog = self._build_settings_dialog()
@@ -136,6 +144,8 @@ class AppShell:
             settings_save_button_var=variables.settings_save_button,
             settings_summary_var=variables.settings_summary,
         )
+        # 設定ダイアログ移設後も clear_button 属性参照の互換性を維持する
+        self.clear_button = self.settings_view.clear_cache_button
         self._build_status_bar()
         self._bind_root_events()
 
@@ -202,15 +212,15 @@ class AppShell:
         return canvas, scrollbar, inner, window_id
 
     def _build_header(self) -> None:
-        header = ttk.Frame(self.main, style="Card.TFrame", padding=18)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        header = ttk.Frame(self.main, style="Card.TFrame", padding=10)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         header.columnconfigure(0, weight=1)
         header.columnconfigure(1, weight=0)
         header_left = ttk.Frame(header, style="CardInner.TFrame")
         header_left.grid(row=0, column=0, sticky="nw")
         header_left.columnconfigure(1, weight=1)
-        self.logo_canvas = create_brand_logo(header_left, self.palette, size=60)
-        self.logo_canvas.grid(row=0, column=0, sticky="nw", padx=(0, 14))
+        self.logo_canvas = create_brand_logo(header_left, self.palette, size=40)
+        self.logo_canvas.grid(row=0, column=0, sticky="nw", padx=(0, 12))
         ttk.Label(header_left, text="NHK ラジオ 聞き逃し", style="AppTitle.TLabel").grid(row=0, column=1, sticky="w")
         header_right = ttk.Frame(header, style="CardInner.TFrame")
         header_right.grid(row=0, column=1, sticky="ne")
@@ -220,17 +230,13 @@ class AppShell:
         ttk.Button(
             header_actions, text="ヘルプ", command=self.actions._show_help_dialog, style="Quiet.TButton"
         ).grid(row=0, column=0, padx=(0, 8))
-        self.clear_button = ttk.Button(
-            header_actions, text="キャッシュを全削除", command=self.actions._clear_cache, style="Quiet.TButton"
-        )
-        self.clear_button.grid(row=0, column=1, padx=(0, 8))
         self.settings_button = ttk.Button(
             header_actions,
             textvariable=self.variables.settings_button,
             command=self.actions._toggle_settings_screen,
             style="Toggle.TButton",
         )
-        self.settings_button.grid(row=0, column=2)
+        self.settings_button.grid(row=0, column=1)
 
     def _build_status_bar(self) -> None:
         status_area = ttk.Frame(self.main)

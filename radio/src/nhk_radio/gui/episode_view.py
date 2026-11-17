@@ -32,6 +32,9 @@ def context_menu_buttons(windowing_system: str) -> tuple[str, ...]:
 class EpisodeActions(Protocol):
     def _start_fetch_selected(self, event=None): ...
     def _start_download_selected(self, event=None): ...
+    def _toggle_favorite_selected(self, event=None): ...
+    def _open_selected_program_folder(self, event=None): ...
+    def _select_unsaved_episodes(self, event=None): ...
     def _clear_episode_search(self, event=None): ...
     def _hide_error_banner(self): ...
     def _toggle_episode_sort(self, column: str): ...
@@ -59,12 +62,15 @@ class EpisodeDetailView:
         saved_only_var: tk.BooleanVar,
         filter_summary_var: tk.StringVar,
         selection_summary_var: tk.StringVar,
+        favorite_var: tk.StringVar | None = None,
     ) -> None:
         self.filter_summary_var = filter_summary_var
         self.selection_summary_var = selection_summary_var
         detail = ttk.Frame(parent, style="Card.TFrame", padding=18, width=860, height=300)
         detail.columnconfigure(0, weight=1)
         detail.rowconfigure(3, weight=1)
+
+        resolved_favorite_var = favorite_var or tk.StringVar(master=detail, value="☆ お気に入り")
 
         hero = ttk.Frame(detail, style="Hero.TFrame", padding=16)
         hero.grid(row=0, column=0, sticky="ew")
@@ -78,17 +84,31 @@ class EpisodeDetailView:
         )
         hero_actions = ttk.Frame(hero, style="HeroInner.TFrame")
         hero_actions.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(18, 0))
+        self.favorite_button = ttk.Button(
+            hero_actions,
+            textvariable=resolved_favorite_var,
+            command=actions._toggle_favorite_selected,
+            style="Quiet.TButton",
+        )
+        self.favorite_button.grid(row=0, column=0, sticky="e", padx=(0, 6))
+        self.open_folder_button = ttk.Button(
+            hero_actions,
+            text="保存先を開く",
+            command=actions._open_selected_program_folder,
+            style="Quiet.TButton",
+        )
+        self.open_folder_button.grid(row=0, column=1, sticky="e", padx=(0, 6))
         self.fetch_button = ttk.Button(
             hero_actions, textvariable=fetch_var, command=actions._start_fetch_selected, style="Quiet.TButton"
         )
-        self.fetch_button.grid(row=0, column=0, sticky="e")
+        self.fetch_button.grid(row=0, column=2, sticky="e")
         self.download_button = ttk.Button(
             hero_actions,
             text="選択エピソードをダウンロード",
             command=actions._start_download_selected,
             style="Accent.TButton",
         )
-        self.download_button.grid(row=1, column=0, sticky="e", pady=(8, 0))
+        self.download_button.grid(row=1, column=0, columnspan=3, sticky="e", pady=(8, 0))
 
         self.episode_title_var = tk.StringVar(value="エピソード一覧")
         section = ttk.Frame(detail, style="CardInner.TFrame")
@@ -112,6 +132,10 @@ class EpisodeDetailView:
             tools, text="保存済みのみ", variable=saved_only_var, style="Filter.TCheckbutton"
         )
         self.saved_only_check.grid(row=0, column=3, padx=(12, 0))
+        self.select_unsaved_button = ttk.Button(
+            tools, text="未保存を選択", command=actions._select_unsaved_episodes, style="Quiet.TButton"
+        )
+        self.select_unsaved_button.grid(row=0, column=4, padx=(8, 0))
         filter_summary = ttk.Frame(section, style="CardInner.TFrame")
         filter_summary.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         filter_summary.columnconfigure(0, weight=1)

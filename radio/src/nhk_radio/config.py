@@ -160,18 +160,26 @@ def _load_ui_settings() -> dict[str, str | list[str] | int]:
     if isinstance(help_ver, int):
         settings["help_seen_version"] = help_ver
 
+    favorites = payload.get("favorite_programs")
+    if isinstance(favorites, list):
+        settings["favorite_programs"] = [str(x).strip() for x in favorites if isinstance(x, str) and str(x).strip()]
+
     return settings
+
+
+def _read_existing_ui_settings(path: Path) -> dict:
+    """既存の設定ファイルを辞書として読み込む。存在しないか壊れていれば空辞書を返す。"""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _save_ui_settings(theme: str, font_size: int, program_search_history: list[str] | None = None):
     _migrate_legacy_ui_settings()
     path = _ui_settings_path()
-    try:
-        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except (OSError, json.JSONDecodeError):
-        existing = {}
-    if not isinstance(existing, dict):
-        existing = {}
+    existing = _read_existing_ui_settings(path)
 
     # 既存の内容 (help_seen_version や、新しい版が書いた未知のキー) を残し、既知のキーだけを上書きする (L8)
     payload = {
@@ -184,15 +192,20 @@ def _save_ui_settings(theme: str, font_size: int, program_search_history: list[s
     _io.atomic_write_json(path, payload)
 
 
-def _save_help_seen_version(version: int) -> None:
-    """ヘルプ表示済みバージョンを設定ファイルに保存（既存キーを保持）。"""
+def _update_ui_settings_field(key: str, value: object) -> None:
+    """設定ファイルの指定キーを更新する（既存キーを保持）。"""
     _migrate_legacy_ui_settings()
     path = _ui_settings_path()
-    try:
-        payload: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except (OSError, json.JSONDecodeError):
-        payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
-    payload["help_seen_version"] = version
+    payload = _read_existing_ui_settings(path)
+    payload[key] = value
     _io.atomic_write_json(path, payload)
+
+
+def _save_help_seen_version(version: int) -> None:
+    """ヘルプ表示済みバージョンを設定ファイルに保存（既存キーを保持）。"""
+    _update_ui_settings_field("help_seen_version", version)
+
+
+def _save_favorite_programs(favorites: list[str]) -> None:
+    """お気に入り番組キー一覧を設定ファイルに保存（既存キーを保持）。"""
+    _update_ui_settings_field("favorite_programs", list(favorites))

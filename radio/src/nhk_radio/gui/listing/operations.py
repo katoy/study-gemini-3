@@ -163,6 +163,30 @@ class GuiOperationsMixin:
         except Exception as e:
             self.status_var.set(f"再生に失敗しました: {e}")
 
+    def _open_selected_program_folder(self, _event=None):
+        """選択中/表示中番組の保存先フォルダを開く（未作成なら保存先ルートを開く）。"""
+        from ...downloads import _program_search_dirs, is_within_output_dir, open_downloaded_folder
+
+        program = self.displayed_program or self._selected_program()
+        target_dir = self.output_dir
+        if program is not None:
+            for candidate in _program_search_dirs(self.output_dir, program):
+                if candidate.exists():
+                    target_dir = candidate
+                    break
+
+        if target_dir == self.output_dir:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        elif not is_within_output_dir(target_dir / "_", self.output_dir):
+            self.status_var.set(f"保存先の外を指すためフォルダを開きません: {target_dir}")
+            return "break"
+
+        if open_downloaded_folder(target_dir):
+            self.status_var.set(f"フォルダを開きました: {target_dir.name}")
+        else:
+            self.status_var.set("フォルダを開く際にエラーが発生しました。")
+        return "break"
+
     def _open_downloaded_episode_folder(self, item_id: str):
         """保存済みエピソードの保存先フォルダを開く。"""
         if self.displayed_program is None:

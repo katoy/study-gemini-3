@@ -739,6 +739,156 @@ class GuiReviewFixesTest(unittest.TestCase):
             self.browser._toggle_settings_screen()
         self.assertIs(ask_cancel.call_args.kwargs["parent"], dialog)
 
+    # --- Task 1: ヘッダースリム化・キャッシュ削除ボタンの設定ダイアログ移設 ---
+
+    def test_header_is_slim_and_clear_cache_button_is_in_settings_dialog(self):
+        """キャッシュ削除ボタンは設定ダイアログ内にあり、ヘッダーロゴは 40px へスリム化されている。"""
+        self.assertIs(self.browser.shell.clear_button, self.browser.settings_view.clear_cache_button)
+        self.assertIs(
+            self.browser.settings_view.settings_screen.master,
+            self.browser.shell.settings_dialog,
+        )
+        ancestors: list[object] = []
+        cur: object | None = self.browser.settings_view.clear_cache_button
+        while isinstance(cur, tk.Misc):
+            ancestors.append(cur)
+            cur = getattr(cur, "master", None)
+        self.assertIn(self.browser.settings_view.settings_inner, ancestors)
+        self.assertNotIn(self.browser.shell.main, ancestors)
+        with patch("nhk_radio.gui.build.create_brand_logo", return_value=MagicMock()) as logo_mock:
+            EpisodeGuiBrowser(self.programs, Path(self.tmp.name), root=self.root)
+        self.assertEqual(logo_mock.call_args.kwargs["size"], 40)
+
+    # --- Task 2: 番組検索クリア・更新ボタン & エピソード日時検索 ---
+
+    def test_program_toolbar_clear_and_refresh_and_episode_date_search(self):
+        """番組検索のクリア/更新と、エピソードの放送日・時刻・長さでの絞り込みが動く。"""
+        self.browser.program_search_var.set("番組A")
+        self.browser._apply_program_filters()
+        self.assertEqual(len(self.browser.filtered_programs), 1)
+
+        self.browser._clear_program_search()
+        self.assertEqual(self.browser.program_search_var.get(), "")
+        self.assertEqual(len(self.browser.filtered_programs), 2)
+
+        with (
+            patch("nhk_radio.cache.clear_program_cache") as clear_mock,
+            patch.object(self.browser, "_start_fetch_programs") as fetch_mock,
+        ):
+            self.browser._refresh_program_list()
+            clear_mock.assert_called_once_with()
+            fetch_mock.assert_called_once_with(None)
+
+            self.browser.loading = True
+            self.browser._refresh_program_list()
+            self.assertEqual(clear_mock.call_count, 1)
+
+        ep1 = Episode(
+            id="e1", title="朝の回", display_title="朝の回", date="20240415",
+            display_date="2024-04-15(月)", broadcast_time="06:45", duration_str="15分0秒", url="",
+        )
+        ep2 = Episode(
+            id="e2", title="夜の回", display_title="夜の回", date="20240416",
+            display_date="2024-04-16(火)", broadcast_time="21:00", duration_str="30分0秒", url="",
+        )
+        for needle, expected_id in [("(月)", "e1"), ("06:45", "e1"), ("30分", "e2")]:
+            self.browser.episode_search_var.set(needle)
+            self.assertEqual([e.id for e in self.browser._sorted_episodes([ep1, ep2])], [expected_id])
+
+    # --- Task 3: アクティビティ自動伸縮 & すべて中止ボタン ---
+
+    def test_activity_view_compacts_when_empty_and_cancel_all_button_tracks_running(self):
+        """ジョブ 0 件時は高さを畳み、追加で拡張し、すべて中止ボタンの有効/無効が連動する。"""
+        from nhk_radio.gui.activity_view import JOBS_CANVAS_EMPTY_HEIGHT, JOBS_CANVAS_HEIGHT
+
+        view = self.browser.activity_view
+        view.canvas.configure.assert_any_call(height=JOBS_CANVAS_EMPTY_HEIGHT)
+        self.assertTrue(view.cancel_all_button.instate(["disabled"]))
+
+        view.canvas.configure.reset_mock()
+        view.add(self.episodes[0])
+        view.canvas.configure.assert_any_call(height=JOBS_CANVAS_HEIGHT)
+        self.assertFalse(view.cancel_all_button.instate(["disabled"]))
+
+        view.cancel_all_button.invoke()
+        self.browser.download_manager.cancel_all.assert_called_once()
+
+        key = next(iter(view.rows))
+        view.finish(key, "中断")
+        self.assertTrue(view.cancel_all_button.instate(["disabled"]))
+
+        view.canvas.configure.reset_mock()
+        view.clear_finished()
+        view.canvas.configure.assert_any_call(height=JOBS_CANVAS_EMPTY_HEIGHT)
+
+    # --- Task 4: お気に入り番組 (★) ---
+
+    def test_favorite_program_toggle_persists_prefixes_and_filters(self):
+        """お気に入り登録/解除が保存・ツリー表示・★お気に入り絞り込みに反映される。"""
+        import os
+
+        from nhk_radio.gui.listing.programs import FAVORITE_GENRE_LABEL
+
+        with patch.dict(os.environ, {"NHK_RADIO_CONFIG_DIR": str(Path(self.tmp.name) / "cfg")}):
+            self._select_program(0)
+            self.assertEqual(self.browser.favorite_button_var.get(), "☆ お気に入り")
+            self.browser._toggle_favorite_selected()
+
+            self.assertEqual(self.browser.favorite_programs, ["S1_01"])
+            self.assertEqual(self.browser.favorite_button_var.get(), "★ お気に入り済み")
+            first_item = self.browser.program_tree.get_children()[0]
+            self.assertTrue(str(self.browser.program_tree.item(first_item, "values")[2]).startswith("★ "))
+
+            self.browser.program_genre_filter_var.set(FAVORITE_GENRE_LABEL)
+            self.browser._apply_program_filters()
+            self.assertEqual([p.site_id for p in self.browser.filtered_programs], ["S1"])
+
+            self.browser._handle_browser_shortcut(MagicMock(keysym="b", state=0, widget=self.root))
+            self.assertEqual(self.browser.favorite_programs, [])
+            self.assertEqual(self.browser.filtered_programs, [])
+            self.assertEqual(self.browser.favorite_button_var.get(), "☆ お気に入り")
+
+    # --- Task 5 & 6: 未保存を選択 & 保存先を開く ---
+
+    def test_select_unsaved_episodes_and_open_selected_program_folder(self):
+        """未保存エピソードの一括選択（U キー）と保存先フォルダを開く機能が動作する。"""
+        import os
+        import sys
+
+        from nhk_radio.downloads import program_output_dir
+
+        self.browser._show_episodes(self.programs[0], self.episodes, "loaded")
+        self.browser._apply_saved_keys(self.programs[0], {"ep1"})
+
+        self.browser._handle_browser_shortcut(MagicMock(keysym="u", state=0, widget=self.root))
+        self.assertEqual(self.browser._selected_episode_keys(), ("ep2",))
+        self.assertIn("1 件を選択", self.browser.status_var.get())
+
+        self.browser._apply_saved_keys(self.programs[0], {"ep1", "ep2"})
+        self.browser._select_unsaved_episodes()
+        self.assertEqual(self.browser.episode_tree.selection(), ())
+        self.assertIn("すべて保存済み", self.browser.status_var.get())
+
+        with patch("nhk_radio.downloads.open_downloaded_folder", return_value=True) as open_mock:
+            self.browser._open_selected_program_folder()
+        open_mock.assert_called_once_with(Path(self.tmp.name))
+
+        prog_dir = program_output_dir(Path(self.tmp.name), self.programs[0])
+        prog_dir.mkdir(parents=True)
+        with patch("nhk_radio.downloads.open_downloaded_folder", return_value=True) as open_mock:
+            self.browser._open_selected_program_folder()
+        open_mock.assert_called_once_with(prog_dir)
+
+        if sys.platform != "win32":
+            with tempfile.TemporaryDirectory() as outside_tmp:
+                symlink_dir = program_output_dir(Path(self.tmp.name), self.programs[1])
+                os.symlink(Path(outside_tmp), symlink_dir)
+                self.browser._show_episodes(self.programs[1], self.episodes, "loaded")
+                with patch("nhk_radio.downloads.open_downloaded_folder") as open_mock:
+                    self.browser._open_selected_program_folder()
+                open_mock.assert_not_called()
+                self.assertIn("保存先の外", self.browser.status_var.get())
+
 
 if __name__ == "__main__":
     unittest.main()

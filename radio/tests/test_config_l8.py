@@ -61,3 +61,23 @@ def test_save_ui_settings_without_existing_file(dirs: tuple[Path, Path]) -> None
 
     saved = json.loads((config_dir / "ui_settings.json").read_text(encoding="utf-8"))
     assert saved == {"theme": "dark", "font_size_pt": 10, "program_search_history": []}
+
+
+def test_save_and_load_favorite_programs_preserves_other_settings(dirs: tuple[Path, Path]) -> None:
+    """お気に入り番組一覧の保存・読み込みが他の設定キーを保持し、不正な要素を除外する。"""
+    _cache_dir, config_dir = dirs
+    config._save_ui_settings("dark", 13, ["英語"])
+    config._save_favorite_programs(["S1_01", "S2_02"])
+
+    loaded = config._load_ui_settings()
+    assert loaded["theme"] == "dark"
+    assert loaded["font_size_pt"] == 13
+    assert loaded["program_search_history"] == ["英語"]
+    assert loaded["favorite_programs"] == ["S1_01", "S2_02"]
+
+    path = config_dir / "ui_settings.json"
+    path.write_text(json.dumps({"favorite_programs": [" S1_01 ", "", "   ", 123]}), encoding="utf-8")
+    assert config._load_ui_settings()["favorite_programs"] == ["S1_01"]
+
+    path.write_text(json.dumps({"favorite_programs": "not-a-list"}), encoding="utf-8")
+    assert "favorite_programs" not in config._load_ui_settings()

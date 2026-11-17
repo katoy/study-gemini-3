@@ -99,6 +99,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
                 font_size_display=self.font_size_display_var,
                 settings_save_button=self.settings_save_button_var,
                 settings_summary=self.settings_summary_var,
+                favorite_button=self.favorite_button_var,
             ),
             self.program_search_history,
             self._program_genre_filter_values,
@@ -118,8 +119,11 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.episode_title_var = shell.episode_view.episode_title_var
         self.episode_search_entry = shell.episode_view.search_entry
         self.episode_saved_only_check = shell.episode_view.saved_only_check
+        self.favorite_button = shell.episode_view.favorite_button
+        self.open_folder_button = shell.episode_view.open_folder_button
         self.fetch_button = shell.episode_view.fetch_button
         self.download_button = shell.episode_view.download_button
+        self.select_unsaved_button = shell.episode_view.select_unsaved_button
         self.active_download_rows = shell.activity_view.rows
         self.selected_cell_entry = shell.selected_cell_entry
         self.selected_cell_area = shell.selected_cell_area
@@ -143,6 +147,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.current_screen = "browser"
         self.settings_dirty = False
         self.program_search_history: list[str] = []
+        self.favorite_programs: list[str] = []
 
         # データ管理 (Composition)
         self.data_manager = DataManager(
@@ -281,6 +286,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         # ThemeManager が読み込んだ実際の値と同期 (StylingMixin で既に行われているが念のため一貫性を維持)
         tm = self.theme_manager
         self.program_search_history = list(tm.settings.get("program_search_history", []))
+        self.favorite_programs = list(tm.settings.get("favorite_programs", []))
 
         self.saved_theme = self.current_theme
         self.saved_font_size = self.current_font_size
@@ -303,6 +309,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.episode_search_var = tk.StringVar()
         self.episode_saved_only_var = tk.BooleanVar(value=False)
         self.fetch_button_var = tk.StringVar(value="一覧を取得")
+        self.favorite_button_var = tk.StringVar(value="☆ お気に入り")
         self.progress_text_var = tk.StringVar(value="")
 
         self.settings_button_var = tk.StringVar()
@@ -326,6 +333,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def _persist_search_history(self):
         """検索履歴のみを永続化する (G8)。"""
         self.theme_manager.save_search_history(self.program_search_history)
+
+    def _persist_favorite_programs(self) -> None:
+        """お気に入り番組キー一覧のみを永続化する。"""
+        self.theme_manager.save_favorite_programs(self.favorite_programs)
 
     def _reset_ui_state_after_cache_clear(self):
         """キャッシュクリア後にUI表示を初期化する。"""
@@ -579,6 +590,10 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             return self._start_fetch_selected()
         if key == "d":
             return self._start_download_selected()
+        if key == "b":
+            return self._toggle_favorite_selected()
+        if key == "u":
+            return self._select_unsaved_episodes()
         if key in {"question", "slash"} and bool(event.state & 0x1):
             return self._show_help_dialog()
         return None
