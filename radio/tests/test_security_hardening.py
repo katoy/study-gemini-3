@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yt_dlp
 
-from nhk_radio import cli, core, downloads
+from nhk_radio import cache, cli, core, downloads
 from nhk_radio.types import Episode, Program
 from tests import _support  # noqa: F401
 
@@ -407,3 +407,178 @@ def test_open_nhk_program_page_allows_valid_nhk_url() -> None:
         GuiProgramsMixin._open_nhk_program_page(fake_self)  # type: ignore[arg-type]
 
     open_mock.assert_called_once_with(valid_url)
+
+
+# ── S5: キャッシュパスのサニタイズ ────────────────────────────────────
+
+
+def test_cache_paths_sanitize_traversal_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """番組・エピソードキャッシュのパス生成時にパストラバーサルを防ぐ。"""
+    cache_root = tmp_path / "cache"
+    monkeypatch.setenv("NHK_RADIO_CACHE_DIR", str(cache_root))
+
+    malicious = _program(site_id="../../etc", corner_id="a/b")
+    ep_path = cache._episode_cache_path(malicious)
+    prog_path = cache._program_cache_path("../../secret")
+
+    assert ep_path.parent == cache_root / "episodes"
+    assert ep_path.resolve().is_relative_to((cache_root / "episodes").resolve())
+    assert "/" not in ep_path.name
+    assert "\\" not in ep_path.name
+
+    assert prog_path.parent == cache_root / "programs"
+    assert prog_path.resolve().is_relative_to((cache_root / "programs").resolve())
+    assert "/" not in prog_path.name
+    assert "\\" not in prog_path.name
+
+
+# ── S6: エピソード URL とキャッシュ復元 URL の検証 ──────────────────────
+
+
+def test_parse_episode_info_rejects_unsafe_id_and_fallback_url() -> None:
+    """不正な ep_id や信頼できないフォールバック URL を受け入れない。"""
+    ep_bad_id = core._parse_episode_info(
+        {"id": "ep1&extra=1", "title": "T", "webpage_url": "https://evil.example.com/x"}
+    )
+    assert ep_bad_id.id == ""
+    assert ep_bad_id.url == ""
+
+    ep_bad_fallback = core._parse_episode_info({"title": "T", "url": "file:///etc/passwd"})
+    assert ep_bad_fallback.url == ""
+
+    ep_stream = core._parse_episode_info(
+        {"title": "T", "url": "https://vod-stream.nhk.jp/radioondemand/x.m3u8"}
+    )
+    assert ep_stream.url == "https://vod-stream.nhk.jp/radioondemand/x.m3u8"
+
+    ep_valid = core._parse_episode_info({"id": "M65G6QLKMY_01_123", "title": "T"})
+    assert ep_valid.url == "https://www.nhk.or.jp/radio/player/ondemand.html?p=M65G6QLKMY_01_123"
+
+
+def test_resolve_program_from_url_enforces_canonical_url_on_cached_program() -> None:
+    """キャッシュ内の番組情報に別 URL が入っていても、正規化済み URL で上書きして返す。"""
+    tampered = Program(
+        title="番組A",
+        display_title="番組A",
+        display_date="----",
+        site_id="SITE",
+        corner_id="01",
+        url="https://evil.example.com/hijack",
+    )
+    with patch.object(core, "load_program_cache", return_value=[tampered]):
+        resolved = core.resolve_program_from_url("https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01")
+
+    assert resolved is not None
+    assert resolved.url == "https://www.nhk.or.jp/radio/ondemand/detail.html?p=SITE_01"
+
+
+# ── S7: macOS .app バンドル拒否とクリーンアップのシンボリックリンク検証 ──
+
+
+def test_open_downloaded_folder_rejects_macos_app_bundle(tmp_path: Path) -> None:
+    """macOS の .app バンドルはディレクトリであっても開かない。"""
+    app_dir = tmp_path / "Evil.app"
+    app_dir.mkdir()
+    alias_dir = tmp_path / "normal_folder"
+    if sys.platform != "win32":
+        os.symlink(app_dir, alias_dir)
+
+    with patch("subprocess.run") as run_mock:
+        assert downloads.open_downloaded_folder(app_dir) is False
+        if sys.platform != "win32":
+            assert downloads.open_downloaded_folder(alias_dir) is False
+
+    run_mock.assert_not_called()
+
+
+def test_cleanup_partial_and_residual_skip_symlinked_program_dir(tmp_path: Path) -> None:
+    """保存先外のディレクトリを指すシンボリックリンク先ではクリーンアップを行わない。"""
+    if sys.platform == "win32":  # pragma: no cover
+        pytest.skip("シンボリックリンクの作成に権限が要る")
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    victim_part = outside / "20240415_番組A_第1回.mp3.part"
+    victim_bak = outside / "20240415_番組A_第1回.mp3.nhkradio-bak"
+    victim_part.write_text("keep", encoding="utf-8")
+    victim_bak.write_text("keep", encoding="utf-8")
+
+    program_dir = downloads.program_output_dir(output_dir, PROGRAM)
+    os.symlink(outside, program_dir)
+
+    downloads.cleanup_partial_episode_files(output_dir, PROGRAM, EPISODE)
+    assert victim_part.exists()
+    assert victim_bak.exists()
+
+    cleaned = downloads.cleanup_residual_backup_files(output_dir)
+    assert cleaned == 0
+    assert victim_bak.exists()
+
+
+# ── S8: mark_episode_downloaded の境界チェックと .aac/.wav 検出 ────────
+
+
+def test_mark_episode_downloaded_ignores_outside_path(tmp_path: Path) -> None:
+    """保存先ディレクトリ外のパスはマニフェストに記録しない。"""
+    output_dir = tmp_path / "out"
+    outside_file = tmp_path / "outside.mp3"
+    outside_file.write_text("x", encoding="utf-8")
+    program_dir = downloads.program_output_dir(output_dir, PROGRAM)
+    program_dir.mkdir(parents=True)
+
+    assert downloads.mark_episode_downloaded(output_dir, PROGRAM, EPISODE, outside_file) is True
+    manifest = json.loads((program_dir / ".downloaded.json").read_text(encoding="utf-8"))
+    assert manifest["paths"] == {}
+
+
+def test_runner_captures_aac_and_wav_output_paths(tmp_path: Path) -> None:
+    """run_yt_dlp_subprocess の on_output_path は .aac / .wav も検出する。"""
+    aac_path = tmp_path / "ep1.aac"
+    wav_path = tmp_path / "ep2.wav"
+    proc = MagicMock()
+    proc.stdout = [f"{aac_path}\n", f"{wav_path}\n"]
+    proc.wait.return_value = 0
+
+    captured: list[Path] = []
+    with patch("subprocess.Popen", return_value=proc):
+        assert downloads.run_yt_dlp_subprocess(["yt-dlp"], on_output_path=captured.append) is True
+
+    assert captured == [aac_path, wav_path]
+
+
+# ── B3: 長いタイトルで切り詰められたファイル名の照合・クリーンアップ ────
+
+
+def test_truncated_episode_title_matches_and_cleans_up_without_manifest(tmp_path: Path) -> None:
+    """%(title).NB で切り詰められた長いエピソード名も、マニフェスト無しで照合・掃除できる。"""
+    long_title = "あ" * 200
+    ep = Episode(
+        id="ep-long",
+        title=long_title,
+        display_title=long_title,
+        date="20240415",
+        display_date="2024-04-15(月)",
+        broadcast_time="",
+        duration_str="",
+        url="https://www.nhk.or.jp/radio/player/ondemand.html?p=SITE_01_1",
+    )
+    template = downloads.program_filename_template(PROGRAM)
+    with yt_dlp.YoutubeDL({"outtmpl": f"/tmp/dir/{template}", "quiet": True}) as ydl:
+        rendered_name = Path(
+            ydl.prepare_filename({"title": long_title, "ext": "mp3", "id": "ep-long", "upload_date": "20240415"})
+        ).name
+
+    program_dir = downloads.program_output_dir(tmp_path, PROGRAM)
+    program_dir.mkdir(parents=True)
+    saved_file = program_dir / rendered_name
+    saved_file.write_text("audio", encoding="utf-8")
+
+    assert downloads.find_episode_downloaded_path(tmp_path, PROGRAM, ep) == saved_file
+    assert downloads.is_episode_downloaded(tmp_path, PROGRAM, ep) is True
+
+    part_file = program_dir / f"{rendered_name}.part"
+    part_file.write_text("partial", encoding="utf-8")
+    downloads.cleanup_partial_episode_files(tmp_path, PROGRAM, ep)
+    assert not part_file.exists()

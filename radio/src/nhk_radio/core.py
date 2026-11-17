@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 import time
+from dataclasses import replace
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -54,8 +55,6 @@ def _merge_program_genres(
     genre: str | None = None,
     genre_label: str = "",
 ) -> Program:
-    from dataclasses import replace
-
     genres = list(program.genres)
     labels = list(program.genre_labels)
 
@@ -175,9 +174,15 @@ async def fetch_program_list_async(genre: str | None = None) -> list[Program]:
 # ──────────────────────────────────────────────────────
 
 
-def url_to_program(url: str) -> Program | None:
+def is_valid_nhk_url(url: str, *, allow_stream: bool = False) -> bool:
+    """NHK の信頼できる HTTP/HTTPS URL かどうかを検証する (S3, S6)。"""
     parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or parsed.hostname != "www.nhk.or.jp":
+    allowed_hosts = {"www.nhk.or.jp", "vod-stream.nhk.jp"} if allow_stream else {"www.nhk.or.jp"}
+    return parsed.scheme in {"http", "https"} and parsed.hostname in allowed_hosts
+
+
+def url_to_program(url: str) -> Program | None:
+    if not is_valid_nhk_url(url):
         return None
     match = re.search(r"[?&]p=([\da-zA-Z]+)_([\da-zA-Z]+)", url)
     if not match:
@@ -206,7 +211,8 @@ def resolve_program_from_url(url: str, genre: str | None = None) -> Program | No
 
     for candidate in cached_programs or []:
         if candidate.site_id == program.site_id and candidate.corner_id == program.corner_id:  # pragma: no cover
-            return candidate
+            # キャッシュ内の URL が改ざんされていても正規化済み URL を使う (S6)
+            return replace(candidate, url=program.url)
     if genre:  # pragma: no cover
         program = _merge_program_genres(program, genre=genre)
     return program
@@ -361,8 +367,9 @@ async def _fetch_by_genre_async(genre: str) -> list[Program]:
 
 def _parse_episode_info(info: dict) -> Episode:
     """yt-dlp のエピソード情報を Episode クラスに変換する。"""
-    ep_id = str(info.get("id", ""))
-    title = info.get("title") or ep_id
+    raw_ep_id = str(info.get("id", "")).strip()
+    ep_id = raw_ep_id if re.fullmatch(r"[\da-zA-Z_-]+", raw_ep_id) else ""
+    title = info.get("title") or ep_id or raw_ep_id
     upload_date = info.get("upload_date") or ""
     timestamp = info.get("release_timestamp") or info.get("timestamp")
     duration = info.get("duration")
@@ -379,7 +386,8 @@ def _parse_episode_info(info: dict) -> Episode:
     if ep_id:
         ep_url = f"https://www.nhk.or.jp/radio/player/ondemand.html?p={ep_id}"
     else:
-        ep_url = info.get("webpage_url") or info.get("url") or ""
+        candidate_url = str(info.get("webpage_url") or info.get("url") or "")
+        ep_url = candidate_url if is_valid_nhk_url(candidate_url, allow_stream=True) else ""
     return Episode(
         id=ep_id,
         title=title,

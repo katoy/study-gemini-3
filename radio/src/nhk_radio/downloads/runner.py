@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ..constants import YTDLP_CONCURRENT_FRAGMENTS, YTDLP_SOCKET_TIMEOUT
+from .cleanup import MEDIA_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ def run_yt_dlp_subprocess(
                 if (
                     on_output_path
                     and not stripped.startswith("[")
-                    and (stripped.endswith(".mp3") or stripped.endswith(".m4a") or stripped.endswith(".mp4"))
+                    and Path(stripped).suffix.lower() in MEDIA_EXTENSIONS
                 ):
                     candidate_p = Path(stripped)
                     if candidate_p.is_absolute() or candidate_p.parent.name:

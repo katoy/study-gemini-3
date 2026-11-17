@@ -617,6 +617,128 @@ class GuiReviewFixesTest(unittest.TestCase):
         first = self.browser.episode_tree.get_children()[0]
         self.assertEqual(self.browser.episode_tree.item(first, "values")[3], "E1")
 
+    # --- B1: 「保存済みのみ」表示中の削除 ---
+
+    def test_delete_episode_in_saved_only_removes_row_immediately_without_mock(self):
+        """「保存済みのみ」表示中に削除すると、非同期判定完了前でも行と ☑ が即座に更新される (B1)。"""
+        from nhk_radio.downloads import program_output_dir
+
+        prog = self.programs[0]
+        p_dir = program_output_dir(Path(self.tmp.name), prog)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        file1 = p_dir / "20240415_番組A_E1.mp3"
+        file2 = p_dir / "20240415_番組A_E2.mp3"
+        file1.write_text("x", encoding="utf-8")
+        file2.write_text("x", encoding="utf-8")
+
+        self.browser._show_episodes(prog, self.episodes, "loaded")
+        self.browser._apply_saved_keys(prog, {"ep1", "ep2"})
+        self.browser.episode_saved_only_var.set(True)
+        self.browser._apply_episode_filter()
+        self.assertEqual(len(self.browser.episode_tree.get_children()), 2)
+
+        with (
+            patch("nhk_radio.gui.listing.operations.mb.askyesno", return_value=True),
+            patch.object(self.browser, "_start_saved_keys_refresh"),
+        ):
+            # 2 件のうち 1 件を削除 → フィルタ中のツリーから即座に消える
+            self.browser._delete_episode_file("episode-0")
+            self.assertEqual(len(self.browser.episode_tree.get_children()), 1)
+            self.assertEqual(self.browser.displayed_saved_keys, {"ep2"})
+            self.assertTrue(self.browser.episode_saved_only_var.get())
+
+            # 最後の 1 件を削除 → saved_only フィルタが解除され、☑ 無しで全行表示に戻る
+            self.browser._delete_episode_file("episode-0")
+            self.assertFalse(self.browser.episode_saved_only_var.get())
+            self.assertEqual(self.browser.displayed_saved_keys, set())
+            self.assertEqual(len(self.browser.episode_tree.get_children()), 2)
+            for iid in self.browser.episode_tree.get_children():
+                self.assertNotIn("☑", self.browser.episode_tree.item(iid, "values")[0])
+
+        # 後続の非同期判定で空セットが返っても正しく整合する
+        self.browser.episode_saved_only_var.set(True)
+        self.browser._apply_saved_keys(prog, set())
+        self.assertFalse(self.browser.episode_saved_only_var.get())
+
+    # --- B2: 放送日時ソート ---
+
+    def test_sorted_episodes_by_date_uses_jst_display_date_and_broadcast_time(self):
+        """エピソードと番組の日付ソートが JST 表示日付と放送時刻で並ぶ (B2)。"""
+        ep_prev = Episode(
+            id="p", title="前日", display_title="前日", date="20240414",
+            display_date="2024-04-14(日)", broadcast_time="22:00", duration_str="", url="",
+        )
+        ep_morning = Episode(
+            id="m", title="早朝", display_title="早朝", date="20240414",
+            display_date="2024-04-15(月)", broadcast_time="06:45", duration_str="", url="",
+        )
+        ep_evening = Episode(
+            id="e", title="夜", display_title="夜", date="20240415",
+            display_date="2024-04-15(月)", broadcast_time="20:00", duration_str="", url="",
+        )
+        self.browser.episode_sort_state = ("date", False)
+        self.assertEqual(
+            self.browser._sorted_episodes([ep_evening, ep_morning, ep_prev]),
+            [ep_prev, ep_morning, ep_evening],
+        )
+        self.browser.episode_sort_state = ("date", True)
+        self.assertEqual(
+            self.browser._sorted_episodes([ep_prev, ep_morning, ep_evening]),
+            [ep_evening, ep_morning, ep_prev],
+        )
+
+        p1 = Program(title="P1", display_title="P1", display_date="2024-04-15(月)", site_id="S1", corner_id="01", url="U1")
+        p2 = Program(title="P2", display_title="P2", display_date="2024年4月9日", site_id="S2", corner_id="02", url="U2")
+        p3 = Program(title="P3", display_title="P3", display_date="----------(-)", site_id="S3", corner_id="03", url="U3")
+        self.browser.program_sort_state = ("date", False)
+        self.assertEqual(self.browser._sorted_programs([p1, p2, p3]), [p3, p2, p1])
+
+    # --- B4 / S7: 旧フォルダ対応と外部シンボリックリンク拒否 ---
+
+    def test_open_downloaded_episode_folder_supports_legacy_dir_and_rejects_outside_symlink(self):
+        """旧保存先ディレクトリのフォルダを開き、保存先外を指すシンボリックリンクは拒否する (B4, S7)。"""
+        import os
+        import sys
+
+        legacy_dir = Path(self.tmp.name) / "音楽" / "番組A"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "20240415_番組A_E1.mp3").write_text("x", encoding="utf-8")
+
+        self.browser._show_episodes(self.programs[0], [self.episodes[0]], "loaded")
+        with patch("nhk_radio.downloads.open_downloaded_folder", return_value=True) as open_mock:
+            self.browser._open_downloaded_episode_folder("episode-0")
+        open_mock.assert_called_once_with(legacy_dir)
+
+        if sys.platform != "win32":
+            from nhk_radio.downloads import program_output_dir
+
+            with tempfile.TemporaryDirectory() as outside_tmp:
+                outside_dir = Path(outside_tmp)
+                symlink_dir = program_output_dir(Path(self.tmp.name), self.programs[1])
+                os.symlink(outside_dir, symlink_dir)
+                self.browser._show_episodes(self.programs[1], [self.episodes[0]], "loaded")
+                with patch("nhk_radio.downloads.open_downloaded_folder") as open_mock:
+                    self.browser._open_downloaded_episode_folder("episode-0")
+                open_mock.assert_not_called()
+                self.assertIn("保存先の外", self.browser.status_var.get())
+
+    # --- B5: 設定ダイアログ上の確認ダイアログの parent ---
+
+    def test_settings_confirm_dialogs_use_settings_dialog_as_parent(self):
+        """表示設定ダイアログが開いている間は確認ダイアログの parent に設定ダイアログを使う (B5)。"""
+        self.root.deiconify()
+        self.browser._show_screen("settings")
+        dialog = self.browser.shell.settings_dialog
+
+        with patch("nhk_radio.gui.browser.messagebox.askyesno", return_value=False) as ask_no:
+            self.browser._reset_ui_settings()
+        self.assertIs(ask_no.call_args.kwargs["parent"], dialog)
+
+        self.browser.settings_dirty = True
+        with patch("nhk_radio.gui.browser.messagebox.askyesnocancel", return_value=None) as ask_cancel:
+            self.browser._toggle_settings_screen()
+        self.assertIs(ask_cancel.call_args.kwargs["parent"], dialog)
+
 
 if __name__ == "__main__":
     unittest.main()

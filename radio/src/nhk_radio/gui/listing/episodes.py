@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from ...constants import CACHE_TTL_INFINITE
 from ...downloads import _episode_key, get_downloaded_episode_keys
-from ...text import _sortable_duration_value, _sortable_timestamp_value
+from ...text import _sortable_day_value, _sortable_duration_value, _sortable_timestamp_value
 from ...types import Episode, Program
 
 if TYPE_CHECKING:
@@ -101,10 +101,11 @@ class GuiEpisodeMixin:
         self.saved_keys_program_key = self._program_key(program)
         for iid, episode in self.displayed_episode_map.items():
             self.episode_view.set_saved(iid, _episode_key(episode) in self.displayed_saved_keys)
+        was_saved_only = self.episode_saved_only_var.get()
         self._refresh_saved_only_button_state()
         self._refresh_program_overview_stats()
         # 保存状態で絞り込み・並べ替えをしているときは、一覧を描き直す
-        if self.episode_saved_only_var.get() or self.episode_sort_state[0] == "saved":
+        if was_saved_only or self.episode_saved_only_var.get() or self.episode_sort_state[0] == "saved":
             self._render_episode_rows(program, self.displayed_episodes, clear_selection=False)
 
     def _rerender_displayed_episodes(self):
@@ -195,7 +196,11 @@ class GuiEpisodeMixin:
                 return _episode_key(episode) in downloaded_keys
         elif col == "date":
             def key_func(episode: Episode):
-                return _sortable_timestamp_value(episode.date)
+                day_key = _sortable_day_value(episode.display_date or episode.date)
+                if day_key[0] == 0:
+                    ts_key = _sortable_timestamp_value(episode.date)
+                    return (ts_key[0], ts_key[1], episode.broadcast_time or "")
+                return (day_key[0], float(day_key[1]), episode.broadcast_time or "")
         elif col == "duration":
             def key_func(episode: Episode):
                 return _sortable_duration_value(episode.duration_str)

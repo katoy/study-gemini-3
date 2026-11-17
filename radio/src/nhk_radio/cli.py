@@ -371,7 +371,7 @@ def create_parser() -> argparse.ArgumentParser:
   # 保存先ディレクトリを指定
   python nhk_radio_dl.py -o ~/Downloads/nhk
 
-  # 保存先は downloads/<ジャンル>/<番組名>/YYYYMMDD_<番組名>_<回タイトル>.mp3
+  # 保存先は downloads/<site_id>_<corner_id>/YYYYMMDD_<番組名>_<回タイトル>.mp3
         """,
     )
     parser.add_argument("url", nargs="?", help="番組 URL (省略すると GUI モード)")

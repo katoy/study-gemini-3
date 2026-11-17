@@ -50,7 +50,7 @@ def run_auto_commands(browser: "EpisodeGuiBrowser"):
             start_wait = time.time()
             while time.time() - start_wait < 30:
                 has_active = any(row["state"] == "running" for row in browser.active_download_rows.values())
-                if not has_active and getattr(browser, "download_finished_count", 0) > 0:
+                if not has_active and browser.active_download_rows:
                     break
                 time.sleep(1)
         time.sleep(3)

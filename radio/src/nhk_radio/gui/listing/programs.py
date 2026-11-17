@@ -12,6 +12,7 @@ from ...constants import GENRE_LABELS, NHK_GENRES
 from ...text import (
     _program_genre_labels,
     _program_genre_text,
+    _sortable_day_value,
 )
 from ...types import Program
 
@@ -226,7 +227,11 @@ class GuiProgramsMixin:
         if col == "no":
             return sorted(programs, key=lambda p: self.program_order_map.get(self._program_key(p), 0), reverse=reverse)
         if col == "date":
-            return sorted(programs, key=lambda p: p.display_date or "", reverse=reverse)
+            return sorted(
+                programs,
+                key=lambda p: (_sortable_day_value(p.display_date or p.onair_date or ""), p.display_date or ""),
+                reverse=reverse,
+            )
         if col == "title":
             return sorted(programs, key=lambda p: p.display_title or p.title, reverse=reverse)
         return programs

@@ -14,7 +14,7 @@ from .config import (
     _ui_settings_path,
 )
 from .constants import CACHE_TTL_SECONDS
-from .text import _format_episode_date, _format_onair_date
+from .text import _format_episode_date, _format_onair_date, _safe_name
 from .types import Episode, Program
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def _filter_dataclass_kwargs(cls, data: dict) -> dict:
 
 
 def _program_cache_path(genre: str | None) -> Path:
-    return _program_cache_dir() / f"{genre or 'all'}.json"
+    return _program_cache_dir() / f"{_safe_name(genre or 'all')}.json"
 
 
 def _load_json_ttl_cache(cache_path: Path, data_key: str, ttl_seconds: int) -> list[dict] | None:
@@ -127,7 +127,7 @@ def clear_program_cache() -> int:
 
 
 def _episode_cache_path(program: Program) -> Path:
-    return _episode_cache_dir() / f"{program.site_id}_{program.corner_id}.json"
+    return _episode_cache_dir() / f"{_safe_name(program.site_id)}_{_safe_name(program.corner_id)}.json"
 
 
 def load_episode_cache(program: Program, ttl_seconds: int = CACHE_TTL_SECONDS) -> list[Episode] | None:

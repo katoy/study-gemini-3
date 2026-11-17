@@ -174,17 +174,32 @@ class GuiOperationsMixin:
             self.status_var.set("エピソード情報が見つかりません。")
             return
 
-        # 保存先を確認
-        from ...downloads import open_downloaded_folder, program_output_dir
+        # 保存先を確認（旧ディレクトリ構造に保存されているファイルも対象にする: B4）
+        from ...downloads import (
+            find_episode_downloaded_path,
+            is_within_output_dir,
+            open_downloaded_folder,
+            program_output_dir,
+        )
 
-        program_dir = program_output_dir(self.output_dir, self.displayed_program)
-        if not program_dir.exists():
+        downloaded_path = find_episode_downloaded_path(
+            self.output_dir, self.displayed_program, episode, audio_only=self.audio_only
+        )
+        target_dir = (
+            downloaded_path.parent
+            if downloaded_path is not None
+            else program_output_dir(self.output_dir, self.displayed_program)
+        )
+        if not target_dir.exists():
             self.status_var.set("保存先フォルダが見つかりません。")
+            return
+        if not is_within_output_dir(target_dir / "_", self.output_dir):
+            self.status_var.set(f"保存先の外を指すためフォルダを開きません: {target_dir}")
             return
 
         # フォルダを開く
-        if open_downloaded_folder(program_dir):
-            self.status_var.set(f"フォルダを開きました: {program_dir.name}")
+        if open_downloaded_folder(target_dir):
+            self.status_var.set(f"フォルダを開きました: {target_dir.name}")
         else:
             self.status_var.set("フォルダを開く際にエラーが発生しました。")
 
@@ -228,7 +243,12 @@ class GuiOperationsMixin:
 
     def _delete_episode_file(self, item_id: str):
         """ファイルを削除（確認ダイアログ付き）。"""
-        from ...downloads import find_episode_downloaded_path, is_within_output_dir, remove_episode_from_manifest
+        from ...downloads import (
+            _episode_key,
+            find_episode_downloaded_path,
+            is_within_output_dir,
+            remove_episode_from_manifest,
+        )
 
         episode = self.displayed_episode_map.get(item_id)
         if not episode or not self.displayed_program:
@@ -256,10 +276,15 @@ class GuiOperationsMixin:
             path.unlink()
             remove_episode_from_manifest(self.output_dir, self.displayed_program, episode)
             self.status_var.set(f"削除しました: {path.name}")
-            self._refresh_downloaded_column(self.displayed_program)
-            if self.episode_saved_only_var.get():
-                # 「保存済みのみ」表示中は削除した行を一覧から外す (F3)
+            was_saved_only = self.episode_saved_only_var.get()
+            self.displayed_saved_keys.discard(_episode_key(episode))
+            self.episode_view.set_saved(item_id, False)
+            self._refresh_saved_only_button_state()
+            self._refresh_program_overview_stats()
+            if was_saved_only:
+                # 「保存済みのみ」表示中は削除した行を即座に一覧から外す (F3, B1)
                 self._apply_episode_filter()
+            self._refresh_downloaded_column(self.displayed_program)
         except OSError as e:
             self.status_var.set(f"削除に失敗しました: {e}")
 

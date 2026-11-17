@@ -181,9 +181,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.selected_episode_keys: tuple[str, ...] = ()
         self.program_sort_state = ("no", False)
         self.episode_sort_state = ("date", True)
-        self.saved_episode_buttons: dict[str, ttk.Button] = {}
         self.saved_button_refresh_pending = False
-        self.saved_episode_popup: tk.Toplevel | None = None
         self.help_popup: tk.Toplevel | None = None
         self.help_text: tk.Text | None = None
         self.help_markdown_content: str | None = None
@@ -236,9 +234,19 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
                 self.status_var.set("表示設定を閉じました")
         self._update_settings_ui()
 
+    def _settings_dialog_parent(self) -> tk.Misc:
+        """設定ダイアログが開いていれば設定ダイアログ、そうでなければ root を返す (B5)。"""
+        shell = getattr(self, "shell", None)
+        dialog = getattr(shell, "settings_dialog", None)
+        if dialog is not None:
+            with contextlib.suppress(tk.TclError):
+                if dialog.winfo_exists() and dialog.state() == "normal":
+                    return dialog
+        return self.root
+
     def _reset_ui_settings(self):
         """UI設定をデフォルトに戻す。"""
-        if messagebox.askyesno("設定リセット", "表示設定を初期値に戻しますか？"):
+        if messagebox.askyesno("設定リセット", "表示設定を初期値に戻しますか？", parent=self._settings_dialog_parent()):
             from ..config import DEFAULT_UI_FONT_SIZE_PT, DEFAULT_UI_THEME
             self._apply_theme(DEFAULT_UI_THEME)
             self._apply_font_size_preset(int(DEFAULT_UI_FONT_SIZE_PT))
@@ -390,9 +398,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
 
     def _cancel(self):
         # 補助ウィンドウが開いていても 1 回の操作で終了できるようにする (M3)
-        for popup in (self.help_popup, self.saved_episode_popup):
-            if popup is not None and popup.winfo_exists():
-                popup.destroy()
+        if self.help_popup is not None and self.help_popup.winfo_exists():
+            self.help_popup.destroy()
         # 未保存の表示設定は表示中の画面に関係なく確認する (M1)
         if self.settings_dirty:
             if messagebox is None or not messagebox.askyesno(
@@ -437,7 +444,7 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         if not self.settings_dirty or messagebox is None:
             return True
         answer = messagebox.askyesnocancel(
-            "未保存の表示設定", "表示設定が保存されていません。保存しますか？", parent=self.root
+            "未保存の表示設定", "表示設定が保存されていません。保存しますか？", parent=self._settings_dialog_parent()
         )
         if answer is None:
             return False
@@ -539,9 +546,6 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         if self.help_popup is not None and self.help_popup.winfo_exists():
             self.help_popup.destroy()
             return "break"
-        if self.saved_episode_popup is not None and self.saved_episode_popup.winfo_exists():
-            self.saved_episode_popup.destroy()
-            return "break"
         if self.current_screen == "settings":
             self._show_screen("browser")
             return "break"
@@ -556,10 +560,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
     def _handle_browser_shortcut(self, event):
         if self.current_screen != "browser" or self.loading or self._is_text_input_focus():
             return None
-        # ヘルプダイアログや別ポップアップなどの別ウィンドウが開いている時はショートカットを無効化 (G10)
+        # ヘルプダイアログなどの別ウィンドウが開いている時はショートカットを無効化 (G10)
         if getattr(self, "help_popup", None) and self.help_popup.winfo_exists():
-            return None
-        if getattr(self, "saved_episode_popup", None) and self.saved_episode_popup.winfo_exists():
             return None
         widget = getattr(event, "widget", None)
         if widget and hasattr(widget, "winfo_toplevel"):

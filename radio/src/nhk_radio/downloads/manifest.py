@@ -205,7 +205,7 @@ def mark_episode_downloaded(
         saved_paths = _load_download_manifest(program, output_dir)
         episode_key = filesystem._episode_key(episode)
         program_dir = filesystem.program_output_dir(output_dir, program)
-        if path is not None and path.exists():  # pragma: no cover
+        if path is not None and path.exists() and is_within_output_dir(path, output_dir):  # pragma: no cover
             try:
                 saved_paths[episode_key] = str(path.relative_to(program_dir))
             except ValueError:

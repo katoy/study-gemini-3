@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ..types import Episode, Program
 from . import filesystem
+from .manifest import is_within_output_dir
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def _extract_backup_orig_name(path: Path) -> str | None:
 def cleanup_partial_episode_files(output_dir: Path, program: Program, episode: Episode):
     """ダウンロード中の一時ファイル (.part, .ytdl) を削除する。"""
     for program_dir in filesystem._program_search_dirs(output_dir, program):
-        if not program_dir.exists():
+        if not program_dir.exists() or not is_within_output_dir(program_dir / "_", output_dir):
             continue
         filesystem._clear_file_scan_cache(program_dir)
         try:
@@ -98,7 +99,9 @@ def cleanup_residual_backup_files(
     cleaned = 0
 
     try:
-        candidate_dirs = [output_dir] + [p for p in output_dir.iterdir() if os.path.isdir(p)]
+        candidate_dirs = [output_dir] + [
+            p for p in output_dir.iterdir() if os.path.isdir(p) and not os.path.islink(p)
+        ]
     except OSError as e:
         logger.debug(f"ディレクトリ走査に失敗: {output_dir} ({e})")
         return 0
@@ -147,7 +150,11 @@ def open_downloaded_folder(folder_path: Path) -> bool:
     Returns:
         成功時 True、失敗時 False
     """
-    if not folder_path.is_dir():
+    if (
+        not folder_path.is_dir()
+        or folder_path.suffix.lower() == ".app"
+        or os.path.realpath(folder_path).lower().endswith(".app")
+    ):
         logger.warning(f"フォルダが存在しないかディレクトリではありません: {folder_path}")
         return False
 

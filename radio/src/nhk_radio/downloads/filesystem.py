@@ -166,6 +166,11 @@ def _episode_key(episode: Episode) -> str:
     return f"{episode.date or ''}:{episode.title or ''}"
 
 
+def _truncate_utf8(text: str, max_bytes: int) -> str:
+    encoded = text.encode("utf-8")
+    return encoded[:max_bytes].decode("utf-8", errors="ignore") if len(encoded) > max_bytes else text
+
+
 def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
     program_titles, episode_title, episode_date = _episode_output_identity(program, episode)
     raw_ep_title = (episode.title or episode.display_title or "").strip()
@@ -182,7 +187,11 @@ def _episode_output_patterns(program: Program, episode: Episode) -> list[str]:
     patterns: list[str] = []
     for program_title in program_titles:
         esc_prog = glob.escape(program_title)
-        for t_var in title_variants:
+        max_bytes = _episode_title_max_bytes(program_title)
+        per_prog_variants = list(
+            dict.fromkeys(v for base in title_variants for v in (base, _truncate_utf8(base, max_bytes)))
+        )
+        for t_var in per_prog_variants:
             esc_ep = glob.escape(t_var)
             if episode_dates:
                 for date in episode_dates:
@@ -236,8 +245,14 @@ def _episode_output_matches(path: Path, program: Program, episode: Episode, *, a
     except Exception:
         pass
 
+    expanded_variants = set(title_variants)
+    for pt in program_titles:
+        max_bytes = _episode_title_max_bytes(pt)
+        for tv in title_variants:
+            expanded_variants.add(_truncate_utf8(tv, max_bytes))
+
     stem = path.stem
-    return any(tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name) for tv in title_variants)
+    return any(tv and (stem.endswith(f"_{tv}") or stem == tv or f"_{tv}." in name) for tv in expanded_variants)
 
 
 def _get_cached_glob_files(directory: Path) -> list[Path]:
