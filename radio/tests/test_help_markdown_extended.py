@@ -45,7 +45,7 @@ class HelpMarkdownExtendedTest(unittest.TestCase):
         }
 
         markdown = """# H1 Title
-## H2 Subtitle
+## **H2** `Subtitle`
 ### H3 Small
 
 - Bullet item
@@ -59,10 +59,20 @@ code block line 2
 Normal paragraph with **strong** and `code`.
 """
 
-        help_markdown.render_help_markdown(text_widget, markdown, palette, fonts)
+        sections = help_markdown.render_help_markdown(text_widget, markdown, palette, fonts)
 
         # Basic verification of calls
         self.assertTrue(text_widget.insert.called)
+
+        # Verify extracted sections and line indices
+        self.assertEqual(
+            sections,
+            [
+                help_markdown.HelpSection(level=1, title="H1 Title", index="1.0"),
+                help_markdown.HelpSection(level=2, title="H2 Subtitle", index="3.0"),
+                help_markdown.HelpSection(level=3, title="H3 Small", index="5.0"),
+            ],
+        )
 
         # Check H1
         text_widget.insert.assert_any_call("end", "H1 Title", ("h1",))
@@ -75,6 +85,21 @@ Normal paragraph with **strong** and `code`.
         # Check Paragraph inline
         text_widget.insert.assert_any_call("end", "strong", ("strong",))
         text_widget.insert.assert_any_call("end", "code", ("inline_code",))
+
+    def test_apply_help_search_highlights(self):
+        text_widget = MagicMock()
+        self.assertIsNone(help_markdown.apply_help_search_highlights(text_widget, [], 0))
+        text_widget.tag_remove.assert_any_call("search_match", "1.0", "end")
+        text_widget.tag_remove.assert_any_call("search_current", "1.0", "end")
+
+        matches = [("1.0", "1.4"), ("3.2", "3.6")]
+        selected = help_markdown.apply_help_search_highlights(text_widget, matches, 3)
+        self.assertEqual(selected, ("3.2", "3.6"))
+        text_widget.tag_add.assert_any_call("search_match", "1.0", "1.4")
+        text_widget.tag_add.assert_any_call("search_match", "3.2", "3.6")
+        text_widget.tag_add.assert_any_call("search_current", "3.2", "3.6")
+        text_widget.tag_raise.assert_called_once_with("search_current", "search_match")
+        text_widget.see.assert_called_once_with("3.2")
 
     def test_render_help_markdown_empty_lines(self):
         text_widget = MagicMock()

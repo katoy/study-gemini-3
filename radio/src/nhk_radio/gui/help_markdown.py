@@ -1,12 +1,28 @@
 """Markdown-backed help loading and Tk rendering helpers."""
 
 import re
+import unicodedata
+from dataclasses import dataclass
 from importlib import resources
 
 from ..constants import GENRE_LABELS, NHK_GENRES
 from ..text import _normalize_text
 from ..types import Program
 from .shortcuts import render_help_list
+
+
+@dataclass(frozen=True)
+class HelpSection:
+    """目次ナビゲーション用の見出し情報。"""
+
+    level: int
+    title: str
+    index: str
+
+
+def _plain_heading_text(raw_heading: str) -> str:
+    """インライン Markdown 記法を取り除いた見出し文字列を返す。"""
+    return "".join(value for _kind, value in _split_inline_markdown(raw_heading)).strip()
 
 
 def build_help_markdown(programs: list[Program]) -> str:
@@ -49,11 +65,16 @@ def _render_corner_list_markdown(programs: list[Program]) -> str:
     return "\n".join(lines)
 
 
-def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fonts: dict[str, tuple]) -> None:
+def render_help_markdown(
+    text_widget, markdown: str, palette: dict[str, str], fonts: dict[str, tuple]
+) -> list[HelpSection]:
+    """Markdown 本文を tk.Text に描画し、目次用の見出し位置一覧を返す。"""
     text_widget.configure(state="normal")
     text_widget.delete("1.0", "end")
     _configure_help_tags(text_widget, palette, fonts)
 
+    sections: list[HelpSection] = []
+    current_line = 1
     lines = markdown.splitlines()
     index = 0
     while index < len(lines):
@@ -62,6 +83,7 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
 
         if not stripped:
             text_widget.insert("end", "\n")
+            current_line += 1
             index += 1
             continue
 
@@ -73,22 +95,30 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
                 index += 1
             if index < len(lines):  # pragma: no cover
                 index += 1
-            text_widget.insert("end", "\n".join(code_lines).rstrip() + "\n\n", ("codeblock",))
+            code_text = "\n".join(code_lines).rstrip() + "\n\n"
+            text_widget.insert("end", code_text, ("codeblock",))
+            current_line += code_text.count("\n")
             continue
 
         if stripped.startswith("# "):
+            sections.append(HelpSection(level=1, title=_plain_heading_text(stripped[2:]), index=f"{current_line}.0"))
             _insert_inline_segments(text_widget, stripped[2:], "h1", "h1_strong", "h1_code")
             text_widget.insert("end", "\n\n")
+            current_line += 2
             index += 1
             continue
         if stripped.startswith("## "):
+            sections.append(HelpSection(level=2, title=_plain_heading_text(stripped[3:]), index=f"{current_line}.0"))
             _insert_inline_segments(text_widget, stripped[3:], "h2", "h2_strong", "h2_code")
             text_widget.insert("end", "\n\n")
+            current_line += 2
             index += 1
             continue
         if stripped.startswith("### "):
+            sections.append(HelpSection(level=3, title=_plain_heading_text(stripped[4:]), index=f"{current_line}.0"))
             _insert_inline_segments(text_widget, stripped[4:], "h3", "h3_strong", "h3_code")
             text_widget.insert("end", "\n")
+            current_line += 1
             index += 1
             continue
 
@@ -97,6 +127,7 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
             text_widget.insert("end", "• ", ("bullet_marker",))
             _insert_inline_segments(text_widget, bullet_match.group(2), "bullet", "bullet_strong", "bullet_code")
             text_widget.insert("end", "\n")
+            current_line += 1
             index += 1
             continue
 
@@ -105,6 +136,7 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
             text_widget.insert("end", f"{numbered_match.group(1)}. ", ("bullet_marker",))
             _insert_inline_segments(text_widget, numbered_match.group(2), "bullet", "bullet_strong", "bullet_code")
             text_widget.insert("end", "\n")
+            current_line += 1
             index += 1
             continue
 
@@ -118,8 +150,10 @@ def render_help_markdown(text_widget, markdown: str, palette: dict[str, str], fo
             index += 1
         _insert_inline_segments(text_widget, " ".join(paragraph_lines), "body", "strong", "inline_code")
         text_widget.insert("end", "\n\n")
+        current_line += 2
 
     text_widget.configure(state="disabled")
+    return sections
 
 
 def _configure_help_tags(text_widget, palette: dict[str, str], fonts: dict[str, tuple]) -> None:
@@ -189,6 +223,53 @@ def _configure_help_tags(text_widget, palette: dict[str, str], fonts: dict[str, 
         spacing1=4,
         spacing3=8,
     )
+    text_widget.tag_configure("search_match", background=palette["accent_soft"], foreground=palette["text"])
+    text_widget.tag_configure(
+        "search_current",
+        background=palette["accent"],
+        foreground=palette.get("on_accent", palette["selected_fg"]),
+    )
+
+
+def find_help_matches(rendered_text: str, query: str) -> list[tuple[str, str]]:
+    """描画済み本文から NFKC・大小文字無視で一致箇所の (開始, 終了) インデックス一覧を返す。"""
+    norm_query = unicodedata.normalize("NFKC", query.strip()).casefold()
+    if not norm_query or not rendered_text:
+        return []
+
+    matches: list[tuple[str, str]] = []
+    for line_no, line in enumerate(rendered_text.split("\n"), start=1):
+        norm_chars: list[str] = []
+        char_offsets: list[int] = []
+        for col, ch in enumerate(line):
+            for piece in unicodedata.normalize("NFKC", ch).casefold():
+                norm_chars.append(piece)
+                char_offsets.append(col)
+        norm_line = "".join(norm_chars)
+        start = 0
+        while (pos := norm_line.find(norm_query, start)) != -1:
+            orig_start = char_offsets[pos]
+            orig_end = char_offsets[pos + len(norm_query) - 1] + 1
+            matches.append((f"{line_no}.{orig_start}", f"{line_no}.{orig_end}"))
+            start = pos + len(norm_query)
+    return matches
+
+
+def apply_help_search_highlights(
+    text_widget, matches: list[tuple[str, str]], current_index: int
+) -> tuple[str, str] | None:
+    """検索一致ハイライトを更新し、選択中の一致位置を表示領域にスクロールする。"""
+    text_widget.tag_remove("search_match", "1.0", "end")
+    text_widget.tag_remove("search_current", "1.0", "end")
+    if not matches:
+        return None
+    for start_idx, end_idx in matches:
+        text_widget.tag_add("search_match", start_idx, end_idx)
+    cur_start, cur_end = matches[current_index % len(matches)]
+    text_widget.tag_add("search_current", cur_start, cur_end)
+    text_widget.tag_raise("search_current", "search_match")
+    text_widget.see(cur_start)
+    return cur_start, cur_end
 
 
 def _insert_inline_segments(text_widget, text: str, base_tag: str, strong_tag: str, code_tag: str) -> None:

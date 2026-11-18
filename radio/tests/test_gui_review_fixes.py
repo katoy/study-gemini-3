@@ -889,6 +889,89 @@ class GuiReviewFixesTest(unittest.TestCase):
                 open_mock.assert_not_called()
                 self.assertIn("保存先の外", self.browser.status_var.get())
 
+    # --- 使い方の説明書：目次参照 & キーワード検索 ---
+
+    def test_help_dialog_toc_navigation_and_search(self):
+        """ヘルプダイアログで目次選択ジャンプとキーワード検索（前後移動・クリア・Esc）が動作する。"""
+        self.browser._show_help_dialog()
+        popup = self.browser.help_popup
+        self.assertIsNotNone(popup)
+        self.assertTrue(popup.winfo_exists())
+        self.assertIsNotNone(self.browser.help_toc_tree)
+        self.assertIsNotNone(self.browser.help_text)
+        self.assertIsNotNone(self.browser.help_search_entry)
+        self.assertIsNotNone(self.browser.help_search_var)
+        self.assertIsNotNone(self.browser.help_search_count_var)
+
+        toc_items = self.browser.help_toc_tree.get_children()
+        self.assertGreater(len(toc_items), 5)
+
+        # 目次の後半セクションを選択すると該当行へスクロールする
+        target_item = toc_items[-2]
+        target_index = self.browser.help_toc_section_map[target_item]
+        with (
+            patch.object(self.browser.help_text, "see", wraps=self.browser.help_text.see) as see_mock,
+            patch.object(self.browser.help_text, "yview", wraps=self.browser.help_text.yview) as yview_mock,
+        ):
+            self.browser.help_toc_tree.selection_set(target_item)
+            self.browser._on_help_toc_select()
+        see_mock.assert_called_with(target_index)
+        yview_mock.assert_called_with(target_index)
+
+        # 検索語を入力すると一致件数・ハイライトが更新され、次へ/前へで移動できる
+        self.browser.help_search_var.set("ダウンロード")
+        matches = list(self.browser.help_search_matches)
+        self.assertGreater(len(matches), 1)
+        self.assertEqual(self.browser.help_search_index, 0)
+        self.assertEqual(self.browser.help_search_count_var.get(), f"1 / {len(matches)} 件")
+        self.assertTrue(self.browser.help_text.tag_ranges("search_match"))
+        self.assertEqual(
+            tuple(str(idx) for idx in self.browser.help_text.tag_ranges("search_current")),
+            matches[0],
+        )
+
+        self.browser._help_search_next()
+        self.assertEqual(self.browser.help_search_index, 1)
+        self.assertEqual(self.browser.help_search_count_var.get(), f"2 / {len(matches)} 件")
+
+        self.browser._help_search_prev()
+        self.assertEqual(self.browser.help_search_index, 0)
+        self.browser._help_search_prev()
+        self.assertEqual(self.browser.help_search_index, len(matches) - 1)
+
+        # 一致しない検索語では 0 件表示になる
+        self.browser.help_search_var.set("存在しないキーワードXYZ")
+        self.assertEqual(self.browser.help_search_matches, [])
+        self.assertEqual(self.browser.help_search_count_var.get(), "0 件")
+
+        # ヘルプ表示中の Ctrl/Cmd + F は説明書検索欄へフォーカスする
+        with (
+            patch.object(self.browser.help_search_entry, "focus_set") as focus_mock,
+            patch.object(self.browser.program_search_entry, "focus_set") as prog_focus_mock,
+        ):
+            res = self.browser._focus_program_search()
+        self.assertEqual(res, "break")
+        focus_mock.assert_called_once()
+        prog_focus_mock.assert_not_called()
+
+        # すでに開いている状態で再度 _show_help_dialog を呼ぶと前面化して検索欄へフォーカス
+        with patch.object(self.browser.help_popup, "lift") as lift_mock:
+            self.browser._show_help_dialog()
+        lift_mock.assert_called_once()
+
+        # 検索語がある状態で Esc を押すと検索語だけクリアし、ダイアログは開いたまま
+        self.browser._handle_escape()
+        self.assertEqual(self.browser.help_search_var.get(), "")
+        self.assertEqual(self.browser.help_search_count_var.get(), "")
+        self.assertIsNotNone(self.browser.help_popup)
+        self.assertTrue(self.browser.help_popup.winfo_exists())
+
+        # 検索語が空の状態で Esc を押すとダイアログを閉じる
+        self.browser._handle_escape()
+        self.assertIsNone(self.browser.help_popup)
+        self.assertIsNone(self.browser.help_toc_tree)
+        self.assertEqual(self.browser.help_sections, [])
+
 
 if __name__ == "__main__":
     unittest.main()

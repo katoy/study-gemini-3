@@ -43,6 +43,11 @@ class HelpMarkdownTest(unittest.TestCase):
         self.assertIn("- `AAA_01`: 入門ビジネス英語", markdown)
         self.assertNotIn("{{GENRE_LIST}}", markdown)
         self.assertNotIn("{{CORNER_LIST}}", markdown)
+        # 操作説明や説明書検索・CLI・保存先の章が含まれ、検索対象リファレンスより先頭に配置されている
+        self.assertIn("## 説明書の検索と目次移動", markdown)
+        self.assertIn("## コマンドライン (CLI) の使い方", markdown)
+        self.assertIn("## 保存先と設定ファイルの場所", markdown)
+        self.assertLess(markdown.index("## 基本操作の流れ"), markdown.index("## 検索対象の一覧"))
 
     def test_split_inline_markdown_detects_strong_and_code(self):
         segments = help_markdown._split_inline_markdown("**重要** と `Ctrl/Cmd + F` を確認")
@@ -50,6 +55,21 @@ class HelpMarkdownTest(unittest.TestCase):
             segments,
             [("strong", "重要"), ("text", " と "), ("code", "Ctrl/Cmd + F"), ("text", " を確認")],
         )
+
+    def test_find_help_matches_supports_nfkc_casefold_and_multiple_hits(self):
+        text = "Ｆ１キーで Help を開く\nhelp の設定と ﬁle 確認\n"
+        self.assertEqual(help_markdown.find_help_matches(text, ""), [])
+        self.assertEqual(help_markdown.find_help_matches("", "help"), [])
+        self.assertEqual(help_markdown.find_help_matches(text, "見つからない語"), [])
+
+        f1_matches = help_markdown.find_help_matches(text, "f1")
+        self.assertEqual(f1_matches, [("1.0", "1.2")])
+
+        help_matches = help_markdown.find_help_matches(text, "HELP")
+        self.assertEqual(help_matches, [("1.6", "1.10"), ("2.0", "2.4")])
+
+        ligature_matches = help_markdown.find_help_matches(text, "file")
+        self.assertEqual(ligature_matches, [("2.10", "2.13")])
 
 
 if __name__ == "__main__":

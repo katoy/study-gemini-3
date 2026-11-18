@@ -22,7 +22,13 @@ from .build import AppShell, UiVars
 from .data_manager import DataManager
 from .download_manager import DownloadManager
 from .download_panel import GuiDownloadsMixin
-from .help_markdown import build_help_markdown, render_help_markdown
+from .help_markdown import (
+    HelpSection,
+    apply_help_search_highlights,
+    build_help_markdown,
+    find_help_matches,
+    render_help_markdown,
+)
 from .listing import GuiListingMixin
 from .protocols import GuiBrowserProtocol
 from .styling import GuiStylingMixin
@@ -190,6 +196,14 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.help_popup: tk.Toplevel | None = None
         self.help_text: tk.Text | None = None
         self.help_markdown_content: str | None = None
+        self.help_sections: list[HelpSection] = []
+        self.help_toc_tree: ttk.Treeview | None = None
+        self.help_toc_section_map: dict[str, str] = {}
+        self.help_search_var: tk.StringVar | None = None
+        self.help_search_count_var: tk.StringVar | None = None
+        self.help_search_entry: ttk.Entry | None = None
+        self.help_search_matches: list[tuple[str, str]] = []
+        self.help_search_index: int = -1
         self.tooltip_window: tk.Toplevel | None = None
         self.tooltip_label: tk.Label | None = None
         self.episode_context_menu: tk.Menu | None = None
@@ -481,29 +495,77 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         if self.help_popup is not None and self.help_popup.winfo_exists():
             self.help_popup.lift()
             self.help_popup.focus_force()
+            if self.help_search_entry is not None:
+                with contextlib.suppress(tk.TclError):
+                    self.help_search_entry.focus_set()
             return "break"
 
         popup = tk.Toplevel(self.root)
-        popup.title("ヘルプ / ショートカット")
-        popup.geometry("840x640")
-        popup.minsize(700, 500)
+        popup.title("使い方説明書 / ヘルプ")
+        popup.geometry("980x680")
+        popup.minsize(760, 520)
         popup.transient(self.root)
         popup.configure(background=self._palette["surface"])
-        popup.bind("<Escape>", lambda _event: popup.destroy())
+        popup.bind("<Escape>", self._handle_escape)
         popup.protocol("WM_DELETE_WINDOW", popup.destroy)
 
-        main = ttk.Frame(popup, padding=18)
+        main = ttk.Frame(popup, padding=16)
         main.pack(fill="both", expand=True)
         main.columnconfigure(0, weight=1)
-        main.rowconfigure(0, weight=1)
+        main.rowconfigure(0, weight=0)
+        main.rowconfigure(1, weight=1)
+        main.rowconfigure(2, weight=0)
+
+        search_bar = ttk.Frame(main, style="Card.TFrame", padding=(12, 8))
+        search_bar.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        search_bar.columnconfigure(1, weight=1)
+
+        ttk.Label(search_bar, text="説明書を検索:", style="CardTitle.TLabel").grid(row=0, column=0, padx=(0, 10))
+        self.help_search_var = tk.StringVar(popup, value="")
+        self.help_search_count_var = tk.StringVar(popup, value="")
+        self.help_search_entry = ttk.Entry(search_bar, textvariable=self.help_search_var)
+        self.help_search_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+        ttk.Label(search_bar, textvariable=self.help_search_count_var, style="Status.TLabel", width=12, anchor="e").grid(
+            row=0, column=2, padx=(0, 8)
+        )
+        ttk.Button(search_bar, text="▲ 前へ", command=self._help_search_prev, style="Quiet.TButton").grid(
+            row=0, column=3, padx=(0, 4)
+        )
+        ttk.Button(search_bar, text="▼ 次へ", command=self._help_search_next, style="Quiet.TButton").grid(
+            row=0, column=4, padx=(0, 4)
+        )
+        ttk.Button(search_bar, text="クリア", command=self._clear_help_search, style="Quiet.TButton").grid(
+            row=0, column=5
+        )
 
         body = ttk.Frame(main)
-        body.grid(row=0, column=0, sticky="nsew")
-        body.columnconfigure(0, weight=1)
+        body.grid(row=1, column=0, sticky="nsew")
+        body.columnconfigure(0, weight=0)
+        body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
 
+        toc_card = ttk.Frame(body, style="Card.TFrame", padding=10)
+        toc_card.grid(row=0, column=0, sticky="ns", padx=(0, 12))
+        toc_card.columnconfigure(0, weight=1)
+        toc_card.rowconfigure(1, weight=1)
+        ttk.Label(toc_card, text="目次", style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 6)
+        )
+        self.help_toc_tree = ttk.Treeview(toc_card, show="tree", selectmode="browse")
+        self.help_toc_tree.column("#0", width=230, minwidth=180, stretch=True)
+        self.help_toc_tree.grid(row=1, column=0, sticky="ns")
+        toc_scrollbar = ttk.Scrollbar(toc_card, orient="vertical", command=self.help_toc_tree.yview)
+        toc_scrollbar.grid(row=1, column=1, sticky="ns")
+        self.help_toc_tree.configure(yscrollcommand=toc_scrollbar.set)
+        self.help_toc_tree.bind("<<TreeviewSelect>>", self._on_help_toc_select)
+
+        text_frame = ttk.Frame(body)
+        text_frame.grid(row=0, column=1, sticky="nsew")
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+
         self.help_text = tk.Text(
-            body,
+            text_frame,
             wrap="word",
             relief="flat",
             bd=0,
@@ -511,14 +573,23 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
             cursor="arrow",
         )
         self.help_text.grid(row=0, column=0, sticky="nsew")
-        help_scrollbar = ttk.Scrollbar(body, orient="vertical", command=self.help_text.yview)
+        help_scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=self.help_text.yview)
         help_scrollbar.grid(row=0, column=1, sticky="ns")
         self.help_text.configure(yscrollcommand=help_scrollbar.set)
         self.help_markdown_content = build_help_markdown(self.programs)
-        render_help_markdown(self.help_text, self.help_markdown_content, self._palette, self._help_markdown_fonts())
+        self.help_sections = render_help_markdown(
+            self.help_text, self.help_markdown_content, self._palette, self._help_markdown_fonts()
+        )
+        self._populate_help_toc()
+        self.help_search_matches = []
+        self.help_search_index = -1
+
+        self.help_search_var.trace_add("write", self._on_help_search_change)
+        self.help_search_entry.bind("<Return>", self._help_search_next)
+        self.help_search_entry.bind("<Shift-Return>", self._help_search_prev)
 
         actions = ttk.Frame(main)
-        actions.grid(row=1, column=0, sticky="e", pady=(14, 0))
+        actions.grid(row=2, column=0, sticky="e", pady=(12, 0))
         ttk.Button(actions, text="閉じる", command=popup.destroy, style="Accent.TButton").grid(row=0, column=0)
 
         popup.update_idletasks()
@@ -534,13 +605,90 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
         self.help_popup = popup
         popup.bind(
             "<Destroy>",
-            lambda _event: (
-                setattr(self, "help_popup", None),
-                setattr(self, "help_text", None),
-                setattr(self, "help_markdown_content", None),
-            ),
+            lambda event: self._reset_help_dialog_state() if getattr(event, "widget", popup) is popup else None,
             add="+",
         )
+        return "break"
+
+    def _reset_help_dialog_state(self) -> None:
+        self.help_popup = None
+        self.help_text = None
+        self.help_markdown_content = None
+        self.help_sections = []
+        self.help_toc_tree = None
+        self.help_toc_section_map = {}
+        self.help_search_var = None
+        self.help_search_count_var = None
+        self.help_search_entry = None
+        self.help_search_matches = []
+        self.help_search_index = -1
+
+    def _populate_help_toc(self) -> None:
+        if self.help_toc_tree is None:
+            return
+        self.help_toc_tree.delete(*self.help_toc_tree.get_children())
+        self.help_toc_section_map = {}
+        toc_sections = [s for s in self.help_sections if s.level >= 2] or list(self.help_sections)
+        for section in toc_sections:
+            label = f"  {section.title}" if section.level >= 3 else section.title
+            item_id = self.help_toc_tree.insert("", "end", text=label)
+            self.help_toc_section_map[item_id] = section.index
+
+    def _on_help_toc_select(self, _event=None) -> None:
+        if self.help_toc_tree is None or self.help_text is None:
+            return
+        selected = self.help_toc_tree.selection()
+        if not selected:
+            return
+        index = self.help_toc_section_map.get(selected[0])
+        if not index:
+            return
+        self.help_text.see(index)
+        self.help_text.yview(index)
+
+    def _on_help_search_change(self, *_args) -> None:
+        if self.help_text is None or self.help_search_var is None:
+            return
+        query = self.help_search_var.get()
+        rendered_text = self.help_text.get("1.0", "end-1c")
+        self.help_search_matches = find_help_matches(rendered_text, query)
+        self.help_search_index = 0 if self.help_search_matches else -1
+        self._refresh_help_search_ui()
+
+    def _refresh_help_search_ui(self) -> None:
+        if self.help_text is None:
+            return
+        query = self.help_search_var.get().strip() if self.help_search_var is not None else ""
+        matches = self.help_search_matches
+        apply_help_search_highlights(self.help_text, matches, max(self.help_search_index, 0))
+        if self.help_search_count_var is None:
+            return
+        if not query:
+            self.help_search_count_var.set("")
+        elif not matches:
+            self.help_search_count_var.set("0 件")
+        else:
+            pos = (self.help_search_index % len(matches)) + 1
+            self.help_search_count_var.set(f"{pos} / {len(matches)} 件")
+
+    def _help_search_next(self, _event=None) -> str:
+        if self.help_search_matches:
+            self.help_search_index = (self.help_search_index + 1) % len(self.help_search_matches)
+            self._refresh_help_search_ui()
+        return "break"
+
+    def _help_search_prev(self, _event=None) -> str:
+        if self.help_search_matches:
+            self.help_search_index = (self.help_search_index - 1) % len(self.help_search_matches)
+            self._refresh_help_search_ui()
+        return "break"
+
+    def _clear_help_search(self, _event=None) -> str:
+        if self.help_search_var is not None:
+            self.help_search_var.set("")
+        if self.help_search_entry is not None:
+            with contextlib.suppress(tk.TclError):
+                self.help_search_entry.focus_set()
         return "break"
 
     def _help_markdown_fonts(self) -> dict[str, tuple]:
@@ -555,6 +703,8 @@ class EpisodeGuiBrowser(GuiStylingMixin, GuiListingMixin, GuiDownloadsMixin):
 
     def _handle_escape(self, _event=None):
         if self.help_popup is not None and self.help_popup.winfo_exists():
+            if self.help_search_var is not None and self.help_search_var.get().strip():
+                return self._clear_help_search()
             self.help_popup.destroy()
             return "break"
         if self.current_screen == "settings":

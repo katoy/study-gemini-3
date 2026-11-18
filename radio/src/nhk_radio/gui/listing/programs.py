@@ -343,6 +343,15 @@ class GuiProgramsMixin:
         self.selected_program_key = self._program_key(self.program_tree_programs.get(item_id))
 
     def _focus_program_search(self, _event=None):
+        help_popup = getattr(self, "help_popup", None)
+        help_search_entry = getattr(self, "help_search_entry", None)
+        if help_popup is not None and help_search_entry is not None:
+            with suppress(tk.TclError):
+                if help_popup.winfo_exists():
+                    help_search_entry.focus_set()
+                    with suppress(AttributeError, tk.TclError):
+                        help_search_entry.selection_range(0, "end")
+                    return "break"
         if hasattr(self, "program_search_entry"):
             self.program_search_entry.focus_set()
         return "break"
